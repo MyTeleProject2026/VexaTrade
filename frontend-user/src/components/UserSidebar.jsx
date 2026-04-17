@@ -41,7 +41,6 @@ function safeParse(value) {
 
 function getKycBadgeClass(status) {
   const value = String(status || "").toLowerCase();
-
   if (value === "approved") {
     return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/25";
   }
@@ -51,20 +50,17 @@ function getKycBadgeClass(status) {
   if (value === "rejected") {
     return "bg-red-500/20 text-red-300 border border-red-500/25";
   }
-
   return "bg-slate-500/20 text-slate-300 border border-slate-500/25";
 }
 
 function getStatusBadgeClass(status) {
   const value = String(status || "").toLowerCase();
-
   if (value === "active") {
     return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/25";
   }
   if (value === "frozen") {
     return "bg-amber-500/20 text-amber-300 border border-amber-500/25";
   }
-
   return "bg-red-500/20 text-red-300 border border-red-500/25";
 }
 
@@ -81,6 +77,10 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
     status: "active",
     balance: 0,
   });
+  
+  // Joint account combined balance state
+  const [combinedBalance, setCombinedBalance] = useState(null);
+  const [hasJointAccount, setHasJointAccount] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -118,12 +118,30 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
 
         if (!token) return;
 
-        const res = await userApi.getWalletSummary(token);
-        const walletData = res?.data?.data || {};
+        // Get wallet summary
+        const walletRes = await userApi.getWalletSummary(token);
+        const walletData = walletRes?.data?.data || {};
+
+        // Get combined balance for joint account
+        const combinedRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const combinedData = await combinedRes.json();
+
+        let displayBalance = Number(walletData?.balance || baseUser.balance || 0);
+        
+        if (combinedData.success && combinedData.data.hasJointAccount) {
+          setHasJointAccount(true);
+          setCombinedBalance(combinedData.data.combinedBalance);
+          displayBalance = combinedData.data.combinedBalance;
+        } else {
+          setHasJointAccount(false);
+          setCombinedBalance(null);
+        }
 
         const nextUser = {
           ...baseUser,
-          balance: Number(walletData?.balance || baseUser.balance || 0),
+          balance: displayBalance,
           uid: walletData?.user?.uid || baseUser.uid,
           status: walletData?.user?.status || baseUser.status,
           kyc_status: walletData?.user?.kyc_status || baseUser.kyc_status,
@@ -158,6 +176,8 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
     user?.avatar_url || user?.avatar || user?.profile_image || ""
   );
 
+  const displayBalance = hasJointAccount && combinedBalance !== null ? combinedBalance : user.balance;
+
   function goTo(path) {
     navigate(path);
     onNavigate?.();
@@ -171,7 +191,7 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
     localStorage.removeItem("user");
     localStorage.removeItem("userData");
     localStorage.removeItem("role");
-    sessionStorage.removeItem("VexaTrade_passcode_verified");
+    sessionStorage.removeItem("cryptopulse_passcode_verified");
 
     navigate("/login");
     onNavigate?.();
@@ -224,15 +244,21 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-white/10 bg-[#050812]/30 p-4">
+          <div className="rounded-[26px] border border-white/10 bg-black/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-              Balance
+              {hasJointAccount ? "Combined Balance" : "Balance"}
             </div>
 
             <div className="mt-3 text-[20px] font-bold text-white">
-              {Number(user.balance || 0).toFixed(2)}{" "}
+              {Number(displayBalance || 0).toFixed(2)}{" "}
               <span className="text-base text-slate-300">USDT</span>
             </div>
+
+            {hasJointAccount && (
+              <div className="mt-1 text-[10px] text-cyan-400">
+                Joint account (shared balance)
+              </div>
+            )}
 
             <div className="mt-3 text-sm text-slate-500">
               UID: {user.uid || "--"}

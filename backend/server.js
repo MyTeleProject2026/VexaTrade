@@ -7554,23 +7554,36 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
    JOINT ACCOUNT COMBINED BALANCE
 ========================= */
 
+/* =========================
+   JOINT ACCOUNT COMBINED BALANCE
+========================= */
+
 app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res, next) => {
   try {
-    // Get current user's UID from database
+    // Get current user
     const [userRows] = await pool.execute(
       "SELECT id, uid, balance FROM users WHERE id = ? LIMIT 1",
       [req.user.id]
     );
     
     if (!userRows.length) {
-      return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: 0, userBalance: 0, partnerBalance: 0, partnerName: null } });
+      return res.json({ 
+        success: true, 
+        data: { 
+          hasJointAccount: false, 
+          combinedBalance: 0,
+          userBalance: 0,
+          partnerBalance: 0,
+          partnerName: null
+        } 
+      });
     }
     
     const currentUser = userRows[0];
     const currentUid = currentUser.uid;
     const currentBalance = Number(currentUser.balance || 0);
     
-    // Check if user has active joint account
+    // Check for active joint account
     const [jointRows] = await pool.execute(
       `SELECT * FROM joint_accounts 
        WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active'`,
@@ -7600,7 +7613,7 @@ app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res
       partnerUid = jointAccount.user1_uid;
     }
     
-    // Get partner's balance and info
+    // Get partner's balance
     const [partnerRows] = await pool.execute(
       "SELECT id, uid, name, email, balance FROM users WHERE uid = ? LIMIT 1",
       [partnerUid]

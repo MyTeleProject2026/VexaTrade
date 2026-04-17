@@ -9,6 +9,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   ArrowRightLeft,
+  Users,
 } from "lucide-react";
 import { userApi, marketApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
@@ -30,7 +31,7 @@ function formatCompactNumber(value) {
   return num.toString();
 }
 
-function StatCard({ title, value, change, icon: Icon, onClick }) {
+function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
   const isPositive = Number(change || 0) >= 0;
   
   return (
@@ -47,6 +48,9 @@ function StatCard({ title, value, change, icon: Icon, onClick }) {
         <div className={`mt-1 text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
           {isPositive ? "+" : ""}{change}%
         </div>
+      )}
+      {subtext && (
+        <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>
       )}
     </div>
   );
@@ -97,16 +101,20 @@ export default function DashboardPage() {
   const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
   const [markets, setMarkets] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [combinedBalanceData, setCombinedBalanceData] = useState(null);
 
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
       else setRefreshing(true);
 
-      const [walletRes, marketRes, notifRes] = await Promise.allSettled([
+      const [walletRes, marketRes, notifRes, combinedRes] = await Promise.allSettled([
         userApi.getWalletSummary(token),
         marketApi.home(),
         userApi.getNotifications(token),
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => res.json())
       ]);
 
       if (walletRes.status === "fulfilled") {
@@ -117,6 +125,9 @@ export default function DashboardPage() {
       }
       if (notifRes.status === "fulfilled") {
         setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
+      }
+      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
+        setCombinedBalanceData(combinedRes.value.data);
       }
     } catch (err) {
       showError(getApiErrorMessage(err));
@@ -134,6 +145,11 @@ export default function DashboardPage() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
   const topMarkets = markets.slice(0, 8);
+  
+  const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
+  const displayBalance = hasJointAccount 
+    ? combinedBalanceData.combinedBalance 
+    : (wallet.balance || 0);
 
   if (loading) {
     return (
@@ -181,11 +197,12 @@ export default function DashboardPage() {
       {/* Balance Cards */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
-          title="Total Balance"
-          value={`$${formatMoney(wallet.balance)}`}
+          title={hasJointAccount ? "Combined Balance" : "Total Balance"}
+          value={`$${formatMoney(displayBalance)}`}
           change="2.95"
-          icon={Wallet}
+          icon={hasJointAccount ? Users : Wallet}
           onClick={() => navigate("/assets")}
+          subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
         />
         <StatCard
           title="24h Change"
