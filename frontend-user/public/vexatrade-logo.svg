@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 140" width="500" height="140">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="cyanGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#22d3ee;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="darkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f1422;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:0" />
+    </linearGradient>
+    
+    <!-- Glow filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Background glow circle -->
+  <circle cx="70" cy="70" r="60" fill="url(#glowGradient)" filter="url(#softGlow)"/>
+  
+  <!-- Icon Background -->
+  <rect x="15" y="15" width="110" height="110" rx="24" fill="url(#darkGradient)" stroke="url(#cyanGradient)" stroke-width="2.5" filter="url(#glow)"/>
+  
+  <!-- Inner border -->
+  <rect x="25" y="25" width="90" height="90" rx="16" fill="none" stroke="#06b6d4" stroke-width="0.5" stroke-opacity="0.3"/>
+  
+  <!-- Candlestick 1 (Bullish - Green/Cyan) -->
+  <rect x="40" y="55" width="10" height="40" rx="2" fill="url(#cyanGradient)"/>
+  <line x1="45" y1="48" x2="45" y2="55" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="45" y1="95" x2="45" y2="100" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Candlestick 2 (Bearish - Red) -->
+  <rect x="55" y="42" width="10" height="53" rx="2" fill="#ef4444"/>
+  <line x1="60" y1="36" x2="60" y2="42" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="60" y1="95" x2="60" y2="100" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Candlestick 3 (Bullish - Cyan) -->
+  <rect x="70" y="65" width="10" height="30" rx="2" fill="url(#cyanGradient)"/>
+  <line x1="75" y1="58" x2="75" y2="65" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="75" y1="95" x2="75" y2="100" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Candlestick 4 (Small Bullish) -->
+  <rect x="85" y="75" width="10" height="20" rx="2" fill="url(#cyanGradient)"/>
+  <line x1="90" y1="70" x2="90" y2="75" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="90" y1="95" x2="90" y2="98" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Upward Trend Arrow -->
+  <polygon points="50,35 65,35 57.5,25" fill="url(#cyanGradient)" filter="url(#glow)"/>
+  
+  <!-- Small decorative dots -->
+  <circle cx="38" cy="38" r="2" fill="#06b6d4" opacity="0.6"/>
+  <circle cx="97" cy="38" r="2" fill="#06b6d4" opacity="0.6"/>
+  <circle cx="97" cy="97" r="2" fill="#06b6d4" opacity="0.6"/>
+  
+  <!-- Text Section -->
+  <!-- Main Title VEXA -->
+  <text x="145" y="52" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="42" font-weight="800" letter-spacing="4" fill="#ffffff">
+    VEXA
+  </text>
+  
+  <!-- Subtitle TRADE with gradient -->
+  <text x="145" y="88" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="700" letter-spacing="6" fill="url(#cyanGradient)" filter="url(#glow)">
+    TRADE
+  </text>
+  
+  <!-- Decorative line -->
+  <line x1="145" y1="96" x2="310" y2="96" stroke="url(#cyanGradient)" stroke-width="1.5" stroke-opacity="0.5"/>
+  
+  <!-- Tagline -->
+  <text x="145" y="112" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" font-weight="500" letter-spacing="4" fill="#64748b">
+    CRYPTO TRADING PLATFORM
+  </text>
+  
+  <!-- Small decorative elements -->
+  <rect x="145" y="118" width="4" height="4" rx="1" fill="#06b6d4" opacity="0.5"/>
+  <rect x="155" y="118" width="4" height="4" rx="1" fill="#06b6d4" opacity="0.3"/>
+  <rect x="165" y="118" width="4" height="4" rx="1" fill="#06b6d4" opacity="0.1"/>
+</svg>
