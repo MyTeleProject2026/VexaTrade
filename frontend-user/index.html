@@ -2,8 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vexatrade-logo.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/vexatrade-icon.svg" />
+    
+    <!-- Viewport Settings for Mobile PWA -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    
+    <!-- PWA / Home Screen Settings -->
+    <meta name="theme-color" content="#0a0e1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VexaTrade" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="full-screen" content="yes" />
     
     <!-- Primary Meta Tags -->
     <title>VexaTrade | Crypto Trading Platform</title>
@@ -25,18 +35,10 @@
     <meta property="twitter:title" content="VexaTrade - Crypto Trading Platform" />
     <meta property="twitter:description" content="Trade cryptocurrencies with confidence. Advanced trading tools, joint accounts, QR transfers, and professional dashboard." />
     
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
     <title>VexaTrade | Crypto Trading Platform</title>
-    <!-- PWA / Home Screen Icons -->
-    <!-- PWA / Home Screen Icons - Using SVG only -->
-    <link rel="apple-touch-icon" href="/vexatrade-icon.svg">
-    <link rel="icon" type="image/svg+xml" href="/vexatrade-icon.svg">
-    <link rel="manifest" href="/manifest.json">
-
-    <!-- Theme color -->
-    <meta name="theme-color" content="#0a0e1a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="VexaTrade">
   </head>
   <body>
     <div id="root"></div>

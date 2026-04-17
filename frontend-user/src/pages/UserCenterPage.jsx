@@ -83,15 +83,16 @@ function getKycClass(status) {
   return "border border-white/10 bg-white/[0.04] text-slate-300";
 }
 
-// Simple image cropper component
+// ImageCropper Component - FIXED
 function ImageCropper({ imageFile, onCropComplete, onCancel }) {
   const [zoom, setZoom] = useState(1);
   const [imageSrc, setImageSrc] = useState(null);
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  
   const imageRef = useRef(null);
   const containerRef = useRef(null);
   const cropSize = 200;
@@ -113,9 +114,10 @@ function ImageCropper({ imageFile, onCropComplete, onCancel }) {
         width: img.naturalWidth,
         height: img.naturalHeight
       });
+      // Center the crop area
       setCropPosition({
-        x: (img.naturalWidth - cropSize) / 2,
-        y: (img.naturalHeight - cropSize) / 2
+        x: Math.max(0, (img.naturalWidth - cropSize) / 2),
+        y: Math.max(0, (img.naturalHeight - cropSize) / 2)
       });
     }
   }, [imageLoaded, cropSize]);
@@ -131,12 +133,15 @@ function ImageCropper({ imageFile, onCropComplete, onCancel }) {
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
     
+    const scaleX = imageRef.current.clientWidth / imageDimensions.width;
+    const scaleY = imageRef.current.clientHeight / imageDimensions.height;
+    
     const newX = Math.min(
-      Math.max(0, cropPosition.x - dx * (imageDimensions.width / (imageRef.current.clientWidth || 1))),
+      Math.max(0, cropPosition.x - dx / scaleX),
       imageDimensions.width - cropSize
     );
     const newY = Math.min(
-      Math.max(0, cropPosition.y - dy * (imageDimensions.height / (imageRef.current.clientHeight || 1))),
+      Math.max(0, cropPosition.y - dy / scaleY),
       imageDimensions.height - cropSize
     );
     
@@ -146,6 +151,31 @@ function ImageCropper({ imageFile, onCropComplete, onCancel }) {
 
   const handleMouseUp = () => {
     setIsDragging(false);
+  };
+
+  const handleCrop = () => {
+    if (!imageLoaded || !imageRef.current) {
+      alert("Please wait for image to load");
+      return;
+    }
+    
+    const image = imageRef.current;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = cropSize;
+    canvas.height = cropSize;
+    
+    ctx.drawImage(
+      image,
+      cropPosition.x, cropPosition.y, cropSize, cropSize,
+      0, 0, cropSize, cropSize
+    );
+    
+    canvas.toBlob((blob) => {
+      const file = new File([blob], "cropped-avatar.jpg", { type: "image/jpeg" });
+      onCropComplete(file);
+    }, "image/jpeg", 0.9);
   };
 
   const containerStyle = {
@@ -167,38 +197,9 @@ function ImageCropper({ imageFile, onCropComplete, onCancel }) {
     maxHeight: 'none',
   };
 
-  const handleCrop = () => {
-    if (!imageLoaded || !imageRef.current) {
-      alert("Image not ready. Please wait.");
-      return;
-    }
-    const image = imageRef.current;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    canvas.width = cropSize;
-    canvas.height = cropSize;
-    
-    const sx = cropPosition.x;
-    const sy = cropPosition.y;
-    const sWidth = cropSize;
-    const sHeight = cropSize;
-    
-    ctx.drawImage(
-      image,
-      sx, sy, sWidth, sHeight,
-      0, 0, cropSize, cropSize
-    );
-    
-    canvas.toBlob((blob) => {
-      const file = new File([blob], "cropped-avatar.jpg", { type: "image/jpeg" });
-      onCropComplete(file);
-    }, "image/jpeg", 0.9);
-  };
-
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#050812]/90 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0e1a] p-6">
         <h3 className="mb-4 text-xl font-bold text-white">Crop Avatar</h3>
         
         <div className="relative">
@@ -221,8 +222,11 @@ function ImageCropper({ imageFile, onCropComplete, onCancel }) {
               />
             )}
           </div>
+          {/* Crop overlay */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] rounded-xl" />
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <div className="w-[200px] h-[200px] border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] rounded-xl" />
+            </div>
           </div>
         </div>
         

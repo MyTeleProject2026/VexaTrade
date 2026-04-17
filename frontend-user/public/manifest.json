@@ -4,9 +4,11 @@
   "description": "Crypto trading platform",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#050812",
   "theme_color": "#0a0e1a",
   "orientation": "portrait",
+  "scope": "/",
   "icons": [
     {
       "src": "/vexatrade-icon.svg",

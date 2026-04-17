@@ -147,7 +147,7 @@ export default function UserLayout() {
         }
 
         const baseUrl =
-          import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+          import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
 
         const res = await fetch(`${baseUrl}/api/user/notifications`, {
           headers: {
@@ -223,8 +223,14 @@ export default function UserLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050812] text-white">
-      <div className="flex min-h-screen">
+    <div className="min-h-screen bg-[#050812] text-white relative">
+      {/* Background gradient overlay for better mobile experience */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.08),transparent_18%)]" />
+      </div>
+      
+      {/* Main content */}
+      <div className="relative z-10 flex min-h-screen">
         <aside className="hidden md:block md:shrink-0">
           <div className="h-screen">
             <UserSidebar />
@@ -235,7 +241,7 @@ export default function UserLayout() {
           <div className="fixed inset-0 z-50 flex md:hidden">
             <button
               type="button"
-              className="flex-1 bg-[#050812]/60 backdrop-blur-sm"
+              className="flex-1 bg-black/60 backdrop-blur-sm"
               onClick={() => setSidebarOpen(false)}
             />
             <div className="h-full w-[85%] max-w-sm border-l border-white/10 bg-[#0a0e1a] shadow-2xl">
