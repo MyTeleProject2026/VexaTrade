@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import ImageCropper from "../components/ImageCropper";
+
 import {
   Mail,
   Shield,
