@@ -74,9 +74,9 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://cryptopulse-v3.onrender.com",
-  "https://cryptopulse-admin-control-panel.onrender.com",
-  "https://cryptopulse-4rhe.onrender.com",
+  "https://vexatrade.onrender.com",
+  "https://vexatrade-admin.onrender.com",
+  "https://vexatrade-server.onrender.com",
 ].filter(Boolean);
 
 const corsOptions = {
@@ -1575,7 +1575,7 @@ app.post("/api/auth/forgot-password", async (req, res, next) => {
       [user.id, resetToken, resetToken]
     );
 
-    const resetLink = `${process.env.FRONTEND_USER_URL || "https://cryptopulse-v3.onrender.com"}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_USER_URL || "https://vexatrade.onrender.com"}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail({ to: email, resetLink });
 
