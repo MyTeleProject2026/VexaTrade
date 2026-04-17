@@ -26,12 +26,8 @@ const PAGE_META = {
     subtitle: "Exchange supported assets",
   },
   "/transactions": {
-    title: "Notifications and transaction history",
+    title: "Activity",
     subtitle: "Alerts, updates, deposits, withdrawals, fund updates, and trade history",
-  },
-  "/notifications": {
-    title: "Notifications",
-    subtitle: "Alerts, messages, and updates",
   },
   "/profile": {
     title: "Profile",
@@ -76,7 +72,6 @@ function getPageMeta(pathname) {
   if (pathname.startsWith("/loan")) return PAGE_META["/loan"];
   if (pathname.startsWith("/legal-documents")) return PAGE_META["/legal-documents"];
   if (pathname.startsWith("/transactions")) return PAGE_META["/transactions"];
-  if (pathname.startsWith("/notifications")) return PAGE_META["/notifications"];
   if (pathname.startsWith("/convert")) return PAGE_META["/convert"];
   if (pathname.startsWith("/kyc")) return PAGE_META["/kyc"];
   if (pathname.startsWith("/assets")) return PAGE_META["/assets"];
@@ -97,7 +92,6 @@ function shouldShowBackButton(pathname) {
     "/kyc",
     "/convert",
     "/transactions",
-    "/notifications",
     "/profile/user-center",
     "/loan",
     "/legal-documents",
@@ -115,21 +109,24 @@ export default function UserLayout() {
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
   const showBackButton = shouldShowBackButton(location.pathname);
 
+  // Prevent body scroll when sidebar is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
+
+  // Close sidebar on route change
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (!sidebarOpen) return;
-
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = oldOverflow;
-    };
-  }, [sidebarOpen]);
-
+  // Load unread notifications count
   useEffect(() => {
     let ignore = false;
 
@@ -223,28 +220,25 @@ export default function UserLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050812] text-white relative">
-      {/* Background gradient overlay for better mobile experience */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.08),transparent_18%)]" />
-      </div>
-      
-      {/* Main content */}
-      <div className="relative z-10 flex min-h-screen">
+    <div className="min-h-screen bg-[#050812] text-white">
+      <div className="flex min-h-screen">
+        {/* Desktop Sidebar */}
         <aside className="hidden md:block md:shrink-0">
-          <div className="h-screen">
+          <div className="h-screen sticky top-0">
             <UserSidebar />
           </div>
         </aside>
 
-        {sidebarOpen ? (
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden">
             <button
               type="button"
               className="flex-1 bg-black/60 backdrop-blur-sm"
               onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar"
             />
-            <div className="h-full w-[85%] max-w-sm border-l border-white/10 bg-[#0a0e1a] shadow-2xl">
+            <div className="h-full w-[85%] max-w-sm border-l border-white/10 bg-[#0a0e1a] shadow-2xl overflow-y-auto">
               <UserSidebar
                 onNavigate={() => setSidebarOpen(false)}
                 onClose={() => setSidebarOpen(false)}
@@ -252,32 +246,36 @@ export default function UserLayout() {
               />
             </div>
           </div>
-        ) : null}
+        )}
 
+        {/* Main Content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl">
+          {/* Header */}
+          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl safe-top">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
                 {showBackButton ? (
                   <button
                     type="button"
                     onClick={handleBack}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-white"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white"
+                    aria-label="Go back"
                   >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={18} />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(true)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/5 text-white md:hidden"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white md:hidden"
+                    aria-label="Open menu"
                   >
-                    <Menu size={20} />
+                    <Menu size={18} />
                   </button>
                 )}
 
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-white">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-base font-semibold text-white sm:text-lg">
                     {pageMeta.title}
                   </div>
                   <div className="truncate text-xs text-gray-400">
@@ -286,34 +284,38 @@ export default function UserLayout() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
                   onClick={openWallet}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white sm:h-10 sm:w-10"
+                  aria-label="Wallet"
                 >
-                  <Wallet size={18} />
+                  <Wallet size={16} className="sm:h-[18px] sm:w-[18px]" />
                 </button>
 
                 <button
                   type="button"
                   onClick={openNotifications}
-                  className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/5 text-white"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white sm:h-10 sm:w-10"
+                  aria-label="Notifications"
                 >
-                  <Bell size={18} />
-                  {hasUnread ? (
-                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
-                  ) : null}
+                  <Bell size={16} className="sm:h-[18px] sm:w-[18px]" />
+                  {hasUnread && (
+                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+                  )}
                 </button>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto pb-24 md:pb-6">
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
             <Outlet />
           </main>
 
-          <div className="md:hidden">
+          {/* Mobile Bottom Navigation */}
+          <div className="md:hidden safe-bottom">
             <MobileBottomNav />
           </div>
         </div>

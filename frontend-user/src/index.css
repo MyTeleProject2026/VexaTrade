@@ -3,44 +3,31 @@
 @tailwind utilities;
 
 @layer base {
+  /* Fix for mobile viewport height */
+  html {
+    height: -webkit-fill-available;
+    overflow-x: hidden;
+  }
+  
   body {
     background-color: #050812;
     color: #ffffff;
-  }
-  
-  /* Prevent browser UI from showing on scroll - Mobile PWA fix */
-  html {
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  body {
-    overflow-x: hidden;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* For better mobile experience - fullscreen PWA */
-@media (max-width: 768px) {
-  body {
-    position: relative;
-    height: 100%;
+    min-height: 100vh;
     min-height: -webkit-fill-available;
+    overflow-x: hidden;
+    position: relative;
   }
   
-  html {
-    height: -webkit-fill-available;
+  /* Fix for iOS height issues */
+  #root {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
   }
 }
 
-/* Hide scrollbar but keep functionality - Cleaner look */
+/* Hide scrollbar but keep functionality */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -73,5 +60,14 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  
+  /* Safe area padding for notches */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }

@@ -13,7 +13,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="VexaTrade" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="full-screen" content="yes" />
     
     <!-- Primary Meta Tags -->
     <title>VexaTrade | Crypto Trading Platform</title>
@@ -21,27 +20,29 @@
     <meta name="description" content="Trade cryptocurrencies with confidence. Advanced trading tools, joint accounts, QR transfers, and professional dashboard." />
     <meta name="keywords" content="crypto, trading, bitcoin, ethereum, cryptocurrency exchange, VexaTrade" />
     
-    <!-- Open Graph / Facebook / WhatsApp / Telegram -->
+    <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://vexatrade.onrender.com/" />
     <meta property="og:title" content="VexaTrade - Crypto Trading Platform" />
     <meta property="og:description" content="Trade cryptocurrencies with confidence. Advanced trading tools, joint accounts, QR transfers, and professional dashboard." />
-    <meta property="og:image" content="https://vexatrade.onrender.com/og-image.png" />
     <meta property="og:site_name" content="VexaTrade" />
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://vexatrade.onrender.com/" />
-    <meta property="twitter:title" content="VexaTrade - Crypto Trading Platform" />
-    <meta property="twitter:description" content="Trade cryptocurrencies with confidence. Advanced trading tools, joint accounts, QR transfers, and professional dashboard." />
     
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    
-    <title>VexaTrade | Crypto Trading Platform</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker registered:', reg))
+            .catch(err => console.log('Service Worker failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>
