@@ -31,7 +31,7 @@ function getStatusClass(status) {
 
 function StatCard({ label, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
@@ -42,7 +42,7 @@ function StatCard({ label, value, tone = "text-white" }) {
 
 function InfoBox({ label, value, valueClassName = "text-white", breakAll = false }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">
         {label}
       </div>
@@ -218,7 +218,7 @@ export default function AdminWithdrawalsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading withdrawals...
       </div>
     );
@@ -229,7 +229,7 @@ export default function AdminWithdrawalsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Withdrawals
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -245,7 +245,7 @@ export default function AdminWithdrawalsPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -292,7 +292,7 @@ export default function AdminWithdrawalsPage() {
         </div>
       ) : null}
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="grid gap-3 lg:grid-cols-4">
           <div className="relative">
             <Search
@@ -305,7 +305,7 @@ export default function AdminWithdrawalsPage() {
               value={filters.search}
               onChange={handleFilterChange}
               placeholder="Search by ID, user, coin, address..."
-              className="w-full rounded-2xl border border-white/10 bg-slate-800 py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-violet-500"
+              className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-500"
             />
           </div>
 
@@ -313,7 +313,7 @@ export default function AdminWithdrawalsPage() {
             name="status"
             value={filters.status}
             onChange={handleFilterChange}
-            className="rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-violet-500"
+            className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -325,7 +325,7 @@ export default function AdminWithdrawalsPage() {
             name="coin"
             value={filters.coin}
             onChange={handleFilterChange}
-            className="rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-violet-500"
+            className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           >
             {coinOptions.map((coin) => (
               <option key={coin} value={coin}>
@@ -338,7 +338,7 @@ export default function AdminWithdrawalsPage() {
             name="network"
             value={filters.network}
             onChange={handleFilterChange}
-            className="rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-violet-500"
+            className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           >
             {networkOptions.map((network) => (
               <option key={network} value={network}>
@@ -354,13 +354,13 @@ export default function AdminWithdrawalsPage() {
           <h2 className="text-lg font-semibold text-white sm:text-xl">
             Withdrawal Requests
           </h2>
-          <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+          <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
             {filteredWithdrawals.length} Record{filteredWithdrawals.length === 1 ? "" : "s"}
           </span>
         </div>
 
         {filteredWithdrawals.length === 0 ? (
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-400">
+          <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a]/40 px-4 py-10 text-center text-sm text-slate-400">
             No withdrawals found.
           </div>
         ) : (
@@ -372,7 +372,7 @@ export default function AdminWithdrawalsPage() {
             return (
               <div
                 key={w.id}
-                className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5"
+                className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5"
               >
                 <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
                   <div className="min-w-0">
@@ -381,7 +381,7 @@ export default function AdminWithdrawalsPage() {
                         Withdrawal #{w.id}
                       </h3>
 
-                      <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+                      <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
                         User #{w.user_id}
                       </span>
 
@@ -416,25 +416,25 @@ export default function AdminWithdrawalsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
                       <div className="text-base font-semibold text-white">
                         Request Summary
                       </div>
 
                       <div className="mt-4 space-y-3">
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-3">
                           <span className="text-slate-400">User ID</span>
                           <span className="text-white">#{w.user_id}</span>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-3">
                           <span className="text-slate-400">Amount</span>
                           <span className="font-semibold text-cyan-300">
                             {formatAmount(w.amount)} USDT
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-3">
                           <span className="text-slate-400">Status</span>
                           <span className="text-white capitalize">{status || "pending"}</span>
                         </div>
@@ -462,7 +462,7 @@ export default function AdminWithdrawalsPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-4 text-center text-sm text-slate-400">
+                      <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-4 text-center text-sm text-slate-400">
                         This request has already been processed.
                       </div>
                     )}

@@ -66,7 +66,7 @@ export default function AdminJointAccountsPage() {
   
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading joint accounts...
       </div>
     );
@@ -77,7 +77,7 @@ export default function AdminJointAccountsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Joint Accounts
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -111,10 +111,10 @@ export default function AdminJointAccountsPage() {
         </div>
       )}
       
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 shadow-xl overflow-hidden">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="border-b border-white/10 bg-slate-950/40 text-xs uppercase tracking-wider text-slate-500">
+            <thead className="border-b border-white/10 bg-[#050812]/40 text-xs uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-5 py-4">Account ID</th>
                 <th className="px-5 py-4">User 1</th>

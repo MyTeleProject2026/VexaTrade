@@ -82,14 +82,14 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.12),transparent_18%),linear-gradient(180deg,#05070d_0%,#02040a_100%)] px-4 py-8 text-white">
+    <div className="min-h-screen bg-[#050812] px-4 py-8 text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/80 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur xl:grid-cols-[1.05fr_0.95fr]">
-          <section className="hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.08),transparent_18%),linear-gradient(180deg,#0b1120_0%,#050816_100%)] p-8 xl:flex xl:flex-col xl:justify-between">
+        <div className="grid w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0e1a] shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur xl:grid-cols-[1.05fr_0.95fr]">
+          <section className="hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-8 xl:flex xl:flex-col xl:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-violet-300">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-300">
                 <ShieldCheck size={13} />
-                CryptoPulse Admin
+                VexaTrade Admin
               </div>
 
               <h1 className="mt-5 text-3xl font-bold leading-tight text-white">
@@ -126,9 +126,9 @@ export default function AdminLoginPage() {
           <section className="p-5 sm:p-7 xl:p-8">
             <div className="mx-auto w-full max-w-md">
               <div className="mb-7 xl:hidden">
-                <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-violet-300">
+                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-300">
                   <ShieldCheck size={13} />
-                  CryptoPulse Admin
+                  VexaTrade Admin
                 </div>
               </div>
 
@@ -154,13 +154,13 @@ export default function AdminLoginPage() {
                     onChange={handleChange}
                     placeholder="admin@gmail.com"
                     autoComplete="email"
-                    className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-500"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-500"
                   />
                 </div>
 
                 <div>
                   <label className="mb-2 flex items-center gap-2 text-sm text-slate-300">
-                    <LockKeyhole size={14} className="text-violet-300" />
+                    <LockKeyhole size={14} className="text-cyan-300" />
                     Password
                   </label>
                   <input
@@ -170,7 +170,7 @@ export default function AdminLoginPage() {
                     onChange={handleChange}
                     placeholder="Enter password"
                     autoComplete="current-password"
-                    className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-500"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-500"
                   />
                 </div>
 
@@ -183,7 +183,7 @@ export default function AdminLoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? (
                     <>

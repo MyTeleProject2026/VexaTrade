@@ -21,7 +21,7 @@ function StatusBadge({ status }) {
 
 function StatCard({ title, value, color, icon: Icon }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
           {title}
@@ -38,7 +38,7 @@ function StatCard({ title, value, color, icon: Icon }) {
 function buildImageUrl(path) {
   if (!path) return "";
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
   return `${base}${path}`;
 }
 
@@ -159,7 +159,7 @@ export default function AdminKycPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading KYC submissions...
       </div>
     );
@@ -206,7 +206,7 @@ export default function AdminKycPage() {
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <h2 className="text-lg font-semibold text-white">KYC Submission List</h2>
           <p className="mt-2 text-sm text-slate-400">
             Open a submission to review identity details and documents.
@@ -214,7 +214,7 @@ export default function AdminKycPage() {
 
           <div className="mt-4 space-y-2.5">
             {items.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4 text-sm text-slate-400">
                 No KYC submissions found.
               </div>
             ) : (
@@ -229,8 +229,8 @@ export default function AdminKycPage() {
                     className={[
                       "w-full rounded-2xl border p-4 text-left transition",
                       active
-                        ? "border-violet-400/30 bg-violet-500/10"
-                        : "border-white/10 bg-slate-950/60 hover:bg-white/[0.03]",
+                        ? "border-cyan-400/30 bg-cyan-500/10"
+                        : "border-white/10 bg-[#050812]/60 hover:bg-white/[0.03]",
                     ].join(" ")}
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -259,56 +259,56 @@ export default function AdminKycPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <h2 className="text-lg font-semibold text-white">Submission Details</h2>
 
           {!selected ? (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-400">
+            <div className="mt-4 rounded-2xl border border-white/10 bg-[#050812]/60 p-4 text-sm text-slate-400">
               Select a submission to review details.
             </div>
           ) : (
             <div className="mt-4 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">User</div>
                   <div className="mt-1 text-sm text-white">{selected.name || "-"}</div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">UID</div>
                   <div className="mt-1 text-sm text-white">{selected.uid || "-"}</div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">Email</div>
                   <div className="mt-1 text-sm text-white">{selected.email || "-"}</div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">Status</div>
                   <div className="mt-2">
                     <StatusBadge status={selected.verification_status} />
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">Residence Country</div>
                   <div className="mt-1 text-sm text-white">{selected.residence_country || "-"}</div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="text-[11px] text-slate-500">Document Type</div>
                   <div className="mt-1 text-sm text-white">{selected.document_type || "-"}</div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 sm:col-span-2">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4 sm:col-span-2">
                   <div className="text-[11px] text-slate-500">Document Number</div>
                   <div className="mt-1 text-sm text-white">{selected.document_number || "-"}</div>
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="mb-3 text-[11px] text-slate-500">Front Document</div>
 
                   {selected.document_front_url ? (
@@ -324,7 +324,7 @@ export default function AdminKycPage() {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-2xl border border-white/10 bg-[#050812]/60 p-4">
                   <div className="mb-3 text-[11px] text-slate-500">Back Document</div>
 
                   {selected.document_back_url ? (
@@ -351,7 +351,7 @@ export default function AdminKycPage() {
                   onChange={(e) => setAdminNote(e.target.value)}
                   rows={4}
                   placeholder="Write approval or rejection note..."
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812] px-4 py-3 text-sm text-white outline-none"
                 />
               </div>
 

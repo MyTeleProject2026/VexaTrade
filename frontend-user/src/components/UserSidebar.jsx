@@ -171,7 +171,7 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
     localStorage.removeItem("user");
     localStorage.removeItem("userData");
     localStorage.removeItem("role");
-    sessionStorage.removeItem("cryptopulse_passcode_verified");
+    sessionStorage.removeItem("VexaTrade_passcode_verified");
 
     navigate("/login");
     onNavigate?.();
@@ -224,7 +224,7 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
             </div>
           </div>
 
-          <div className="rounded-[26px] border border-white/10 bg-black/30 p-4">
+          <div className="rounded-[26px] border border-white/10 bg-[#050812]/30 p-4">
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
               Balance
             </div>

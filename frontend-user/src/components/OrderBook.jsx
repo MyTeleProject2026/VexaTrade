@@ -80,7 +80,7 @@ export default function OrderBook({ currentPrice = 0, className = "" }) {
       </div>
 
       {/* Current Price */}
-      <div className="border-y border-white/10 bg-black/30 px-4 py-2 text-center">
+      <div className="border-y border-white/10 bg-[#050812]/30 px-4 py-2 text-center">
         <div className="text-sm font-bold text-cyan-400">
           {formatPrice(currentPrice)}
         </div>

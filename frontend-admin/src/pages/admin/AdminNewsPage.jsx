@@ -15,7 +15,7 @@ function resolveImage(url) {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
 
   return `${base}${url}`;
 }
@@ -165,7 +165,7 @@ export default function AdminNewsPage() {
   if (loading) {
     return (
       <div className="space-y-5 text-white">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
           Loading news control...
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function AdminNewsPage() {
               Admin News Control
             </div>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-              CryptoPulse News
+              VexaTrade News
             </h1>
             <p className="mt-2 text-sm text-slate-400">
               Post dashboard announcements, poster updates, and premium slider news.
@@ -212,7 +212,7 @@ export default function AdminNewsPage() {
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[0.98fr_1.02fr]">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 shadow-xl">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
           <div className="border-b border-white/10 px-4 py-4 sm:px-5">
             <div className="flex items-center gap-3">
               <Plus size={17} className="text-lime-300" />
@@ -230,7 +230,7 @@ export default function AdminNewsPage() {
                   setForm((prev) => ({ ...prev, title: e.target.value }))
                 }
                 placeholder="Enter news title"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
               />
             </div>
 
@@ -243,7 +243,7 @@ export default function AdminNewsPage() {
                   setForm((prev) => ({ ...prev, content: e.target.value }))
                 }
                 placeholder="Write a short announcement..."
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
               />
             </div>
 
@@ -256,11 +256,11 @@ export default function AdminNewsPage() {
                   setForm((prev) => ({ ...prev, image_url: e.target.value }))
                 }
                 placeholder="Paste poster or banner image URL"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
               />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+            <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
               <label className="flex items-center gap-3 text-sm text-slate-300">
                 <input
                   type="checkbox"
@@ -275,7 +275,7 @@ export default function AdminNewsPage() {
             </div>
 
             {form.image_url ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
                   <ImageIcon size={15} />
                   Preview
@@ -299,7 +299,7 @@ export default function AdminNewsPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 shadow-xl">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
           <div className="border-b border-white/10 px-4 py-4 sm:px-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -307,7 +307,7 @@ export default function AdminNewsPage() {
                 <h2 className="text-lg font-semibold text-white">News List</h2>
               </div>
 
-              <span className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-[11px] text-slate-300">
+              <span className="rounded-full border border-white/10 bg-[#050812]/70 px-3 py-1 text-[11px] text-slate-300">
                 {list.length} Record{list.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -318,7 +318,7 @@ export default function AdminNewsPage() {
               list.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[22px] border border-white/10 bg-slate-950/50 p-4"
+                  className="rounded-[22px] border border-white/10 bg-[#050812]/50 p-4"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
@@ -378,7 +378,7 @@ export default function AdminNewsPage() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-10 text-center text-sm text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 px-4 py-10 text-center text-sm text-slate-400">
                 No news posted yet.
               </div>
             )}

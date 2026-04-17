@@ -35,7 +35,7 @@ function formatDateTime(value) {
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {title}
       </div>
@@ -48,7 +48,7 @@ function StatCard({ title, value, tone = "text-white" }) {
 
 function LogInfo({ label, value, breakAll = false }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">
         {label}
       </div>
@@ -218,7 +218,7 @@ export default function AdminAuditLogsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading audit logs...
       </div>
     );
@@ -229,7 +229,7 @@ export default function AdminAuditLogsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Audit Logs
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -245,7 +245,7 @@ export default function AdminAuditLogsPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -304,7 +304,7 @@ export default function AdminAuditLogsPage() {
         </div>
       ) : null}
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[1.3fr_0.8fr_auto]">
           <div className="relative">
             <Search
@@ -316,14 +316,14 @@ export default function AdminAuditLogsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by action, note, admin ID..."
-              className="w-full rounded-xl border border-white/10 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-white outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] py-2.5 pl-10 pr-4 text-sm text-white outline-none focus:border-cyan-500"
             />
           </div>
 
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
           >
             {actionOptions.map((action) => (
               <option key={action} value={action}>
@@ -332,7 +332,7 @@ export default function AdminAuditLogsPage() {
             ))}
           </select>
 
-          <div className="flex items-center rounded-xl border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-slate-300">
+          <div className="flex items-center rounded-xl border border-white/10 bg-[#050812]/70 px-4 py-2.5 text-sm text-slate-300">
             {filteredLogs.length} Result{filteredLogs.length === 1 ? "" : "s"}
           </div>
         </div>
@@ -343,14 +343,14 @@ export default function AdminAuditLogsPage() {
           paginatedLogs.map((log) => (
             <div
               key={log.id}
-              className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-xl"
+              className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-xl"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-base font-semibold text-white">
                   Log #{log.id}
                 </div>
 
-                <span className="rounded-full border border-white/10 bg-slate-950/80 px-2.5 py-1 text-xs font-semibold text-slate-200">
+                <span className="rounded-full border border-white/10 bg-[#050812]/80 px-2.5 py-1 text-xs font-semibold text-slate-200">
                   {log.action || "--"}
                 </span>
               </div>
@@ -367,17 +367,17 @@ export default function AdminAuditLogsPage() {
             </div>
           ))
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-10 text-center text-sm text-slate-400">
+          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/40 px-4 py-10 text-center text-sm text-slate-400">
             No audit logs found.
           </div>
         )}
       </section>
 
-      <section className="hidden rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl xl:block sm:p-5">
+      <section className="hidden rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl xl:block sm:p-5">
         <div className="overflow-hidden rounded-2xl border border-white/10">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/10">
-              <thead className="bg-slate-950/80">
+              <thead className="bg-[#050812]/80">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                     ID
@@ -403,7 +403,7 @@ export default function AdminAuditLogsPage() {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-white/10 bg-slate-900/50">
+              <tbody className="divide-y divide-white/10 bg-[#0a0e1a]/50">
                 {paginatedLogs.length ? (
                   paginatedLogs.map((log) => (
                     <tr key={log.id} className="transition hover:bg-white/[0.03]">
@@ -414,7 +414,7 @@ export default function AdminAuditLogsPage() {
                         {log.admin_id ?? "--"}
                       </td>
                       <td className="px-4 py-2.5 text-sm text-white">
-                        <span className="rounded-full border border-white/10 bg-slate-950/80 px-2.5 py-1 text-xs font-semibold text-slate-200">
+                        <span className="rounded-full border border-white/10 bg-[#050812]/80 px-2.5 py-1 text-xs font-semibold text-slate-200">
                           {log.action || "--"}
                         </span>
                       </td>

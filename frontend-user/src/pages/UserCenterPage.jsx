@@ -447,7 +447,7 @@ export default function UserCenterPage() {
           
           if (partnerUid) {
             try {
-              const partnerRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/user/by-uid/${partnerUid}`, {
+              const partnerRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/by-uid/${partnerUid}`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               const partnerData = await partnerRes.json();
@@ -469,7 +469,7 @@ export default function UserCenterPage() {
 
   async function loadCombinedBalance() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();

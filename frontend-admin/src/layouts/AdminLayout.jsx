@@ -88,9 +88,9 @@ const PAGE_META = {
     subtitle: "Review and approve or reject joint account requests.",
   },
   "/admin/joint-accounts": {
-  title: "Joint Accounts",
-  subtitle: "View and manage all active joint accounts.",
-},
+    title: "Joint Accounts",
+    subtitle: "View and manage all active joint accounts.",
+  },
 };
 
 export default function AdminLayout() {
@@ -122,7 +122,7 @@ export default function AdminLayout() {
   }, [mobileSidebarOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-[#050812] text-white">
       <div className="flex min-h-screen">
         <AdminSidebar
           isOpen={mobileSidebarOpen}
@@ -138,7 +138,7 @@ export default function AdminLayout() {
           />
 
           <main className="min-w-0 flex-1">
-            <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.10),transparent_24%),linear-gradient(180deg,#0b0f17_0%,#0a0e16_100%)] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
+            <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.08),transparent_24%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
               <div className="mx-auto w-full max-w-[1800px]">
                 <Outlet />
               </div>

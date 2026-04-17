@@ -157,7 +157,7 @@ function AccountVerificationPage() {
           </p>
         </div>
 
-        <div className="mt-6 space-y-3 rounded-[24px] border border-white/10 bg-black/30 p-4">
+        <div className="mt-6 space-y-3 rounded-[24px] border border-white/10 bg-[#050812]/30 p-4">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-slate-400">Email verification</span>
             <span

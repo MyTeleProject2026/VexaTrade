@@ -38,7 +38,7 @@ function getStatusBadge(status) {
 
 function DepositStatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{title}</div>
       <div className={`mt-3 text-2xl font-bold sm:text-3xl ${tone}`}>{value}</div>
     </div>
@@ -47,7 +47,7 @@ function DepositStatCard({ title, value, tone = "text-white" }) {
 
 function InfoItem({ label, value, breakAll = false, valueClassName = "text-white" }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+    <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
       <div className="text-[11px] uppercase tracking-wide text-slate-400">{label}</div>
       <div className={`mt-2 text-sm ${breakAll ? "break-all" : "break-words"} ${valueClassName}`}>
         {value}
@@ -61,7 +61,7 @@ function DepositProofImage({ src, alt }) {
 
   if (!src || failed) {
     return (
-      <div className="flex h-52 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-950/60 text-slate-500 sm:h-64">
+      <div className="flex h-52 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#050812]/60 text-slate-500 sm:h-64">
         <ImageOff size={24} />
         <div className="mt-2 text-sm">Proof image not available</div>
       </div>
@@ -69,7 +69,7 @@ function DepositProofImage({ src, alt }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#050812]/60">
       <img
         src={src}
         alt={alt}
@@ -227,7 +227,7 @@ export default function AdminDepositsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading deposits...
       </div>
     );
@@ -238,7 +238,7 @@ export default function AdminDepositsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Admin Deposits
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -254,7 +254,7 @@ export default function AdminDepositsPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -297,7 +297,7 @@ export default function AdminDepositsPage() {
         </div>
       ) : null}
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <div className="relative">
             <Search
@@ -309,14 +309,14 @@ export default function AdminDepositsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by ID, user, coin, network, txid..."
-              className="w-full rounded-2xl border border-white/10 bg-slate-800 py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-violet-500"
+              className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-500"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none focus:border-violet-500"
+            className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -324,7 +324,7 @@ export default function AdminDepositsPage() {
             <option value="rejected">Rejected</option>
           </select>
 
-          <div className="flex items-center rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+          <div className="flex items-center rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-slate-300">
             {filteredDeposits.length} Result{filteredDeposits.length === 1 ? "" : "s"}
           </div>
         </div>
@@ -340,7 +340,7 @@ export default function AdminDepositsPage() {
             return (
               <div
                 key={deposit.id}
-                className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5"
+                className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5"
               >
                 <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
                   <div className="min-w-0">
@@ -349,7 +349,7 @@ export default function AdminDepositsPage() {
                         Deposit #{deposit.id}
                       </h2>
 
-                      <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+                      <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
                         User #{deposit.user_id}
                       </span>
 
@@ -380,7 +380,7 @@ export default function AdminDepositsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-base font-semibold text-white">
                           Payment Proof
@@ -436,7 +436,7 @@ export default function AdminDepositsPage() {
             );
           })
         ) : (
-          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 px-4 py-10 text-center text-sm text-slate-400 shadow-xl">
+          <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] px-4 py-10 text-center text-sm text-slate-400 shadow-xl">
             No deposits found.
           </div>
         )}

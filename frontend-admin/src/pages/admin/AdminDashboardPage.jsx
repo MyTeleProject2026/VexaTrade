@@ -12,7 +12,7 @@ import {
   XCircle,
   Clock3,
   Eye,
-  CandlestickChart,  // ← ADDED
+  CandlestickChart,
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 
@@ -29,7 +29,7 @@ function StatCard({ title, value, icon: Icon, tone = "text-white", onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl transition hover:scale-[1.02] hover:bg-slate-800/70 ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl transition hover:scale-[1.02] hover:bg-[#0f1420] ${onClick ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
@@ -54,7 +54,7 @@ function NotificationItem({ notification, onMarkRead, onView }) {
       case "kyc":
         return <ShieldCheck size={16} className="text-cyan-400" />;
       case "loan":
-        return <Landmark size={16} className="text-violet-400" />;
+        return <Landmark size={16} className="text-cyan-400" />;
       case "joint_account":
         return <Handshake size={16} className="text-indigo-400" />;
       case "email_verified":
@@ -204,7 +204,7 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading dashboard...
       </div>
     );
@@ -212,10 +212,10 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-5 pb-20 xl:pb-5">
-      <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
+      <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-emerald-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Admin Dashboard
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -263,7 +263,7 @@ export default function AdminDashboardPage() {
 
       {/* Notifications Panel */}
       {showNotifications && (
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/80 p-4 shadow-xl">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a]/80 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-white">
               Recent Notifications
@@ -360,18 +360,18 @@ export default function AdminDashboardPage() {
           title="Pending Loans"
           value={stats.pendingLoans || 0}
           icon={Landmark}
-          tone="text-violet-300"
+          tone="text-cyan-300"
           onClick={() => (window.location.href = "/admin/loans")}
         />
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
               Total Trades
             </div>
-            <CandlestickChart size={15} className="text-lime-300" />
+            <CandlestickChart size={15} className="text-cyan-300" />
           </div>
           <div className="mt-3 text-2xl font-bold text-white sm:text-3xl">
             {stats.totalTrades?.toLocaleString() || 0}
@@ -381,7 +381,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
               Joint Account Requests
@@ -396,7 +396,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
           <div className="flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
               Email Verified

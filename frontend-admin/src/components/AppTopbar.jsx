@@ -64,7 +64,7 @@ export default function AppTopbar({
   const showNewsIcon = (location.pathname || "").includes("/news");
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl">
       <div className="flex min-h-[73px] items-center justify-between gap-4 px-4 py-4 sm:px-5 lg:px-6 xl:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
@@ -77,7 +77,7 @@ export default function AppTopbar({
 
           <div className="min-w-0">
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-300">
+              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-300">
                 {showNewsIcon ? <Newspaper size={12} /> : null}
                 {sectionTag}
               </span>

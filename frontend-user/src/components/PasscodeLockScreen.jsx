@@ -59,7 +59,7 @@ export default function PasscodeLockScreen({ onUnlock }) {
         token
       );
 
-      sessionStorage.setItem("cryptopulse_passcode_verified", "1");
+      sessionStorage.setItem("VexaTrade_passcode_verified", "1");
       onUnlock?.();
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -98,7 +98,7 @@ export default function PasscodeLockScreen({ onUnlock }) {
 
         <div className="mt-5 text-center">
           <div className="text-xs uppercase tracking-[0.35em] text-cyan-400">
-            CryptoPulse
+            VexaTrade
           </div>
           <h1 className="mt-3 text-3xl font-bold text-white">Enter Passcode</h1>
           <p className="mt-2 text-sm text-slate-400">

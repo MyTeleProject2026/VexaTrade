@@ -4,7 +4,7 @@ import { adminApi, getApiErrorMessage } from "../../services/api";
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{title}</div>
       <div className={`mt-3 text-2xl font-semibold sm:text-3xl ${tone}`}>{value}</div>
     </div>
@@ -250,7 +250,7 @@ export default function AdminPlatformSettingsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading platform settings...
       </div>
     );
@@ -261,7 +261,7 @@ export default function AdminPlatformSettingsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Platform Settings
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -277,7 +277,7 @@ export default function AdminPlatformSettingsPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -321,9 +321,9 @@ export default function AdminPlatformSettingsPage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+          <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
             <div className="mb-5 flex items-center gap-3">
-              <Wallet className="h-4 w-4 text-violet-300" />
+              <Wallet className="h-4 w-4 text-cyan-300" />
               <h2 className="text-lg font-semibold text-white">General Settings</h2>
             </div>
 
@@ -338,7 +338,7 @@ export default function AdminPlatformSettingsPage() {
                   value={form.wallet_label}
                   onChange={handleChange}
                   placeholder="Main Wallet"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -354,11 +354,11 @@ export default function AdminPlatformSettingsPage() {
                   value={form.default_convert_fee_percent}
                   onChange={handleChange}
                   placeholder="0.20"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 space-y-2 text-sm">
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4 space-y-2 text-sm">
                 <DetailRow label="Wallet Label" value={form.wallet_label || "Main Wallet"} />
                 <DetailRow
                   label="Convert Fee"
@@ -369,7 +369,7 @@ export default function AdminPlatformSettingsPage() {
             </div>
           </section>
 
-          <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+          <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
             <div className="mb-5 flex items-center gap-3">
               <LifeBuoy className="h-4 w-4 text-emerald-300" />
               <h2 className="text-lg font-semibold text-white">Support Settings</h2>
@@ -386,7 +386,7 @@ export default function AdminPlatformSettingsPage() {
                   value={form.support_channel}
                   onChange={handleChange}
                   placeholder="Telegram / WhatsApp / Line"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -400,7 +400,7 @@ export default function AdminPlatformSettingsPage() {
                   value={form.support_contact}
                   onChange={handleChange}
                   placeholder="@support_username or phone number"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -414,7 +414,7 @@ export default function AdminPlatformSettingsPage() {
                   value={form.support_link}
                   onChange={handleChange}
                   placeholder="https://t.me/your_support"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -428,14 +428,14 @@ export default function AdminPlatformSettingsPage() {
                   onChange={handleChange}
                   rows={4}
                   placeholder="Available hours, response time, special instructions..."
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
             </div>
           </section>
         </div>
 
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5 flex items-center gap-3">
             <BadgeDollarSign className="h-4 w-4 text-cyan-300" />
             <h2 className="text-lg font-semibold text-white">Withdrawal Fees by Network</h2>
@@ -453,7 +453,7 @@ export default function AdminPlatformSettingsPage() {
                 name="withdrawal_fee_btc_bep20"
                 value={form.withdrawal_fee_btc_bep20}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -468,7 +468,7 @@ export default function AdminPlatformSettingsPage() {
                 name="withdrawal_fee_eth_erc20"
                 value={form.withdrawal_fee_eth_erc20}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -483,7 +483,7 @@ export default function AdminPlatformSettingsPage() {
                 name="withdrawal_fee_usdt_trc20"
                 value={form.withdrawal_fee_usdt_trc20}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -498,7 +498,7 @@ export default function AdminPlatformSettingsPage() {
                 name="withdrawal_fee_usdt_erc20"
                 value={form.withdrawal_fee_usdt_erc20}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -513,12 +513,12 @@ export default function AdminPlatformSettingsPage() {
                 name="withdrawal_fee_usdt_bep20"
                 value={form.withdrawal_fee_usdt_bep20}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm space-y-2">
+          <div className="mt-4 rounded-2xl border border-white/10 bg-[#050812]/40 p-4 text-sm space-y-2">
             <DetailRow label="BTC BEP20" value={form.withdrawal_fee_btc_bep20 || "0"} />
             <DetailRow label="ETH ERC20" value={form.withdrawal_fee_eth_erc20 || "0"} />
             <DetailRow label="USDT TRC20" value={form.withdrawal_fee_usdt_trc20 || "0"} valueClassName="text-cyan-300" />
@@ -531,7 +531,7 @@ export default function AdminPlatformSettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-xl bg-violet-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+            className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-60"
           >
             {saving ? "Saving..." : "Save Platform Settings"}
           </button>

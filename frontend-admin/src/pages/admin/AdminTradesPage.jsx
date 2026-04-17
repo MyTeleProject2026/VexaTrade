@@ -104,7 +104,7 @@ function renderRemainingTime(trade) {
 
 function StatCard({ title, value, tone = "text-white", pulse = false }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4">
       <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500">
         {title}
         {pulse ? <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" /> : null}
@@ -116,7 +116,7 @@ function StatCard({ title, value, tone = "text-white", pulse = false }) {
 
 function DetailBox({ label, value, valueClassName = "text-white" }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`mt-1 text-sm ${valueClassName}`}>{value}</div>
     </div>
@@ -357,7 +357,7 @@ export default function AdminTradesPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading trades...
       </div>
     );
@@ -368,7 +368,7 @@ export default function AdminTradesPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Admin Trades
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -384,7 +384,7 @@ export default function AdminTradesPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -434,7 +434,7 @@ export default function AdminTradesPage() {
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-white">Outcome Queue Setup</h2>
             <p className="mt-1 text-sm text-slate-400">
@@ -449,7 +449,7 @@ export default function AdminTradesPage() {
                 name="pair"
                 value={queueForm.pair}
                 onChange={handleQueueFormChange}
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               >
                 {PAIRS.map((pair) => (
                   <option key={pair} value={pair}>
@@ -466,7 +466,7 @@ export default function AdminTradesPage() {
                   name="direction"
                   value={queueForm.direction}
                   onChange={handleQueueFormChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value="bullish">bullish</option>
                   <option value="bearish">bearish</option>
@@ -479,7 +479,7 @@ export default function AdminTradesPage() {
                   name="timer_seconds"
                   value={queueForm.timer_seconds}
                   onChange={handleQueueFormChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value={60}>60s</option>
                   <option value={180}>180s</option>
@@ -495,7 +495,7 @@ export default function AdminTradesPage() {
                   name="result"
                   value={queueForm.result}
                   onChange={handleQueueFormChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value="win">win</option>
                   <option value="loss">loss</option>
@@ -511,21 +511,21 @@ export default function AdminTradesPage() {
                   name="quantity"
                   value={queueForm.quantity}
                   onChange={handleQueueFormChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400"
+              className="w-full rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-400"
             >
               Add Outcome Queue
             </button>
           </form>
         </section>
 
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-white">Prepared Queue</h2>
@@ -534,7 +534,7 @@ export default function AdminTradesPage() {
               </p>
             </div>
 
-            <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+            <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
               {queueLoading ? "Loading..." : `${queueItems.length} Items`}
             </span>
           </div>
@@ -544,7 +544,7 @@ export default function AdminTradesPage() {
               queueItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-white/10 bg-slate-800/50 px-4 py-3"
+                  className="rounded-2xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-3"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="min-w-0">
@@ -577,7 +577,7 @@ export default function AdminTradesPage() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-slate-800/40 px-4 py-8 text-center text-sm text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/40 px-4 py-8 text-center text-sm text-slate-400">
                 No queued outcomes found.
               </div>
             )}
@@ -585,7 +585,7 @@ export default function AdminTradesPage() {
         </section>
       </div>
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-white">Open Trade Handling</h2>
@@ -594,7 +594,7 @@ export default function AdminTradesPage() {
             </p>
           </div>
 
-          <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+          <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
             {openTrades.length} Open
           </span>
         </div>
@@ -604,7 +604,7 @@ export default function AdminTradesPage() {
             {openTrades.map((trade) => (
               <div
                 key={trade.id}
-                className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4"
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -643,13 +643,13 @@ export default function AdminTradesPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 px-4 py-8 text-center text-sm text-slate-400">
+          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/40 px-4 py-8 text-center text-sm text-slate-400">
             No open trades right now.
           </div>
         )}
       </section>
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-white">Trade Monitoring</h2>
@@ -663,7 +663,7 @@ export default function AdminTradesPage() {
               name="view"
               value={filters.view}
               onChange={handleFilterChange}
-              className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+              className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
             >
               <option value="all">All Trades</option>
               <option value="open">Open Only</option>
@@ -674,7 +674,7 @@ export default function AdminTradesPage() {
               name="status"
               value={filters.status}
               onChange={handleFilterChange}
-              className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+              className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
             >
               <option value="all">All Status</option>
               <option value="open">Open</option>
@@ -687,7 +687,7 @@ export default function AdminTradesPage() {
               name="pair"
               value={filters.pair}
               onChange={handleFilterChange}
-              className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+              className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
             >
               <option value="all">All Pairs</option>
               {PAIRS.map((pair) => (
@@ -701,7 +701,7 @@ export default function AdminTradesPage() {
               name="direction"
               value={filters.direction}
               onChange={handleFilterChange}
-              className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+              className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
             >
               <option value="all">All Sides</option>
               <option value="bullish">bullish</option>
@@ -720,7 +720,7 @@ export default function AdminTradesPage() {
               return (
                 <div
                   key={trade.id}
-                  className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                  className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-base font-semibold text-white">
@@ -760,7 +760,7 @@ export default function AdminTradesPage() {
 
                   <div className="mt-4">
                     {settled ? (
-                      <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 text-center text-xs text-slate-400">
+                      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-3 text-center text-xs text-slate-400">
                         This trade is already settled.
                       </div>
                     ) : (
@@ -788,7 +788,7 @@ export default function AdminTradesPage() {
               );
             })
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-slate-800/40 px-4 py-8 text-center text-sm text-slate-400">
+            <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/40 px-4 py-8 text-center text-sm text-slate-400">
               No trades found.
             </div>
           )}
@@ -797,7 +797,7 @@ export default function AdminTradesPage() {
         <div className="hidden overflow-hidden rounded-2xl border border-white/10 xl:block">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/10">
-              <thead className="bg-slate-950/80">
+              <thead className="bg-[#050812]/80">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Trade
@@ -841,7 +841,7 @@ export default function AdminTradesPage() {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-white/10 bg-slate-900/50">
+              <tbody className="divide-y divide-white/10 bg-[#0a0e1a]/50">
                 {filteredTrades.length ? (
                   filteredTrades.map((trade) => {
                     const settled = ["win", "loss", "settled", "completed"].includes(

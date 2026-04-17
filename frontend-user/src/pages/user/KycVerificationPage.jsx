@@ -626,7 +626,7 @@ export default function KycVerificationPage() {
             </h3>
 
             <p className="mt-3 text-sm text-amber-100/80">
-              Your submission will be reviewed by the CryptoPulse team. Approval
+              Your submission will be reviewed by the VexaTrade team. Approval
               time may depend on document quality and account details.
             </p>
           </div>

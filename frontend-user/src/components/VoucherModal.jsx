@@ -112,7 +112,7 @@ export default function VoucherModal({ voucher, onClose }) {
         logging: false,
       });
       const link = document.createElement("a");
-      link.download = `cryptopulse-${voucher?.type}-${Date.now()}.png`;
+      link.download = `VexaTrade-${voucher?.type}-${Date.now()}.png`;
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
@@ -421,7 +421,7 @@ export default function VoucherModal({ voucher, onClose }) {
 
         <div className="border-t border-white/10 px-5 py-3">
           <div className="text-center text-[10px] text-slate-500">
-            CryptoPulse • Secure Transaction Record
+            VexaTrade • Secure Transaction Record
           </div>
         </div>
       </div>

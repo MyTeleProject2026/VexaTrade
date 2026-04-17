@@ -47,14 +47,14 @@ function buildFileUrl(fileUrl) {
   if (String(fileUrl).startsWith("http")) return fileUrl;
 
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
 
   return `${base}${fileUrl}`;
 }
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {title}
       </div>
@@ -283,7 +283,7 @@ export default function AdminLegalDocumentsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading legal documents...
       </div>
     );
@@ -294,11 +294,11 @@ export default function AdminLegalDocumentsPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Legal Documents
             </p>
             <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-white sm:text-3xl">
-              <FileText className="h-6 w-6 text-violet-300" />
+              <FileText className="h-6 w-6 text-cyan-300" />
               Document Management
             </h1>
             <p className="mt-2 text-sm text-slate-400">
@@ -348,7 +348,7 @@ export default function AdminLegalDocumentsPage() {
         </section>
       )}
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
         <div className="flex items-center gap-2">
           <Plus className="h-4 w-4 text-cyan-300" />
           <h2 className="text-lg font-semibold text-white">Create New Document</h2>
@@ -364,7 +364,7 @@ export default function AdminLegalDocumentsPage() {
               value={newDoc.title}
               onChange={(e) => handleNewChange("title", e.target.value)}
               placeholder="Enter document title"
-              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
             />
           </div>
 
@@ -375,7 +375,7 @@ export default function AdminLegalDocumentsPage() {
             <select
               value={newDoc.status}
               onChange={(e) => handleNewChange("status", e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -391,7 +391,7 @@ export default function AdminLegalDocumentsPage() {
               value={newDoc.content}
               onChange={(e) => handleNewChange("content", e.target.value)}
               placeholder="Enter legal document content"
-              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
             />
           </div>
 
@@ -403,7 +403,7 @@ export default function AdminLegalDocumentsPage() {
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,.webp"
               onChange={(e) => handleNewFileChange(e.target.files?.[0] || null)}
-              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-2 file:font-semibold file:text-slate-950 hover:file:bg-cyan-400"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-2 file:font-semibold file:text-slate-950 hover:file:bg-cyan-400"
             />
             {newDoc.file ? (
               <p className="mt-2 text-xs text-slate-400">
@@ -436,7 +436,7 @@ export default function AdminLegalDocumentsPage() {
       </section>
 
       {docs.length === 0 ? (
-        <section className="rounded-[24px] border border-dashed border-white/10 bg-slate-900/60 p-8 text-center shadow-lg">
+        <section className="rounded-[24px] border border-dashed border-white/10 bg-[#0a0e1a]/60 p-8 text-center shadow-lg">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5">
             <FileText className="h-6 w-6 text-slate-400" />
           </div>
@@ -463,13 +463,13 @@ export default function AdminLegalDocumentsPage() {
             return (
               <article
                 key={doc.id}
-                className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5"
+                className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5"
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1 space-y-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/5">
-                        <ShieldCheck className="h-4 w-4 text-violet-300" />
+                        <ShieldCheck className="h-4 w-4 text-cyan-300" />
                       </div>
 
                       <span
@@ -504,7 +504,7 @@ export default function AdminLegalDocumentsPage() {
                           onChange={(e) =>
                             handleExistingChange(doc.id, "title", e.target.value)
                           }
-                          className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
                         />
                       </div>
 
@@ -517,7 +517,7 @@ export default function AdminLegalDocumentsPage() {
                           onChange={(e) =>
                             handleExistingChange(doc.id, "status", e.target.value)
                           }
-                          className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
                         >
                           <option value="active">Active</option>
                           <option value="inactive">Inactive</option>
@@ -534,11 +534,11 @@ export default function AdminLegalDocumentsPage() {
                           onChange={(e) =>
                             handleExistingChange(doc.id, "content", e.target.value)
                           }
-                          className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-500"
                         />
                       </div>
 
-                      <div className="rounded-xl border border-white/10 bg-slate-800/70 p-4">
+                      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/70 p-4">
                         <label className="mb-2 block text-sm font-medium text-slate-300">
                           Upload / Replace File
                         </label>
@@ -548,7 +548,7 @@ export default function AdminLegalDocumentsPage() {
                           onChange={(e) =>
                             handleExistingFileChange(doc.id, e.target.files?.[0] || null)
                           }
-                          className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-2 file:font-semibold file:text-slate-950 hover:file:bg-cyan-400"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none transition file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-500 file:px-3 file:py-2 file:font-semibold file:text-slate-950 hover:file:bg-cyan-400"
                         />
 
                         {current.file ? (

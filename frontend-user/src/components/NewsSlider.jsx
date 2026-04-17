@@ -5,7 +5,7 @@ import { newsApi } from "../services/api";
 const FALLBACK_NEWS = [
   {
     id: "fallback-1",
-    title: "CryptoPulse News",
+    title: "VexaTrade News",
     content:
       "Track platform updates, trading insights, and important account announcements in one premium feed.",
     image_url:
@@ -40,7 +40,7 @@ function resolveImage(url) {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
 
   return `${base}${url}`;
 }
@@ -114,7 +114,7 @@ export default function NewsSlider() {
           <div className="flex items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
               <Newspaper size={14} />
-              CryptoPulse News
+              VexaTrade News
             </div>
 
             <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
@@ -129,7 +129,7 @@ export default function NewsSlider() {
             </div>
 
             <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
-              {activeItem?.title || "CryptoPulse Update"}
+              {activeItem?.title || "VexaTrade Update"}
             </h2>
 
             <p className="mt-3 line-clamp-3 text-sm leading-7 text-slate-300 sm:text-base">

@@ -21,9 +21,6 @@ import {
   Handshake,
   ChevronDown,
   ChevronRight,
-  Wallet,
-  BellRing,
-  FileText,
 } from "lucide-react";
 
 const navItems = [
@@ -35,7 +32,6 @@ const navItems = [
       { label: "All Users", to: "/admin/users", icon: Users },
       { label: "KYC Verification", to: "/admin/kyc", icon: ShieldCheck },
       { label: "Joint Account Requests", to: "/admin/joint-account-requests", icon: Handshake },
-      { label: "Joint Accounts", to: "/admin/joint-accounts", icon: Users },
       { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
       { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
       { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
@@ -97,8 +93,8 @@ function SidebarContent({ onClose, onLogout }) {
       <div className="border-b border-white/10 px-5 py-5 sm:px-6 sm:py-6">
         <div className="flex items-start justify-between gap-3 xl:block">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.35em] text-violet-300">
-              CryptoPulse
+            <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">
+              VexaTrade
             </div>
             <h1 className="mt-2 text-xl font-bold sm:text-2xl">
               Admin Control Panel
@@ -187,7 +183,7 @@ function SidebarContent({ onClose, onLogout }) {
               className={({ isActive: navActive }) =>
                 `block rounded-2xl px-4 py-3 text-sm font-medium transition ${
                   navActive || isActive
-                    ? "border border-cyan-500/25 bg-cyan-500/15 text-cyan-200 shadow-[0_8px_24px_rgba(124,58,237,0.12)]"
+                    ? "border border-cyan-500/25 bg-cyan-500/15 text-cyan-200 shadow-[0_8px_24px_rgba(6,182,212,0.12)]"
                     : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.04] hover:text-white"
                 }`
               }
@@ -252,13 +248,13 @@ export default function AdminSidebar({
           type="button"
           aria-label="Close sidebar overlay"
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-[2px] xl:hidden"
+          className="fixed inset-0 z-40 bg-[#050812]/70 backdrop-blur-[2px] xl:hidden"
         />
       ) : null}
 
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-50 w-[88vw] max-w-[320px] border-r border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur",
+          "fixed inset-y-0 left-0 z-50 w-[88vw] max-w-[320px] border-r border-white/10 bg-[#0a0e1a] shadow-2xl backdrop-blur",
           "transition-transform duration-300 xl:hidden",
           isOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
@@ -266,7 +262,7 @@ export default function AdminSidebar({
         <SidebarContent onClose={onClose} onLogout={handleLogout} />
       </aside>
 
-      <aside className="hidden xl:block xl:w-80 xl:min-w-80 xl:border-r xl:border-white/10 xl:bg-slate-950">
+      <aside className="hidden xl:block xl:w-80 xl:min-w-80 xl:border-r xl:border-white/10 xl:bg-[#0a0e1a]">
         <div className="sticky top-0 h-screen">
           <SidebarContent onClose={onClose} onLogout={handleLogout} />
         </div>

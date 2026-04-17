@@ -77,7 +77,7 @@ function buildFileUrl(fileUrl) {
   if (String(fileUrl).startsWith("http")) return fileUrl;
 
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
 
   return `${base}${fileUrl}`;
 }

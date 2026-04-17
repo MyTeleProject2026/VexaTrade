@@ -109,10 +109,10 @@ export default function AdminJointAccountRequests() {
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/10 bg-slate-900/70 shadow-xl overflow-hidden">
+      <div className="rounded-3xl border border-white/10 bg-[#0a0e1a] shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="border-b border-white/10 bg-slate-950/40 text-xs uppercase tracking-wider text-slate-500">
+            <thead className="border-b border-white/10 bg-[#050812]/40 text-xs uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-5 py-4">Requester</th>
                 <th className="px-5 py-4">Partner</th>

@@ -8,7 +8,7 @@ function formatPercent(v) {
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {title}
       </div>
@@ -115,7 +115,7 @@ export default function AdminTradeRulesPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading trade rules...
       </div>
     );
@@ -126,7 +126,7 @@ export default function AdminTradeRulesPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Trade Rules
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -142,7 +142,7 @@ export default function AdminTradeRulesPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -188,7 +188,7 @@ export default function AdminTradeRulesPage() {
         {rules.map((rule) => (
           <div
             key={rule.id}
-            className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl"
+            className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl"
           >
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-white">
@@ -218,7 +218,7 @@ export default function AdminTradeRulesPage() {
                     handleChange(rule.id, "min_amount", e.target.value)
                   }
                   placeholder="Min Amount"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -233,7 +233,7 @@ export default function AdminTradeRulesPage() {
                     handleChange(rule.id, "max_amount", e.target.value)
                   }
                   placeholder="Max Amount"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -248,7 +248,7 @@ export default function AdminTradeRulesPage() {
                     handleChange(rule.id, "payout_percent", e.target.value)
                   }
                   placeholder="Payout %"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -261,7 +261,7 @@ export default function AdminTradeRulesPage() {
                   onChange={(e) =>
                     handleChange(rule.id, "status", e.target.value)
                   }
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>
@@ -269,7 +269,7 @@ export default function AdminTradeRulesPage() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm space-y-2">
+            <div className="mt-4 rounded-2xl border border-white/10 bg-[#050812]/40 p-4 text-sm space-y-2">
               <DetailRow label="Timer" value={`${rule.timer_seconds}s`} />
               <DetailRow
                 label="Current Payout"
@@ -283,7 +283,7 @@ export default function AdminTradeRulesPage() {
             <button
               onClick={() => handleSave(rule)}
               disabled={savingId === rule.id}
-              className="mt-4 w-full rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+              className="mt-4 w-full rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-50"
             >
               {savingId === rule.id ? "Saving..." : "Save Rule"}
             </button>

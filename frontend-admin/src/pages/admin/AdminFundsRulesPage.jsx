@@ -252,54 +252,54 @@ export default function AdminFundsRulesPage() {
             value={createForm.name}
             onChange={(e) => handleCreateChange("name", e.target.value)}
             placeholder="Rule name"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.duration_days}
             onChange={(e) => handleCreateChange("duration_days", e.target.value)}
             placeholder="Duration days"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.min_amount}
             onChange={(e) => handleCreateChange("min_amount", e.target.value)}
             placeholder="Min amount"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.max_amount}
             onChange={(e) => handleCreateChange("max_amount", e.target.value)}
             placeholder="Max amount"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.min_daily_profit_percent}
             onChange={(e) => handleCreateChange("min_daily_profit_percent", e.target.value)}
             placeholder="Min daily %"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.max_daily_profit_percent}
             onChange={(e) => handleCreateChange("max_daily_profit_percent", e.target.value)}
             placeholder="Max daily %"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <input
             type="number"
             value={createForm.user_limit_count}
             onChange={(e) => handleCreateChange("user_limit_count", e.target.value)}
             placeholder="User limit count"
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           />
           <select
             value={createForm.status}
             onChange={(e) => handleCreateChange("status", e.target.value)}
-            className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none"
+            className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
           >
             <option value="active">active</option>
             <option value="inactive">inactive</option>
@@ -345,7 +345,7 @@ export default function AdminFundsRulesPage() {
                   type="text"
                   value={rule.name || ""}
                   onChange={(e) => handleChange(rule.id, "name", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 />
               </div>
 
@@ -355,7 +355,7 @@ export default function AdminFundsRulesPage() {
                   type="number"
                   value={rule.duration_days || ""}
                   onChange={(e) => handleChange(rule.id, "duration_days", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 />
               </div>
 
@@ -365,7 +365,7 @@ export default function AdminFundsRulesPage() {
                   type="number"
                   value={rule.min_amount || ""}
                   onChange={(e) => handleChange(rule.id, "min_amount", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 />
               </div>
 
@@ -375,7 +375,7 @@ export default function AdminFundsRulesPage() {
                   type="number"
                   value={rule.max_amount ?? ""}
                   onChange={(e) => handleChange(rule.id, "max_amount", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 />
               </div>
 
@@ -388,7 +388,7 @@ export default function AdminFundsRulesPage() {
                     onChange={(e) =>
                       handleChange(rule.id, "min_daily_profit_percent", e.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                   />
                 </div>
 
@@ -400,7 +400,7 @@ export default function AdminFundsRulesPage() {
                     onChange={(e) =>
                       handleChange(rule.id, "max_daily_profit_percent", e.target.value)
                     }
-                    className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                   />
                 </div>
               </div>
@@ -411,7 +411,7 @@ export default function AdminFundsRulesPage() {
                   type="number"
                   value={rule.user_limit_count ?? ""}
                   onChange={(e) => handleChange(rule.id, "user_limit_count", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 />
               </div>
 
@@ -420,7 +420,7 @@ export default function AdminFundsRulesPage() {
                 <select
                   value={rule.status}
                   onChange={(e) => handleChange(rule.id, "status", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
                 >
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>

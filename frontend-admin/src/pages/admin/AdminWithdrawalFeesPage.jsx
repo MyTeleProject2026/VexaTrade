@@ -24,7 +24,7 @@ function getStatusBadge(status) {
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {title}
       </div>
@@ -37,7 +37,7 @@ function StatCard({ title, value, tone = "text-white" }) {
 
 function DetailBox({ label, value, valueClassName = "text-white" }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">
         {label}
       </div>
@@ -276,7 +276,7 @@ export default function AdminWithdrawalFeesPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading withdrawal fees...
       </div>
     );
@@ -287,7 +287,7 @@ export default function AdminWithdrawalFeesPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Withdrawal Fees
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -303,7 +303,7 @@ export default function AdminWithdrawalFeesPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -346,7 +346,7 @@ export default function AdminWithdrawalFeesPage() {
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">
@@ -378,7 +378,7 @@ export default function AdminWithdrawalFeesPage() {
                   value={form.coin}
                   onChange={handleChange}
                   placeholder="USDT / BTC / ETH"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -390,7 +390,7 @@ export default function AdminWithdrawalFeesPage() {
                   value={form.network}
                   onChange={handleChange}
                   placeholder="TRC20 / ERC20 / BEP20"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
             </div>
@@ -406,7 +406,7 @@ export default function AdminWithdrawalFeesPage() {
                   value={form.fee_amount}
                   onChange={handleChange}
                   placeholder="0.00000000"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
@@ -416,7 +416,7 @@ export default function AdminWithdrawalFeesPage() {
                   name="fee_type"
                   value={form.fee_type}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value="fixed">fixed</option>
                   <option value="percent">percent</option>
@@ -429,7 +429,7 @@ export default function AdminWithdrawalFeesPage() {
                   name="status"
                   value={form.status}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
                 >
                   <option value="active">active</option>
                   <option value="inactive">inactive</option>
@@ -437,7 +437,7 @@ export default function AdminWithdrawalFeesPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 space-y-2 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4 space-y-2 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-500">Coin / Network</span>
                 <span className="text-white">
@@ -472,7 +472,7 @@ export default function AdminWithdrawalFeesPage() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+              className="w-full rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-60"
             >
               {saving
                 ? editingId
@@ -485,7 +485,7 @@ export default function AdminWithdrawalFeesPage() {
           </form>
         </section>
 
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">Saved Withdrawal Fees</h2>
@@ -494,7 +494,7 @@ export default function AdminWithdrawalFeesPage() {
               </p>
             </div>
 
-            <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+            <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
               {filteredFees.length} Result{filteredFees.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -510,14 +510,14 @@ export default function AdminWithdrawalFeesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by coin, network, fee..."
-                className="w-full rounded-xl border border-white/10 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] py-2.5 pl-10 pr-4 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+              className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -530,7 +530,7 @@ export default function AdminWithdrawalFeesPage() {
               filteredFees.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-white/10 bg-slate-800/60 px-4 py-4"
+                  className="rounded-2xl border border-white/10 bg-[#0a0e1a]/60 px-4 py-4"
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
@@ -539,7 +539,7 @@ export default function AdminWithdrawalFeesPage() {
                           {String(item.coin || "").toUpperCase()} {String(item.network || "").toUpperCase()}
                         </div>
 
-                        <span className="rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-[11px] text-slate-300">
+                        <span className="rounded-full border border-white/10 bg-[#050812]/80 px-3 py-1 text-[11px] text-slate-300">
                           ID #{item.id}
                         </span>
 
@@ -585,7 +585,7 @@ export default function AdminWithdrawalFeesPage() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-white/10 bg-slate-800/40 px-4 py-8 text-center text-sm text-slate-400">
+              <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/40 px-4 py-8 text-center text-sm text-slate-400">
                 No withdrawal fees found.
               </div>
             )}

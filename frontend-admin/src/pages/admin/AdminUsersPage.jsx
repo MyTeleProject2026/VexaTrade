@@ -40,7 +40,7 @@ function StatusBadge({ value }) {
 
 function SmallStat({ label, value, valueClass = "text-white" }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-slate-900/70 p-4 shadow-xl">
+    <div className="rounded-[22px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
@@ -106,7 +106,7 @@ export default function AdminUsersPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading users...
       </div>
     );
@@ -143,7 +143,7 @@ export default function AdminUsersPage() {
         </div>
       ) : null}
 
-      <section className="rounded-[24px] border border-white/10 bg-slate-900/70 shadow-xl">
+      <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
         <div className="border-b border-white/10 px-4 py-4 sm:px-5">
           <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
             <div className="relative">
@@ -156,11 +156,11 @@ export default function AdminUsersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name, email, UID, status, country..."
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-500"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-slate-300">
               <Users size={15} />
               {filteredUsers.length} User{filteredUsers.length === 1 ? "" : "s"}
             </div>
@@ -169,7 +169,7 @@ export default function AdminUsersPage() {
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-left">
-            <thead className="border-b border-white/10 bg-slate-950/40 text-[11px] uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-white/10 bg-[#050812]/40 text-[11px] uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3 sm:px-5">User</th>
                 <th className="px-4 py-3 sm:px-5">Balance</th>
@@ -286,7 +286,7 @@ export default function AdminUsersPage() {
                 String(item.kyc_status || "").toLowerCase() === "approved"
             ).length
           }
-          valueClass="text-violet-300"
+          valueClass="text-cyan-300"
         />
       </section>
     </div>

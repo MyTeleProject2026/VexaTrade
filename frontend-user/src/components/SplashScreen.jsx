@@ -48,7 +48,7 @@ export default function SplashScreen() {
           <div className="absolute h-44 w-44 rounded-full border border-cyan-300/20 shadow-[0_0_80px_rgba(34,211,238,0.12)]" />
 
           <img
-            src="/cryptopulse-logo.png"
+            src="/VexaTrade-logo.png"
             alt="VexaTrade"
             className="relative z-10 h-28 w-28 rounded-3xl object-cover shadow-[0_0_35px_rgba(34,211,238,0.28)] sm:h-36 sm:w-36"
           />

@@ -41,7 +41,7 @@ export default function BrandLogo({
           className={`absolute ${current.ring} rounded-xl border border-cyan-400/25 animate-spin [animation-duration:8s]`}
         />
         <img
-          src="/cryptopulse-icon.png"
+          src="/VexaTrade-icon.png"
           alt="VexaTrade"
           className={`relative z-10 ${current.wrap} rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.45)] transition duration-300`}
         />

@@ -58,7 +58,7 @@ function Badge({ value }) {
 
 function Card({ title, subtitle, children, rightContent = null }) {
   return (
-    <section className="rounded-[24px] border border-white/10 bg-slate-900/70 shadow-xl">
+    <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
       <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
           <h2 className="text-base font-semibold text-white sm:text-lg">{title}</h2>
@@ -318,7 +318,7 @@ export default function AdminUserDetailsPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading user details...
       </div>
     );
@@ -326,7 +326,7 @@ export default function AdminUserDetailsPage() {
 
   if (!user) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         User not found.
       </div>
     );
@@ -397,7 +397,7 @@ export default function AdminUserDetailsPage() {
             subtitle="Review verification, account status, passcode, and security information."
           >
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <UserCog size={15} />
                   Account status
@@ -407,7 +407,7 @@ export default function AdminUserDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <ShieldCheck size={15} />
                   KYC status
@@ -417,7 +417,7 @@ export default function AdminUserDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <MailCheck size={15} />
                   Email verification
@@ -427,7 +427,7 @@ export default function AdminUserDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <LockKeyhole size={15} />
                   Passcode
@@ -437,7 +437,7 @@ export default function AdminUserDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <Smartphone size={15} />
                   2FA
@@ -447,7 +447,7 @@ export default function AdminUserDetailsPage() {
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <BadgeDollarSign size={15} />
                   Trading fee tier
@@ -464,7 +464,7 @@ export default function AdminUserDetailsPage() {
             subtitle="Add or decrease main wallet balance."
           >
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-3 rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="space-y-3 rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-white">
                   <Plus size={15} className="text-emerald-300" />
                   Add funds
@@ -477,7 +477,7 @@ export default function AdminUserDetailsPage() {
                     setAmountForm((prev) => ({ ...prev, addAmount: e.target.value }))
                   }
                   placeholder="Amount"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
                 />
 
                 <textarea
@@ -487,7 +487,7 @@ export default function AdminUserDetailsPage() {
                     setAmountForm((prev) => ({ ...prev, addNote: e.target.value }))
                   }
                   placeholder="Note"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
                 />
 
                 <button
@@ -500,7 +500,7 @@ export default function AdminUserDetailsPage() {
                 </button>
               </div>
 
-              <div className="space-y-3 rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+              <div className="space-y-3 rounded-[20px] border border-white/10 bg-[#050812]/40 p-4">
                 <div className="flex items-center gap-2 text-sm text-white">
                   <Minus size={15} className="text-rose-300" />
                   Decrease funds
@@ -516,7 +516,7 @@ export default function AdminUserDetailsPage() {
                     }))
                   }
                   placeholder="Amount"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-rose-500"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-rose-500"
                 />
 
                 <textarea
@@ -529,7 +529,7 @@ export default function AdminUserDetailsPage() {
                     }))
                   }
                   placeholder="Note"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none focus:border-rose-500"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-rose-500"
                 />
 
                 <button
@@ -584,7 +584,7 @@ export default function AdminUserDetailsPage() {
             title="Security save"
             subtitle="Update account status, fee tier, email verification, and 2FA state."
             rightContent={
-              <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-[11px] text-slate-300">
+              <div className="rounded-full border border-white/10 bg-[#050812]/70 px-3 py-1 text-[11px] text-slate-300">
                 User #{user.id}
               </div>
             }
@@ -599,7 +599,7 @@ export default function AdminUserDetailsPage() {
                   onChange={(e) =>
                     setSecurityForm((prev) => ({ ...prev, status: e.target.value }))
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 >
                   <option value="active">active</option>
                   <option value="disabled">disabled</option>
@@ -619,7 +619,7 @@ export default function AdminUserDetailsPage() {
                       trading_fee_tier: e.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 >
                   {FEE_TIERS.map((tier) => (
                     <option key={tier} value={tier}>
@@ -641,7 +641,7 @@ export default function AdminUserDetailsPage() {
                       email_verified: Number(e.target.value),
                     }))
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 >
                   <option value="0">not verified</option>
                   <option value="1">verified</option>
@@ -660,7 +660,7 @@ export default function AdminUserDetailsPage() {
                       twofa_enabled: Number(e.target.value),
                     }))
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 >
                   <option value="0">disabled</option>
                   <option value="1">enabled</option>
@@ -699,7 +699,7 @@ export default function AdminUserDetailsPage() {
                   value={notificationForm.title}
                   onChange={handleNotificationChange}
                   placeholder="Enter notification title"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 />
               </div>
 
@@ -711,7 +711,7 @@ export default function AdminUserDetailsPage() {
                   name="type"
                   value={notificationForm.type}
                   onChange={handleNotificationChange}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 >
                   <option value="general">general</option>
                   <option value="security">security</option>
@@ -730,7 +730,7 @@ export default function AdminUserDetailsPage() {
                   value={notificationForm.message}
                   onChange={handleNotificationChange}
                   placeholder="Enter notification message"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none"
                 />
               </div>
 
@@ -738,7 +738,7 @@ export default function AdminUserDetailsPage() {
                 type="button"
                 onClick={handleSendNotification}
                 disabled={sendingNotification}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-60"
               >
                 {sendingNotification ? (
                   <>

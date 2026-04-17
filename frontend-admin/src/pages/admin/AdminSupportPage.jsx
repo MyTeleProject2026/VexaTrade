@@ -4,7 +4,7 @@ import { adminApi, getApiErrorMessage } from "../../services/api";
 
 function PreviewCard({ title, value, tone = "text-white", breakAll = false }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
+    <div className="rounded-xl border border-white/10 bg-[#050812]/50 p-3">
       <div className="text-[11px] uppercase tracking-wide text-slate-500">{title}</div>
       <div
         className={`mt-1 text-sm ${tone} ${
@@ -101,7 +101,7 @@ export default function AdminSupportPage() {
 
   if (loading) {
     return (
-      <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 text-sm text-slate-300">
+      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
         Loading support settings...
       </div>
     );
@@ -112,7 +112,7 @@ export default function AdminSupportPage() {
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-violet-300">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">
               Customer Service
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
@@ -128,7 +128,7 @@ export default function AdminSupportPage() {
               className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${
                 refreshing
                   ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-300"
-                  : "border-white/10 bg-slate-950/70 text-slate-300"
+                  : "border-white/10 bg-[#050812]/70 text-slate-300"
               }`}
             >
               <span
@@ -164,7 +164,7 @@ export default function AdminSupportPage() {
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-white">Edit Support Details</h2>
             <p className="mt-1 text-sm text-slate-400">
@@ -183,7 +183,7 @@ export default function AdminSupportPage() {
                 value={form.channel}
                 onChange={handleChange}
                 placeholder="Telegram / WhatsApp / Line / Email / Live Chat"
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -196,8 +196,8 @@ export default function AdminSupportPage() {
                 name="contact"
                 value={form.contact}
                 onChange={handleChange}
-                placeholder="@cryptopulse_support / phone / email"
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                placeholder="@VexaTrade_support / phone / email"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -211,7 +211,7 @@ export default function AdminSupportPage() {
                 value={form.link}
                 onChange={handleChange}
                 placeholder="https://t.me/your_support_username"
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
@@ -225,21 +225,21 @@ export default function AdminSupportPage() {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Available hours, response note, extra message..."
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500"
               />
             </div>
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+              className="w-full rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save Support Settings"}
             </button>
           </form>
         </section>
 
-        <section className="rounded-[24px] border border-white/10 bg-slate-900/70 p-4 shadow-xl sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl sm:p-5">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-white">Live Preview</h2>
             <p className="mt-1 text-sm text-slate-400">
@@ -271,13 +271,13 @@ export default function AdminSupportPage() {
               value={form.note || "No note set"}
             />
 
-            <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/30 p-4">
+            <div className="rounded-2xl border border-dashed border-white/10 bg-[#050812]/30 p-4">
               <div className="mb-3 text-sm text-slate-400">User Page Result</div>
 
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/60 p-4">
                 <div className="grid gap-3">
                   <div className="flex items-start gap-3">
-                    <Headset className="mt-0.5 h-4 w-4 text-violet-300" />
+                    <Headset className="mt-0.5 h-4 w-4 text-cyan-300" />
                     <div>
                       <div className="text-xs text-slate-500">Support Channel</div>
                       <div className="mt-1 text-sm font-medium text-white">

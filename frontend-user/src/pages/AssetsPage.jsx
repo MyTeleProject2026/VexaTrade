@@ -318,7 +318,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
   async function loadMyQrCode() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/user/qr-code`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/qr-code`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -337,7 +337,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
     }
     try {
       setScanning(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/user/by-uid/${uid}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/by-uid/${uid}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -378,7 +378,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/user/transfer`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/transfer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -435,7 +435,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050812]/80 p-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0e1a] p-5">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex gap-2">
@@ -560,7 +560,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
               {myQrCode ? (
                 <div className="mt-4 flex flex-col items-center">
                   <img
-                    src={`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}${myQrCode}`}
+                    src={`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}${myQrCode}`}
                     alt="Your QR Code"
                     className="h-48 w-48 rounded-xl border border-white/10 bg-white p-2"
                   />
@@ -656,7 +656,7 @@ export default function AssetsPage() {
 
       // Add combined balance API call
       tasks.push(
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
           headers: { Authorization: `Bearer ${token}` }
         }).then(res => res.json())
       );
@@ -756,7 +756,7 @@ export default function AssetsPage() {
 
     const onFocus = () => loadData(true);
     const onStorage = (e) => {
-      if (e.key === "cryptopulse_assets_refresh") {
+      if (e.key === "VexaTrade_assets_refresh") {
         loadData(true);
       }
     };

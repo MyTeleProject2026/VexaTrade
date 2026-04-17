@@ -420,7 +420,7 @@ export default function ConvertPage() {
         fromAmount: "",
       }));
 
-      localStorage.setItem("cryptopulse_assets_refresh", String(Date.now()));
+      localStorage.setItem("VexaTrade_assets_refresh", String(Date.now()));
       await loadData(true);
     } catch (err) {
       showError(getApiErrorMessage(err));

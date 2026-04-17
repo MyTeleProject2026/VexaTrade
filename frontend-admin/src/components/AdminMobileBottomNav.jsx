@@ -4,7 +4,6 @@ import {
   Users,
   CandlestickChart,
   Settings2,
-  Bell,
 } from "lucide-react";
 
 function NavItem({ to, icon: Icon, label, activeClass = "", normalClass = "" }) {
@@ -31,34 +30,34 @@ export default function AdminMobileBottomNav() {
   if (location.pathname === "/admin/login") return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-950/95 backdrop-blur-xl xl:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl xl:hidden">
       <div className="mx-auto flex max-w-md items-center justify-around px-2 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
         <NavItem
           to="/admin/dashboard"
           icon={LayoutDashboard}
           label="Home"
-          activeClass="text-emerald-400"
+          activeClass="text-cyan-400"
           normalClass="text-slate-500"
         />
         <NavItem
           to="/admin/users"
           icon={Users}
           label="Users"
-          activeClass="text-emerald-400"
+          activeClass="text-cyan-400"
           normalClass="text-slate-500"
         />
         <NavItem
           to="/admin/trading-funds-control"
           icon={CandlestickChart}
           label="Trade"
-          activeClass="text-emerald-400"
+          activeClass="text-cyan-400"
           normalClass="text-slate-500"
         />
         <NavItem
           to="/admin/platform-settings"
           icon={Settings2}
           label="Settings"
-          activeClass="text-emerald-400"
+          activeClass="text-cyan-400"
           normalClass="text-slate-500"
         />
       </div>

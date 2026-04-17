@@ -1080,7 +1080,7 @@ export default function TradePage() {
       </div>
 
       {showRunningTradeModal && runningTrade ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-5 shadow-2xl sm:rounded-[34px]">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-[22px] font-bold text-white">{runningTrade.pair}</h3>
@@ -1134,7 +1134,7 @@ export default function TradePage() {
       ) : null}
 
       {resultModal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-5 shadow-2xl sm:rounded-[34px]">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-[22px] font-bold text-white">{resultModal.pair}</h3>
