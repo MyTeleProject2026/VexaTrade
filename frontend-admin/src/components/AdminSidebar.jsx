@@ -21,6 +21,7 @@ import {
   Handshake,
   ChevronDown,
   ChevronRight,
+  UserCog,
 } from "lucide-react";
 
 const navItems = [
@@ -32,6 +33,7 @@ const navItems = [
       { label: "All Users", to: "/admin/users", icon: Users },
       { label: "KYC Verification", to: "/admin/kyc", icon: ShieldCheck },
       { label: "Joint Account Requests", to: "/admin/joint-account-requests", icon: Handshake },
+      { label: "Joint Accounts", to: "/admin/joint-accounts", icon: UserCog },
       { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
       { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
       { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
@@ -248,7 +250,7 @@ export default function AdminSidebar({
           type="button"
           aria-label="Close sidebar overlay"
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-[#050812]/70 backdrop-blur-[2px] xl:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-[2px] xl:hidden"
         />
       ) : null}
 
