@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RefreshCw,
@@ -10,9 +10,6 @@ import {
   ArrowUpToLine,
   ArrowRightLeft,
 } from "lucide-react";
-import TradingChart from "../components/TradingChart";
-import OrderBook from "../components/OrderBook";
-import MarketTrades from "../components/MarketTrades";
 import { userApi, marketApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 
@@ -77,7 +74,7 @@ function MarketRow({ symbol, price, change, onClick }) {
     >
       <div>
         <div className="text-sm font-semibold text-white">{symbol}</div>
-        <div className="text-xs text-slate-500">BTC/USDT</div>
+        <div className="text-xs text-slate-500">USDT</div>
       </div>
       <div className="text-right">
         <div className="text-sm font-medium text-white">{formatMoney(price)}</div>
@@ -99,9 +96,6 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
   const [markets, setMarkets] = useState([]);
-  const [selectedPair, setSelectedPair] = useState("BTCUSDT");
-  const [currentPrice, setCurrentPrice] = useState(0);
-  const [timeframe, setTimeframe] = useState("5m");
   const [notifications, setNotifications] = useState([]);
 
   async function loadData(silent = false) {
@@ -176,7 +170,7 @@ export default function DashboardPage() {
             )}
           </button>
           <button
-            onClick={() => navigate("/profile")}
+            onClick={() => navigate("/assets")}
             className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
           >
             <Wallet size={16} />
@@ -220,50 +214,21 @@ export default function DashboardPage() {
         <ActionButton icon={TrendingUp} label="Trade" onClick={() => navigate("/trade")} />
       </div>
 
-      {/* Main Trading Area */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Left - Chart */}
-        <div className="lg:col-span-2">
-          <TradingChart
-            symbol={selectedPair}
-            interval={timeframe}
-            height={450}
-            onPriceChange={setCurrentPrice}
-          />
+      {/* Hot Pairs Section */}
+      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h3 className="text-sm font-semibold text-white">Hot Pairs</h3>
         </div>
-
-        {/* Right - Order Book */}
-        <div>
-          <OrderBook currentPrice={currentPrice} />
-        </div>
-      </div>
-
-      {/* Bottom Section - Market Trades & Hot Pairs */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* Market Trades */}
-        <div className="lg:col-span-2">
-          <MarketTrades currentPrice={currentPrice} />
-        </div>
-
-        {/* Hot Pairs */}
-        <div className="rounded-xl border border-white/10 bg-[#0a0e1a]">
-          <div className="border-b border-white/10 px-4 py-3">
-            <h3 className="text-sm font-semibold text-white">Hot Pairs</h3>
-          </div>
-          <div className="space-y-1 p-2">
-            {topMarkets.map((item) => (
-              <MarketRow
-                key={item.symbol}
-                symbol={item.symbol?.replace("USDT", "") || ""}
-                price={item.lastPrice || item.price}
-                change={item.priceChangePercent}
-                onClick={() => {
-                  setSelectedPair(item.symbol);
-                  navigate("/trade");
-                }}
-              />
-            ))}
-          </div>
+        <div className="grid gap-1 p-2 sm:grid-cols-2 lg:grid-cols-4">
+          {topMarkets.map((item) => (
+            <MarketRow
+              key={item.symbol}
+              symbol={item.symbol?.replace("USDT", "") || ""}
+              price={item.lastPrice || item.price}
+              change={item.priceChangePercent}
+              onClick={() => navigate("/trade")}
+            />
+          ))}
         </div>
       </div>
     </div>
