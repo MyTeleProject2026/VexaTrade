@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="cyanGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Hexagon background -->
+  <polygon points="50,10 85,30 85,70 50,90 15,70 15,30" fill="#0a0e1a" stroke="url(#cyanGradient)" stroke-width="3"/>
+  
+  <!-- Inner hexagon -->
+  <polygon points="50,20 75,35 75,65 50,80 25,65 25,35" fill="none" stroke="#06b6d4" stroke-width="1" stroke-opacity="0.3"/>
+  
+  <!-- Trading chart line -->
+  <polyline points="22,68 35,55 48,60 62,45 72,52 82,32" 
+    fill="none" stroke="url(#cyanGradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Arrow -->
+  <polygon points="82,32 77,42 87,35" fill="#06b6d4"/>
+  
+  <!-- Candlesticks -->
+  <rect x="30" y="62" width="5" height="18" rx="1.5" fill="#06b6d4" opacity="0.5"/>
+  <line x1="32.5" y1="58" x2="32.5" y2="62" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  
+  <rect x="40" y="55" width="5" height="25" rx="1.5" fill="#ef4444" opacity="0.5"/>
+  <line x1="42.5" y1="50" x2="42.5" y2="55" stroke="#ef4444" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  
+  <rect x="65" y="58" width="5" height="15" rx="1.5" fill="#06b6d4" opacity="0.5"/>
+  <line x1="67.5" y1="54" x2="67.5" y2="58" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  
+  <!-- Center V shape -->
+  <polyline points="42,78 50,62 58,78" fill="none" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

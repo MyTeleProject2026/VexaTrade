@@ -1,0 +1,15 @@
+{
+  "name": "VexaTrade",
+  "short_name": "VexaTrade",
+  "description": "Crypto trading platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050812",
+  "theme_color": "#0a0e1a",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon-180.png", "type": "image/png", "sizes": "180x180" }
+  ]
+}
