@@ -74,9 +74,9 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://vexatrade.onrender.com",
-  "https://vexatrade-admin.onrender.com",
-  "https://vexatrade-server.onrender.com",
+  "https://cryptopulse-v3.onrender.com",
+  "https://cryptopulse-admin-control-panel.onrender.com",
+  "https://cryptopulse-4rhe.onrender.com",
 ].filter(Boolean);
 
 const corsOptions = {
@@ -464,28 +464,41 @@ function addDays(date, days) {
 async function getBinancePrice(symbol) {
   const upperSymbol = String(symbol || "").toUpperCase().trim();
 
-  try {
-    const response = await axios.get(BINANCE_PRICE_API, {
-      params: { symbol: upperSymbol },
-      timeout: 10000,
-    });
+  // Try multiple endpoints
+  const endpoints = [
+    "https://api.binance.us/api/v3/ticker/price",   // US endpoint
+    "https://data.binance.com/api/v3/ticker/price", // CDN endpoint
+    BINANCE_PRICE_API                                // Original endpoint
+  ];
 
-    return toNumber(response.data?.price || 0);
-  } catch (error) {
-    console.error(`Binance price fetch failed for ${upperSymbol}:`, error.message);
-
+  for (const endpoint of endpoints) {
     try {
-      const bybitPrice = await getBybitPrice(upperSymbol);
-      if (bybitPrice > 0) return bybitPrice;
-    } catch (_error) {}
-
-    try {
-      const kucoinPrice = await getKucoinPrice(upperSymbol);
-      if (kucoinPrice > 0) return kucoinPrice;
-    } catch (_error) {}
-
-    return 0;
+      const response = await axios.get(endpoint, {
+        params: { symbol: upperSymbol },
+        timeout: 10000,
+      });
+      const price = response.data?.price;
+      if (price && Number(price) > 0) {
+        return toNumber(price);
+      }
+    } catch (error) {
+      continue; // Try next endpoint
+    }
   }
+
+  // Fallback to Bybit
+  try {
+    const bybitPrice = await getBybitPrice(upperSymbol);
+    if (bybitPrice > 0) return bybitPrice;
+  } catch (_error) {}
+
+  // Fallback to KuCoin
+  try {
+    const kucoinPrice = await getKucoinPrice(upperSymbol);
+    if (kucoinPrice > 0) return kucoinPrice;
+  } catch (_error) {}
+
+  return 0;
 }
 
 async function getBybitPrice(symbol) {
@@ -523,9 +536,29 @@ async function getBinanceHomeMarkets(symbols) {
         .filter(Boolean)
     : [];
 
-  try {
-    const response = await axios.get(BINANCE_24H_API, { timeout: 10000 });
-    const rows = Array.isArray(response.data) ? response.data : [];
+  // Try multiple Binance endpoints (US-friendly first)
+  const binanceEndpoints = [
+    "https://api.binance.us/api/v3/ticker/24hr",   // US endpoint (works in US)
+    "https://data.binance.com/api/v3/ticker/24hr", // CDN endpoint
+    BINANCE_24H_API                                 // Original endpoint
+  ];
+  
+  let response = null;
+  for (const endpoint of binanceEndpoints) {
+    try {
+      response = await axios.get(endpoint, { timeout: 10000 });
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        console.log(`✅ Binance market data fetched from: ${endpoint}`);
+        break;
+      }
+    } catch (error) {
+      console.log(`Binance endpoint failed: ${endpoint} - ${error.message}`);
+      continue;
+    }
+  }
+  
+  if (response?.data && Array.isArray(response.data)) {
+    const rows = response.data;
     const map = new Map(
       rows.map((row) => [String(row.symbol || "").toUpperCase(), row])
     );
@@ -536,11 +569,9 @@ async function getBinanceHomeMarkets(symbols) {
       .map(formatMarketRow);
 
     if (result.length) return result;
-    throw new Error("Binance returned empty market rows");
-  } catch (error) {
-    console.error("Binance market list fetch failed:", error.message);
   }
 
+  // Fallback to Bybit
   try {
     const response = await axios.get(BYBIT_TICKERS_API, { timeout: 10000 });
     const list = response.data?.result?.list || [];
@@ -570,6 +601,7 @@ async function getBinanceHomeMarkets(symbols) {
     console.error("Bybit market list fetch failed:", error.message);
   }
 
+  // Fallback to KuCoin
   try {
     const response = await axios.get(KUCOIN_ALL_TICKERS_API, { timeout: 10000 });
     const list = response.data?.data?.ticker || [];
@@ -601,6 +633,7 @@ async function getBinanceHomeMarkets(symbols) {
     console.error("KuCoin market list fetch failed:", error.message);
   }
 
+  // Final fallback: fetch each symbol individually
   const result = [];
   for (const symbol of safeSymbols) {
     try {
@@ -1575,7 +1608,7 @@ app.post("/api/auth/forgot-password", async (req, res, next) => {
       [user.id, resetToken, resetToken]
     );
 
-    const resetLink = `${process.env.FRONTEND_USER_URL || "https://vexatrade.onrender.com"}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_USER_URL || "https://cryptopulse-v3.onrender.com"}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail({ to: email, resetLink });
 
@@ -7554,36 +7587,23 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
    JOINT ACCOUNT COMBINED BALANCE
 ========================= */
 
-/* =========================
-   JOINT ACCOUNT COMBINED BALANCE
-========================= */
-
 app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res, next) => {
   try {
-    // Get current user
+    // Get current user's UID from database
     const [userRows] = await pool.execute(
       "SELECT id, uid, balance FROM users WHERE id = ? LIMIT 1",
       [req.user.id]
     );
     
     if (!userRows.length) {
-      return res.json({ 
-        success: true, 
-        data: { 
-          hasJointAccount: false, 
-          combinedBalance: 0,
-          userBalance: 0,
-          partnerBalance: 0,
-          partnerName: null
-        } 
-      });
+      return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: 0, userBalance: 0, partnerBalance: 0, partnerName: null } });
     }
     
     const currentUser = userRows[0];
     const currentUid = currentUser.uid;
     const currentBalance = Number(currentUser.balance || 0);
     
-    // Check for active joint account
+    // Check if user has active joint account
     const [jointRows] = await pool.execute(
       `SELECT * FROM joint_accounts 
        WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active'`,
@@ -7613,7 +7633,7 @@ app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res
       partnerUid = jointAccount.user1_uid;
     }
     
-    // Get partner's balance
+    // Get partner's balance and info
     const [partnerRows] = await pool.execute(
       "SELECT id, uid, name, email, balance FROM users WHERE uid = ? LIMIT 1",
       [partnerUid]
