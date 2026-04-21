@@ -76,6 +76,12 @@ const allowedOrigins = [
   "https://cryptopulse-v3.onrender.com",
   "https://cryptopulse-admin-control-panel.onrender.com",
   "https://cryptopulse-4rhe.onrender.com",
+  // ✅ ADD YOUR CUSTOM DOMAINS:
+  "https://www.vexatrade-v.2bd.net",
+  "https://vexatrade-v.2bd.net",
+  "https://admin.vexatrade-v.2bd.net",
+  // ✅ ADD THIS - Your frontend's Render URL:
+  "https://vexatrade.onrender.com"     // <-- THIS IS WHAT'S MISSING!
 ].filter(Boolean);
 
 
