@@ -66,7 +66,6 @@ const upload = multer({ storage });
 /* =========================
    APP CONFIG
 ========================= */
-
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
   process.env.FRONTEND_USER_URL,
@@ -78,6 +77,7 @@ const allowedOrigins = [
   "https://cryptopulse-admin-control-panel.onrender.com",
   "https://cryptopulse-4rhe.onrender.com",
 ].filter(Boolean);
+
 
 const corsOptions = {
   origin(origin, callback) {
