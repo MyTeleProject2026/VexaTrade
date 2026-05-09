@@ -66,7 +66,6 @@ const upload = multer({ storage });
 /* =========================
    APP CONFIG
 ========================= */
-
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
   process.env.FRONTEND_USER_URL,
@@ -74,10 +73,15 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
+ 
+  // ✅ ADD YOUR CUSTOM DOMAINS:
   "https://www.vexatrade-v.2bd.net",
-  "https://https://admin.vexatrade-v.2bd.net",
-  "https://vexatrade-server.onrender.com",
+  "https://vexatrade-v.2bd.net",
+  "https://admin.vexatrade-v.2bd.net",
+  // ✅ ADD THIS - Your frontend's Render URL:
+  "https://vexatrade.onrender.com"     // <-- THIS IS WHAT'S MISSING!
 ].filter(Boolean);
+
 
 const corsOptions = {
   origin(origin, callback) {
@@ -1608,7 +1612,7 @@ app.post("/api/auth/forgot-password", async (req, res, next) => {
       [user.id, resetToken, resetToken]
     );
 
-    const resetLink = `${process.env.FRONTEND_USER_URL || "https://admin.vexatrade-v.2bd.net"}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_USER_URL || "https://vexatrade-server.onrender.com"}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail({ to: email, resetLink });
 
@@ -1951,7 +1955,7 @@ app.post(
       await createUserNotification(connection, {
         userId: req.user.id,
         title: "Email verification code",
-        message: `Your VexaTrade verification code is ${code}. It expires in 10 minutes.`,
+        message: `Your CryptoPulse verification code is ${code}. It expires in 10 minutes.`,
         type: "verification_code",
       });
 
@@ -4988,134 +4992,6 @@ app.put("/api/admin/users/:id/security", authenticateAdmin, async (req, res, nex
   }
 });
 
-
-/* =========================
-   ADDITIONAL USER SECURITY FALLBACK ROUTES
-   ========================= */
-
-// Fallback: /api/admin/users/security/:userId (different order)
-app.get("/api/admin/users/security/:userId", authenticateAdmin, async (req, res, next) => {
-  try {
-    const userId = Number(req.params.userId);
-    
-    if (!Number.isFinite(userId) || userId <= 0) {
-      throw createError(400, "Invalid user id");
-    }
-    
-    const [rows] = await pool.execute(
-      `SELECT
-        id,
-        status,
-        trading_fee_tier,
-        email_verified,
-        twofa_enabled,
-        CASE
-          WHEN passcode IS NOT NULL AND TRIM(passcode) <> '' THEN 1
-          ELSE 0
-        END AS has_passcode,
-        kyc_status
-       FROM users
-       WHERE id = ?
-       LIMIT 1`,
-      [userId]
-    );
-
-    if (!rows.length) throw createError(404, "User not found");
-
-    res.json({
-      success: true,
-      data: rows[0],
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Fallback: /api/admin/users/security-info/:userId
-app.get("/api/admin/users/security-info/:userId", authenticateAdmin, async (req, res, next) => {
-  try {
-    const userId = Number(req.params.userId);
-    
-    if (!Number.isFinite(userId) || userId <= 0) {
-      throw createError(400, "Invalid user id");
-    }
-    
-    const [rows] = await pool.execute(
-      `SELECT
-        id,
-        status as account_status,
-        kyc_status,
-        email_verified,
-        twofa_enabled,
-        CASE
-          WHEN passcode IS NOT NULL AND TRIM(passcode) <> '' THEN 1
-          ELSE 0
-        END AS passcode_enabled,
-        trading_fee_tier
-       FROM users
-       WHERE id = ?
-       LIMIT 1`,
-      [userId]
-    );
-
-    if (!rows.length) throw createError(404, "User not found");
-
-    res.json({
-      success: true,
-      data: rows[0],
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Fallback: Get user security by UID (if frontend passes string UID)
-app.get("/api/admin/users/security/by-uid/:uid", authenticateAdmin, async (req, res, next) => {
-  try {
-    const userUid = String(req.params.uid).trim();
-    
-    if (!userUid) {
-      throw createError(400, "Invalid user uid");
-    }
-    
-    // First find user by UID
-    const [userRows] = await pool.execute(
-      `SELECT id FROM users WHERE uid = ? LIMIT 1`,
-      [userUid]
-    );
-    
-    if (!userRows.length) throw createError(404, "User not found");
-    
-    const userId = userRows[0].id;
-    
-    const [rows] = await pool.execute(
-      `SELECT
-        id,
-        status,
-        trading_fee_tier,
-        email_verified,
-        twofa_enabled,
-        CASE
-          WHEN passcode IS NOT NULL AND TRIM(passcode) <> '' THEN 1
-          ELSE 0
-        END AS has_passcode,
-        kyc_status
-       FROM users
-       WHERE id = ?
-       LIMIT 1`,
-      [userId]
-    );
-
-    res.json({
-      success: true,
-      data: rows[0],
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-
 app.post("/api/admin/users/:id/add-funds", authenticateAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
@@ -7585,107 +7461,6 @@ app.put("/api/admin/notifications/:id/read", authenticateAdmin, async (req, res,
   }
 });
 
-
-/* =========================
-   SEND USER NOTIFICATION (ADMIN)
-   ========================= */
-
-// Send notification to a specific user
-app.post("/api/admin/notifications/send", authenticateAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  
-  try {
-    const { user_id, title, message, type } = req.body;
-    
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required"
-      });
-    }
-    
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Notification title is required"
-      });
-    }
-    
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Notification message is required"
-      });
-    }
-    
-    await connection.beginTransaction();
-    
-    // Check if user exists
-    const [userRows] = await connection.execute(
-      "SELECT id, email FROM users WHERE id = ? LIMIT 1",
-      [user_id]
-    );
-    
-    if (!userRows.length) {
-      await connection.rollback();
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
-    
-    // Create notification
-    await createUserNotification(connection, {
-      userId: user_id,
-      title: title.trim(),
-      message: message.trim(),
-      type: type || "general"
-    });
-    
-    // Log admin action
-    await createAuditLog(connection, {
-      adminId: req.admin.id,
-      action: "send_user_notification",
-      targetUserId: user_id,
-      note: `Sent notification: ${title.trim()} to user ${userRows[0].email}`
-    });
-    
-    await connection.commit();
-    
-    res.json({
-      success: true,
-      message: "Notification sent successfully",
-      data: {
-        user_id: user_id,
-        title: title.trim(),
-        message: message.trim()
-      }
-    });
-    
-  } catch (error) {
-    await connection.rollback();
-    console.error("Send notification error:", error);
-    next(error);
-  } finally {
-    connection.release();
-  }
-});
-
-/* =========================
-   ADMIN NOTIFICATIONS
-========================= */
-
-// Get admin notifications (aggregated from various sources)
-app.get("/api/admin/notifications", authenticateAdmin, async (req, res, next) => {
-  // ... existing code ...
-});
-
-// Mark notification as read (store in memory or session)
-app.put("/api/admin/notifications/:id/read", authenticateAdmin, async (req, res, next) => {
-  // ... existing code ...
-});
-
-
 /* =========================
    JOINT ACCOUNT
 ========================= */
@@ -7958,10 +7733,7 @@ app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, asy
       throw createError(404, "User not found");
     }
 
-    // FIXED: Generate shorter account ID (max 30 chars)
-    const timestamp = Date.now().toString().slice(-10);
-    const random = Math.floor(Math.random() * 9999);
-    const accountId = `JA${timestamp}${random}`;
+    const accountId = `JA${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
     await connection.execute(
       `INSERT INTO joint_accounts (account_id, user1_uid, user2_uid, status, approved_at) 
@@ -7974,15 +7746,16 @@ app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, asy
       [requestId]
     );
 
+    // ✅ FIXED: Use actual user IDs (numbers), not UID strings
     await createUserNotification(connection, {
-      userId: requesterUser[0].id,
+      userId: requesterUser[0].id,  // ✅ CORRECT - numeric user ID
       title: "Joint Account Approved",
       message: `Your joint account request with ${request.partner_email} has been approved!`,
       type: "joint_account"
     });
 
     await createUserNotification(connection, {
-      userId: partnerUser[0].id,
+      userId: partnerUser[0].id,  // ✅ CORRECT - numeric user ID
       title: "Joint Account Approved",
       message: `Your joint account with ${request.requester_email} has been approved!`,
       type: "joint_account"
@@ -8179,7 +7952,7 @@ app.listen(PORT, async () => {
     await connection.ping();
     connection.release();
 
-    console.log(`✅ VexaTrade backend running on port ${PORT}`);
+    console.log(`✅ CryptoPulse backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
     console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
