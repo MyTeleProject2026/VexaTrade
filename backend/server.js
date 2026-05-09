@@ -74,9 +74,9 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
-  "https://cryptopulse-v3.onrender.com",
-  "https://cryptopulse-admin-control-panel.onrender.com",
-  "https://cryptopulse-4rhe.onrender.com",
+  "https://www.vexatrade-v.2bd.net",
+  "https://https://admin.vexatrade-v.2bd.net",
+  "https://vexatrade-server.onrender.com",
 ].filter(Boolean);
 
 const corsOptions = {
@@ -206,7 +206,7 @@ async function sendEmail({ to, subject, html }) {
 async function sendOtpEmail({ to, code }) {
   const html = `
     <div style="font-family: Arial, sans-serif; padding: 24px; background: #0b0b0b; color: #ffffff;">
-      <h2 style="margin:0 0 16px;">CryptoPulse Verification</h2>
+      <h2 style="margin:0 0 16px;">VexaTrade Verification</h2>
       <p style="margin:0 0 16px;">Your 6-digit verification code is:</p>
       <div style="font-size:32px; font-weight:700; letter-spacing:8px; color:#a3e635; margin:16px 0;">
         ${code}
@@ -215,7 +215,7 @@ async function sendOtpEmail({ to, code }) {
     </div>
   `;
   
-  return sendEmail({ to, subject: 'CryptoPulse Email Verification Code', html });
+  return sendEmail({ to, subject: 'VexaTrade Email Verification Code', html });
 }
 
 async function sendPasswordResetEmail({ to, resetLink }) {
@@ -230,7 +230,7 @@ async function sendPasswordResetEmail({ to, resetLink }) {
     </div>
   `;
   
-  return sendEmail({ to, subject: 'CryptoPulse Password Reset', html });
+  return sendEmail({ to, subject: 'VexaTrade Password Reset', html });
 }
 
 /* =========================
@@ -1121,7 +1121,7 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
     if (!qrRows.length) {
       // Generate new QR code
       const qrData = JSON.stringify({
-        type: "cryptopulse_transfer",
+        type: "VexaTrade_transfer",
         uid: userUid,
         name: req.user.email || "User",
       });
@@ -1396,7 +1396,7 @@ app.get("/api/health", async (_req, res) => {
 
     res.json({
       success: true,
-      message: "CryptoPulse backend running",
+      message: "VexaTrade backend running",
       database: DB_NAME,
     });
   } catch (_error) {
@@ -1410,7 +1410,7 @@ app.get("/api/health", async (_req, res) => {
 app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "CryptoPulse backend is running",
+    message: "VexaTrade backend is running",
   });
 });
 
@@ -1608,7 +1608,7 @@ app.post("/api/auth/forgot-password", async (req, res, next) => {
       [user.id, resetToken, resetToken]
     );
 
-    const resetLink = `${process.env.FRONTEND_USER_URL || "https://cryptopulse-v3.onrender.com"}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_USER_URL || "https://admin.vexatrade-v.2bd.net"}/reset-password?token=${resetToken}`;
 
     await sendPasswordResetEmail({ to: email, resetLink });
 
@@ -1951,7 +1951,7 @@ app.post(
       await createUserNotification(connection, {
         userId: req.user.id,
         title: "Email verification code",
-        message: `Your CryptoPulse verification code is ${code}. It expires in 10 minutes.`,
+        message: `Your VexaTrade verification code is ${code}. It expires in 10 minutes.`,
         type: "verification_code",
       });
 
@@ -8179,7 +8179,7 @@ app.listen(PORT, async () => {
     await connection.ping();
     connection.release();
 
-    console.log(`✅ CryptoPulse backend running on port ${PORT}`);
+    console.log(`✅ VexaTrade backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
     console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
