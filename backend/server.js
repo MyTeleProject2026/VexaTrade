@@ -7958,7 +7958,10 @@ app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, asy
       throw createError(404, "User not found");
     }
 
-    const accountId = `JA${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    // FIXED: Generate shorter account ID (max 30 chars)
+    const timestamp = Date.now().toString().slice(-10);
+    const random = Math.floor(Math.random() * 9999);
+    const accountId = `JA${timestamp}${random}`;
 
     await connection.execute(
       `INSERT INTO joint_accounts (account_id, user1_uid, user2_uid, status, approved_at) 
@@ -7971,16 +7974,15 @@ app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, asy
       [requestId]
     );
 
-    // ✅ FIXED: Use actual user IDs (numbers), not UID strings
     await createUserNotification(connection, {
-      userId: requesterUser[0].id,  // ✅ CORRECT - numeric user ID
+      userId: requesterUser[0].id,
       title: "Joint Account Approved",
       message: `Your joint account request with ${request.partner_email} has been approved!`,
       type: "joint_account"
     });
 
     await createUserNotification(connection, {
-      userId: partnerUser[0].id,  // ✅ CORRECT - numeric user ID
+      userId: partnerUser[0].id,
       title: "Joint Account Approved",
       message: `Your joint account with ${request.requester_email} has been approved!`,
       type: "joint_account"
