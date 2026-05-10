@@ -252,6 +252,7 @@ function generateUserToken(user) {
     {
       id: user.id,
       email: user.email,
+      uid: user.uid,
       role: "user",
     },
     JWT_SECRET,
@@ -7527,11 +7528,18 @@ app.get("/api/joint-account/status", authenticateUser, async (req, res, next) =>
   }
 });
 
+/* =========================
+   JOINT ACCOUNT REQUEST
+========================= */
+
 app.post("/api/joint-account/request", authenticateUser, async (req, res, next) => {
   try {
     const { partnerEmail, partnerKycNumber } = req.body;
     
-    // FIXED: Get user data from database, not from req.user
+    console.log("Joint account request from user:", req.user.id);
+    console.log("Partner email:", partnerEmail);
+    
+    // ✅ FIXED: Get user data from database, not from req.user
     const [requesterRows] = await pool.execute(
       "SELECT id, uid, email FROM users WHERE id = ? LIMIT 1",
       [req.user.id]
@@ -7589,8 +7597,17 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
       throw createError(400, "You already have an active joint account");
     }
 
-    // FIXED: Ensure no undefined values - convert undefined to null
+    // ✅ FIXED: Ensure no undefined values
     const safePartnerKycNumber = partnerKycNumber && partnerKycNumber.trim() ? partnerKycNumber.trim() : null;
+    
+    console.log("Inserting joint account request with:", {
+      requesterUid,
+      requesterEmail,
+      partnerUid: partner.uid,
+      partnerEmail: partner.email,
+      requesterId,
+      partnerId: partner.id
+    });
     
     const [result] = await pool.execute(
       `INSERT INTO joint_account_requests 
@@ -7606,6 +7623,8 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
         Number(partner.id)
       ]
     );
+
+    console.log("Joint account request created with ID:", result.insertId);
 
     res.json({
       success: true,
