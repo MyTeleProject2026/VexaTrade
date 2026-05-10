@@ -39,7 +39,7 @@ export default function LoanPage() {
     subtitle:
       "Submit your request and preview repayment automatically based on the current platform loan settings.",
     note:
-      "Loan request text, interest rate, and interest period will be admin-controlled later from admin panel.",
+      "Loan request text, interest rate, and Interest periods are automated via our integrated Blockchain AI system.",
     interestRate: 0.15,
     interestType: "weekly",
   });
@@ -383,7 +383,7 @@ export default function LoanPage() {
           <section className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-5 shadow-xl sm:p-6">
             <h2 className="text-xl font-semibold text-white">Repayment Preview</h2>
             <p className="mt-2 text-sm text-slate-400">
-              The system calculates the interest automatically from admin settings.
+              Interest is calculated automatically by our integrated Blockchain AI system.
             </p>
 
             <div className="mt-6 space-y-4">
