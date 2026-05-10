@@ -89,17 +89,53 @@ export default function VoucherModal({ voucher, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const voucherRef = useRef(null);
+  const closeTimeoutRef = useRef(null);
 
   const Icon = getVoucherIcon(voucher?.type);
   const colorClass = getVoucherColor(voucher?.type);
 
   useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
+    // ✅ Prevent body scroll when modal opens
+    document.body.style.overflow = 'hidden';
+    document.body.style.pointerEvents = 'auto';
+    
+    // Small delay to trigger entrance animation
+    const timer = setTimeout(() => setIsVisible(true), 10);
+    
+    // ✅ Clean up function
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.pointerEvents = '';
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleClose = () => {
     setIsVisible(false);
-    setTimeout(onClose, 250);
+    
+    // ✅ Clear any existing timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    
+    // ✅ Wait for animation to complete before removing from DOM
+    closeTimeoutRef.current = setTimeout(() => {
+      // ✅ Force remove any stuck backdrop elements
+      const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
+      backdrops.forEach(backdrop => {
+        if (backdrop && backdrop.parentNode && backdrop !== voucherRef.current?.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+      });
+      
+      // ✅ Reset body styles
+      document.body.style.overflow = '';
+      document.body.style.pointerEvents = '';
+      
+      onClose();
+    }, 300);
   };
 
   const handleScreenshot = async () => {
@@ -108,7 +144,7 @@ export default function VoucherModal({ voucher, onClose }) {
       setCapturing(true);
       const canvas = await html2canvas(voucherRef.current, {
         scale: 2,
-        backgroundColor: "#0a0a0a",
+        backgroundColor: "#0b1630",
         logging: false,
       });
       const link = document.createElement("a");
@@ -331,7 +367,7 @@ export default function VoucherModal({ voucher, onClose }) {
       className={`
         fixed inset-0 z-[250] flex items-end justify-center bg-[#050812]/80 p-0
         transition-all duration-300 sm:items-center sm:p-4
-        ${isVisible ? "bg-[#050812]/80" : "bg-[#050812]/0 pointer-events-none"}
+        ${isVisible ? "bg-[#050812]/80 opacity-100" : "bg-[#050812]/0 opacity-0 pointer-events-none"}
       `}
       onClick={handleClose}
     >
