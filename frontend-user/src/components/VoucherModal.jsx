@@ -88,54 +88,57 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
 export default function VoucherModal({ voucher, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const voucherRef = useRef(null);
-  const closeTimeoutRef = useRef(null);
+  const modalContainerRef = useRef(null);
 
   const Icon = getVoucherIcon(voucher?.type);
   const colorClass = getVoucherColor(voucher?.type);
 
+  // Handle escape key press
   useEffect(() => {
-    // ✅ Prevent body scroll when modal opens
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  // Animate in on mount
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      setIsVisible(true);
+    });
+    // Prevent body scroll
     document.body.style.overflow = 'hidden';
-    document.body.style.pointerEvents = 'auto';
     
-    // Small delay to trigger entrance animation
-    const timer = setTimeout(() => setIsVisible(true), 10);
-    
-    // ✅ Clean up function
     return () => {
       document.body.style.overflow = '';
-      document.body.style.pointerEvents = '';
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
     };
   }, []);
 
   const handleClose = () => {
+    if (isClosing) return; // Prevent multiple close attempts
+    
+    setIsClosing(true);
     setIsVisible(false);
     
-    // ✅ Clear any existing timeout
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-    
-    // ✅ Wait for animation to complete before removing from DOM
-    closeTimeoutRef.current = setTimeout(() => {
-      // ✅ Force remove any stuck backdrop elements
-      const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
-      backdrops.forEach(backdrop => {
-        if (backdrop && backdrop.parentNode && backdrop !== voucherRef.current?.parentNode) {
-          backdrop.parentNode.removeChild(backdrop);
-        }
-      });
-      
-      // ✅ Reset body styles
-      document.body.style.overflow = '';
-      document.body.style.pointerEvents = '';
-      
+    // Wait for animation to complete before calling onClose
+    setTimeout(() => {
+      // SAFE CLEANUP: Only try to remove if the element exists and is a child
+      if (modalContainerRef.current && modalContainerRef.current.parentNode) {
+        // Don't manually remove - let React handle it
+      }
       onClose();
     }, 300);
+  };
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
   };
 
   const handleScreenshot = async () => {
@@ -364,12 +367,13 @@ export default function VoucherModal({ voucher, onClose }) {
 
   return (
     <div
+      ref={modalContainerRef}
       className={`
         fixed inset-0 z-[250] flex items-end justify-center bg-[#050812]/80 p-0
         transition-all duration-300 sm:items-center sm:p-4
         ${isVisible ? "bg-[#050812]/80 opacity-100" : "bg-[#050812]/0 opacity-0 pointer-events-none"}
       `}
-      onClick={handleClose}
+      onClick={handleBackdropClick}
     >
       <div
         ref={voucherRef}
