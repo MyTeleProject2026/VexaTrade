@@ -285,7 +285,7 @@ export default function VoucherModal({ voucher, onClose }) {
             <VoucherRow label="Request ID" value={`#${voucher.data?.requestId || "--"}`} />
             <VoucherRow label="Partner Email" value={voucher.data?.partnerEmail || "--"} />
             <VoucherRow label="Partner UID" value={voucher.data?.partnerUid || "--"} />
-            <VoucherRow label="Status" value="Pending Admin Approval" valueClassName="text-amber-300" />
+            <VoucherRow label="Status" value="Pending System Approval" valueClassName="text-amber-300" />
             <VoucherRow label="Requested" value={formatDateTime(voucher.data?.created_at)} />
           </>
         );
