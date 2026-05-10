@@ -501,7 +501,7 @@ export default function ConvertPage() {
         <SummaryStat
           label="Convert Fee"
           value={`${convertFeePercent}%`}
-          subtext="Live admin-configured calculation"
+          subtext="Live system-configured calculation"
           icon={TrendingUp}
           tone="text-emerald-300"
         />
