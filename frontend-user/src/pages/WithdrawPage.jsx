@@ -609,13 +609,13 @@ export default function WithdrawPage() {
                         </div>
                       </div>
 
-                      {(item.txid || item.note || item.admin_note) ? (
+                      {(item.txid || item.note || item.system_note) ? (
                         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
                           <div className="text-xs uppercase tracking-wide text-slate-500">
                             TXID / Note
                           </div>
                           <div className="mt-2 break-all text-sm text-white">
-                            {item.txid || item.admin_note || item.note || "--"}
+                            {item.txid || item.system_note || item.note || "--"}
                           </div>
                         </div>
                       ) : null}
