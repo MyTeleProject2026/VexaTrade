@@ -321,6 +321,20 @@ export default function TransactionsPage() {
     return () => clearInterval(interval);
   }, []);
 
+   useEffect(() => {
+    // Cleanup function to remove any stuck modals when leaving the page
+    return () => {
+      const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
+      backdrops.forEach(backdrop => {
+        if (backdrop && backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+      });
+      document.body.style.overflow = '';
+      document.body.style.pointerEvents = '';
+    };
+  }, []);
+
   const activityRows = useMemo(() => {
     const txRows = transactions.map(normalizeActivityRowFromTransaction);
     const notificationRows = notifications.map(normalizeActivityRowFromNotification);
