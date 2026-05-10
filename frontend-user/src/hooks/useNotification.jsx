@@ -1,10 +1,11 @@
-import { useContext, createContext, useState, useCallback } from "react";
+import { useContext, createContext, useState, useCallback, useRef } from "react";
 
 const NotificationContext = createContext(null);
 
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [voucher, setVoucher] = useState(null);
+  const closeTimeoutRef = useRef(null);
 
   const showToast = useCallback((message, type = "info", duration = 4000) => {
     const id = Date.now();
@@ -31,11 +32,45 @@ export function NotificationProvider({ children }) {
     showToast(message, "info", duration);
   }, [showToast]);
 
+  // ✅ FIXED: Properly close existing voucher before showing new one
   const showVoucher = useCallback((voucherData) => {
-    setVoucher(voucherData);
-  }, []);
+    // Clear any existing close timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    
+    // First close the current voucher if it exists
+    if (voucher) {
+      setVoucher(null);
+      // Small delay to ensure cleanup
+      setTimeout(() => {
+        setVoucher(voucherData);
+      }, 100);
+    } else {
+      setVoucher(voucherData);
+    }
+  }, [voucher]);
 
+  // ✅ FIXED: Ensure proper cleanup when closing
   const closeVoucher = useCallback(() => {
+    // Clear any existing timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    
+    // Remove any stuck backdrop elements from the DOM
+    const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
+    backdrops.forEach(backdrop => {
+      if (backdrop && backdrop.parentNode) {
+        backdrop.parentNode.removeChild(backdrop);
+      }
+    });
+    
+    // Reset body styles
+    document.body.style.overflow = '';
+    document.body.style.pointerEvents = '';
+    
+    // Close the voucher
     setVoucher(null);
   }, []);
 
