@@ -58,19 +58,11 @@ export function NotificationProvider({ children }) {
       clearTimeout(closeTimeoutRef.current);
     }
     
-    // Remove any stuck backdrop elements from the DOM
-    const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
-    backdrops.forEach(backdrop => {
-      if (backdrop && backdrop.parentNode) {
-        backdrop.parentNode.removeChild(backdrop);
-      }
-    });
-    
     // Reset body styles
     document.body.style.overflow = '';
     document.body.style.pointerEvents = '';
     
-    // Close the voucher
+    // Close the voucher - let React handle DOM cleanup
     setVoucher(null);
   }, []);
 
