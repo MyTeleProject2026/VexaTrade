@@ -7530,13 +7530,29 @@ app.get("/api/joint-account/status", authenticateUser, async (req, res, next) =>
 app.post("/api/joint-account/request", authenticateUser, async (req, res, next) => {
   try {
     const { partnerEmail, partnerKycNumber } = req.body;
-    const requesterUid = req.user.uid;
-    const requesterEmail = req.user.email;
-    const requesterId = req.user.id;  // ✅ ADD THIS
+    
+    // FIXED: Get user data from database, not from req.user
+    const [requesterRows] = await pool.execute(
+      "SELECT id, uid, email FROM users WHERE id = ? LIMIT 1",
+      [req.user.id]
+    );
+    
+    if (!requesterRows.length) {
+      throw createError(404, "User not found");
+    }
+    
+    const requester = requesterRows[0];
+    const requesterUid = requester.uid;
+    const requesterEmail = requester.email;
+    const requesterId = requester.id;
+
+    if (!partnerEmail || !partnerEmail.trim()) {
+      throw createError(400, "Partner email is required");
+    }
 
     const [partnerRows] = await pool.execute(
-      "SELECT uid, email, kyc_status, id FROM users WHERE email = ? LIMIT 1",  // ✅ ADD id
-      [partnerEmail]
+      "SELECT id, uid, email, kyc_status FROM users WHERE email = ? LIMIT 1",
+      [partnerEmail.trim()]
     );
 
     if (!partnerRows.length) {
@@ -7553,8 +7569,9 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
       throw createError(400, "Partner must complete KYC verification first");
     }
 
+    // Check for existing pending request
     const [existing] = await pool.execute(
-      "SELECT id FROM joint_account_requests WHERE (requester_uid = ? AND partner_uid = ?) AND status = 'pending'",
+      "SELECT id FROM joint_account_requests WHERE requester_uid = ? AND partner_uid = ? AND status = 'pending'",
       [requesterUid, partner.uid]
     );
 
@@ -7562,6 +7579,7 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
       throw createError(400, "Joint account request already pending");
     }
 
+    // Check for existing active joint account
     const [activeJoint] = await pool.execute(
       "SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active'",
       [requesterUid, requesterUid]
@@ -7571,11 +7589,22 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
       throw createError(400, "You already have an active joint account");
     }
 
+    // FIXED: Ensure no undefined values - convert undefined to null
+    const safePartnerKycNumber = partnerKycNumber && partnerKycNumber.trim() ? partnerKycNumber.trim() : null;
+    
     const [result] = await pool.execute(
       `INSERT INTO joint_account_requests 
        (requester_uid, requester_email, partner_uid, partner_email, partner_kyc_number, status, requester_id, partner_id) 
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,  // ✅ ADD requester_id and partner_id
-      [requesterUid, requesterEmail, partner.uid, partner.email, partnerKycNumber || null, requesterId, partner.id]
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [
+        String(requesterUid), 
+        String(requesterEmail), 
+        String(partner.uid), 
+        String(partner.email), 
+        safePartnerKycNumber, 
+        Number(requesterId), 
+        Number(partner.id)
+      ]
     );
 
     res.json({
@@ -7584,9 +7613,11 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
       data: { requestId: result.insertId }
     });
   } catch (error) {
+    console.error("Joint account request error:", error);
     next(error);
   }
 });
+
 /* =========================
    JOINT ACCOUNT COMBINED BALANCE
 ========================= */
