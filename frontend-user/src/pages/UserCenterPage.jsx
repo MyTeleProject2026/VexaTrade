@@ -939,7 +939,7 @@ export default function UserCenterPage() {
                     <div className="mt-2">
                       <StatusBadge verified={false} label="Request Pending Approval" />
                       <p className="mt-1 text-xs text-amber-300">
-                        Awaiting admin approval
+                        Awaiting system approval
                       </p>
                     </div>
                   )}
