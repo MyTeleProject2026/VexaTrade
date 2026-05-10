@@ -99,7 +99,7 @@ export default function SupportPage() {
             </div>
             <h1 className="mt-2 text-3xl font-bold text-white">Get Help</h1>
             <p className="mt-2 text-sm text-slate-400">
-              Contact support using the channel configured by admin.
+              Need help? Contact support through our Customer Service channels to resolve your Vexa Trade account issues.
             </p>
           </div>
 
