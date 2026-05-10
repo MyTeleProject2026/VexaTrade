@@ -152,8 +152,10 @@ function AccountVerificationPage() {
           </div>
           <h1 className="mt-3 text-3xl font-bold">Under Review</h1>
           <p className="mt-3 text-sm text-slate-400">
-            Your account is not fully activated yet. Please complete verification
-            steps and wait for admin approval.
+            New Users: "Welcome! To get started, please complete your verification steps.
+            Our team will approve your account shortly."
+            Existing Users: "If you are a returning user, please click 
+            'Refresh Account Status' to check for updates or resume trading."
           </p>
         </div>
 
