@@ -1,14 +1,39 @@
-import { useEffect, useState } from "react";
-import {
-  Newspaper,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Eye,
-  EyeOff,
-  Image as ImageIcon,
-} from "lucide-react";
-import { adminApi, getApiErrorMessage } from "../../services/api";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, Newspaper, Sparkles } from "lucide-react";
+import { newsApi } from "../services/api";
+
+const FALLBACK_NEWS = [
+  {
+    id: "fallback-1",
+    title: "VexaTrade News",
+    content:
+      "Track platform updates, trading insights, and important account announcements in one premium feed.",
+    image_url:
+      "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1200&auto=format&fit=crop",
+    is_active: 1,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "fallback-2",
+    title: "Market Momentum",
+    content:
+      "Watch fast-moving pairs, short-term setups, and cleaner trading signals directly from your dashboard.",
+    image_url:
+      "https://images.unsplash.com/photo-1642104704074-907c0698cbd9?q=80&w=1200&auto=format&fit=crop",
+    is_active: 1,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "fallback-3",
+    title: "Platform Announcement",
+    content:
+      "Stay aligned with wallet flow updates, legal notices, and important system improvements.",
+    image_url:
+      "https://images.unsplash.com/photo-1621761191319-c6fb62004040?q=80&w=1200&auto=format&fit=crop",
+    is_active: 1,
+    created_at: new Date().toISOString(),
+  },
+];
 
 function resolveImage(url) {
   if (!url) return "";
@@ -21,370 +46,144 @@ function resolveImage(url) {
 }
 
 function formatDate(value) {
-  if (!value) return "-";
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString();
 }
 
-function StatusBadge({ active }) {
-  return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-        active
-          ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-          : "border border-red-500/20 bg-red-500/10 text-red-300"
-      }`}
-    >
-      {active ? "Active" : "Hidden"}
-    </span>
-  );
-}
-
-export default function AdminNewsPage() {
-  const token =
-    localStorage.getItem("adminToken") ||
-    localStorage.getItem("admin_token") ||
-    "";
-
-  const [list, setList] = useState([]);
+export default function NewsSlider() {
+  const [items, setItems] = useState(FALLBACK_NEWS);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({
-    title: "",
-    content: "",
-    image_url: "",
-    is_active: true,
-  });
-
-  async function load() {
+  async function loadNews() {
     try {
-      setRefreshing(true);
-      setError("");
+      setLoading(true);
+      const res = await newsApi.getNews();
+      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
 
-      const res = await adminApi.getNews(token);
-      setList(Array.isArray(res.data?.data) ? res.data.data : []);
-    } catch (err) {
-      setError(getApiErrorMessage(err));
+      const activeRows = rows.filter(
+        (item) => Number(item.is_active ?? 1) === 1
+      );
+
+      if (activeRows.length > 0) {
+        setItems(activeRows);
+      } else {
+        setItems(FALLBACK_NEWS);
+      }
+    } catch {
+      setItems(FALLBACK_NEWS);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }
 
   useEffect(() => {
-    load();
+    loadNews();
   }, []);
 
-  async function createNews() {
-    try {
-      if (!form.title.trim()) {
-        setError("Title is required.");
-        setSuccess("");
-        return;
-      }
+  useEffect(() => {
+    if (!items.length) return;
 
-      setSubmitting(true);
-      setError("");
-      setSuccess("");
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % items.length);
+    }, 4500);
 
-      await adminApi.createNews(
-        {
-          title: form.title.trim(),
-          content: form.content.trim(),
-          image_url: form.image_url.trim(),
-          is_active: form.is_active ? 1 : 0,
-        },
-        token
-      );
+    return () => clearInterval(interval);
+  }, [items]);
 
-      setForm({
-        title: "",
-        content: "",
-        image_url: "",
-        is_active: true,
-      });
-
-      setSuccess("News posted successfully.");
-      await load();
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-      setSuccess("");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function removeNews(id) {
-    try {
-      setError("");
-      setSuccess("");
-
-      await adminApi.deleteNews(id, token);
-      setSuccess("News deleted successfully.");
-      await load();
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-      setSuccess("");
-    }
-  }
-
-  async function toggleActive(item) {
-    try {
-      setError("");
-      setSuccess("");
-
-      if (typeof adminApi.updateNews === "function") {
-        await adminApi.updateNews(
-          item.id,
-          {
-            title: item.title,
-            content: item.content,
-            image_url: item.image_url,
-            is_active: Number(item.is_active) === 1 ? 0 : 1,
-          },
-          token
-        );
-
-        setSuccess("News status updated.");
-        await load();
-        return;
-      }
-
-      setError("updateNews API is not connected yet in services/api.js");
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-      setSuccess("");
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-5 text-white">
-        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
-          Loading news control...
-        </div>
-      </div>
-    );
-  }
+  const activeItem = useMemo(() => {
+    return items[activeIndex] || FALLBACK_NEWS[0];
+  }, [items, activeIndex]);
 
   return (
-    <div className="space-y-5 text-white">
-      <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0f172a_0%,#020617_100%)] p-5 shadow-xl">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.32em] text-lime-300">
-              Admin News Control
-            </div>
-            <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+    <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#0d0d0d] shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
+      <div className="relative min-h-[220px] overflow-hidden sm:min-h-[250px]">
+        {activeItem?.image_url ? (
+          <img
+            src={resolveImage(activeItem.image_url)}
+            alt={activeItem.title || "News"}
+            className="absolute inset-0 h-full w-full object-cover opacity-30"
+          />
+        ) : null}
+
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.88)_0%,rgba(0,0,0,0.66)_42%,rgba(0,0,0,0.38)_100%)]" />
+
+        <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5 sm:min-h-[250px] sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+              <Newspaper size={14} />
               VexaTrade News
-            </h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Post dashboard announcements, poster updates, and premium slider news.
+            </div>
+
+            <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+              {loading ? "Loading..." : `${activeIndex + 1}/${items.length}`}
+            </div>
+          </div>
+
+          <div className="mt-5 max-w-[82%]">
+            <div className="inline-flex items-center gap-2 text-xs text-slate-400">
+              <Sparkles size={13} className="text-cyan-400" />
+              Latest Update
+            </div>
+
+            <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
+              {activeItem?.title || "VexaTrade Update"}
+            </h2>
+
+            <p className="mt-3 line-clamp-3 text-sm leading-7 text-slate-300 sm:text-base">
+              {activeItem?.content || "No update available."}
             </p>
-          </div>
 
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-          >
-            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      {error ? (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {error}
-        </div>
-      ) : null}
-
-      {success ? (
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-          {success}
-        </div>
-      ) : null}
-
-      <section className="grid gap-5 xl:grid-cols-[0.98fr_1.02fr]">
-        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
-          <div className="border-b border-white/10 px-4 py-4 sm:px-5">
-            <div className="flex items-center gap-3">
-              <Plus size={17} className="text-lime-300" />
-              <h2 className="text-lg font-semibold text-white">Create News</h2>
+            <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
+              <span>{formatDate(activeItem?.created_at)}</span>
+              <ChevronRight size={14} />
+              <span>Announcement</span>
             </div>
           </div>
 
-          <div className="space-y-4 p-4 sm:p-5">
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Title</label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, title: e.target.value }))
-                }
-                placeholder="Enter news title"
-                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+          <div className="mt-5 flex items-center gap-2">
+            {items.map((item, index) => (
+              <button
+                key={item.id || index}
+                type="button"
+                onClick={() => setActiveIndex(index)}
+                className={`h-2.5 rounded-full transition-all ${
+                  activeIndex === index
+                    ? "w-10 bg-cyan-500"
+                    : "w-2.5 bg-white/20 hover:bg-white/35"
+                }`}
+                aria-label={`Go to news ${index + 1}`}
               />
-            </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Content</label>
-              <textarea
-                rows={5}
-                value={form.content}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, content: e.target.value }))
-                }
-                placeholder="Write a short announcement..."
-                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Image URL</label>
-              <input
-                type="text"
-                value={form.image_url}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, image_url: e.target.value }))
-                }
-                placeholder="Paste poster or banner image URL"
-                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
-              />
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
-              <label className="flex items-center gap-3 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, is_active: e.target.checked }))
-                  }
-                  className="h-4 w-4"
-                />
-                Publish as active news
-              </label>
-            </div>
-
-            {form.image_url ? (
-              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
-                  <ImageIcon size={15} />
-                  Preview
-                </div>
-                <img
-                  src={resolveImage(form.image_url)}
-                  alt="News preview"
-                  className="max-h-64 w-full rounded-2xl border border-white/10 object-cover"
-                />
-              </div>
-            ) : null}
-
+      {items.length > 1 ? (
+        <div className="grid gap-3 border-t border-white/10 bg-[#050812]/40 p-4 sm:grid-cols-3">
+          {items.slice(0, 3).map((item, index) => (
             <button
+              key={item.id || index}
               type="button"
-              onClick={createNews}
-              disabled={submitting}
-              className="w-full rounded-2xl bg-lime-400 px-4 py-3 text-sm font-semibold text-black transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => setActiveIndex(index)}
+              className={`rounded-2xl border px-4 py-3 text-left transition ${
+                activeIndex === index
+                  ? "border-cyan-500/20 bg-cyan-500/10"
+                  : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
+              }`}
             >
-              {submitting ? "Posting..." : "Post News"}
+              <div className="truncate text-sm font-semibold text-white">
+                {item.title}
+              </div>
+              <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                {item.content}
+              </div>
             </button>
-          </div>
+          ))}
         </div>
-
-        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
-          <div className="border-b border-white/10 px-4 py-4 sm:px-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Newspaper size={17} className="text-lime-300" />
-                <h2 className="text-lg font-semibold text-white">News List</h2>
-              </div>
-
-              <span className="rounded-full border border-white/10 bg-[#050812]/70 px-3 py-1 text-[11px] text-slate-300">
-                {list.length} Record{list.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-4 p-4 sm:p-5">
-            {list.length ? (
-              list.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-[22px] border border-white/10 bg-[#050812]/50 p-4"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="text-base font-semibold text-white sm:text-lg">
-                          {item.title}
-                        </div>
-                        <StatusBadge active={Number(item.is_active ?? 1) === 1} />
-                      </div>
-
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        {item.content || "No content"}
-                      </div>
-
-                      <div className="mt-3 text-[11px] text-slate-500">
-                        Created: {formatDate(item.created_at)}
-                      </div>
-                    </div>
-
-                    {item.image_url ? (
-                      <img
-                        src={resolveImage(item.image_url)}
-                        alt={item.title}
-                        className="h-20 w-full rounded-2xl border border-white/10 object-cover lg:h-20 lg:w-36"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleActive(item)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-                    >
-                      {Number(item.is_active ?? 1) === 1 ? (
-                        <>
-                          <EyeOff size={15} />
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <Eye size={15} />
-                          Show
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => removeNews(item.id)}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-3.5 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
-                    >
-                      <Trash2 size={15} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 px-4 py-10 text-center text-sm text-slate-400">
-                No news posted yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-    </div>
+      ) : null}
+    </section>
   );
 }
