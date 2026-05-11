@@ -67,28 +67,33 @@ const upload = multer({ storage });
    APP CONFIG
 ========================= */
 const allowedOrigins = [
-  process.env.CLIENT_ORIGIN,
-  process.env.FRONTEND_USER_URL,
-  process.env.FRONTEND_ADMIN_URL,
+  // Local development
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
   
-  // ✅ VexaTrade Frontend URLs (ADD THESE)
-  "https://vexatrade-v2.onrender.com",
+  // VexaTrade Frontend
+  "https://vexatrade.onrender.com",
   "https://vexatrade-v.2bd.net",
   "https://www.vexatrade-v.2bd.net",
   "https://vexatrade-v.2bd.net",
   "https://www.vexatrade-v.2bd.net",
   "https://vexatrade.onrender.com",
   
-  // ✅ VexaTrade Admin URLs (ADD THESE)
+  // VexaTrade Admin
   "https://vexatrade-admin.onrender.com",
   "https://admin.vexatrade-v.2bd.net",
   
-  // ✅ CryptoPulse URLs (if same backend serves both)
+  // CryptoPulse Frontend
   "https://cryptopulse-v3.onrender.com",
+  
+  // CryptoPulse Admin
   "https://cryptopulse-admin-control-panel.onrender.com",
+  
+  // Environment variables (fallbacks)
+  process.env.CLIENT_ORIGIN,
+  process.env.FRONTEND_USER_URL,
+  process.env.FRONTEND_ADMIN_URL,
 ].filter(Boolean);
 
 
