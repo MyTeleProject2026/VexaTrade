@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { userApi, marketApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+// ========== ADDED: Import NewsSlider component ==========
+import NewsSlider from "../components/NewsSlider";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -192,6 +194,11 @@ export default function DashboardPage() {
             <Wallet size={16} />
           </button>
         </div>
+      </div>
+
+      {/* ========== ADDED: News Slider Section ========== */}
+      <div className="mb-4">
+        <NewsSlider />
       </div>
 
       {/* Balance Cards */}
