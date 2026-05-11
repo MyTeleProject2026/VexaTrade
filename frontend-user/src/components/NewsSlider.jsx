@@ -1,189 +1,260 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Newspaper, Sparkles } from "lucide-react";
-import { newsApi } from "../services/api";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  RefreshCw,
+  Bell,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  ArrowDownToLine,
+  ArrowUpToLine,
+  ArrowRightLeft,
+  Users,
+} from "lucide-react";
+import { userApi, marketApi, getApiErrorMessage } from "../services/api";
+import { useNotification } from "../hooks/useNotification";
+// ========== ADDED: Import NewsSlider component ==========
+import NewsSlider from "../components/NewsSlider";
 
-const FALLBACK_NEWS = [
-  {
-    id: "fallback-1",
-    title: "VexaTrade News",
-    content:
-      "Track platform updates, trading insights, and important account announcements in one premium feed.",
-    image_url:
-      "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=1200&auto=format&fit=crop",
-    is_active: 1,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "fallback-2",
-    title: "Market Momentum",
-    content:
-      "Watch fast-moving pairs, short-term setups, and cleaner trading signals directly from your dashboard.",
-    image_url:
-      "https://images.unsplash.com/photo-1642104704074-907c0698cbd9?q=80&w=1200&auto=format&fit=crop",
-    is_active: 1,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "fallback-3",
-    title: "Platform Announcement",
-    content:
-      "Stay aligned with wallet flow updates, legal notices, and important system improvements.",
-    image_url:
-      "https://images.unsplash.com/photo-1621761191319-c6fb62004040?q=80&w=1200&auto=format&fit=crop",
-    is_active: 1,
-    created_at: new Date().toISOString(),
-  },
-];
-
-function resolveImage(url) {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  const base =
-    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
-
-  return `${base}${url}`;
+function formatMoney(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return "0.00";
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString();
+function formatCompactNumber(value) {
+  const num = Number(value || 0);
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
+  return num.toString();
 }
 
-export default function NewsSlider() {
-  const [items, setItems] = useState(FALLBACK_NEWS);
-  const [activeIndex, setActiveIndex] = useState(0);
+function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
+  const isPositive = Number(change || 0) >= 0;
+  
+  return (
+    <div 
+      onClick={onClick}
+      className={`rounded-xl border border-white/10 bg-[#0a0e1a] p-4 transition hover:scale-[1.02] ${onClick ? "cursor-pointer" : ""}`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-slate-500">{title}</div>
+        <Icon size={16} className="text-slate-500" />
+      </div>
+      <div className="mt-2 text-xl font-bold text-white">{value}</div>
+      {change !== undefined && (
+        <div className={`mt-1 text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
+          {isPositive ? "+" : ""}{change}%
+        </div>
+      )}
+      {subtext && (
+        <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>
+      )}
+    </div>
+  );
+}
+
+function ActionButton({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 rounded-xl bg-[#0a0e1a] border border-white/10 px-4 py-2 transition hover:border-cyan-500/50 hover:bg-cyan-500/5"
+    >
+      <Icon size={18} className="text-cyan-400" />
+      <span className="text-xs text-white">{label}</span>
+    </button>
+  );
+}
+
+function MarketRow({ symbol, price, change, onClick }) {
+  const isPositive = Number(change || 0) >= 0;
+  
+  return (
+    <div 
+      onClick={onClick}
+      className="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-[#0a0e1a] px-3 py-2 transition hover:border-cyan-500/30"
+    >
+      <div>
+        <div className="text-sm font-semibold text-white">{symbol}</div>
+        <div className="text-xs text-slate-500">USDT</div>
+      </div>
+      <div className="text-right">
+        <div className="text-sm font-medium text-white">{formatMoney(price)}</div>
+        <div className={`text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
+          {isPositive ? "+" : ""}{change}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const navigate = useNavigate();
+  const { showError } = useNotification();
+  
+  const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
+  
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
+  const [markets, setMarkets] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [combinedBalanceData, setCombinedBalanceData] = useState(null);
 
-  async function loadNews() {
+  async function loadData(silent = false) {
     try {
-      setLoading(true);
-      const res = await newsApi.getNews();
-      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
 
-      const activeRows = rows.filter(
-        (item) => Number(item.is_active ?? 1) === 1
-      );
+      const [walletRes, marketRes, notifRes, combinedRes] = await Promise.allSettled([
+        userApi.getWalletSummary(token),
+        marketApi.home(),
+        userApi.getNotifications(token),
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => res.json())
+      ]);
 
-      if (activeRows.length > 0) {
-        setItems(activeRows);
-      } else {
-        setItems(FALLBACK_NEWS);
+      if (walletRes.status === "fulfilled") {
+        setWallet(walletRes.value?.data?.data || { balance: 0, walletLabel: "Main Wallet" });
       }
-    } catch {
-      setItems(FALLBACK_NEWS);
+      if (marketRes.status === "fulfilled") {
+        setMarkets(Array.isArray(marketRes.value?.data?.data) ? marketRes.value.data.data : []);
+      }
+      if (notifRes.status === "fulfilled") {
+        setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
+      }
+      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
+        setCombinedBalanceData(combinedRes.value.data);
+      }
+    } catch (err) {
+      showError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
   useEffect(() => {
-    loadNews();
+    loadData();
+    const interval = setInterval(() => loadData(true), 15000);
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (!items.length) return;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const topMarkets = markets.slice(0, 8);
+  
+  const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
+  const displayBalance = hasJointAccount 
+    ? combinedBalanceData.combinedBalance 
+    : (wallet.balance || 0);
 
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % items.length);
-    }, 4500);
-
-    return () => clearInterval(interval);
-  }, [items]);
-
-  const activeItem = useMemo(() => {
-    return items[activeIndex] || FALLBACK_NEWS[0];
-  }, [items, activeIndex]);
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050812]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
-    <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#0d0d0d] shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
-      <div className="relative min-h-[220px] overflow-hidden sm:min-h-[250px]">
-        {activeItem?.image_url ? (
-          <img
-            src={resolveImage(activeItem.image_url)}
-            alt={activeItem.title || "News"}
-            className="absolute inset-0 h-full w-full object-cover opacity-30"
-          />
-        ) : null}
-
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.88)_0%,rgba(0,0,0,0.66)_42%,rgba(0,0,0,0.38)_100%)]" />
-
-        <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5 sm:min-h-[250px] sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
-              <Newspaper size={14} />
-              VexaTrade News
-            </div>
-
-            <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
-              {loading ? "Loading..." : `${activeIndex + 1}/${items.length}`}
-            </div>
-          </div>
-
-          <div className="mt-5 max-w-[82%]">
-            <div className="inline-flex items-center gap-2 text-xs text-slate-400">
-              <Sparkles size={13} className="text-cyan-400" />
-              Latest Update
-            </div>
-
-            <h2 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
-              {activeItem?.title || "VexaTrade Update"}
-            </h2>
-
-            <p className="mt-3 line-clamp-3 text-sm leading-7 text-slate-300 sm:text-base">
-              {activeItem?.content || "No update available."}
-            </p>
-
-            <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
-              <span>{formatDate(activeItem?.created_at)}</span>
-              <ChevronRight size={14} />
-              <span>Announcement</span>
-            </div>
-          </div>
-
-          <div className="mt-5 flex items-center gap-2">
-            {items.map((item, index) => (
-              <button
-                key={item.id || index}
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                className={`h-2.5 rounded-full transition-all ${
-                  activeIndex === index
-                    ? "w-10 bg-cyan-500"
-                    : "w-2.5 bg-white/20 hover:bg-white/35"
-                }`}
-                aria-label={`Go to news ${index + 1}`}
-              />
-            ))}
-          </div>
+    <div className="min-h-screen bg-[#050812] p-4">
+      {/* Top Bar */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="text-xl font-bold text-white">VexaTrade</div>
+          <button
+            onClick={() => loadData(true)}
+            className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/transactions")}
+            className="relative rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
+          >
+            <Bell size={16} />
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => navigate("/assets")}
+            className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
+          >
+            <Wallet size={16} />
+          </button>
         </div>
       </div>
 
-      {items.length > 1 ? (
-        <div className="grid gap-3 border-t border-white/10 bg-[#050812]/40 p-4 sm:grid-cols-3">
-          {items.slice(0, 3).map((item, index) => (
-            <button
-              key={item.id || index}
-              type="button"
-              onClick={() => setActiveIndex(index)}
-              className={`rounded-2xl border px-4 py-3 text-left transition ${
-                activeIndex === index
-                  ? "border-cyan-500/20 bg-cyan-500/10"
-                  : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
-              }`}
-            >
-              <div className="truncate text-sm font-semibold text-white">
-                {item.title}
-              </div>
-              <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-                {item.content}
-              </div>
-            </button>
+      {/* ========== ADDED: News Slider Section ========== */}
+      <div className="mb-4">
+        <NewsSlider />
+      </div>
+
+      {/* Balance Cards */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          title={hasJointAccount ? "Combined Balance" : "Total Balance"}
+          value={`$${formatMoney(displayBalance)}`}
+          change="2.95"
+          icon={hasJointAccount ? Users : Wallet}
+          onClick={() => navigate("/assets")}
+          subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
+        />
+        <StatCard
+          title="24h Change"
+          value="+2.95%"
+          change="2.95"
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="24h Volume"
+          value={formatCompactNumber(28456789)}
+          icon={TrendingDown}
+        />
+        <StatCard
+          title="Open Trades"
+          value="0"
+          icon={TrendingUp}
+          onClick={() => navigate("/trade")}
+        />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mb-4 flex gap-2">
+        <ActionButton icon={ArrowDownToLine} label="Deposit" onClick={() => navigate("/deposit")} />
+        <ActionButton icon={ArrowUpToLine} label="Withdraw" onClick={() => navigate("/withdraw")} />
+        <ActionButton icon={ArrowRightLeft} label="Convert" onClick={() => navigate("/convert")} />
+        <ActionButton icon={TrendingUp} label="Trade" onClick={() => navigate("/trade")} />
+      </div>
+
+      {/* Hot Pairs Section */}
+      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h3 className="text-sm font-semibold text-white">Hot Pairs</h3>
+        </div>
+        <div className="grid gap-1 p-2 sm:grid-cols-2 lg:grid-cols-4">
+          {topMarkets.map((item) => (
+            <MarketRow
+              key={item.symbol}
+              symbol={item.symbol?.replace("USDT", "") || ""}
+              price={item.lastPrice || item.price}
+              change={item.priceChangePercent}
+              onClick={() => navigate("/trade")}
+            />
           ))}
         </div>
-      ) : null}
-    </section>
+      </div>
+    </div>
   );
 }
