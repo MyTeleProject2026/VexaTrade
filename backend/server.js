@@ -1956,7 +1956,7 @@ app.post(
       await createUserNotification(connection, {
         userId: req.user.id,
         title: "Email verification code",
-        message: `Your CryptoPulse verification code is ${code}. It expires in 10 minutes.`,
+        message: `Your VexaTrade verification code is ${code}. It expires in 10 minutes.`,
         type: "verification_code",
       });
 
@@ -8002,7 +8002,7 @@ app.listen(PORT, async () => {
     await connection.ping();
     connection.release();
 
-    console.log(`✅ CryptoPulse backend running on port ${PORT}`);
+    console.log(`✅ VexaTrade backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
     console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
