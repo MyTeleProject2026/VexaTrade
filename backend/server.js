@@ -20,13 +20,8 @@ const app = express();
 /* =========================
    FILE UPLOAD CONFIG
 ========================= */
-// Force create qr_codes directory
-const qrDir = path.join(__dirname, "uploads/qr_codes");
-if (!fs.existsSync(qrDir)) {
-  fs.mkdirSync(qrDir, { recursive: true });
-  console.log("Created qr_codes directory at:", qrDir);
-}
 
+// Make sure all upload directories exist
 [
   "uploads",
   "uploads/deposits",
@@ -34,12 +29,20 @@ if (!fs.existsSync(qrDir)) {
   "uploads/kyc",
   "uploads/profiles",
   "uploads/legal",
-  "uploads/qr_codes",
+  "uploads/qr_codes",  // ← Make sure this is here
 ].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
+    console.log(`✅ Created directory: ${dir}`);
   }
 });
+
+// ========== ADD THIS - Force create qr_codes directory with extra check ==========
+const qrDir = path.join(__dirname, "uploads/qr_codes");
+if (!fs.existsSync(qrDir)) {
+  fs.mkdirSync(qrDir, { recursive: true });
+  console.log("✅ Created qr_codes directory at:", qrDir);
+}
 
 const storage = multer.diskStorage({
   destination: function (_req, file, cb) {
@@ -1111,9 +1114,17 @@ async function settleDailyFunds() {
 ========================= */
 
 // Generate or get user's QR code
+// Generate or get user's QR code
 app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    
+    // ✅ Ensure directory exists before generating QR code
+    const qrDir = path.join(__dirname, "uploads/qr_codes");
+    if (!fs.existsSync(qrDir)) {
+      fs.mkdirSync(qrDir, { recursive: true });
+      console.log("Created qr_codes directory on demand");
+    }
     
     // Get user's UID
     const [userRows] = await pool.execute(
@@ -1145,13 +1156,17 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
       
       // Generate QR code image
       const qrFileName = `qr_${userId}_${Date.now()}.png`;
-      const qrFilePath = path.join(__dirname, "uploads/qr_codes", qrFileName);
+      const qrFilePath = path.join(qrDir, qrFileName);
+      
+      console.log("Generating QR code at:", qrFilePath);
       
       await QRCode.toFile(qrFilePath, qrData, {
         width: 300,
         margin: 2,
         color: { dark: '#000000', light: '#FFFFFF' }
       });
+      
+      console.log("QR code saved successfully");
       
       qrCodeUrl = `/uploads/qr_codes/${qrFileName}`;
       
@@ -1179,7 +1194,11 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
     });
   } catch (error) {
     console.error("QR code generation error:", error);
-    next(error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate QR code",
+      error: error.message 
+    });
   }
 });
 
