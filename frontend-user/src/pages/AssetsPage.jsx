@@ -299,7 +299,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const { showSuccess, showError, showVoucher } = useNotification();
 
   // API Base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
   useEffect(() => {
     if (isOpen && mode === "receive") {
@@ -665,11 +665,10 @@ export default function AssetsPage() {
   const [combinedBalance, setCombinedBalance] = useState(null);
   const [jointBalanceData, setJointBalanceData] = useState(null);
 
-  // ========== ADDED: Function to calculate holdings from convert transactions ==========
+  // Function to calculate holdings from convert transactions
   async function loadHoldingsFromConvertHistory() {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
-      // Fetch convert transaction history
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
       const res = await fetch(`${API_BASE_URL}/api/convert/history`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -677,11 +676,8 @@ export default function AssetsPage() {
       
       if (data.success && Array.isArray(data.data)) {
         const convertTxns = data.data;
-        
-        // Calculate holdings from convert transactions
         const holdingsMap = new Map();
         
-        // Start with USDT balance from wallet
         holdingsMap.set("USDT", {
           symbol: "USDT",
           amount: Number(wallet.balance || 0),
@@ -700,7 +696,6 @@ export default function AssetsPage() {
           const fromAmount = Number(tx.from_amount || 0);
           const receiveAmount = Number(tx.receive_amount || tx.to_amount || 0);
           
-          // Subtract from-coin (user spent this)
           if (fromCoin && fromCoin !== "USDT") {
             const current = holdingsMap.get(fromCoin);
             if (current) {
@@ -713,7 +708,6 @@ export default function AssetsPage() {
             }
           }
           
-          // Add to-coin (user received this)
           if (toCoin && toCoin !== "USDT" && receiveAmount > 0) {
             const current = holdingsMap.get(toCoin);
             const price = getCoinPriceInUsdt(toCoin, markets);
@@ -738,7 +732,6 @@ export default function AssetsPage() {
           }
         }
         
-        // Convert map to array and filter out zero amounts and USDT
         const calculatedHoldings = Array.from(holdingsMap.values())
           .filter(item => item.amount > 0.00000001 && item.symbol !== "USDT")
           .sort((a, b) => b.usdtValue - a.usdtValue);
@@ -779,9 +772,8 @@ export default function AssetsPage() {
         tasks.push(Promise.resolve({ data: { data: [] } }));
       }
 
-      // Add combined balance API call
       tasks.push(
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
           headers: { Authorization: `Bearer ${token}` }
         }).then(res => res.json())
       );
@@ -797,7 +789,6 @@ export default function AssetsPage() {
           walletLabel: data.walletLabel || "Main Wallet",
         });
         
-        // ========== ADDED: Load holdings from convert history after getting balance ==========
         if (!silent) {
           await loadHoldingsFromConvertHistory();
         }
@@ -826,7 +817,6 @@ export default function AssetsPage() {
         );
       }
 
-      // Load Combined Balance Data
       if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
         const balanceData = combinedRes.value.data;
         setJointBalanceData(balanceData);
@@ -844,7 +834,6 @@ export default function AssetsPage() {
         }
       }
 
-      // Load Joint Account Info
       if (jointRes.status === "fulfilled" && jointRes.value?.data?.success) {
         const jointData = jointRes.value.data.data;
         if (jointData.hasJointAccount && jointData.jointAccount) {
@@ -903,7 +892,6 @@ export default function AssetsPage() {
     };
   }, []);
 
-  // Use combined balance if joint account exists, otherwise use individual balance
   const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);
   const totalBalance = displayBalance;
   
@@ -986,7 +974,6 @@ export default function AssetsPage() {
             <div className="mb-1 text-lg font-semibold text-white sm:text-xl">USD</div>
           </div>
 
-          {/* Show breakdown if joint account */}
           {jointBalanceData?.hasJointAccount && (
             <div className="mt-2 text-xs text-slate-500">
               Your balance: {formatMoney(jointBalanceData.userBalance)} USDT + 
@@ -1064,7 +1051,6 @@ export default function AssetsPage() {
           />
         </div>
 
-        {/* Joint Account Card with both users' balances */}
         {jointAccount && jointPartner && jointBalanceData && (
           <PortfolioCard
             value={`${formatMoney(jointBalanceData.userBalance)} + ${formatMoney(jointBalanceData.partnerBalance)}`}
