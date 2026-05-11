@@ -73,13 +73,22 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
- 
-  // ✅ ADD YOUR CUSTOM DOMAINS:
+  
+  // ✅ VexaTrade Frontend URLs (ADD THESE)
+  "https://vexatrade-v2.onrender.com",
+  "https://vexatrade-v.2bd.net",
   "https://www.vexatrade-v.2bd.net",
   "https://vexatrade-v.2bd.net",
+  "https://www.vexatrade-v.2bd.net",
+  "https://vexatrade.onrender.com",
+  
+  // ✅ VexaTrade Admin URLs (ADD THESE)
+  "https://vexatrade-admin.onrender.com",
   "https://admin.vexatrade-v.2bd.net",
-  // ✅ ADD THIS - Your frontend's Render URL:
-  "https://vexatrade.onrender.com"     // <-- THIS IS WHAT'S MISSING!
+  
+  // ✅ CryptoPulse URLs (if same backend serves both)
+  "https://cryptopulse-v3.onrender.com",
+  "https://cryptopulse-admin-control-panel.onrender.com",
 ].filter(Boolean);
 
 
