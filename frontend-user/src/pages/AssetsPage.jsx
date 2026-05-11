@@ -322,32 +322,23 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
   async function loadMyQrCode() {
     try {
-        setQrCodeError(false);
-        const res = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
+      setQrCodeError(false);
+      const res = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
         headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.success) {
-        // Use base64 image if available (preferred)
-        if (data.data?.qr_code_base64) {
-            setMyQrCode(data.data.qr_code_base64);
-        } 
-        // Fallback to URL
-        else if (data.data?.qr_code_url) {
-            setMyQrCode(data.data.qr_code_url);
-        } else {
-            setQrCodeError(true);
-        }
-        } else {
+      });
+      const data = await res.json();
+      if (data.success && data.data?.qr_code_base64) {
+        // Use base64 image directly - no file URL needed!
+        setMyQrCode(data.data.qr_code_base64);
+      } else {
         setQrCodeError(true);
         console.error("QR code generation failed:", data);
-        }
+      }
     } catch (err) {
-        setQrCodeError(true);
-        console.error("Failed to load QR code:", err);
+      setQrCodeError(true);
+      console.error("Failed to load QR code:", err);
     }
   }
-
   async function findUserByUid(uid) {
     if (!uid || uid.length < 5) {
       showError("Please enter a valid UID");
@@ -450,7 +441,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   function getFullImageUrl(url) {
     if (!url) return null;
     // If it's already a base64 data URL, return as is
-    if (url.startsWith('data:image/')) return url;
+    if (url && url.startsWith('data:image/')) return url;
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
     return `${API_BASE_URL}${url}`;
   }
