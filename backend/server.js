@@ -20,6 +20,12 @@ const app = express();
 /* =========================
    FILE UPLOAD CONFIG
 ========================= */
+// Force create qr_codes directory
+const qrDir = path.join(__dirname, "uploads/qr_codes");
+if (!fs.existsSync(qrDir)) {
+  fs.mkdirSync(qrDir, { recursive: true });
+  console.log("Created qr_codes directory at:", qrDir);
+}
 
 [
   "uploads",
@@ -67,33 +73,25 @@ const upload = multer({ storage });
    APP CONFIG
 ========================= */
 const allowedOrigins = [
-  // Local development
+  process.env.CLIENT_ORIGIN,
+  process.env.FRONTEND_USER_URL,
+  process.env.FRONTEND_ADMIN_URL,
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
   
-  // VexaTrade Frontend
+  // ✅ VexaTrade Frontend URLs
+  "https://vexatrade-v2.onrender.com",
   "https://vexatrade.onrender.com",
-  "https://vexatrade-v.2bd.net",
   "https://www.vexatrade-v.2bd.net",
   "https://vexatrade-v.2bd.net",
-  "https://www.vexatrade-v.2bd.net",
-  "https://vexatrade.onrender.com",
   
-  // VexaTrade Admin
+  // ✅ VexaTrade Admin URLs
   "https://vexatrade-admin.onrender.com",
   "https://admin.vexatrade-v.2bd.net",
   
-  // CryptoPulse Frontend
-  "https://cryptopulse-v3.onrender.com",
-  
-  // CryptoPulse Admin
-  "https://cryptopulse-admin-control-panel.onrender.com",
-  
-  // Environment variables (fallbacks)
-  process.env.CLIENT_ORIGIN,
-  process.env.FRONTEND_USER_URL,
-  process.env.FRONTEND_ADMIN_URL,
+  // ✅ Your backend URL
+  "https://vexatrade-server.onrender.com",
 ].filter(Boolean);
 
 
