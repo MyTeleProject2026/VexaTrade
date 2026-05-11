@@ -84,7 +84,6 @@ const allowedOrigins = [
   "http://localhost:3000",
   
   // ✅ VexaTrade Frontend URLs
-  "https://vexatrade-v2.onrender.com",
   "https://vexatrade.onrender.com",
   "https://www.vexatrade-v.2bd.net",
   "https://vexatrade-v.2bd.net",
