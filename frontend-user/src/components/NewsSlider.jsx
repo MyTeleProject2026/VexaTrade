@@ -1,138 +1,75 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
+  Newspaper,
+  Plus,
   RefreshCw,
-  Bell,
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  ArrowDownToLine,
-  ArrowUpToLine,
-  ArrowRightLeft,
-  Users,
+  Trash2,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
 } from "lucide-react";
-import { userApi, marketApi, getApiErrorMessage } from "../services/api";
-import { useNotification } from "../hooks/useNotification";
-// ========== ADDED: Import NewsSlider component ==========
-import NewsSlider from "../components/NewsSlider";
+import { adminApi, getApiErrorMessage } from "../../services/api";
 
-function formatMoney(value) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) return "0.00";
-  return num.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+function resolveImage(url) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+
+  const base =
+    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+
+  return `${base}${url}`;
 }
 
-function formatCompactNumber(value) {
-  const num = Number(value || 0);
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
-  return num.toString();
+function formatDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 }
 
-function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
-  const isPositive = Number(change || 0) >= 0;
-  
+function StatusBadge({ active }) {
   return (
-    <div 
-      onClick={onClick}
-      className={`rounded-xl border border-white/10 bg-[#0a0e1a] p-4 transition hover:scale-[1.02] ${onClick ? "cursor-pointer" : ""}`}
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+        active
+          ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+          : "border border-red-500/20 bg-red-500/10 text-red-300"
+      }`}
     >
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-slate-500">{title}</div>
-        <Icon size={16} className="text-slate-500" />
-      </div>
-      <div className="mt-2 text-xl font-bold text-white">{value}</div>
-      {change !== undefined && (
-        <div className={`mt-1 text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}{change}%
-        </div>
-      )}
-      {subtext && (
-        <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>
-      )}
-    </div>
+      {active ? "Active" : "Hidden"}
+    </span>
   );
 }
 
-function ActionButton({ icon: Icon, label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1 rounded-xl bg-[#0a0e1a] border border-white/10 px-4 py-2 transition hover:border-cyan-500/50 hover:bg-cyan-500/5"
-    >
-      <Icon size={18} className="text-cyan-400" />
-      <span className="text-xs text-white">{label}</span>
-    </button>
-  );
-}
+export default function AdminNewsPage() {
+  const token =
+    localStorage.getItem("adminToken") ||
+    localStorage.getItem("admin_token") ||
+    "";
 
-function MarketRow({ symbol, price, change, onClick }) {
-  const isPositive = Number(change || 0) >= 0;
-  
-  return (
-    <div 
-      onClick={onClick}
-      className="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-[#0a0e1a] px-3 py-2 transition hover:border-cyan-500/30"
-    >
-      <div>
-        <div className="text-sm font-semibold text-white">{symbol}</div>
-        <div className="text-xs text-slate-500">USDT</div>
-      </div>
-      <div className="text-right">
-        <div className="text-sm font-medium text-white">{formatMoney(price)}</div>
-        <div className={`text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}{change}%
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  const navigate = useNavigate();
-  const { showError } = useNotification();
-  
-  const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-  
+  const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
-  const [markets, setMarkets] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [combinedBalanceData, setCombinedBalanceData] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  async function loadData(silent = false) {
+  const [form, setForm] = useState({
+    title: "",
+    content: "",
+    image_url: "",
+    is_active: true,
+  });
+
+  async function load() {
     try {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
+      setRefreshing(true);
+      setError("");
 
-      const [walletRes, marketRes, notifRes, combinedRes] = await Promise.allSettled([
-        userApi.getWalletSummary(token),
-        marketApi.home(),
-        userApi.getNotifications(token),
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://cryptopulse-4rhe.onrender.com"}/api/joint-account/combined-balance`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then(res => res.json())
-      ]);
-
-      if (walletRes.status === "fulfilled") {
-        setWallet(walletRes.value?.data?.data || { balance: 0, walletLabel: "Main Wallet" });
-      }
-      if (marketRes.status === "fulfilled") {
-        setMarkets(Array.isArray(marketRes.value?.data?.data) ? marketRes.value.data.data : []);
-      }
-      if (notifRes.status === "fulfilled") {
-        setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
-      }
-      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
-        setCombinedBalanceData(combinedRes.value.data);
-      }
+      const res = await adminApi.getNews(token);
+      setList(Array.isArray(res.data?.data) ? res.data.data : []);
     } catch (err) {
-      showError(getApiErrorMessage(err));
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -140,121 +77,314 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(() => loadData(true), 15000);
-    return () => clearInterval(interval);
+    load();
   }, []);
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-  const topMarkets = markets.slice(0, 8);
-  
-  const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
-  const displayBalance = hasJointAccount 
-    ? combinedBalanceData.combinedBalance 
-    : (wallet.balance || 0);
+  async function createNews() {
+    try {
+      if (!form.title.trim()) {
+        setError("Title is required.");
+        setSuccess("");
+        return;
+      }
+
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      await adminApi.createNews(
+        {
+          title: form.title.trim(),
+          content: form.content.trim(),
+          image_url: form.image_url.trim(),
+          is_active: form.is_active ? 1 : 0,
+        },
+        token
+      );
+
+      setForm({
+        title: "",
+        content: "",
+        image_url: "",
+        is_active: true,
+      });
+
+      setSuccess("News posted successfully.");
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+      setSuccess("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeNews(id) {
+    try {
+      setError("");
+      setSuccess("");
+
+      await adminApi.deleteNews(id, token);
+      setSuccess("News deleted successfully.");
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+      setSuccess("");
+    }
+  }
+
+  async function toggleActive(item) {
+    try {
+      setError("");
+      setSuccess("");
+
+      if (typeof adminApi.updateNews === "function") {
+        await adminApi.updateNews(
+          item.id,
+          {
+            title: item.title,
+            content: item.content,
+            image_url: item.image_url,
+            is_active: Number(item.is_active) === 1 ? 0 : 1,
+          },
+          token
+        );
+
+        setSuccess("News status updated.");
+        await load();
+        return;
+      }
+
+      setError("updateNews API is not connected yet in services/api.js");
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+      setSuccess("");
+    }
+  }
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050812]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      <div className="space-y-5 text-white">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
+          Loading news control...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050812] p-4">
-      {/* Top Bar */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="text-xl font-bold text-white">VexaTrade</div>
+    <div className="space-y-5 text-white">
+      <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0f172a_0%,#020617_100%)] p-5 shadow-xl">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.32em] text-lime-300">
+              Admin News Control
+            </div>
+            <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+              VexaTrade News
+            </h1>
+            <p className="mt-2 text-sm text-slate-400">
+              Post dashboard announcements, poster updates, and premium slider news.
+            </p>
+          </div>
+
           <button
-            onClick={() => loadData(true)}
-            className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
+            type="button"
+            onClick={load}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
           >
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+            Refresh
           </button>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/transactions")}
-            className="relative rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
-          >
-            <Bell size={16} />
-            {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white">
-                {unreadCount}
+      </section>
+
+      {error ? (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      ) : null}
+
+      {success ? (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          {success}
+        </div>
+      ) : null}
+
+      <section className="grid gap-5 xl:grid-cols-[0.98fr_1.02fr]">
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
+          <div className="border-b border-white/10 px-4 py-4 sm:px-5">
+            <div className="flex items-center gap-3">
+              <Plus size={17} className="text-lime-300" />
+              <h2 className="text-lg font-semibold text-white">Create News</h2>
+            </div>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-5">
+            <div>
+              <label className="mb-2 block text-sm text-slate-400">Title</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+                placeholder="Enter news title"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-400">Content</label>
+              <textarea
+                rows={5}
+                value={form.content}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, content: e.target.value }))
+                }
+                placeholder="Write a short announcement..."
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-400">Image URL</label>
+              <input
+                type="text"
+                value={form.image_url}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, image_url: e.target.value }))
+                }
+                placeholder="Paste poster or banner image URL"
+                className="w-full rounded-2xl border border-white/10 bg-[#050812]/70 px-4 py-3 text-sm text-white outline-none focus:border-lime-400"
+              />
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
+              <label className="flex items-center gap-3 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, is_active: e.target.checked }))
+                  }
+                  className="h-4 w-4"
+                />
+                Publish as active news
+              </label>
+            </div>
+
+            {form.image_url ? (
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 p-4">
+                <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
+                  <ImageIcon size={15} />
+                  Preview
+                </div>
+                <img
+                  src={resolveImage(form.image_url)}
+                  alt="News preview"
+                  className="max-h-64 w-full rounded-2xl border border-white/10 object-cover"
+                />
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={createNews}
+              disabled={submitting}
+              className="w-full rounded-2xl bg-lime-400 px-4 py-3 text-sm font-semibold text-black transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Posting..." : "Post News"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] shadow-xl">
+          <div className="border-b border-white/10 px-4 py-4 sm:px-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Newspaper size={17} className="text-lime-300" />
+                <h2 className="text-lg font-semibold text-white">News List</h2>
+              </div>
+
+              <span className="rounded-full border border-white/10 bg-[#050812]/70 px-3 py-1 text-[11px] text-slate-300">
+                {list.length} Record{list.length === 1 ? "" : "s"}
               </span>
+            </div>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-5">
+            {list.length ? (
+              list.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-[22px] border border-white/10 bg-[#050812]/50 p-4"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="text-base font-semibold text-white sm:text-lg">
+                          {item.title}
+                        </div>
+                        <StatusBadge active={Number(item.is_active ?? 1) === 1} />
+                      </div>
+
+                      <div className="mt-2 text-sm leading-6 text-slate-400">
+                        {item.content || "No content"}
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-slate-500">
+                        Created: {formatDate(item.created_at)}
+                      </div>
+                    </div>
+
+                    {item.image_url ? (
+                      <img
+                        src={resolveImage(item.image_url)}
+                        alt={item.title}
+                        className="h-20 w-full rounded-2xl border border-white/10 object-cover lg:h-20 lg:w-36"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(item)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                    >
+                      {Number(item.is_active ?? 1) === 1 ? (
+                        <>
+                          <EyeOff size={15} />
+                          Hide
+                        </>
+                      ) : (
+                        <>
+                          <Eye size={15} />
+                          Show
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => removeNews(item.id)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-3.5 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+                    >
+                      <Trash2 size={15} />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-[#050812]/40 px-4 py-10 text-center text-sm text-slate-400">
+                No news posted yet.
+              </div>
             )}
-          </button>
-          <button
-            onClick={() => navigate("/assets")}
-            className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"
-          >
-            <Wallet size={16} />
-          </button>
+          </div>
         </div>
-      </div>
-
-      {/* ========== ADDED: News Slider Section ========== */}
-      <div className="mb-4">
-        <NewsSlider />
-      </div>
-
-      {/* Balance Cards */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          title={hasJointAccount ? "Combined Balance" : "Total Balance"}
-          value={`$${formatMoney(displayBalance)}`}
-          change="2.95"
-          icon={hasJointAccount ? Users : Wallet}
-          onClick={() => navigate("/assets")}
-          subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
-        />
-        <StatCard
-          title="24h Change"
-          value="+2.95%"
-          change="2.95"
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="24h Volume"
-          value={formatCompactNumber(28456789)}
-          icon={TrendingDown}
-        />
-        <StatCard
-          title="Open Trades"
-          value="0"
-          icon={TrendingUp}
-          onClick={() => navigate("/trade")}
-        />
-      </div>
-
-      {/* Action Buttons */}
-      <div className="mb-4 flex gap-2">
-        <ActionButton icon={ArrowDownToLine} label="Deposit" onClick={() => navigate("/deposit")} />
-        <ActionButton icon={ArrowUpToLine} label="Withdraw" onClick={() => navigate("/withdraw")} />
-        <ActionButton icon={ArrowRightLeft} label="Convert" onClick={() => navigate("/convert")} />
-        <ActionButton icon={TrendingUp} label="Trade" onClick={() => navigate("/trade")} />
-      </div>
-
-      {/* Hot Pairs Section */}
-      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]">
-        <div className="border-b border-white/10 px-4 py-3">
-          <h3 className="text-sm font-semibold text-white">Hot Pairs</h3>
-        </div>
-        <div className="grid gap-1 p-2 sm:grid-cols-2 lg:grid-cols-4">
-          {topMarkets.map((item) => (
-            <MarketRow
-              key={item.symbol}
-              symbol={item.symbol?.replace("USDT", "") || ""}
-              price={item.lastPrice || item.price}
-              change={item.priceChangePercent}
-              onClick={() => navigate("/trade")}
-            />
-          ))}
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
