@@ -1112,18 +1112,10 @@ async function settleDailyFunds() {
    USER QR CODE FOR TRANSFERS
 ========================= */
 
-// Generate or get user's QR code
-// Generate or get user's QR code
+// Generate or get user's QR code - RETURNS BASE64 IMAGE
 app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
-    // ✅ Ensure directory exists before generating QR code
-    const qrDir = path.join(__dirname, "uploads/qr_codes");
-    if (!fs.existsSync(qrDir)) {
-      fs.mkdirSync(qrDir, { recursive: true });
-      console.log("Created qr_codes directory on demand");
-    }
     
     // Get user's UID
     const [userRows] = await pool.execute(
@@ -1136,44 +1128,39 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
     }
     
     const userUid = userRows[0].uid;
+    const userName = req.user.email || "User";
     
-    // Check if QR code exists
+    // Check if QR code exists in database
     let [qrRows] = await pool.execute(
       "SELECT * FROM user_qr_codes WHERE user_id = ?",
       [userId]
     );
     
-    let qrCodeUrl = null;
+    let qrCodeBase64 = null;
     
     if (!qrRows.length) {
-      // Generate new QR code
+      // Generate new QR code as base64 (no file storage needed)
       const qrData = JSON.stringify({
         type: "VexaTrade_transfer",
         uid: userUid,
-        name: req.user.email || "User",
+        name: userName,
       });
       
-      // Generate QR code image
-      const qrFileName = `qr_${userId}_${Date.now()}.png`;
-      const qrFilePath = path.join(qrDir, qrFileName);
-      
-      console.log("Generating QR code at:", qrFilePath);
-      
-      await QRCode.toFile(qrFilePath, qrData, {
+      // Generate QR code as base64 string instead of file
+      const qrBuffer = await QRCode.toBuffer(qrData, {
         width: 300,
         margin: 2,
-        color: { dark: '#000000', light: '#FFFFFF' }
+        color: { dark: '#000000', light: '#FFFFFF' },
+        type: 'png'
       });
       
-      console.log("QR code saved successfully");
+      qrCodeBase64 = qrBuffer.toString('base64');
       
-      qrCodeUrl = `/uploads/qr_codes/${qrFileName}`;
-      
-      // Save to database
+      // Save base64 to database for caching
       await pool.execute(
-        `INSERT INTO user_qr_codes (user_id, qr_data, qr_code_url)
-         VALUES (?, ?, ?)`,
-        [userId, qrData, qrCodeUrl]
+        `INSERT INTO user_qr_codes (user_id, qr_data, qr_code_url, qr_code_base64)
+         VALUES (?, ?, ?, ?)`,
+        [userId, qrData, null, qrCodeBase64]
       );
       
       [qrRows] = await pool.execute(
@@ -1184,9 +1171,21 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
     
     const qrCode = qrRows[0];
     
+    // Return base64 image if available
+    let finalQrCode = qrCode.qr_code_base64;
+    if (!finalQrCode && qrCode.qr_code_url) {
+      // Fallback: try to read file and convert to base64
+      const filePath = path.join(__dirname, qrCode.qr_code_url);
+      if (fs.existsSync(filePath)) {
+        const fileBuffer = fs.readFileSync(filePath);
+        finalQrCode = fileBuffer.toString('base64');
+      }
+    }
+    
     res.json({
       success: true,
       data: {
+        qr_code_base64: finalQrCode ? `data:image/png;base64,${finalQrCode}` : null,
         qr_code_url: qrCode.qr_code_url,
         qr_data: qrCode.qr_data,
       },
