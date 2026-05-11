@@ -95,6 +95,28 @@ export default function VoucherModal({ voucher, onClose }) {
   const Icon = getVoucherIcon(voucher?.type);
   const colorClass = getVoucherColor(voucher?.type);
 
+  // ========== ADDED: Reset animation when voucher changes (for multiple transactions) ==========
+  useEffect(() => {
+    // Reset states when a new voucher comes in
+    setIsVisible(false);
+    setIsClosing(false);
+    
+    // Small delay then show the new voucher
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, 10);
+    
+    return () => clearTimeout(timer);
+  }, [voucher?.transactionId]); // Re-run when transaction ID changes (new voucher)
+
+  // ========== ADDED: Cleanup function for when component unmounts ==========
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.pointerEvents = '';
+    };
+  }, []);
+
   // Handle escape key press
   useEffect(() => {
     const handleEsc = (e) => {
