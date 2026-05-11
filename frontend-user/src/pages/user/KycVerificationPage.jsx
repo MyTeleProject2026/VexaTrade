@@ -7,6 +7,9 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   UploadCloud,
+  Clock,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { getApiErrorMessage, userApi } from "../../services/api";
 
@@ -285,6 +288,106 @@ function UploadPreviewCard({
   );
 }
 
+// ========== ADDED: KYC Status Card Component ==========
+function KycStatusCard({ kycStatus, kycMessage, onResubmit, loading }) {
+  const statusConfig = {
+    not_submitted: {
+      icon: AlertCircle,
+      title: "KYC Not Submitted",
+      message: "Please complete your identity verification to unlock full platform features.",
+      color: "text-amber-400",
+      bgColor: "bg-amber-500/10",
+      borderColor: "border-amber-500/20",
+      showForm: true,
+    },
+    pending: {
+      icon: Clock,
+      title: "KYC Under Review",
+      message: "Your documents have been submitted and are being reviewed by our team. This usually takes 1-2 business days.",
+      color: "text-cyan-400",
+      bgColor: "bg-cyan-500/10",
+      borderColor: "border-cyan-500/20",
+      showForm: false,
+    },
+    under_review: {
+      icon: Clock,
+      title: "KYC Under Review",
+      message: "Your documents have been submitted and are being reviewed by our team. This usually takes 1-2 business days.",
+      color: "text-cyan-400",
+      bgColor: "bg-cyan-500/10",
+      borderColor: "border-cyan-500/20",
+      showForm: false,
+    },
+    approved: {
+      icon: CheckCircle2,
+      title: "KYC Verified",
+      message: "Your identity has been successfully verified. Thank you for completing the verification process.",
+      color: "text-emerald-400",
+      bgColor: "bg-emerald-500/10",
+      borderColor: "border-emerald-500/20",
+      showForm: false,
+    },
+    rejected: {
+      icon: XCircle,
+      title: "KYC Rejected",
+      message: kycMessage || "Your document submission was rejected. Please review the requirements and resubmit.",
+      color: "text-red-400",
+      bgColor: "bg-red-500/10",
+      borderColor: "border-red-500/20",
+      showForm: true,
+    },
+  };
+
+  const config = statusConfig[kycStatus] || statusConfig.not_submitted;
+  const Icon = config.icon;
+
+  if (config.showForm && kycStatus !== "not_submitted" && kycStatus !== "rejected") {
+    config.showForm = false;
+  }
+
+  return (
+    <div className={`rounded-3xl border ${config.borderColor} ${config.bgColor} p-6 shadow-xl`}>
+      <div className="flex items-start gap-4">
+        <div className={`rounded-full ${config.bgColor} p-3`}>
+          <Icon size={28} className={config.color} />
+        </div>
+        <div className="flex-1">
+          <h2 className={`text-xl font-semibold ${config.color}`}>
+            {config.title}
+          </h2>
+          <p className="mt-2 text-sm text-slate-300">{config.message}</p>
+          
+          {kycStatus === "rejected" && kycMessage && (
+            <div className="mt-3 rounded-xl bg-red-500/20 p-3 text-sm text-red-300">
+              <strong>Reason:</strong> {kycMessage}
+            </div>
+          )}
+          
+          {kycStatus === "approved" && (
+            <button
+              type="button"
+              onClick={onResubmit}
+              disabled={loading}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              <RefreshCw size={14} />
+              Update KYC Documents
+            </button>
+          )}
+          
+          {(kycStatus === "rejected" || kycStatus === "not_submitted") && (
+            <p className="mt-3 text-xs text-slate-400">
+              {kycStatus === "rejected" 
+                ? "Please resubmit your documents with correct information." 
+                : "Complete the form below to submit your documents."}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KycVerificationPage() {
   const [form, setForm] = useState({
     country: "",
@@ -302,6 +405,12 @@ export default function KycVerificationPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // ========== ADDED: KYC Status States ==========
+  const [kycStatus, setKycStatus] = useState(null);
+  const [kycMessage, setKycMessage] = useState("");
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [showResubmitForm, setShowResubmitForm] = useState(false);
 
   const token =
     localStorage.getItem("userToken") ||
@@ -312,6 +421,72 @@ export default function KycVerificationPage() {
   const documentOptions = useMemo(() => {
     return getDocumentOptions(form.country);
   }, [form.country]);
+
+  // ========== ADDED: Load KYC Status on Mount ==========
+  useEffect(() => {
+    loadKycStatus();
+  }, []);
+
+  // ========== ADDED: Function to load KYC status ==========
+  async function loadKycStatus() {
+    try {
+      setLoadingStatus(true);
+      const response = await userApi.getProfile(token);
+      if (response?.data?.success) {
+        const userData = response.data.data;
+        const status = userData.kyc_status || "not_submitted";
+        setKycStatus(status);
+        
+        // Check if there's a rejection message from localStorage or API
+        const savedMessage = localStorage.getItem("kyc_rejection_message");
+        if (status === "rejected" && savedMessage) {
+          setKycMessage(savedMessage);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load KYC status:", err);
+    } finally {
+      setLoadingStatus(false);
+    }
+  }
+
+  // ========== ADDED: Handle resubmit (re-KYC) ==========
+  const handleResubmit = () => {
+    setShowResubmitForm(true);
+    setForm({
+      country: "",
+      documentType: "",
+      documentNumber: "",
+      frontFile: null,
+      backFile: null,
+    });
+    setPreview({ front: "", back: "" });
+    setError("");
+    setSuccess("");
+  };
+
+  // ========== ADDED: Check if form should be shown ==========
+  const shouldShowForm = () => {
+    if (loadingStatus) return false;
+    if (showResubmitForm) return true;
+    if (kycStatus === "approved" && !showResubmitForm) return false;
+    if (kycStatus === "pending" || kycStatus === "under_review") return false;
+    return true;
+  };
+
+  // ========== ADDED: Clear form after successful submission ==========
+  const resetForm = () => {
+    setForm({
+      country: "",
+      documentType: "",
+      documentNumber: "",
+      frontFile: null,
+      backFile: null,
+    });
+    setPreview({ front: "", back: "" });
+    setShowResubmitForm(false);
+    loadKycStatus(); // Refresh status after submission
+  };
 
   useEffect(() => {
     return () => {
@@ -410,28 +585,28 @@ export default function KycVerificationPage() {
 
       await userApi.submitKyc(formData, token);
 
-      setSuccess("Your KYC documents have been submitted successfully.");
+      setSuccess("Your KYC documents have been submitted successfully. Our team will review your submission.");
 
       if (preview.front) URL.revokeObjectURL(preview.front);
       if (preview.back) URL.revokeObjectURL(preview.back);
 
-      setForm({
-        country: "",
-        documentType: "",
-        documentNumber: "",
-        frontFile: null,
-        backFile: null,
-      });
+      // Reset form and reload status
+      resetForm();
 
-      setPreview({
-        front: "",
-        back: "",
-      });
     } catch (err) {
       setError(getApiErrorMessage(err) || "Failed to submit KYC");
     } finally {
       setLoading(false);
     }
+  }
+
+  // ========== ADDED: Show loading while fetching status ==========
+  if (loadingStatus) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812] p-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (
@@ -458,180 +633,224 @@ export default function KycVerificationPage() {
         </div>
       </section>
 
-      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2 rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-5 shadow-xl sm:p-6 md:p-8">
-          <div className="flex items-center gap-3">
-            <IdCard size={20} className="text-violet-300" />
-            <h2 className="text-xl font-semibold text-white">
-              Document Information
-            </h2>
-          </div>
+      {/* ========== ADDED: KYC Status Card - Shows current status ========== */}
+      {kycStatus && kycStatus !== "not_submitted" && (
+        <KycStatusCard 
+          kycStatus={kycStatus}
+          kycMessage={kycMessage}
+          onResubmit={handleResubmit}
+          loading={loading}
+        />
+      )}
 
-          <p className="mt-2 text-sm text-slate-400">
-            Please provide accurate document details that match your legal
-            identity.
-          </p>
+      {/* ========== MODIFIED: Only show form for not_submitted, rejected, or resubmit ========== */}
+      {shouldShowForm() ? (
+        <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2 rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-5 shadow-xl sm:p-6 md:p-8">
+            <div className="flex items-center gap-3">
+              <IdCard size={20} className="text-violet-300" />
+              <h2 className="text-xl font-semibold text-white">
+                Document Information
+              </h2>
+            </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                Country / Region of Residence
-              </label>
-              <div className="relative">
-                <Globe
-                  size={16}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-                />
+            <p className="mt-2 text-sm text-slate-400">
+              Please provide accurate document details that match your legal
+              identity.
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Country / Region of Residence
+                </label>
+                <div className="relative">
+                  <Globe
+                    size={16}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                  />
+                  <select
+                    value={form.country}
+                    onChange={(e) => handleCountryChange(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950 py-3 pl-11 pr-4 text-white outline-none focus:border-violet-500"
+                  >
+                    <option value="">Select country / region</option>
+                    {COUNTRY_OPTIONS.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Government-Issued Document Type
+                </label>
                 <select
-                  value={form.country}
-                  onChange={(e) => handleCountryChange(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 py-3 pl-11 pr-4 text-white outline-none focus:border-violet-500"
+                  value={form.documentType}
+                  onChange={(e) => updateField("documentType", e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-500"
                 >
-                  <option value="">Select country / region</option>
-                  {COUNTRY_OPTIONS.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
+                  <option value="">Select document type</option>
+                  {documentOptions.map((doc) => (
+                    <option key={doc} value={doc}>
+                      {doc}
                     </option>
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Document Number
+                </label>
+                <input
+                  type="text"
+                  value={form.documentNumber}
+                  onChange={(e) => updateField("documentNumber", e.target.value)}
+                  placeholder="Enter document number"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                Government-Issued Document Type
-              </label>
-              <select
-                value={form.documentType}
-                onChange={(e) => updateField("documentType", e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-500"
-              >
-                <option value="">Select document type</option>
-                {documentOptions.map((doc) => (
-                  <option key={doc} value={doc}>
-                    {doc}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-8">
+              <div className="flex items-center gap-3">
+                <UploadCloud size={20} className="text-cyan-300" />
+                <h3 className="text-lg font-semibold text-white">
+                  Upload Document Images
+                </h3>
+              </div>
+
+              <p className="mt-2 text-sm text-slate-400">
+                Please upload a clear, valid, government-issued document.
+                Cropped, blurry, or expired documents may be rejected.
+              </p>
+
+              <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                <UploadPreviewCard
+                  title="Front Side"
+                  previewUrl={preview.front}
+                  onChange={(e) =>
+                    handleFileChange("frontFile", e.target.files?.[0] || null)
+                  }
+                  helperText="Upload a clear image of the front side of your document."
+                />
+
+                <UploadPreviewCard
+                  title="Back Side"
+                  optional
+                  previewUrl={preview.back}
+                  onChange={(e) =>
+                    handleFileChange("backFile", e.target.files?.[0] || null)
+                  }
+                  helperText="Upload the back side if your document includes important information there."
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                Document Number
-              </label>
-              <input
-                type="text"
-                value={form.documentNumber}
-                onChange={(e) => updateField("documentNumber", e.target.value)}
-                placeholder="Enter document number"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-violet-500"
-              />
-            </div>
+            {error ? (
+              <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              </div>
+            ) : null}
+
+            {success ? (
+              <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                  <span>{success}</span>
+                </div>
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-6 w-full rounded-2xl bg-violet-600 px-4 py-3 font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Submitting..." : "Submit Verification"}
+            </button>
           </div>
 
-          <div className="mt-8">
-            <div className="flex items-center gap-3">
-              <UploadCloud size={20} className="text-cyan-300" />
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-6 shadow-xl">
               <h3 className="text-lg font-semibold text-white">
-                Upload Document Images
+                Verification Tips
               </h3>
-            </div>
 
-            <p className="mt-2 text-sm text-slate-400">
-              Please upload a clear, valid, government-issued document.
-              Cropped, blurry, or expired documents may be rejected.
-            </p>
-
-            <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-              <UploadPreviewCard
-                title="Front Side"
-                previewUrl={preview.front}
-                onChange={(e) =>
-                  handleFileChange("frontFile", e.target.files?.[0] || null)
-                }
-                helperText="Upload a clear image of the front side of your document."
-              />
-
-              <UploadPreviewCard
-                title="Back Side"
-                optional
-                previewUrl={preview.back}
-                onChange={(e) =>
-                  handleFileChange("backFile", e.target.files?.[0] || null)
-                }
-                helperText="Upload the back side if your document includes important information there."
-              />
-            </div>
-          </div>
-
-          {error ? (
-            <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              <div className="flex items-start gap-2">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                <span>{error}</span>
+              <div className="mt-4 space-y-3 text-sm text-slate-400">
+                <p>Use a valid government-issued document.</p>
+                <p>Make sure all corners are visible.</p>
+                <p>Use bright lighting and avoid blur.</p>
+                <p>Do not upload cropped or edited images.</p>
+                <p>Submitted details must match your registration identity.</p>
               </div>
             </div>
-          ) : null}
 
-          {success ? (
-            <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-                <span>{success}</span>
+            <div className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-white">
+                Accepted Documents
+              </h3>
+
+              <div className="mt-4 space-y-3 text-sm text-slate-400">
+                <p>Passport</p>
+                <p>National ID / State ID</p>
+                <p>Driving License</p>
+                <p>Residence Permit</p>
+                <p>Country-specific IDs where applicable</p>
               </div>
             </div>
-          ) : null}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-6 w-full rounded-2xl bg-violet-600 px-4 py-3 font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Submitting..." : "Submit Verification"}
-          </button>
-        </div>
+            <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-amber-200">
+                Important Note
+              </h3>
 
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-white">
-              Verification Tips
-            </h3>
-
-            <div className="mt-4 space-y-3 text-sm text-slate-400">
-              <p>Use a valid government-issued document.</p>
-              <p>Make sure all corners are visible.</p>
-              <p>Use bright lighting and avoid blur.</p>
-              <p>Do not upload cropped or edited images.</p>
-              <p>Submitted details must match your registration identity.</p>
+              <p className="mt-3 text-sm text-amber-100/80">
+                Your submission will be reviewed by the VexaTrade team. Approval
+                time may depend on document quality and account details.
+              </p>
             </div>
           </div>
-
-          <div className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-white">
-              Accepted Documents
-            </h3>
-
-            <div className="mt-4 space-y-3 text-sm text-slate-400">
-              <p>Passport</p>
-              <p>National ID / State ID</p>
-              <p>Driving License</p>
-              <p>Residence Permit</p>
-              <p>Country-specific IDs where applicable</p>
+        </form>
+      ) : (
+        /* ========== ADDED: Message when KYC is pending/approved without resubmit ========== */
+        (kycStatus === "pending" || kycStatus === "under_review" || kycStatus === "approved") && !showResubmitForm && (
+          <div className="rounded-3xl border border-white/10 bg-[#0a0e1a]/90 p-8 text-center shadow-xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/10">
+              {kycStatus === "approved" ? (
+                <CheckCircle2 size={32} className="text-emerald-400" />
+              ) : (
+                <Clock size={32} className="text-cyan-400" />
+              )}
             </div>
-          </div>
-
-          <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-amber-200">
-              Important Note
+            <h3 className="text-xl font-semibold text-white">
+              {kycStatus === "approved" ? "KYC Verified" : "KYC Under Review"}
             </h3>
-
-            <p className="mt-3 text-sm text-amber-100/80">
-              Your submission will be reviewed by the VexaTrade team. Approval
-              time may depend on document quality and account details.
+            <p className="mt-2 text-slate-400">
+              {kycStatus === "approved" 
+                ? "Your identity has been verified. You have full access to all platform features."
+                : "Please wait while our team reviews your documents. You will be notified once the review is complete."}
             </p>
+            {kycStatus === "approved" && (
+              <button
+                type="button"
+                onClick={handleResubmit}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <RefreshCw size={14} />
+                Update KYC Documents
+              </button>
+            )}
           </div>
-        </div>
-      </form>
+        )
+      )}
     </div>
   );
 }
