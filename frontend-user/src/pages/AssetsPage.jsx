@@ -281,7 +281,7 @@ function HistoryRow({ title, date, amount, negative = false }) {
   );
 }
 
-// ========== FIXED: QR Transfer Modal Component ==========
+// QR Transfer Modal Component
 function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [mode, setMode] = useState("send");
   const [scanning, setScanning] = useState(false);
@@ -328,8 +328,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       });
       const data = await res.json();
       if (data.success && data.data?.qr_code_url) {
-        // ========== FIXED: Use the URL directly from API response ==========
-        // The API returns full URL path like /uploads/qr_codes/xxx.png
         const qrUrl = data.data.qr_code_url;
         setMyQrCode(qrUrl);
       } else {
@@ -441,7 +439,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
     showSuccess("UID copied!");
   }
 
-  // ========== FIXED: Function to get full image URL ==========
   function getFullImageUrl(url) {
     if (!url) return null;
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -574,7 +571,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
               <p className="text-sm text-slate-400">Share this QR code to receive payments</p>
               
-              {/* ========== FIXED: QR Code Display ========== */}
               {myQrCode && !qrCodeError ? (
                 <div className="mt-4 flex flex-col items-center">
                   <img
@@ -669,6 +665,93 @@ export default function AssetsPage() {
   const [combinedBalance, setCombinedBalance] = useState(null);
   const [jointBalanceData, setJointBalanceData] = useState(null);
 
+  // ========== ADDED: Function to calculate holdings from convert transactions ==========
+  async function loadHoldingsFromConvertHistory() {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+      // Fetch convert transaction history
+      const res = await fetch(`${API_BASE_URL}/api/convert/history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      
+      if (data.success && Array.isArray(data.data)) {
+        const convertTxns = data.data;
+        
+        // Calculate holdings from convert transactions
+        const holdingsMap = new Map();
+        
+        // Start with USDT balance from wallet
+        holdingsMap.set("USDT", {
+          symbol: "USDT",
+          amount: Number(wallet.balance || 0),
+          usdtValue: Number(wallet.balance || 0),
+          unitPrice: 1,
+          avgPrice: 1,
+          spotPnl: 0,
+          spotPnlPercent: 0,
+          accent: getCoinAccent("USDT"),
+          apr: "Up to 50% APR"
+        });
+        
+        for (const tx of convertTxns) {
+          const fromCoin = tx.from_coin?.toUpperCase();
+          const toCoin = tx.to_coin?.toUpperCase();
+          const fromAmount = Number(tx.from_amount || 0);
+          const receiveAmount = Number(tx.receive_amount || tx.to_amount || 0);
+          
+          // Subtract from-coin (user spent this)
+          if (fromCoin && fromCoin !== "USDT") {
+            const current = holdingsMap.get(fromCoin);
+            if (current) {
+              current.amount = Math.max(0, current.amount - fromAmount);
+              if (current.amount < 0.00000001) {
+                holdingsMap.delete(fromCoin);
+              } else {
+                holdingsMap.set(fromCoin, current);
+              }
+            }
+          }
+          
+          // Add to-coin (user received this)
+          if (toCoin && toCoin !== "USDT" && receiveAmount > 0) {
+            const current = holdingsMap.get(toCoin);
+            const price = getCoinPriceInUsdt(toCoin, markets);
+            
+            if (current) {
+              current.amount = (current.amount || 0) + receiveAmount;
+              current.usdtValue = current.amount * price;
+              holdingsMap.set(toCoin, current);
+            } else {
+              holdingsMap.set(toCoin, {
+                symbol: toCoin,
+                amount: receiveAmount,
+                usdtValue: receiveAmount * price,
+                unitPrice: price,
+                avgPrice: price,
+                spotPnl: 0,
+                spotPnlPercent: 0,
+                accent: getCoinAccent(toCoin),
+                apr: ""
+              });
+            }
+          }
+        }
+        
+        // Convert map to array and filter out zero amounts and USDT
+        const calculatedHoldings = Array.from(holdingsMap.values())
+          .filter(item => item.amount > 0.00000001 && item.symbol !== "USDT")
+          .sort((a, b) => b.usdtValue - a.usdtValue);
+        
+        if (calculatedHoldings.length > 0) {
+          setHoldings(calculatedHoldings);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load convert history:", err);
+    }
+  }
+
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
@@ -713,6 +796,11 @@ export default function AssetsPage() {
           user: data.user || null,
           walletLabel: data.walletLabel || "Main Wallet",
         });
+        
+        // ========== ADDED: Load holdings from convert history after getting balance ==========
+        if (!silent) {
+          await loadHoldingsFromConvertHistory();
+        }
       }
 
       if (marketRes.status === "fulfilled") {
@@ -775,7 +863,9 @@ export default function AssetsPage() {
           holdingsRes.value?.data?.data ||
           [];
 
-        setHoldings(Array.isArray(rows) ? rows : []);
+        if (Array.isArray(rows) && rows.length > 0) {
+          setHoldings(rows);
+        }
       }
     } catch (err) {
       showError(getApiErrorMessage(err));
@@ -897,12 +987,12 @@ export default function AssetsPage() {
           </div>
 
           {/* Show breakdown if joint account */}
-          if (jointBalanceData?.hasJointAccount && (
+          {jointBalanceData?.hasJointAccount && (
             <div className="mt-2 text-xs text-slate-500">
               Your balance: {formatMoney(jointBalanceData.userBalance)} USDT + 
               {jointPartner?.name}'s balance: {formatMoney(jointBalanceData.partnerBalance)} USDT
             </div>
-          ))}
+          )}
 
           <button
             type="button"
