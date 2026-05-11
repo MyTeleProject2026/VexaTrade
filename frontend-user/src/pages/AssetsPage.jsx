@@ -281,7 +281,7 @@ function HistoryRow({ title, date, amount, negative = false }) {
   );
 }
 
-// QR Transfer Modal Component
+// ========== FIXED: QR Transfer Modal Component ==========
 function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [mode, setMode] = useState("send");
   const [scanning, setScanning] = useState(false);
@@ -291,11 +291,15 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [myQrCode, setMyQrCode] = useState(null);
+  const [qrCodeError, setQrCodeError] = useState(false);
   const [userUid, setUserUid] = useState("");
   const [userName, setUserName] = useState("");
   
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showVoucher } = useNotification();
+
+  // API Base URL
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
 
   useEffect(() => {
     if (isOpen && mode === "receive") {
@@ -318,14 +322,22 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
   async function loadMyQrCode() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/qr-code`, {
+      setQrCodeError(false);
+      const res = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) {
-        setMyQrCode(data.data.qr_code_url);
+      if (data.success && data.data?.qr_code_url) {
+        // ========== FIXED: Use the URL directly from API response ==========
+        // The API returns full URL path like /uploads/qr_codes/xxx.png
+        const qrUrl = data.data.qr_code_url;
+        setMyQrCode(qrUrl);
+      } else {
+        setQrCodeError(true);
+        console.error("QR code generation failed:", data);
       }
     } catch (err) {
+      setQrCodeError(true);
       console.error("Failed to load QR code:", err);
     }
   }
@@ -337,7 +349,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
     }
     try {
       setScanning(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/by-uid/${uid}`, {
+      const res = await fetch(`${API_BASE_URL}/api/user/by-uid/${uid}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -378,7 +390,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}/api/user/transfer`, {
+      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -394,21 +406,18 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       if (data.success) {
         showSuccess(`Successfully sent ${amount} USDT to ${scannedUser.name || scannedUser.email}`);
         
-        const { showVoucher } = useNotification();
-        if (showVoucher) {
-          showVoucher({
-            title: "Transfer Sent",
-            type: "transfer",
-            transactionId: data.data?.transfer_id,
-            data: {
-              transfer_id: data.data?.transfer_id,
-              to: scannedUser.uid,
-              amount: Number(amount),
-              remaining_balance: data.data?.remaining_balance,
-              created_at: new Date().toISOString(),
-            },
-          });
-        }
+        showVoucher({
+          title: "Transfer Sent",
+          type: "transfer",
+          transactionId: data.data?.transfer_id,
+          data: {
+            transfer_id: data.data?.transfer_id,
+            to: scannedUser.uid,
+            amount: Number(amount),
+            remaining_balance: data.data?.remaining_balance,
+            created_at: new Date().toISOString(),
+          },
+        });
         
         onTransferComplete?.();
         onClose();
@@ -430,6 +439,13 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     showSuccess("UID copied!");
+  }
+
+  // ========== FIXED: Function to get full image URL ==========
+  function getFullImageUrl(url) {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `${API_BASE_URL}${url}`;
   }
 
   if (!isOpen) return null;
@@ -557,13 +573,39 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
           <div className="space-y-4">
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
               <p className="text-sm text-slate-400">Share this QR code to receive payments</p>
-              {myQrCode ? (
+              
+              {/* ========== FIXED: QR Code Display ========== */}
+              {myQrCode && !qrCodeError ? (
                 <div className="mt-4 flex flex-col items-center">
                   <img
-                    src={`${import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com"}${myQrCode}`}
+                    src={getFullImageUrl(myQrCode)}
                     alt="Your QR Code"
                     className="h-48 w-48 rounded-xl border border-white/10 bg-white p-2"
+                    onError={() => setQrCodeError(true)}
                   />
+                  <button
+                    onClick={() => copyToClipboard(userUid)}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
+                  >
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                    {copied ? "Copied!" : "Copy UID"}
+                  </button>
+                  <p className="mt-3 text-xs text-slate-500">
+                    Your UID: <span className="font-mono text-white">{userUid}</span>
+                  </p>
+                </div>
+              ) : qrCodeError ? (
+                <div className="mt-4 flex flex-col items-center">
+                  <div className="flex h-48 w-48 flex-col items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10">
+                    <QrCode size={48} className="text-red-400 mb-2" />
+                    <p className="text-xs text-red-400">QR Code unavailable</p>
+                    <button
+                      onClick={loadMyQrCode}
+                      className="mt-3 rounded-lg bg-cyan-500 px-3 py-1 text-xs text-black"
+                    >
+                      Retry
+                    </button>
+                  </div>
                   <button
                     onClick={() => copyToClipboard(userUid)}
                     className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
@@ -855,12 +897,12 @@ export default function AssetsPage() {
           </div>
 
           {/* Show breakdown if joint account */}
-          {jointBalanceData?.hasJointAccount && (
+          if (jointBalanceData?.hasJointAccount && (
             <div className="mt-2 text-xs text-slate-500">
               Your balance: {formatMoney(jointBalanceData.userBalance)} USDT + 
               {jointPartner?.name}'s balance: {formatMoney(jointBalanceData.partnerBalance)} USDT
             </div>
-          )}
+          ))}
 
           <button
             type="button"
