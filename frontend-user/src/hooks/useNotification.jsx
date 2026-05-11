@@ -1,14 +1,16 @@
-import { useContext, createContext, useState, useCallback, useRef } from "react";
+import { useContext, createContext, useState, useCallback, useRef, useEffect } from "react";
 
 const NotificationContext = createContext(null);
 
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [voucher, setVoucher] = useState(null);
+  const [voucherKey, setVoucherKey] = useState(0); // ✅ Force re-render
   const closeTimeoutRef = useRef(null);
+  const voucherTimeoutRef = useRef(null);
 
   const showToast = useCallback((message, type = "info", duration = 4000) => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, message, type }]);
 
     setTimeout(() => {
@@ -32,38 +34,61 @@ export function NotificationProvider({ children }) {
     showToast(message, "info", duration);
   }, [showToast]);
 
-  // ✅ FIXED: Properly close existing voucher before showing new one
-  const showVoucher = useCallback((voucherData) => {
-    // Clear any existing close timeout
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-    
-    // First close the current voucher if it exists
-    if (voucher) {
-      setVoucher(null);
-      // Small delay to ensure cleanup
-      setTimeout(() => {
-        setVoucher(voucherData);
-      }, 100);
-    } else {
-      setVoucher(voucherData);
-    }
-  }, [voucher]);
-
-  // ✅ FIXED: Ensure proper cleanup when closing
+  // ✅ FIXED: Force close and clear any pending vouchers
   const closeVoucher = useCallback(() => {
-    // Clear any existing timeout
+    // Clear any existing timeouts
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    if (voucherTimeoutRef.current) {
+      clearTimeout(voucherTimeoutRef.current);
+      voucherTimeoutRef.current = null;
     }
     
     // Reset body styles
     document.body.style.overflow = '';
     document.body.style.pointerEvents = '';
     
-    // Close the voucher - let React handle DOM cleanup
+    // Close the voucher
     setVoucher(null);
+  }, []);
+
+  // ✅ FIXED: Properly show voucher with cleanup
+  const showVoucher = useCallback((voucherData) => {
+    // Clear any pending close timeout
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    
+    // Clear any pending voucher timeout
+    if (voucherTimeoutRef.current) {
+      clearTimeout(voucherTimeoutRef.current);
+      voucherTimeoutRef.current = null;
+    }
+    
+    // Close existing voucher first
+    setVoucher(null);
+    
+    // Small delay to ensure cleanup, then show new voucher
+    voucherTimeoutRef.current = setTimeout(() => {
+      setVoucher(voucherData);
+      setVoucherKey(prev => prev + 1); // Force re-render
+      voucherTimeoutRef.current = null;
+    }, 50);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      if (voucherTimeoutRef.current) {
+        clearTimeout(voucherTimeoutRef.current);
+      }
+    };
   }, []);
 
   const removeToast = useCallback((id) => {
@@ -75,6 +100,7 @@ export function NotificationProvider({ children }) {
       value={{
         toasts,
         voucher,
+        voucherKey,
         showSuccess,
         showError,
         showWarning,
