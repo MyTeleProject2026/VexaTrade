@@ -32,8 +32,8 @@ function formatTime(date) {
 function resolveAssetUrl(url) {
   if (!url) return "";
   // If it's already a base64 data URL, return as is
-  if (url.startsWith('data:image/')) return url;
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url && url.startsWith('data:image/')) return url;
+  if (url && (url.startsWith("http://") || url.startsWith("https://"))) return url;
   return `${API_BASE}${url}`;
 }
 
@@ -137,7 +137,15 @@ export default function DepositPage() {
         depositApi.history(token),
       ]);
 
-      const walletRows = Array.isArray(walletRes.data?.data) ? walletRes.data.data : [];
+      let walletRows = Array.isArray(walletRes.data?.data) ? walletRes.data.data : [];
+      
+      // ========== FIXED: Normalize wallet data to ensure qr_image_url is properly set ==========
+      walletRows = walletRows.map(wallet => ({
+        ...wallet,
+        // Ensure qr_image_url is accessible (API might return qr_url or qr_image_url)
+        qr_image_url: wallet.qr_image_url || wallet.qr_url || wallet.qrCodeUrl || null,
+      }));
+      
       const historyRows = Array.isArray(historyRes.data?.data) ? historyRes.data.data : [];
 
       setWallets(walletRows);
@@ -229,7 +237,7 @@ export default function DepositPage() {
       return;
     }
 
-    const minDeposit = Number(selectedWallet.min_deposit || 0);
+    const minDeposit = Number(selectedWallet.minimum_deposit || 0);
     if (minDeposit > 0 && Number(form.amount) < minDeposit) {
       showError(`Minimum deposit is ${formatAmount(minDeposit)}.`);
       return;
@@ -284,6 +292,12 @@ export default function DepositPage() {
       setSubmitting(false);
     }
   }
+
+  // Get the QR code URL from selected wallet (handles multiple field names)
+  const qrCodeUrl = useMemo(() => {
+    if (!selectedWallet) return null;
+    return selectedWallet.qr_image_url || selectedWallet.qr_url || null;
+  }, [selectedWallet]);
 
   if (loading) {
     return (
@@ -395,7 +409,7 @@ export default function DepositPage() {
                     <div className="mt-4 rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
                       <div className="text-sm text-slate-500">Minimum Deposit</div>
                       <div className="mt-2 text-xl font-semibold text-amber-300">
-                        {formatAmount(selectedWallet.min_deposit || 0)}
+                        {formatAmount(selectedWallet.minimum_deposit || 0)}
                       </div>
                     </div>
 
@@ -409,8 +423,8 @@ export default function DepositPage() {
                     ) : null}
                   </div>
 
-                  {/* ========== FIXED: QR Code Display with better error handling ========== */}
-                  {selectedWallet.qr_image_url ? (
+                  {/* ========== FIXED: QR Code Display ========== */}
+                  {qrCodeUrl ? (
                     <div className="mx-auto lg:mx-0">
                       <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
@@ -418,13 +432,12 @@ export default function DepositPage() {
                           QR Code
                         </div>
                         <img
-                          src={resolveAssetUrl(selectedWallet.qr_image_url)}
+                          src={resolveAssetUrl(qrCodeUrl)}
                           alt="Deposit QR"
                           className="h-44 w-44 rounded-2xl border border-white/10 bg-white object-contain p-2 sm:h-52 sm:w-52"
                           onError={(e) => {
-                            console.error("QR image failed to load:", selectedWallet.qr_image_url);
+                            console.error("QR image failed to load:", qrCodeUrl);
                             e.target.style.display = 'none';
-                            // Show fallback text
                             const parent = e.target.parentElement;
                             if (parent && !parent.querySelector('.qr-fallback')) {
                               const fallback = document.createElement('div');
@@ -443,8 +456,9 @@ export default function DepositPage() {
                           <QrCode size={16} />
                           QR Code
                         </div>
-                        <div className="flex h-44 w-44 items-center justify-center rounded-2xl border border-white/10 bg-slate-800 sm:h-52 sm:w-52">
-                          <p className="text-xs text-slate-500 text-center px-2">No QR code available</p>
+                        <div className="flex h-44 w-44 flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-800 p-4 sm:h-52 sm:w-52">
+                          <p className="text-xs text-red-400 text-center">QR Code Not Available</p>
+                          <p className="text-[10px] text-slate-500 text-center mt-2">Use the wallet address above</p>
                         </div>
                       </div>
                     </div>
