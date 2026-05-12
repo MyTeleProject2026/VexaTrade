@@ -32,33 +32,6 @@ function resolveImageUrl(url) {
   return `${FILE_BASE_URL}${url}`;
 }
 
-// ========== ADDED: Function to generate QR code from text ==========
-async function generateQrCodeFromText(text) {
-  try {
-    // Use the same API endpoint pattern as user QR code
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-    
-    // Create a request to generate QR code from address
-    const response = await fetch(`${API_BASE_URL}/api/admin/generate-wallet-qr`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("adminToken") || localStorage.getItem("admin_token") || ""}`
-      },
-      body: JSON.stringify({ text: text })
-    });
-    
-    const data = await response.json();
-    if (data.success && data.data?.qr_base64) {
-      return data.data.qr_base64;
-    }
-    return null;
-  } catch (error) {
-    console.error("Failed to generate QR code:", error);
-    return null;
-  }
-}
-
 function getStatusClass(status) {
   const value = String(status || "").toLowerCase();
 
@@ -217,7 +190,7 @@ export default function AdminDepositNetworksPage() {
     }
   }
 
-  // ========== ADDED: Auto-generate QR code from address ==========
+  // Auto-generate QR code from wallet address
   async function autoGenerateQrFromAddress() {
     const address = String(form.address || "").trim();
     if (!address) {
@@ -229,34 +202,21 @@ export default function AdminDepositNetworksPage() {
       setError("");
       setSuccess("");
       
-      // Generate QR code as base64 from the address
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+      const response = await adminApi.generateWalletQr({ text: address }, token);
       
-      const response = await fetch(`${API_BASE_URL}/api/admin/generate-wallet-qr`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ text: address })
-      });
-      
-      const data = await response.json();
-      
-      if (data.success && data.data?.qr_base64) {
-        // Store the base64 directly as qr_image_url (it will be handled as data URL)
+      if (response.data?.success && response.data?.data?.qr_base64) {
         setForm((prev) => ({
           ...prev,
-          qr_image_url: data.data.qr_base64,
+          qr_image_url: response.data.data.qr_base64,
         }));
         setSuccess("QR code generated successfully from wallet address!");
         return true;
       } else {
-        setError(data.message || "Failed to generate QR code from address");
+        setError(response.data?.message || "Failed to generate QR code from address");
         return false;
       }
     } catch (err) {
-      setError("Failed to generate QR code: " + err.message);
+      setError("Failed to generate QR code: " + (err.message || "Unknown error"));
       return false;
     }
   }
@@ -284,26 +244,14 @@ export default function AdminDepositNetworksPage() {
       setError("");
       setSuccess("");
 
-      // ========== ADDED: Auto-generate QR code if no QR image provided ==========
       let qrImageUrl = String(form.qr_image_url || "").trim();
       
+      // Auto-generate QR code if no QR image provided
       if (!qrImageUrl && form.address) {
-        // Auto-generate QR code from wallet address
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+        const response = await adminApi.generateWalletQr({ text: form.address.trim() }, token);
         
-        const response = await fetch(`${API_BASE_URL}/api/admin/generate-wallet-qr`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ text: form.address.trim() })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success && data.data?.qr_base64) {
-          qrImageUrl = data.data.qr_base64;
+        if (response.data?.success && response.data?.data?.qr_base64) {
+          qrImageUrl = response.data.data.qr_base64;
           setSuccess("QR code auto-generated from wallet address.");
         }
       }
@@ -589,7 +537,7 @@ export default function AdminDepositNetworksPage() {
               />
             </div>
 
-            {/* ========== ADDED: Auto-Generate QR Code Button ========== */}
+            {/* Auto-Generate QR Code Button */}
             <div>
               <button
                 type="button"
