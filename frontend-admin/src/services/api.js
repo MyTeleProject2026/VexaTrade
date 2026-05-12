@@ -144,6 +144,9 @@ export const adminApi = {
 
   deleteDepositNetwork: (id, token) =>
     api.delete(`/api/admin/deposit-networks/${id}`, authHeaders(token)),
+  
+  generateWalletQr: (payload, token) =>
+    api.post("/api/admin/generate-wallet-qr", payload, authHeaders(token)),
 
   uploadDepositNetworkQr: (formData, token) =>
     api.post("/api/admin/deposit-networks/upload-qr", formData, {
@@ -152,6 +155,7 @@ export const adminApi = {
         "Content-Type": "multipart/form-data",
       },
     }),
+  
 
   /* ---------------- WITHDRAWALS ---------------- */
   getWithdrawals: (token) =>
