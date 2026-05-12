@@ -5888,6 +5888,40 @@ app.delete("/api/admin/deposit-networks/:id", authenticateAdmin, async (req, res
   }
 });
 
+// Admin: Generate QR code from any text (wallet address, etc.)
+app.post("/api/admin/generate-wallet-qr", authenticateAdmin, async (req, res, next) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: "Text is required" });
+    }
+    
+    // Generate QR code as base64
+    const qrBuffer = await QRCode.toBuffer(text.trim(), {
+      width: 300,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+      type: 'png'
+    });
+    
+    const qrBase64 = qrBuffer.toString('base64');
+    
+    res.json({
+      success: true,
+      data: {
+        qr_base64: `data:image/png;base64,${qrBase64}`,
+      },
+    });
+  } catch (error) {
+    console.error("Wallet QR generation error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to generate QR code",
+      error: error.message 
+    });
+  }
+});
 /* =========================
    ADMIN WITHDRAWAL FEES
 ========================= */
