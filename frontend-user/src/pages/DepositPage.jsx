@@ -13,7 +13,7 @@ import { depositApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+  import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
 function formatAmount(v) {
   const num = Number(v || 0);
@@ -28,8 +28,11 @@ function formatTime(date) {
   return parsed.toLocaleString();
 }
 
+// ========== FIXED: Function to resolve asset URLs (handles base64 and http URLs) ==========
 function resolveAssetUrl(url) {
   if (!url) return "";
+  // If it's already a base64 data URL, return as is
+  if (url.startsWith('data:image/')) return url;
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   return `${API_BASE}${url}`;
 }
@@ -292,7 +295,7 @@ export default function DepositPage() {
 
   return (
     <div className="space-y-6 bg-[#050812] px-4 pb-28 pt-4 sm:px-6 xl:pb-8">
-      <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0a0a0a_0%,#050505_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
+      <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.32em] text-cyan-400">
@@ -406,7 +409,8 @@ export default function DepositPage() {
                     ) : null}
                   </div>
 
-                  {selectedWallet.qr_url ? (
+                  {/* ========== FIXED: QR Code Display with better error handling ========== */}
+                  {selectedWallet.qr_image_url ? (
                     <div className="mx-auto lg:mx-0">
                       <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4">
                         <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
@@ -414,13 +418,37 @@ export default function DepositPage() {
                           QR Code
                         </div>
                         <img
-                          src={resolveAssetUrl(selectedWallet.qr_url)}
+                          src={resolveAssetUrl(selectedWallet.qr_image_url)}
                           alt="Deposit QR"
                           className="h-44 w-44 rounded-2xl border border-white/10 bg-white object-contain p-2 sm:h-52 sm:w-52"
+                          onError={(e) => {
+                            console.error("QR image failed to load:", selectedWallet.qr_image_url);
+                            e.target.style.display = 'none';
+                            // Show fallback text
+                            const parent = e.target.parentElement;
+                            if (parent && !parent.querySelector('.qr-fallback')) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'qr-fallback text-center p-4';
+                              fallback.innerHTML = '<p class="text-red-400 text-sm">QR Code unavailable</p><p class="text-slate-500 text-xs mt-2">Please use the wallet address above</p>';
+                              parent.appendChild(fallback);
+                            }
+                          }}
                         />
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="mx-auto lg:mx-0">
+                      <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4">
+                        <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
+                          <QrCode size={16} />
+                          QR Code
+                        </div>
+                        <div className="flex h-44 w-44 items-center justify-center rounded-2xl border border-white/10 bg-slate-800 sm:h-52 sm:w-52">
+                          <p className="text-xs text-slate-500 text-center px-2">No QR code available</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -508,6 +536,9 @@ export default function DepositPage() {
                     src={resolveAssetUrl(form.proof)}
                     alt="Receipt preview"
                     className="max-h-72 w-full rounded-2xl border border-white/10 object-cover"
+                    onError={(e) => {
+                      e.target.src = 'https://placehold.co/400x200?text=Image+not+found';
+                    }}
                   />
                 </div>
               ) : null}
@@ -615,6 +646,9 @@ export default function DepositPage() {
                           src={resolveAssetUrl(item.proof || item.receipt_url)}
                           alt="Deposit proof"
                           className="max-h-56 w-full rounded-2xl border border-white/10 object-cover"
+                          onError={(e) => {
+                            e.target.src = 'https://placehold.co/400x200?text=Image+not+found';
+                          }}
                         />
                       </div>
                     ) : (
