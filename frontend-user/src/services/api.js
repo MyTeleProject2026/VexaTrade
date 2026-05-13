@@ -170,7 +170,13 @@ export const userApi = {
         "Content-Type": "multipart/form-data",
       },
     }),
-
+  // Add this inside your existing userApi object (around line 100-150)
+  getUserAssets: (token) => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+    return fetch(`${API_BASE_URL}/api/user/assets`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }).then(res => res.json());
+  },
   getWalletSummary: (token) =>
     api.get("/api/wallet/summary", authHeaders(token)),
 
