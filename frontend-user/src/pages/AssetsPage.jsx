@@ -44,6 +44,16 @@ function formatAmount(value, digits = 8) {
   });
 }
 
+// ✅ FIX: Coin logos with proper icons and colors
+const COIN_LOGOS = {
+  USDT: { icon: "₮", color: "#26A17B", name: "Tether" },
+  BTC: { icon: "₿", color: "#F7931A", name: "Bitcoin" },
+  ETH: { icon: "Ξ", color: "#627EEA", name: "Ethereum" },
+  BNB: { icon: "ⓑ", color: "#F3BA2F", name: "BNB" },
+  SOL: { icon: "◎", color: "#00FFBD", name: "Solana" },
+  XRP: { icon: "✕", color: "#23292F", name: "XRP" },
+};
+
 function getCoinPriceInUsdt(symbol, markets = []) {
   const upper = String(symbol || "").toUpperCase();
   if (upper === "USDT") return 1;
@@ -69,37 +79,6 @@ function getCoinAccent(symbol) {
   return (
     map[String(symbol || "").toUpperCase()] || "from-slate-400/20 to-slate-500/10"
   );
-}
-
-function buildFallbackAssets(balance, markets) {
-  const total = Number(balance || 0);
-
-  const config = [
-    { symbol: "USDT", percent: 62 },
-    { symbol: "BTC", percent: 14 },
-    { symbol: "ETH", percent: 10 },
-    { symbol: "SOL", percent: 6 },
-    { symbol: "BNB", percent: 5 },
-    { symbol: "XRP", percent: 3 },
-  ];
-
-  return config.map((item) => {
-    const usdtValue = (total * item.percent) / 100;
-    const unitPrice = getCoinPriceInUsdt(item.symbol, markets);
-    const amount = unitPrice > 0 ? usdtValue / unitPrice : usdtValue;
-
-    return {
-      symbol: item.symbol,
-      amount,
-      usdtValue,
-      unitPrice,
-      avgPrice: unitPrice,
-      spotPnl: 0,
-      spotPnlPercent: 0,
-      accent: getCoinAccent(item.symbol),
-      apr: item.symbol === "USDT" ? "Up to 50% APR" : "",
-    };
-  });
 }
 
 function normalizeHoldings(rawRows = [], markets = []) {
@@ -170,10 +149,30 @@ function normalizeHoldings(rawRows = [], markets = []) {
         spotPnlPercent,
         accent: getCoinAccent(symbol),
         apr: symbol === "USDT" ? "Up to 50% APR" : "",
+        logo: COIN_LOGOS[symbol] || { icon: symbol[0], color: "#6B7280" },
       };
     })
     .filter(Boolean)
     .sort((a, b) => Number(b.usdtValue || 0) - Number(a.usdtValue || 0));
+}
+
+// ✅ NEW: Fetch real user assets from backend
+async function fetchUserAssets(token, markets) {
+  try {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+    const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    
+    if (data.success && Array.isArray(data.data?.assets)) {
+      return normalizeHoldings(data.data.assets, markets);
+    }
+    return [];
+  } catch (err) {
+    console.error("Failed to fetch user assets:", err);
+    return [];
+  }
 }
 
 function CircleAction({ icon: Icon, label, onClick }) {
@@ -208,16 +207,19 @@ function PortfolioCard({ title, value, subtext, icon: Icon, tone = "text-white" 
   );
 }
 
+// ✅ FIX: AssetRow with proper coin logos
 function AssetRow({ item }) {
   const pnlPositive = Number(item.spotPnl || 0) >= 0;
+  const logo = item.logo || COIN_LOGOS[item.symbol] || { icon: item.symbol[0], color: "#6B7280" };
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/5 bg-white/[0.02] px-3 py-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${item.accent} text-xs font-bold text-white ring-1 ring-white/10 sm:h-12 sm:w-12 sm:text-sm`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${item.accent} text-lg font-bold text-white ring-1 ring-white/10 sm:h-12 sm:w-12`}
+          style={{ color: logo.color }}
         >
-          {item.symbol.slice(0, 3)}
+          {logo.icon}
         </div>
 
         <div className="min-w-0">
@@ -225,7 +227,7 @@ function AssetRow({ item }) {
             <div className="truncate text-base font-semibold text-white sm:text-lg">
               {item.symbol}
             </div>
-
+            <div className="text-xs text-slate-500">{logo.name}</div>
             {item.apr ? (
               <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300 sm:text-[11px]">
                 {item.apr}
@@ -281,7 +283,7 @@ function HistoryRow({ title, date, amount, negative = false }) {
   );
 }
 
-// QR Transfer Modal Component
+// QR Transfer Modal Component (unchanged, keep your existing one)
 function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [mode, setMode] = useState("send");
   const [scanning, setScanning] = useState(false);
@@ -298,7 +300,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
   const { showSuccess, showError, showVoucher } = useNotification();
 
-  // API Base URL
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
   useEffect(() => {
@@ -328,7 +329,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       });
       const data = await res.json();
       if (data.success && data.data?.qr_code_base64) {
-        // Use base64 image directly - no file URL needed!
         setMyQrCode(data.data.qr_code_base64);
       } else {
         setQrCodeError(true);
@@ -339,6 +339,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       console.error("Failed to load QR code:", err);
     }
   }
+  
   async function findUserByUid(uid) {
     if (!uid || uid.length < 5) {
       showError("Please enter a valid UID");
@@ -440,7 +441,6 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
 
   function getFullImageUrl(url) {
     if (!url) return null;
-    // If it's already a base64 data URL, return as is
     if (url && url.startsWith('data:image/')) return url;
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
     return `${API_BASE_URL}${url}`;
@@ -666,83 +666,26 @@ export default function AssetsPage() {
   const [combinedBalance, setCombinedBalance] = useState(null);
   const [jointBalanceData, setJointBalanceData] = useState(null);
 
-  // Function to calculate holdings from convert transactions
-  async function loadHoldingsFromConvertHistory() {
+  // ✅ FIX: Load real user assets from backend
+  async function loadRealUserAssets() {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-      const res = await fetch(`${API_BASE_URL}/api/convert/history`, {
+      const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       
-      if (data.success && Array.isArray(data.data)) {
-        const convertTxns = data.data;
-        const holdingsMap = new Map();
-        
-        holdingsMap.set("USDT", {
-          symbol: "USDT",
-          amount: Number(wallet.balance || 0),
-          usdtValue: Number(wallet.balance || 0),
-          unitPrice: 1,
-          avgPrice: 1,
-          spotPnl: 0,
-          spotPnlPercent: 0,
-          accent: getCoinAccent("USDT"),
-          apr: "Up to 50% APR"
-        });
-        
-        for (const tx of convertTxns) {
-          const fromCoin = tx.from_coin?.toUpperCase();
-          const toCoin = tx.to_coin?.toUpperCase();
-          const fromAmount = Number(tx.from_amount || 0);
-          const receiveAmount = Number(tx.receive_amount || tx.to_amount || 0);
-          
-          if (fromCoin && fromCoin !== "USDT") {
-            const current = holdingsMap.get(fromCoin);
-            if (current) {
-              current.amount = Math.max(0, current.amount - fromAmount);
-              if (current.amount < 0.00000001) {
-                holdingsMap.delete(fromCoin);
-              } else {
-                holdingsMap.set(fromCoin, current);
-              }
-            }
-          }
-          
-          if (toCoin && toCoin !== "USDT" && receiveAmount > 0) {
-            const current = holdingsMap.get(toCoin);
-            const price = getCoinPriceInUsdt(toCoin, markets);
-            
-            if (current) {
-              current.amount = (current.amount || 0) + receiveAmount;
-              current.usdtValue = current.amount * price;
-              holdingsMap.set(toCoin, current);
-            } else {
-              holdingsMap.set(toCoin, {
-                symbol: toCoin,
-                amount: receiveAmount,
-                usdtValue: receiveAmount * price,
-                unitPrice: price,
-                avgPrice: price,
-                spotPnl: 0,
-                spotPnlPercent: 0,
-                accent: getCoinAccent(toCoin),
-                apr: ""
-              });
-            }
-          }
-        }
-        
-        const calculatedHoldings = Array.from(holdingsMap.values())
-          .filter(item => item.amount > 0.00000001 && item.symbol !== "USDT")
-          .sort((a, b) => b.usdtValue - a.usdtValue);
-        
-        if (calculatedHoldings.length > 0) {
-          setHoldings(calculatedHoldings);
+      if (data.success && Array.isArray(data.data?.assets)) {
+        const normalizedAssets = normalizeHoldings(data.data.assets, markets);
+        if (normalizedAssets.length > 0) {
+          setHoldings(normalizedAssets);
+          return true;
         }
       }
+      return false;
     } catch (err) {
-      console.error("Failed to load convert history:", err);
+      console.error("Failed to load user assets:", err);
+      return false;
     }
   }
 
@@ -763,23 +706,13 @@ export default function AssetsPage() {
         userApi.getJointAccountStatus(token),
       ];
 
-      if (typeof userApi?.getAssetHoldings === "function") {
-        tasks.push(userApi.getAssetHoldings(token));
-      } else if (typeof userApi?.getAssets === "function") {
-        tasks.push(userApi.getAssets(token));
-      } else if (typeof userApi?.getPortfolioAssets === "function") {
-        tasks.push(userApi.getPortfolioAssets(token));
-      } else {
-        tasks.push(Promise.resolve({ data: { data: [] } }));
-      }
-
       tasks.push(
         fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
           headers: { Authorization: `Bearer ${token}` }
         }).then(res => res.json())
       );
 
-      const [walletRes, marketRes, openTradeRes, notificationRes, jointRes, holdingsRes, combinedRes] =
+      const [walletRes, marketRes, openTradeRes, notificationRes, jointRes, combinedRes] =
         await Promise.allSettled(tasks);
 
       if (walletRes.status === "fulfilled") {
@@ -789,10 +722,6 @@ export default function AssetsPage() {
           user: data.user || null,
           walletLabel: data.walletLabel || "Main Wallet",
         });
-        
-        if (!silent) {
-          await loadHoldingsFromConvertHistory();
-        }
       }
 
       if (marketRes.status === "fulfilled") {
@@ -844,19 +773,26 @@ export default function AssetsPage() {
         }
       }
 
-      if (holdingsRes.status === "fulfilled") {
-        const rows =
-          holdingsRes.value?.data?.data?.assets ||
-          holdingsRes.value?.data?.data?.holdings ||
-          holdingsRes.value?.data?.assets ||
-          holdingsRes.value?.data?.holdings ||
-          holdingsRes.value?.data?.data ||
-          [];
-
-        if (Array.isArray(rows) && rows.length > 0) {
-          setHoldings(rows);
-        }
+      // ✅ FIX: Load real user assets from database
+      const assetsLoaded = await loadRealUserAssets();
+      
+      // ✅ FIX: Fallback to market prices if no assets found
+      if (!assetsLoaded && Number(wallet.balance || 0) > 0) {
+        const usdtOnly = [{
+          symbol: "USDT",
+          amount: Number(wallet.balance || 0),
+          usdtValue: Number(wallet.balance || 0),
+          unitPrice: 1,
+          avgPrice: 1,
+          spotPnl: 0,
+          spotPnlPercent: 0,
+          accent: getCoinAccent("USDT"),
+          apr: "Up to 50% APR",
+          logo: COIN_LOGOS.USDT,
+        }];
+        setHoldings(usdtOnly);
       }
+      
     } catch (err) {
       showError(getApiErrorMessage(err));
     } finally {
@@ -872,9 +808,10 @@ export default function AssetsPage() {
   useEffect(() => {
     loadData();
 
+    // ✅ FIX: Changed refresh rate from 10s to 30s
     const interval = setInterval(() => {
       loadData(true);
-    }, 10000);
+    }, 30000); // 30 seconds instead of 10
 
     const onFocus = () => loadData(true);
     const onStorage = (e) => {
@@ -896,12 +833,8 @@ export default function AssetsPage() {
   const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);
   const totalBalance = displayBalance;
   
-  const normalizedHoldings = useMemo(() => {
-    if (holdings.length > 0) {
-      return normalizeHoldings(holdings, markets);
-    }
-    return buildFallbackAssets(Number(wallet.balance || 0), markets);
-  }, [holdings, wallet.balance, markets]);
+  // ✅ FIX: Use real holdings, not fallback
+  const normalizedHoldings = holdings.length > 0 ? holdings : [];
 
   const totalSpotPnl = useMemo(() => {
     return normalizedHoldings.reduce(
@@ -1078,9 +1011,15 @@ export default function AssetsPage() {
         </div>
 
         <div className="space-y-2.5">
-          {normalizedHoldings.map((item) => (
-            <AssetRow key={item.symbol} item={item} />
-          ))}
+          {normalizedHoldings.length > 0 ? (
+            normalizedHoldings.map((item) => (
+              <AssetRow key={item.symbol} item={item} />
+            ))
+          ) : (
+            <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
+              No assets found. Start by depositing or converting funds.
+            </div>
+          )}
         </div>
       </section>
 
