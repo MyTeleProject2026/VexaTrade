@@ -2990,6 +2990,105 @@ app.get("/api/user/portfolio-assets", authenticateUser, async (req, res, next) =
   }
 });
 
+// ✅ NEW: Get user's real assets from database
+app.get("/api/user/assets", authenticateUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Get price map for all coins
+    const priceMap = new Map();
+    priceMap.set("USDTUSDT", 1);
+
+    try {
+      const marketSymbols = [
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"
+      ];
+      const marketRows = await getBinanceHomeMarkets(marketSymbols);
+      for (const row of marketRows) {
+        const symbol = String(row.symbol || "").toUpperCase();
+        const price = Number(row.lastPrice || row.price || 0);
+        if (symbol && price > 0) {
+          priceMap.set(symbol, price);
+        }
+      }
+    } catch (_error) {}
+
+    // Get all user assets from user_assets table
+    const [assetRows] = await pool.execute(
+      `SELECT coin, balance, avg_price, updated_at 
+       FROM user_assets 
+       WHERE user_id = ? AND balance > 0.00000001
+       ORDER BY 
+         CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END,
+         balance DESC`,
+      [userId]
+    );
+
+    // Get main USDT balance
+    const [userRows] = await pool.execute(
+      `SELECT balance FROM users WHERE id = ?`,
+      [userId]
+    );
+    const mainUsdtBalance = Number(userRows[0]?.balance || 0);
+
+    // Build assets array
+    const assets = [];
+    
+    // Process each asset from user_assets
+    for (const asset of assetRows) {
+      const coin = asset.coin;
+      let amount = Number(asset.balance);
+      const avgPrice = Number(asset.avg_price || 0);
+      
+      // If it's USDT, combine with main balance
+      if (coin === "USDT") {
+        amount = mainUsdtBalance;
+      }
+      
+      if (amount <= 0) continue;
+      
+      const currentPrice = coin === "USDT" ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
+      const usdtValue = amount * currentPrice;
+      const spotPnl = (currentPrice - avgPrice) * amount;
+      const invested = avgPrice * amount;
+      const spotPnlPercent = invested > 0 ? (spotPnl / invested) * 100 : 0;
+      
+      assets.push({
+        symbol: coin,
+        amount,
+        current_price: currentPrice,
+        avg_price: avgPrice || currentPrice,
+        usdt_value: usdtValue,
+        spot_pnl: spotPnl,
+        spot_pnl_percent: spotPnlPercent,
+      });
+    }
+    
+    // Ensure USDT is included
+    if (mainUsdtBalance > 0 && !assets.find(a => a.symbol === "USDT")) {
+      assets.unshift({
+        symbol: "USDT",
+        amount: mainUsdtBalance,
+        current_price: 1,
+        avg_price: 1,
+        usdt_value: mainUsdtBalance,
+        spot_pnl: 0,
+        spot_pnl_percent: 0,
+      });
+    }
+
+    // Sort by USD value
+    assets.sort((a, b) => b.usdt_value - a.usdt_value);
+
+    res.json({
+      success: true,
+      data: { assets },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 /* =========================
    CONVERT
 ========================= */
@@ -3066,6 +3165,21 @@ app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
 
     await connection.beginTransaction();
 
+    // Ensure user_assets table exists
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_assets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        coin VARCHAR(10) NOT NULL,
+        balance DECIMAL(20,8) DEFAULT 0,
+        avg_price DECIMAL(20,8) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_user_coin (user_id, coin),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
     const [userRows] = await connection.execute(
       `SELECT id, balance, status
        FROM users
@@ -3078,74 +3192,76 @@ app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
     if (!userRows.length) throw createError(404, "User not found");
 
     const user = userRows[0];
-    const currentBalance = Number(user.balance || 0);
+    let currentBalance = Number(user.balance || 0);
     const userStatus = String(user.status || "").toLowerCase();
 
     if (["disabled", "frozen"].includes(userStatus)) {
       throw createError(403, "User account is not active");
     }
 
-    if (currentBalance < grossUsdtValue) {
-      throw createError(400, `Insufficient balance. Required ${grossUsdtValue.toFixed(2)} USDT`);
+    // Check balance based on fromCoin
+    let fromCoinBalance = 0;
+    
+    if (fromCoin === "USDT") {
+      fromCoinBalance = currentBalance;
+    } else {
+      const [assetRows] = await connection.execute(
+        `SELECT balance FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE`,
+        [req.user.id, fromCoin]
+      );
+      fromCoinBalance = Number(assetRows[0]?.balance || 0);
     }
 
-    const updatedBalance = Number((currentBalance - grossUsdtValue).toFixed(8));
+    if (fromCoinBalance < fromAmount) {
+      throw createError(400, `Insufficient ${fromCoin} balance. Available: ${fromCoinBalance.toFixed(8)}`);
+    }
 
+    // Update balances
+    if (fromCoin === "USDT") {
+      await connection.execute(
+        `UPDATE users SET balance = balance - ? WHERE id = ?`,
+        [grossUsdtValue, req.user.id]
+      );
+    } else {
+      await connection.execute(
+        `UPDATE user_assets SET balance = balance - ?, updated_at = NOW()
+         WHERE user_id = ? AND coin = ?`,
+        [fromAmount, req.user.id, fromCoin]
+      );
+    }
+
+    // Add received coin to user_assets
     await connection.execute(
-      `UPDATE users
-       SET balance = ?,
-           updated_at = NOW()
-       WHERE id = ?`,
-      [updatedBalance, req.user.id]
+      `INSERT INTO user_assets (user_id, coin, balance, avg_price, updated_at)
+       VALUES (?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE 
+       balance = balance + VALUES(balance),
+       avg_price = CASE 
+         WHEN balance = 0 THEN VALUES(avg_price)
+         ELSE (avg_price * balance + VALUES(avg_price) * VALUES(balance)) / (balance + VALUES(balance))
+       END,
+       updated_at = NOW()`,
+      [req.user.id, toCoin, receiveAmount, toPriceUsdt]
     );
 
-    const [columns] = await connection.execute(
-      `SHOW COLUMNS FROM convert_transactions`
-    );
-    const columnNames = columns.map((col) => String(col.Field || "").toLowerCase());
-
-    const valuesMap = {
-      user_id: req.user.id,
-      from_coin: fromCoin,
-      to_coin: toCoin,
-      from_amount: fromAmount,
-      from_price_usdt: fromPriceUsdt,
-      to_price_usdt: toPriceUsdt,
-      gross_usdt_value: grossUsdtValue,
-      fee_percent: convertFeePercent,
-      fee_usdt: feeUsdt,
-      net_usdt_value: netUsdtValue,
-      receive_amount: receiveAmount,
-      status: "completed",
-    };
-
-    const insertColumns = [];
-    const insertValues = [];
-    const placeholders = [];
-
-    for (const [key, value] of Object.entries(valuesMap)) {
-      if (columnNames.includes(key)) {
-        insertColumns.push(key);
-        insertValues.push(value);
-        placeholders.push("?");
-      }
+    // Update main balance if converting TO USDT
+    if (toCoin === "USDT") {
+      await connection.execute(
+        `UPDATE users SET balance = balance + ? WHERE id = ?`,
+        [receiveAmount, req.user.id]
+      );
     }
 
-    if (columnNames.includes("created_at")) {
-      insertColumns.push("created_at");
-      placeholders.push("NOW()");
-    }
-
-    if (columnNames.includes("updated_at")) {
-      insertColumns.push("updated_at");
-      placeholders.push("NOW()");
-    }
-
+    // Record transaction
     const [result] = await connection.execute(
       `INSERT INTO convert_transactions
-       (${insertColumns.join(", ")})
-       VALUES (${placeholders.join(", ")})`,
-      insertValues
+       (user_id, from_coin, to_coin, from_amount, from_price_usdt, to_price_usdt, 
+        gross_usdt_value, fee_percent, fee_usdt, net_usdt_value, receive_amount, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', NOW(), NOW())`,
+      [
+        req.user.id, fromCoin, toCoin, fromAmount, fromPriceUsdt, toPriceUsdt,
+        grossUsdtValue, convertFeePercent, feeUsdt, netUsdtValue, receiveAmount
+      ]
     );
 
     await createTransactionLog(connection, {
@@ -3160,11 +3276,22 @@ app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
     await createUserNotification(connection, {
       userId: req.user.id,
       title: "Convert completed",
-      message: `You converted ${fromAmount} ${fromCoin} to approximately ${receiveAmount} ${toCoin}. Fee applied: ${feeUsdt} USDT.`,
+      message: `You converted ${fromAmount} ${fromCoin} to approximately ${receiveAmount} ${toCoin}. Fee: ${feeUsdt} USDT.`,
       type: "funds",
     });
 
     await connection.commit();
+
+    // Get updated balances
+    const [updatedUsdt] = await connection.execute(
+      `SELECT balance FROM users WHERE id = ?`,
+      [req.user.id]
+    );
+    
+    const [updatedToAsset] = await connection.execute(
+      `SELECT balance FROM user_assets WHERE user_id = ? AND coin = ?`,
+      [req.user.id, toCoin]
+    );
 
     res.json({
       success: true,
@@ -3181,8 +3308,10 @@ app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
         feeUsdt,
         netUsdtValue,
         receiveAmount,
-        balanceAfter: updatedBalance,
-        walletMode: "single_usdt_balance",
+        balances: {
+          [fromCoin]: fromCoin === "USDT" ? updatedUsdt[0]?.balance : fromCoinBalance - fromAmount,
+          [toCoin]: toCoin === "USDT" ? updatedUsdt[0]?.balance : updatedToAsset[0]?.balance || 0,
+        }
       },
     });
   } catch (error) {
