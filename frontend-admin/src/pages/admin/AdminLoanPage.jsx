@@ -13,6 +13,8 @@ import {
   Clock3,
   User2,
 } from "lucide-react";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatAmount(value) {
   const num = Number(value || 0);
@@ -60,6 +62,9 @@ export default function AdminLoanPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loans, setLoans] = useState([]);
@@ -102,8 +107,16 @@ export default function AdminLoanPage() {
 
       const res = await adminApi.getLoans(token);
       setLoans(Array.isArray(res?.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for refresh
+      if (!initial) {
+        addToast("Loans refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to load loans");
+      const errorMsg = getApiErrorMessage(err) || "Failed to load loans";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -118,10 +131,16 @@ export default function AdminLoanPage() {
       setActionType("approve");
 
       await adminApi.approveLoan(id, {}, token);
-      setSuccessMessage(`Loan #${id} approved successfully`);
+      const successMsg = `Loan #${id} approved successfully`;
+      setSuccessMessage(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadLoans();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to approve loan");
+      const errorMsg = getApiErrorMessage(err) || "Failed to approve loan";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setActionLoadingId(null);
       setActionType("");
@@ -136,10 +155,16 @@ export default function AdminLoanPage() {
       setActionType("reject");
 
       await adminApi.rejectLoan(id, {}, token);
-      setSuccessMessage(`Loan #${id} rejected successfully`);
+      const successMsg = `Loan #${id} rejected successfully`;
+      setSuccessMessage(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadLoans();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to reject loan");
+      const errorMsg = getApiErrorMessage(err) || "Failed to reject loan";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setActionLoadingId(null);
       setActionType("");
@@ -156,6 +181,9 @@ export default function AdminLoanPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
