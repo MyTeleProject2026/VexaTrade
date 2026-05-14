@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search, ImageOff, ExternalLink } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 const RAW_API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
