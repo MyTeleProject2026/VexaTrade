@@ -7650,7 +7650,77 @@ app.put("/api/admin/notifications/:id/read", authenticateAdmin, async (req, res,
     next(error);
   }
 });
+/* =========================
+   ADMIN NOTIFICATIONS SEND
+========================= */
 
+// ✅ FIX: Add missing notifications send endpoint
+app.post("/api/admin/notifications/send", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { user_id, title, message, type } = req.body;
+    
+    if (!user_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "user_id is required" 
+      });
+    }
+    
+    if (!title || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "title and message are required" 
+      });
+    }
+    
+    await connection.beginTransaction();
+    
+    // Check if user exists
+    const [userRows] = await connection.execute(
+      "SELECT id, email FROM users WHERE id = ? LIMIT 1",
+      [user_id]
+    );
+    
+    if (!userRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+    
+    // Insert notification
+    await connection.execute(
+      `INSERT INTO user_notifications 
+       (user_id, title, message, type, is_read, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, NOW(), NOW())`,
+      [user_id, title, message, type || "admin"]
+    );
+    
+    // Log the action
+    await createAuditLog(connection, {
+      adminId: req.admin.id,
+      action: "send_user_notification",
+      targetUserId: user_id,
+      note: `Sent notification: ${title}`
+    });
+    
+    await connection.commit();
+    
+    res.json({
+      success: true,
+      message: "Notification sent successfully"
+    });
+    
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
 /* =========================
    JOINT ACCOUNT
 ========================= */
