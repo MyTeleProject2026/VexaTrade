@@ -15,6 +15,8 @@ import {
   XCircle,
   ExternalLink,
 } from "lucide-react";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function getStatusClasses(status) {
   const value = String(status || "").toLowerCase();
@@ -70,6 +72,9 @@ export default function AdminLegalDocumentsPage() {
     localStorage.getItem("adminToken") ||
     localStorage.getItem("admin_token") ||
     "";
+
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,8 +134,16 @@ export default function AdminLegalDocumentsPage() {
         };
       });
       setFormMap(nextFormMap);
+      
+      // ✅ ADDED: Success toast for refresh
+      if (!initial) {
+        addToast("Legal documents refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to load legal documents");
+      const errorMsg = getApiErrorMessage(err) || "Failed to load legal documents";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -183,12 +196,16 @@ export default function AdminLegalDocumentsPage() {
       const status = String(newDoc.status || "active");
 
       if (!title) {
-        setError("Title is required");
+        const errorMsg = "Title is required";
+        setError(errorMsg);
+        addToast(errorMsg, "error");
         return;
       }
 
       if (!content) {
-        setError("Content is required");
+        const errorMsg = "Content is required";
+        setError(errorMsg);
+        addToast(errorMsg, "error");
         return;
       }
 
@@ -203,11 +220,17 @@ export default function AdminLegalDocumentsPage() {
 
       await adminApi.createLegalDoc(formData, token);
 
-      setSuccess("Legal document created successfully.");
+      const successMsg = "Legal document created successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       setNewDoc(createEmptyForm());
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to create legal document");
+      const errorMsg = getApiErrorMessage(err) || "Failed to create legal document";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setCreating(false);
     }
@@ -226,12 +249,16 @@ export default function AdminLegalDocumentsPage() {
       const status = String(current.status || "active");
 
       if (!title) {
-        setError("Title is required");
+        const errorMsg = "Title is required";
+        setError(errorMsg);
+        addToast(errorMsg, "error");
         return;
       }
 
       if (!content) {
-        setError("Content is required");
+        const errorMsg = "Content is required";
+        setError(errorMsg);
+        addToast(errorMsg, "error");
         return;
       }
 
@@ -250,10 +277,16 @@ export default function AdminLegalDocumentsPage() {
 
       await adminApi.updateLegalDoc(id, formData, token);
 
-      setSuccess(`Legal document #${id} updated successfully.`);
+      const successMsg = `Legal document #${id} updated successfully.`;
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to update legal document");
+      const errorMsg = getApiErrorMessage(err) || "Failed to update legal document";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSavingId(null);
     }
@@ -272,10 +305,16 @@ export default function AdminLegalDocumentsPage() {
 
       await adminApi.deleteLegalDoc(id, token);
 
-      setSuccess(`Legal document #${id} deleted successfully.`);
+      const successMsg = `Legal document #${id} deleted successfully.`;
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to delete legal document");
+      const errorMsg = getApiErrorMessage(err) || "Failed to delete legal document";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setDeletingId(null);
     }
@@ -291,6 +330,9 @@ export default function AdminLegalDocumentsPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
