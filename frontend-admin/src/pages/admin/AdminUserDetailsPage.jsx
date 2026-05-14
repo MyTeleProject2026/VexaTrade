@@ -242,39 +242,45 @@ export default function AdminUserDetailsPage() {
       setSendingNotification(true);
       setError("");
       setSuccess("");
-
+  
       if (!user?.id) {
         setError("User id is missing.");
         return;
       }
-
+  
       if (!String(notificationForm.title || "").trim()) {
         setError("Notification title is required.");
         return;
       }
-
+  
       if (!String(notificationForm.message || "").trim()) {
         setError("Notification message is required.");
         return;
       }
-
-      await adminApi.sendNotification(
+  
+      // ✅ FIX: Make sure the API endpoint is correct
+      const response = await adminApi.sendNotification(
         {
-          user_id: user.id,
+          user_id: Number(user.id),  // ✅ Ensure it's a number
           title: String(notificationForm.title || "").trim(),
           message: String(notificationForm.message || "").trim(),
           type: String(notificationForm.type || "general").trim(),
         },
         token
       );
-
-      setSuccess("Notification sent successfully.");
-      setNotificationForm({
-        title: "",
-        message: "",
-        type: "general",
-      });
+  
+      if (response?.data?.success) {
+        setSuccess("Notification sent successfully.");
+        setNotificationForm({
+          title: "",
+          message: "",
+          type: "general",
+        });
+      } else {
+        setError(response?.data?.message || "Failed to send notification");
+      }
     } catch (err) {
+      console.error("Send notification error:", err);
       setError(getApiErrorMessage(err));
     } finally {
       setSendingNotification(false);
