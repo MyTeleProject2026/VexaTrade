@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function downloadCsv(filename, rows) {
   const csv = rows
@@ -65,6 +67,9 @@ export default function AdminAuditLogsPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -101,8 +106,16 @@ export default function AdminAuditLogsPage() {
 
       const res = await adminApi.getAuditLogs(token);
       setLogs(Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for silent refresh
+      if (silentRefresh) {
+        addToast("Audit logs refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -122,10 +135,17 @@ export default function AdminAuditLogsPage() {
 
       await adminApi.clearAuditLogs(token);
       setSuccess("All audit logs cleared successfully.");
+      
+      // ✅ ADDED: Success toast
+      addToast("All audit logs cleared successfully", "success");
+      
       setPage(1);
       await loadLogs(false, false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setClearing(false);
     }
@@ -214,6 +234,9 @@ export default function AdminAuditLogsPage() {
     ]);
 
     downloadCsv("audit-logs.csv", [header, ...rows]);
+    
+    // ✅ ADDED: Success toast for export
+    addToast(`Exported ${filteredLogs.length} audit logs to CSV`, "success");
   }
 
   if (loading) {
@@ -226,6 +249,9 @@ export default function AdminAuditLogsPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -409,27 +435,27 @@ export default function AdminAuditLogsPage() {
                     <tr key={log.id} className="transition hover:bg-white/[0.03]">
                       <td className="px-4 py-2.5 text-sm text-slate-200">
                         {log.id}
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-slate-200">
                         {log.admin_id ?? "--"}
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-white">
                         <span className="rounded-full border border-white/10 bg-[#050812]/80 px-2.5 py-1 text-xs font-semibold text-slate-200">
                           {log.action || "--"}
                         </span>
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-slate-200">
                         {log.target_user_id ?? "--"}
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-slate-200">
                         {log.reference_id ?? "--"}
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-slate-300">
                         {log.note || "--"}
-                      </td>
+                       </td>
                       <td className="px-4 py-2.5 text-sm text-slate-400">
                         {formatDateTime(log.created_at)}
-                      </td>
+                       </td>
                     </tr>
                   ))
                 ) : (
