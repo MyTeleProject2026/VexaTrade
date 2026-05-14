@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Headset, Link as LinkIcon, MessageSquareText } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function PreviewCard({ title, value, tone = "text-white", breakAll = false }) {
   return (
@@ -22,6 +24,9 @@ export default function AdminSupportPage() {
     localStorage.getItem("adminToken") ||
     localStorage.getItem("admin_token") ||
     "";
+
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,8 +61,16 @@ export default function AdminSupportPage() {
         link: data.link || "",
         note: data.note || "",
       });
+      
+      // ✅ ADDED: Success toast for refresh
+      if (!isFirstLoad) {
+        addToast("Support settings refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -90,10 +103,16 @@ export default function AdminSupportPage() {
         token
       );
 
-      setSuccess("Customer service settings updated successfully.");
+      const successMsg = "Customer service settings updated successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadSupportSettings(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSaving(false);
     }
@@ -109,6 +128,9 @@ export default function AdminSupportPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
