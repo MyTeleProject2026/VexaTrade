@@ -75,7 +75,7 @@ export function ToastContainer({ toasts, onClose }) {
 }
 
 // Custom Hook for using toasts
-export function useToast() {
+export default function useToast() {
   const [toasts, setToasts] = useState([]);
 
   const addToast = (message, type = 'success') => {
@@ -100,6 +100,3 @@ export function useToast() {
     ToastContainer: () => <ToastContainer toasts={toasts} onClose={removeToast} />,
   };
 }
-
-// Default export for convenience
-export default useToast;
