@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LockKeyhole, Mail, RefreshCw } from "lucide-react";
 import { adminApi } from "../../services/api";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
