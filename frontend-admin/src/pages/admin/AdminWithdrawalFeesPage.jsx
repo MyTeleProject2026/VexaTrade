@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatFee(value) {
   const num = Number(value || 0);
@@ -52,6 +54,9 @@ export default function AdminWithdrawalFeesPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,8 +90,16 @@ export default function AdminWithdrawalFeesPage() {
 
       const res = await adminApi.getWithdrawalFees(token);
       setFees(Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for refresh
+      if (!isFirstLoad) {
+        addToast("Withdrawal fees refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,6 +136,10 @@ export default function AdminWithdrawalFeesPage() {
     });
     setError("");
     setSuccess("");
+    
+    // ✅ ADDED: Info toast for edit mode
+    addToast(`Editing ${item.coin} ${item.network} fee`, "info");
+    
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -136,32 +153,37 @@ export default function AdminWithdrawalFeesPage() {
     const status = String(form.status || "active").trim().toLowerCase();
 
     if (!coin) {
-      setError("Coin is required.");
-      setSuccess("");
+      const errorMsg = "Coin is required.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!network) {
-      setError("Network is required.");
-      setSuccess("");
+      const errorMsg = "Network is required.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!Number.isFinite(feeAmount) || feeAmount < 0) {
-      setError("Fee amount must be zero or greater.");
-      setSuccess("");
+      const errorMsg = "Fee amount must be zero or greater.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!["fixed", "percent"].includes(feeType)) {
-      setError("Fee type must be fixed or percent.");
-      setSuccess("");
+      const errorMsg = "Fee type must be fixed or percent.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!["active", "inactive"].includes(status)) {
-      setError("Status must be active or inactive.");
-      setSuccess("");
+      const errorMsg = "Status must be active or inactive.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
@@ -182,16 +204,21 @@ export default function AdminWithdrawalFeesPage() {
         token
       );
 
-      setSuccess(
-        editingId
-          ? `Withdrawal fee #${editingId} updated successfully.`
-          : "Withdrawal fee added successfully."
-      );
+      const successMsg = editingId
+        ? `Withdrawal fee #${editingId} updated successfully.`
+        : `Withdrawal fee for ${coin} ${network} added successfully.`;
+      
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
 
       resetForm();
       await loadFees(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSaving(false);
     }
@@ -213,7 +240,10 @@ export default function AdminWithdrawalFeesPage() {
       }
 
       await adminApi.deleteWithdrawalFee(item.id, token);
-      setSuccess(`Withdrawal fee #${item.id} removed successfully.`);
+      const successMsg = `Withdrawal fee #${item.id} removed successfully.`;
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
 
       if (editingId === item.id) {
         resetForm();
@@ -221,7 +251,10 @@ export default function AdminWithdrawalFeesPage() {
 
       await loadFees(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setDeletingId(null);
     }
@@ -284,6 +317,9 @@ export default function AdminWithdrawalFeesPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
