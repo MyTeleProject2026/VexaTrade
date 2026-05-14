@@ -3,6 +3,8 @@ import AdminTradesPage from "./AdminTradesPage";
 import AdminTradeRulesPage from "./AdminTradeRulesPage";
 import AdminFundsPage from "./AdminFundsPage";
 import AdminFundsRulesPage from "./AdminFundsRulesPage";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function TabButton({ active, onClick, children }) {
   return (
@@ -23,8 +25,21 @@ function TabButton({ active, onClick, children }) {
 export default function AdminTradingFundsControlPage() {
   const [tab, setTab] = useState("trades");
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
+  // ✅ ADDED: Function to show tab switch notifications (optional)
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    // Uncomment the line below if you want toast notifications when switching tabs
+    // addToast(`Switched to ${newTab.replace("-", " ")} view`, "info");
+  };
+
   return (
     <div className="space-y-5 bg-black text-white">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#081223_0%,#050505_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -43,21 +58,21 @@ export default function AdminTradingFundsControlPage() {
 
       <section className="rounded-[24px] border border-white/10 bg-[#081223]/80 p-2 shadow-xl">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <TabButton active={tab === "trades"} onClick={() => setTab("trades")}>
+          <TabButton active={tab === "trades"} onClick={() => handleTabChange("trades")}>
             Trades
           </TabButton>
           <TabButton
             active={tab === "trade-rules"}
-            onClick={() => setTab("trade-rules")}
+            onClick={() => handleTabChange("trade-rules")}
           >
             Trade Rules
           </TabButton>
-          <TabButton active={tab === "funds"} onClick={() => setTab("funds")}>
+          <TabButton active={tab === "funds"} onClick={() => handleTabChange("funds")}>
             Funds
           </TabButton>
           <TabButton
             active={tab === "fund-rules"}
-            onClick={() => setTab("fund-rules")}
+            onClick={() => handleTabChange("fund-rules")}
           >
             Funds Rules
           </TabButton>
