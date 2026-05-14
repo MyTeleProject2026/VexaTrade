@@ -9,6 +9,8 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function resolveImage(url) {
   if (!url) return "";
@@ -47,6 +49,9 @@ export default function AdminNewsPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -68,8 +73,14 @@ export default function AdminNewsPage() {
 
       const res = await adminApi.getNews(token);
       setList(Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for refresh
+      addToast("News refreshed successfully", "success");
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,8 +94,11 @@ export default function AdminNewsPage() {
   async function createNews() {
     try {
       if (!form.title.trim()) {
-        setError("Title is required.");
+        const errorMsg = "Title is required.";
+        setError(errorMsg);
         setSuccess("");
+        // ✅ ADDED: Error toast
+        addToast(errorMsg, "error");
         return;
       }
 
@@ -109,11 +123,17 @@ export default function AdminNewsPage() {
         is_active: true,
       });
 
-      setSuccess("News posted successfully.");
+      const successMsg = "News posted successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
       setSuccess("");
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSubmitting(false);
     }
@@ -125,11 +145,17 @@ export default function AdminNewsPage() {
       setSuccess("");
 
       await adminApi.deleteNews(id, token);
-      setSuccess("News deleted successfully.");
+      const successMsg = "News deleted successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
       setSuccess("");
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -150,15 +176,25 @@ export default function AdminNewsPage() {
           token
         );
 
-        setSuccess("News status updated.");
+        const newStatus = Number(item.is_active) === 1 ? "hidden" : "active";
+        const successMsg = `News status updated to ${newStatus}.`;
+        setSuccess(successMsg);
+        // ✅ ADDED: Success toast
+        addToast(successMsg, "success");
         await load();
         return;
       }
 
-      setError("updateNews API is not connected yet in services/api.js");
+      const errorMsg = "updateNews API is not connected yet in services/api.js";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
       setSuccess("");
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -174,6 +210,9 @@ export default function AdminNewsPage() {
 
   return (
     <div className="space-y-5 text-white">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0f172a_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
