@@ -3,7 +3,7 @@ import { Search, RefreshCw, Eye, MailCheck, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function formatMoney(value) {
   const num = Number(value || 0);
