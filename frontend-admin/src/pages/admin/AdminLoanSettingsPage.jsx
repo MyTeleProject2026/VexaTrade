@@ -12,7 +12,7 @@ import {
   BadgeDollarSign,
 } from "lucide-react";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function formatPercent(value) {
   const num = Number(value || 0);
