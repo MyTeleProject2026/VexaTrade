@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, ShieldCheck, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function StatusBadge({ status }) {
   const value = String(status || "").toLowerCase();
@@ -48,6 +50,9 @@ export default function AdminKycPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [adminNote, setAdminNote] = useState("");
@@ -87,8 +92,16 @@ export default function AdminKycPage() {
         setSelected(null);
         setAdminNote("");
       }
+      
+      // ✅ ADDED: Success toast for silent refresh
+      if (silent) {
+        addToast("KYC submissions refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -113,9 +126,15 @@ export default function AdminKycPage() {
         token
       );
 
+      const successMsg = `KYC submission #${selected.id} approved successfully`;
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadKyc(true);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setActionLoading("");
     }
@@ -134,9 +153,15 @@ export default function AdminKycPage() {
         token
       );
 
+      const successMsg = `KYC submission #${selected.id} rejected`;
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadKyc(true);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setActionLoading("");
     }
@@ -167,6 +192,9 @@ export default function AdminKycPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
