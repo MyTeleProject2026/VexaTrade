@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, CheckCircle, XCircle, Users } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatDate(value) {
   if (!value) return "-";
@@ -11,6 +13,9 @@ function formatDate(value) {
 
 export default function AdminJointAccountRequests() {
   const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token") || "";
+
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,8 +30,14 @@ export default function AdminJointAccountRequests() {
       setError("");
       const res = await adminApi.getJointAccountRequests(token);
       setRequests(Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for refresh
+      addToast("Joint account requests refreshed successfully", "success");
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -42,11 +53,17 @@ export default function AdminJointAccountRequests() {
       setProcessingId(id);
       setError("");
       await adminApi.approveJointAccountRequest(id, {}, token);
-      setSuccess("Joint account approved successfully!");
+      const successMsg = "Joint account approved successfully!";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadRequests();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setProcessingId(null);
     }
@@ -57,11 +74,17 @@ export default function AdminJointAccountRequests() {
       setProcessingId(id);
       setError("");
       await adminApi.rejectJointAccountRequest(id, {}, token);
-      setSuccess("Joint account request rejected.");
+      const successMsg = "Joint account request rejected.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadRequests();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setProcessingId(null);
     }
@@ -77,6 +100,9 @@ export default function AdminJointAccountRequests() {
 
   return (
     <div className="space-y-6">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
