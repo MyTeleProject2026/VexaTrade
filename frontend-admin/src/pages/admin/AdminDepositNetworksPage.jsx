@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search, ImageOff, QrCode, Copy } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 const RAW_API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -94,6 +96,9 @@ export default function AdminDepositNetworksPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [networks, setNetworks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,8 +131,16 @@ export default function AdminDepositNetworksPage() {
 
       const res = await adminApi.getDepositNetworks(token);
       setNetworks(Array.isArray(res.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for silent refresh
+      if (!isInitial) {
+        addToast("Deposit networks refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -182,8 +195,13 @@ export default function AdminDepositNetworksPage() {
       }));
 
       setSuccess("QR image uploaded successfully.");
+      // ✅ ADDED: Success toast
+      addToast("QR image uploaded successfully", "success");
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setUploadingQr(false);
       e.target.value = "";
@@ -194,7 +212,10 @@ export default function AdminDepositNetworksPage() {
   async function autoGenerateQrFromAddress() {
     const address = String(form.address || "").trim();
     if (!address) {
-      setError("Please enter wallet address first to generate QR code.");
+      const errorMsg = "Please enter wallet address first to generate QR code.";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
       return false;
     }
 
@@ -210,13 +231,21 @@ export default function AdminDepositNetworksPage() {
           qr_image_url: response.data.data.qr_base64,
         }));
         setSuccess("QR code generated successfully from wallet address!");
+        // ✅ ADDED: Success toast
+        addToast("QR code generated successfully from wallet address!", "success");
         return true;
       } else {
-        setError(response.data?.message || "Failed to generate QR code from address");
+        const errorMsg = response.data?.message || "Failed to generate QR code from address";
+        setError(errorMsg);
+        // ✅ ADDED: Error toast
+        addToast(errorMsg, "error");
         return false;
       }
     } catch (err) {
-      setError("Failed to generate QR code: " + (err.message || "Unknown error"));
+      const errorMsg = "Failed to generate QR code: " + (err.message || "Unknown error");
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
       return false;
     }
   }
@@ -225,17 +254,23 @@ export default function AdminDepositNetworksPage() {
     e.preventDefault();
 
     if (!String(form.coin || "").trim()) {
-      setError("Coin is required.");
+      const errorMsg = "Coin is required.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!String(form.network || "").trim()) {
-      setError("Network is required.");
+      const errorMsg = "Network is required.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
     if (!String(form.address || "").trim()) {
-      setError("Wallet address is required.");
+      const errorMsg = "Wallet address is required.";
+      setError(errorMsg);
+      addToast(errorMsg, "error");
       return;
     }
 
@@ -269,16 +304,25 @@ export default function AdminDepositNetworksPage() {
 
       if (editingId) {
         await adminApi.updateDepositNetwork(editingId, payload, token);
-        setSuccess(`Deposit network #${editingId} updated successfully.`);
+        const successMsg = `Deposit network #${editingId} updated successfully.`;
+        setSuccess(successMsg);
+        // ✅ ADDED: Success toast
+        addToast(successMsg, "success");
       } else {
         await adminApi.createDepositNetwork(payload, token);
-        setSuccess("Deposit network created successfully.");
+        const successMsg = "Deposit network created successfully.";
+        setSuccess(successMsg);
+        // ✅ ADDED: Success toast
+        addToast(successMsg, "success");
       }
 
       resetForm();
       await fetchNetworks(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSaving(false);
     }
@@ -298,6 +342,9 @@ export default function AdminDepositNetworksPage() {
       status: String(item.status || "active").toLowerCase(),
     });
 
+    // ✅ ADDED: Info toast for edit mode
+    addToast(`Editing deposit network #${item.id}`, "info");
+
     window.scrollTo({
       top: 0,
       behavior: "smooth",
@@ -316,7 +363,10 @@ export default function AdminDepositNetworksPage() {
       setSuccess("");
 
       await adminApi.deleteDepositNetwork(id, token);
-      setSuccess(`Deposit network #${id} removed successfully.`);
+      const successMsg = `Deposit network #${id} removed successfully.`;
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
 
       if (editingId === id) {
         resetForm();
@@ -324,7 +374,10 @@ export default function AdminDepositNetworksPage() {
 
       await fetchNetworks(false);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setDeletingId(null);
     }
@@ -334,8 +387,13 @@ export default function AdminDepositNetworksPage() {
     try {
       await navigator.clipboard.writeText(address || "");
       setSuccess("Address copied successfully.");
+      // ✅ ADDED: Success toast
+      addToast("Address copied successfully", "success");
     } catch {
-      setError("Failed to copy address.");
+      const errorMsg = "Failed to copy address.";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -403,6 +461,9 @@ export default function AdminDepositNetworksPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
