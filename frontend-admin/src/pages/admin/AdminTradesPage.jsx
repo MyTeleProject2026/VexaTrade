@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 const PAIRS = [
   "BTCUSDT",
@@ -129,6 +131,9 @@ export default function AdminTradesPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [trades, setTrades] = useState([]);
   const [queueItems, setQueueItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -194,8 +199,14 @@ export default function AdminTradesPage() {
 
       setTrades(Array.isArray(tradeRes.data?.data) ? tradeRes.data.data : []);
       setQueueItems(Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
+      
+      // ✅ ADDED: Success toast for initial load
+      addToast("Trades loaded successfully", "success");
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
     }
@@ -226,8 +237,14 @@ export default function AdminTradesPage() {
 
       const { data } = await adminApi.getTradeOutcomeQueue(token);
       setQueueItems(Array.isArray(data?.data) ? data.data : []);
+      
+      // ✅ ADDED: Success toast
+      addToast("Outcome queue refreshed", "success");
     } catch (err) {
-      setQueueError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setQueueError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setQueueLoading(false);
     }
@@ -238,7 +255,10 @@ export default function AdminTradesPage() {
       const { data } = await adminApi.getTrades(token);
       setTrades(Array.isArray(data?.data) ? data.data : []);
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -250,10 +270,16 @@ export default function AdminTradesPage() {
       setQueueError("");
 
       await adminApi.createTradeOutcomeQueue(queueForm, token);
-      setSuccess("Trade outcome queue added successfully.");
+      const successMsg = "Trade outcome queue added successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadOutcomeQueue();
     } catch (err) {
-      setQueueError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setQueueError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -266,10 +292,16 @@ export default function AdminTradesPage() {
       setQueueError("");
 
       await adminApi.deleteTradeOutcomeQueue(id, token);
-      setSuccess("Queue item removed successfully.");
+      const successMsg = "Queue item removed successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadOutcomeQueue();
     } catch (err) {
-      setQueueError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setQueueError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     }
   }
 
@@ -283,10 +315,16 @@ export default function AdminTradesPage() {
       setSavingOverrideId(tradeId);
 
       await adminApi.overrideTrade(tradeId, { result }, token);
-      setSuccess(`Trade #${tradeId} overridden to ${result}.`);
+      const successMsg = `Trade #${tradeId} overridden to ${result}.`;
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadTrades();
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSavingOverrideId(null);
     }
@@ -365,6 +403,9 @@ export default function AdminTradesPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
