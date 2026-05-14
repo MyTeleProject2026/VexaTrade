@@ -4,7 +4,7 @@ import AdminTradeRulesPage from "./AdminTradeRulesPage";
 import AdminFundsPage from "./AdminFundsPage";
 import AdminFundsRulesPage from "./AdminFundsRulesPage";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function TabButton({ active, onClick, children }) {
   return (
