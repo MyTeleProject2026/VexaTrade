@@ -14,7 +14,7 @@ import {
   User2,
 } from "lucide-react";
 // ✅ ADDED: Import toast notification hook
-import useToast from "../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function formatAmount(value) {
   const num = Number(value || 0);
