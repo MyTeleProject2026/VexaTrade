@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, RefreshCw, Eye, MailCheck, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -56,6 +58,9 @@ export default function AdminUsersPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,8 +75,16 @@ export default function AdminUsersPage() {
       setError("");
       const res = await adminApi.getUsers(token);
       setUsers(Array.isArray(res?.data?.data) ? res.data.data : []);
+      
+      // ✅ ADDED: Success toast for refresh
+      if (silent) {
+        addToast("Users refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -114,6 +127,9 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -201,21 +217,21 @@ export default function AdminUsersPage() {
                     <div className="mt-1 text-[11px] text-slate-500">
                       {user.email || "-"}
                     </div>
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
                     <div className="font-semibold text-white">
                       {formatMoney(user.balance)} USDT
                     </div>
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
                     <StatusBadge value={user.status || "active"} />
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
                     <StatusBadge value={user.kyc_status || "not_submitted"} />
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
                     <div className="inline-flex items-center gap-2">
@@ -224,11 +240,11 @@ export default function AdminUsersPage() {
                         value={Number(user.email_verified || 0) === 1 ? "verified" : "not verified"}
                       />
                     </div>
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
                     <span className="text-sm text-slate-300">{user.country || "-"}</span>
-                  </td>
+                   </td>
 
                   <td className="px-4 py-3 align-top text-right sm:px-5">
                     <button
@@ -239,8 +255,8 @@ export default function AdminUsersPage() {
                       <Eye size={15} />
                       View
                     </button>
-                  </td>
-                </tr>
+                   </td>
+                 </tr>
               ))}
 
               {!filteredUsers.length ? (
@@ -250,8 +266,8 @@ export default function AdminUsersPage() {
                     className="px-5 py-10 text-center text-sm text-slate-500"
                   >
                     No users found.
-                  </td>
-                </tr>
+                   </td>
+                 </tr>
               ) : null}
             </tbody>
           </table>
