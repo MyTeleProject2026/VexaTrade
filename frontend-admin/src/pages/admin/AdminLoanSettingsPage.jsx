@@ -11,6 +11,8 @@ import {
   Settings2,
   BadgeDollarSign,
 } from "lucide-react";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatPercent(value) {
   const num = Number(value || 0);
@@ -59,6 +61,9 @@ export default function AdminLoanSettingsPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,8 +105,16 @@ export default function AdminLoanSettingsPage() {
         interest_rate: String(data.interest_rate ?? "0.15"),
         interest_type: data.interest_type || "weekly",
       });
+      
+      // ✅ ADDED: Success toast for refresh
+      if (!initial) {
+        addToast("Loan settings refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to load loan settings");
+      const errorMsg = getApiErrorMessage(err) || "Failed to load loan settings";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -131,10 +144,16 @@ export default function AdminLoanSettingsPage() {
         token
       );
 
-      setSuccess("Loan settings saved successfully.");
+      const successMsg = "Loan settings saved successfully.";
+      setSuccess(successMsg);
+      // ✅ ADDED: Success toast
+      addToast(successMsg, "success");
       await loadSettings();
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Failed to save loan settings");
+      const errorMsg = getApiErrorMessage(err) || "Failed to save loan settings";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setSaving(false);
     }
@@ -150,6 +169,9 @@ export default function AdminLoanSettingsPage() {
 
   return (
     <div className="space-y-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
