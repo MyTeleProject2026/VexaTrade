@@ -2,9 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LockKeyhole, Mail, RefreshCw } from "lucide-react";
 import { adminApi } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
 
   const [form, setForm] = useState({
     email: "",
@@ -27,7 +32,10 @@ export default function AdminLoginPage() {
     setError("");
 
     if (!form.email.trim() || !form.password.trim()) {
-      setError("Email and password are required");
+      const errorMsg = "Email and password are required";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
       return;
     }
 
@@ -55,7 +63,8 @@ export default function AdminLoginPage() {
         null;
 
       if (!token) {
-        throw new Error(data.message || "Admin token not found in response");
+        const errorMsg = data.message || "Admin token not found in response";
+        throw new Error(errorMsg);
       }
 
       localStorage.setItem("adminToken", token);
@@ -67,15 +76,20 @@ export default function AdminLoginPage() {
         localStorage.setItem("adminUser", JSON.stringify(admin));
       }
 
+      // ✅ ADDED: Success toast
+      addToast(`Welcome back, ${admin?.email || form.email.trim()}!`, "success");
+
       navigate("/admin/dashboard");
     } catch (err) {
       console.error("Admin login failed:", err);
 
-      setError(
+      const errorMsg =
         err?.response?.data?.message ||
-          err?.message ||
-          "Admin login failed"
-      );
+        err?.message ||
+        "Admin login failed";
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
     }
@@ -83,6 +97,9 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-[#050812] px-4 py-8 text-white">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0e1a] shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur xl:grid-cols-[1.05fr_0.95fr]">
           <section className="hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-8 xl:flex xl:flex-col xl:justify-between">
