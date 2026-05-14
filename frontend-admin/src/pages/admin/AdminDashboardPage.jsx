@@ -15,6 +15,8 @@ import {
   CandlestickChart,
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+// ✅ ADDED: Import toast notification hook
+import useToast from "../components/ToastNotification";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -129,6 +131,9 @@ export default function AdminDashboardPage() {
     localStorage.getItem("admin_token") ||
     "";
 
+  // ✅ ADDED: Toast notification hook
+  const { toasts, addToast, removeToast, ToastContainer } = useToast();
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -168,8 +173,16 @@ export default function AdminDashboardPage() {
 
       const res = await adminApi.getDashboardStats(token);
       setStats(res.data?.data || {});
+      
+      // ✅ ADDED: Success toast for silent refresh (optional)
+      if (silent) {
+        addToast("Dashboard data refreshed successfully", "success");
+      }
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      const errorMsg = getApiErrorMessage(err);
+      setError(errorMsg);
+      // ✅ ADDED: Error toast
+      addToast(errorMsg, "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -182,6 +195,8 @@ export default function AdminDashboardPage() {
       setNotifications(res.data?.data || []);
     } catch (err) {
       console.error("Failed to load notifications:", err);
+      // ✅ ADDED: Error toast for notification load failure
+      addToast("Failed to load notifications", "error");
     }
   }
 
@@ -189,8 +204,12 @@ export default function AdminDashboardPage() {
     try {
       await adminApi.markNotificationRead?.(id, token);
       await loadNotifications(true);
+      // ✅ ADDED: Success toast
+      addToast("Notification marked as read", "success");
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
+      // ✅ ADDED: Error toast
+      addToast("Failed to mark notification as read", "error");
     }
   }
 
@@ -212,6 +231,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-5 pb-20 xl:pb-5">
+      {/* ✅ ADDED: Toast Container */}
+      <ToastContainer />
+
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
