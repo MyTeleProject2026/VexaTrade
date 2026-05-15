@@ -299,6 +299,10 @@ export default function TradePage() {
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
 
+  // ========== ADDED NEW STATE ==========
+  const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
+  // ========== END ADDED STATE ==========
+
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
 
@@ -315,6 +319,9 @@ export default function TradePage() {
           currentProfit: Number(targetData.current_profit || 0),
           targetAmount: Number(targetData.target_amount || 0),
         });
+        // ========== ADDED: Reset notification flag when target changes ==========
+        setTargetAchievedNotified(false);
+        // ========== END ADDED ==========
       } else {
         setHasTarget(false);
         setUserTarget(null);
@@ -342,6 +349,34 @@ export default function TradePage() {
       console.error("Failed to refresh target:", err);
     }
   }
+
+  // ========== ADD THIS FUNCTION ==========
+  // Check and prompt for new target if achieved
+  async function checkAndPromptNewTarget() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const target = res.data.data.target;
+        const isAchieved = Number(target.current_profit) >= Number(target.target_amount);
+        if (isAchieved && !targetAchievedNotified) {
+          setTargetAchievedNotified(true);
+          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
+          // Open target modal to set new goal
+          setShowTargetModal(true);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to check target status:", err);
+    }
+  }
+  // ========== END ADDED FUNCTION ==========
+
+  // ========== ADDED: isTargetAchieved memo ==========
+  const isTargetAchieved = useMemo(() => {
+    if (!hasTarget) return false;
+    return targetProgress.currentProfit >= targetProgress.targetAmount;
+  }, [hasTarget, targetProgress]);
+  // ========== END ADDED ==========
 
   const marketMap = useMemo(() => {
     const map = {};
@@ -406,6 +441,14 @@ export default function TradePage() {
     // ✅ ADDED: Check target on page load
     checkUserTarget();
   }, []);
+
+  // ========== ADDED: Effect to check target achievement after progress updates ==========
+  useEffect(() => {
+    if (hasTarget && targetProgress.targetAmount > 0) {
+      checkAndPromptNewTarget();
+    }
+  }, [hasTarget, targetProgress]);
+  // ========== END ADDED ==========
 
   useEffect(() => {
     function handleResize() {
@@ -724,6 +767,9 @@ export default function TradePage() {
       currentProfit: 0,
       targetAmount: Number(targetAmount),
     });
+    // ========== ADDED: Reset notification flag ==========
+    setTargetAchievedNotified(false);
+    // ========== END ADDED ==========
     showSuccess(`Target set to ${targetAmount} USDT! You can now start trading.`);
   }
 
@@ -750,7 +796,7 @@ export default function TradePage() {
 
   return (
     <div className="space-y-4 bg-[#050812] p-3 pb-24 sm:space-y-5 sm:p-6 xl:pb-6">
-      {/* ✅ ADDED: Target Progress Banner */}
+      {/* ========== REPLACE THIS ENTIRE TARGET BANNER BLOCK ========== */}
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -771,8 +817,25 @@ export default function TradePage() {
               <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
             </div>
           </div>
+          
+          {/* ========== ADDED: Different message based on target achievement ========== */}
+          {isTargetAchieved ? (
+            <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
+              <span className="text-sm text-emerald-300">🎉 Target Achieved! Set a new goal to continue trading.</span>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-slate-400">
+              {targetProgress.currentProfit > 0 ? (
+                <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. Keep trading to reach your goal!</span>
+              ) : (
+                <span>Start trading to earn profits and track your progress toward your goal!</span>
+              )}
+            </div>
+          )}
+          {/* ========== END ADDED SECTION ========== */}
         </div>
       )}
+      {/* ========== END REPLACED BLOCK ========== */}
 
       <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-xl sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
