@@ -896,22 +896,35 @@ async function settleExpiredTrades() {
       if (result === "win") {
         profit = Number((amount * (payoutPercent / 100)).toFixed(2));
         const creditAmount = Number((amount + profit).toFixed(2));
-
+      
         await connection.execute(
           `UPDATE users
            SET balance = balance + ?
            WHERE id = ?`,
           [creditAmount, trade.user_id]
         );
-
+      
         await createTransactionLog(connection, {
           userId: trade.user_id,
-          type: "trade_win",
+          type: "trade_win_manual",
           amount: creditAmount,
           status: "completed",
           referenceId: trade.id,
-          note: `${trade.pair} ${trade.direction} trade settled as win`,
+          note: `${trade.pair} ${trade.direction} trade manually overridden to win by admin ${req.admin.id}`,
         });
+      
+        // ✅ ADD THIS - Update user's target profit
+        try {
+          await connection.execute(
+            `UPDATE user_targets 
+             SET current_profit = current_profit + ?
+             WHERE user_id = ? AND status = 'active'
+             ORDER BY id DESC LIMIT 1`,
+            [profit, trade.user_id]
+          );
+        } catch (_targetError) {}
+      }
+         
       } else {
         profit = Number((-amount).toFixed(2));
 
@@ -975,6 +988,8 @@ async function settleDailyFunds() {
         uf.last_profit_at,
         uf.completed_at,
         uf.created_at,
+        uf.is_compounded,
+        uf.original_principal,
         fp.name AS plan_name
       FROM user_funds uf
       INNER JOIN fund_plans fp ON fp.id = uf.plan_id
@@ -989,11 +1004,24 @@ async function settleDailyFunds() {
 
     for (const fund of activeFunds) {
       const totalDays = Number(fund.total_days || 0);
-      const currentDay = Number(fund.current_day || 0);
-
-      if (totalDays <= 0) {
-        continue;
+      let currentDay = Number(fund.current_day || 0);
+      
+      // Get current principal (could be compounded from previous days)
+      let currentPrincipal = Number(fund.locked_principal || fund.amount || 0);
+      let originalPrincipal = Number(fund.original_principal || fund.amount || 0);
+      
+      // If this is day 1 and not compounded yet, set original principal
+      if (currentDay === 0 && !fund.is_compounded) {
+        originalPrincipal = currentPrincipal;
+        await connection.execute(
+          `UPDATE user_funds 
+           SET original_principal = ?, is_compounded = 1
+           WHERE id = ?`,
+          [originalPrincipal, fund.id]
+        );
       }
+
+      if (totalDays <= 0) continue;
 
       const lastCreditBase = fund.last_profit_at
         ? new Date(fund.last_profit_at)
@@ -1001,21 +1029,18 @@ async function settleDailyFunds() {
 
       const nextCreditAt = addDays(lastCreditBase, 1);
 
-      if (now < nextCreditAt) {
-        continue;
-      }
-
-      if (currentDay >= totalDays) {
-        continue;
-      }
+      if (now < nextCreditAt) continue;
+      if (currentDay >= totalDays) continue;
 
       const dailyRate = toNumber(fund.selected_daily_profit_percent);
-      const principal = toNumber(fund.locked_principal);
-      const dailyProfit = Number(((principal * dailyRate) / 100).toFixed(10));
+      
+      // ✅ FIX: Calculate daily profit based on CURRENT principal (after compounding)
+      const dailyProfit = Number(((currentPrincipal * dailyRate) / 100).toFixed(10));
       const nextDay = currentDay + 1;
-      const nextEarnedProfit = Number(
-        (toNumber(fund.earned_profit) + dailyProfit).toFixed(10)
-      );
+      const nextEarnedProfit = Number((toNumber(fund.earned_profit) + dailyProfit).toFixed(10));
+      
+      // ✅ FIX: Compound the profit into principal for next day
+      const newPrincipal = Number((currentPrincipal + dailyProfit).toFixed(10));
 
       await connection.execute(
         `
@@ -1023,11 +1048,12 @@ async function settleDailyFunds() {
         SET
           current_day = ?,
           earned_profit = ?,
+          locked_principal = ?,  -- ✅ Update principal with compounded profit
           last_profit_at = ?,
           updated_at = NOW()
         WHERE id = ?
         `,
-        [nextDay, nextEarnedProfit, now, fund.id]
+        [nextDay, nextEarnedProfit, newPrincipal, now, fund.id]
       );
 
       await connection.execute(
@@ -1049,14 +1075,16 @@ async function settleDailyFunds() {
       try {
         await createUserNotification(connection, {
           userId: fund.user_id,
-          title: "Daily Fund Profit",
-          message: `${fund.plan_name}: Day ${nextDay} profit of ${dailyProfit.toFixed(2)} USDT credited.`,
+          title: "Daily Fund Profit (Compounded)",
+          message: `${fund.plan_name}: Day ${nextDay} profit of ${dailyProfit.toFixed(2)} USDT credited and compounded. New principal: ${newPrincipal.toFixed(2)} USDT`,
           type: "funds",
         });
       } catch (_notificationError) {}
 
       if (nextDay >= totalDays) {
-        const totalReturn = Number((principal + nextEarnedProfit).toFixed(10));
+        // ✅ FIX: Calculate total return including all compounded profits
+        const totalReturn = newPrincipal;
+        const totalProfitEarned = totalReturn - originalPrincipal;
 
         await connection.execute(
           `
@@ -1085,10 +1113,21 @@ async function settleDailyFunds() {
           await createUserNotification(connection, {
             userId: fund.user_id,
             title: "Fund Completed",
-            message: `${fund.plan_name} completed. Principal ${principal.toFixed(2)} USDT + profit ${dailyProfit.toFixed(2)} USDT = total ${totalReturn.toFixed(2)} USDT returned to main wallet.`,
+            message: `${fund.plan_name} completed. Total compounded return: ${totalReturn.toFixed(2)} USDT (Original: ${originalPrincipal.toFixed(2)} USDT + Profit: ${totalProfitEarned.toFixed(2)} USDT) returned to main wallet.`,
             type: "funds",
           });
         } catch (_notificationError) {}
+        
+        // ✅ Update user's target profit
+        try {
+          await connection.execute(
+            `UPDATE user_targets 
+             SET current_profit = current_profit + ?
+             WHERE user_id = ? AND status = 'active'
+             ORDER BY id DESC LIMIT 1`,
+            [totalProfitEarned, fund.user_id]
+          );
+        } catch (_targetError) {}
       }
     }
 
@@ -1107,7 +1146,6 @@ async function settleDailyFunds() {
     connection.release();
   }
 }
-
 /* =========================
    USER QR CODE FOR TRANSFERS
 ========================= */
@@ -3089,6 +3127,441 @@ app.get("/api/user/assets", authenticateUser, async (req, res, next) => {
   }
 });
 
+
+/* =========================
+   USER TARGET SYSTEM
+========================= */
+
+// Get or create user target
+app.get("/api/user/target", authenticateUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    let [targetRows] = await pool.execute(
+      `SELECT * FROM user_targets 
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY id DESC LIMIT 1`,
+      [userId]
+    );
+    
+    if (!targetRows.length) {
+      return res.json({
+        success: true,
+        data: { hasTarget: false, target: null }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: { hasTarget: true, target: targetRows[0] }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Set user target
+app.post("/api/user/target/set", authenticateUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { targetAmount } = req.body;
+    const userId = req.user.id;
+    
+    if (!targetAmount || targetAmount <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Please enter a valid target amount" 
+      });
+    }
+    
+    await connection.beginTransaction();
+    
+    // Deactivate old targets
+    await connection.execute(
+      `UPDATE user_targets SET status = 'cancelled' 
+       WHERE user_id = ? AND status = 'active'`,
+      [userId]
+    );
+    
+    // Create new target
+    const [result] = await connection.execute(
+      `INSERT INTO user_targets (user_id, target_amount, current_profit, status, created_at)
+       VALUES (?, ?, 0, 'active', NOW())`,
+      [userId, targetAmount]
+    );
+    
+    await connection.commit();
+    
+    res.json({
+      success: true,
+      message: "Target set successfully! Start trading or funding to achieve your goal.",
+      data: { targetId: result.insertId, targetAmount }
+    });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+// Update user's current profit (called when trade win or fund profit earned)
+app.post("/api/user/target/update-profit", authenticateUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { profitAmount } = req.body;
+    const userId = req.user.id;
+    
+    await connection.beginTransaction();
+    
+    const [targetRows] = await connection.execute(
+      `SELECT * FROM user_targets 
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY id DESC LIMIT 1
+       FOR UPDATE`,
+      [userId]
+    );
+    
+    if (targetRows.length) {
+      const target = targetRows[0];
+      const newProfit = Number(target.current_profit) + Number(profitAmount);
+      const targetAmount = Number(target.target_amount);
+      
+      let newStatus = 'active';
+      if (newProfit >= targetAmount) {
+        newStatus = 'achieved';
+      }
+      
+      await connection.execute(
+        `UPDATE user_targets 
+         SET current_profit = ?, status = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [newProfit, newStatus, target.id]
+      );
+    }
+    
+    await connection.commit();
+    
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+/* =========================
+   WITHDRAWAL SETTINGS (ADMIN)
+========================= */
+
+// Get withdrawal settings (for user - public)
+app.get("/api/withdrawal-settings", async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT min_withdrawal_from_profit, max_withdrawal_from_profit, 
+              allow_withdrawal_before_target, restriction_message
+       FROM platform_withdrawal_settings 
+       WHERE id = 1`
+    );
+    
+    res.json({
+      success: true,
+      data: rows[0] || {
+        min_withdrawal_from_profit: 10,
+        max_withdrawal_from_profit: 1000,
+        allow_withdrawal_before_target: true,
+        restriction_message: "⚠️ Target not achieved yet. You can only withdraw from your profits."
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: Update withdrawal settings
+app.put("/api/admin/withdrawal-settings", authenticateAdmin, async (req, res, next) => {
+  try {
+    const { 
+      min_withdrawal_from_profit, 
+      max_withdrawal_from_profit, 
+      allow_withdrawal_before_target,
+      restriction_message 
+    } = req.body;
+    
+    await pool.execute(
+      `UPDATE platform_withdrawal_settings 
+       SET min_withdrawal_from_profit = ?,
+           max_withdrawal_from_profit = ?,
+           allow_withdrawal_before_target = ?,
+           restriction_message = ?,
+           updated_at = NOW()
+       WHERE id = 1`,
+      [
+        min_withdrawal_from_profit || 10,
+        max_withdrawal_from_profit || 1000,
+        allow_withdrawal_before_target ? 1 : 0,
+        restriction_message || null
+      ]
+    );
+    
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: "update_withdrawal_settings",
+      note: "Updated profit withdrawal limits"
+    });
+    
+    res.json({
+      success: true,
+      message: "Withdrawal settings updated successfully"
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Request profit withdrawal (before target achieved)
+app.post("/api/withdraw/profit-request", authenticateUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const { amount } = req.body;
+    const userId = req.user.id;
+    const withdrawAmount = Number(amount);
+    
+    if (!withdrawAmount || withdrawAmount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid amount" });
+    }
+    
+    await connection.beginTransaction();
+    
+    // Get withdrawal settings
+    const [settingsRows] = await connection.execute(
+      `SELECT * FROM platform_withdrawal_settings WHERE id = 1`,
+      []
+    );
+    const settings = settingsRows[0] || { min_withdrawal_from_profit: 10, max_withdrawal_from_profit: 1000 };
+    
+    // Check amount limits
+    if (withdrawAmount < Number(settings.min_withdrawal_from_profit)) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: `Minimum withdrawal amount is ${settings.min_withdrawal_from_profit} USDT` 
+      });
+    }
+    
+    if (withdrawAmount > Number(settings.max_withdrawal_from_profit)) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: `Maximum withdrawal amount per request is ${settings.max_withdrawal_from_profit} USDT` 
+      });
+    }
+    
+    // Get user's active target
+    const [targetRows] = await connection.execute(
+      `SELECT * FROM user_targets 
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY id DESC LIMIT 1
+       FOR UPDATE`,
+      [userId]
+    );
+    
+    if (!targetRows.length) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: "Please set a target goal first" 
+      });
+    }
+    
+    const target = targetRows[0];
+    const currentProfit = Number(target.current_profit);
+    const targetAmount = Number(target.target_amount);
+    
+    // Check if target achieved - if yes, use normal withdrawal
+    if (currentProfit >= targetAmount) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: "Target achieved! You can withdraw using the normal withdrawal process." 
+      });
+    }
+    
+    // Check if user has enough profit to withdraw
+    if (withdrawAmount > currentProfit) {
+      await connection.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: `You only have ${currentProfit} USDT in profits. You cannot withdraw more than your current profit.` 
+      });
+    }
+    
+    // Create withdrawal request
+    const [result] = await connection.execute(
+      `INSERT INTO profit_withdrawal_requests (user_id, amount, status, created_at)
+       VALUES (?, ?, 'pending', NOW())`,
+      [userId, withdrawAmount]
+    );
+    
+    await connection.commit();
+    
+    res.json({
+      success: true,
+      message: `Withdrawal request for ${withdrawAmount} USDT submitted successfully. Admin will review and approve.`,
+      data: { requestId: result.insertId }
+    });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+// Admin: Get profit withdrawal requests
+app.get("/api/admin/profit-withdrawal-requests", authenticateAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT pwr.*, u.name, u.email, u.uid,
+              (SELECT current_profit FROM user_targets WHERE user_id = pwr.user_id AND status = 'active' ORDER BY id DESC LIMIT 1) as current_profit
+       FROM profit_withdrawal_requests pwr
+       LEFT JOIN users u ON u.id = pwr.user_id
+       ORDER BY pwr.created_at DESC`
+    );
+    
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: Approve profit withdrawal
+app.post("/api/admin/profit-withdrawal-requests/:id/approve", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const requestId = Number(req.params.id);
+    
+    await connection.beginTransaction();
+    
+    const [requestRows] = await connection.execute(
+      `SELECT * FROM profit_withdrawal_requests WHERE id = ? AND status = 'pending'`,
+      [requestId]
+    );
+    
+    if (!requestRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+    
+    const request = requestRows[0];
+    const amount = Number(request.amount);
+    const userId = request.user_id;
+    
+    // Check user balance
+    const [userRows] = await connection.execute(
+      `SELECT balance FROM users WHERE id = ? FOR UPDATE`,
+      [userId]
+    );
+    
+    if (!userRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    const currentBalance = Number(userRows[0].balance);
+    
+    if (currentBalance < amount) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: "Insufficient user balance" });
+    }
+    
+    // Deduct from user balance
+    await connection.execute(
+      `UPDATE users SET balance = balance - ? WHERE id = ?`,
+      [amount, userId]
+    );
+    
+    // Update request status
+    await connection.execute(
+      `UPDATE profit_withdrawal_requests SET status = 'approved', updated_at = NOW() WHERE id = ?`,
+      [requestId]
+    );
+    
+    // Update target profit (reduce current profit)
+    await connection.execute(
+      `UPDATE user_targets 
+       SET current_profit = current_profit - ?
+       WHERE user_id = ? AND status = 'active'
+       ORDER BY id DESC LIMIT 1`,
+      [amount, userId]
+    );
+    
+    // Create transaction log
+    await createTransactionLog(connection, {
+      userId: userId,
+      type: "profit_withdrawal",
+      amount: amount,
+      status: "completed",
+      referenceId: requestId,
+      note: `Profit withdrawal approved by admin (Target not achieved yet)`
+    });
+    
+    await createAuditLog(connection, {
+      adminId: req.admin.id,
+      action: "approve_profit_withdrawal",
+      targetUserId: userId,
+      referenceId: requestId,
+      note: `Approved profit withdrawal of ${amount} USDT`
+    });
+    
+    await connection.commit();
+    
+    res.json({
+      success: true,
+      message: "Withdrawal approved successfully"
+    });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+// Admin: Reject profit withdrawal
+app.post("/api/admin/profit-withdrawal-requests/:id/reject", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const requestId = Number(req.params.id);
+    
+    await connection.execute(
+      `UPDATE profit_withdrawal_requests SET status = 'rejected', updated_at = NOW() WHERE id = ?`,
+      [requestId]
+    );
+    
+    await createAuditLog(connection, {
+      adminId: req.admin.id,
+      action: "reject_profit_withdrawal",
+      referenceId: requestId,
+      note: "Rejected profit withdrawal request"
+    });
+    
+    res.json({
+      success: true,
+      message: "Withdrawal rejected successfully"
+    });
+  } catch (error) {
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
 /* =========================
    CONVERT
 ========================= */
@@ -6815,6 +7288,20 @@ app.post("/api/admin/trades/:id/override", authenticateAdmin, async (req, res, n
         referenceId: trade.id,
         note: `${trade.pair} ${trade.direction} trade manually overridden to win by admin ${req.admin.id}`,
       });
+
+      // ✅ ADDED: Update user's target profit
+      try {
+        await connection.execute(
+          `UPDATE user_targets 
+           SET current_profit = current_profit + ?
+           WHERE user_id = ? AND status = 'active'
+           ORDER BY id DESC LIMIT 1`,
+          [profit, trade.user_id]
+        );
+      } catch (_targetError) {
+        // Silent fail - target might not exist
+      }
+
     } else {
       profit = Number((-amount).toFixed(2));
 
