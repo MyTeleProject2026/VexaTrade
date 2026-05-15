@@ -105,6 +105,26 @@ export const userApi = {
   getPortfolioAssets: (token) =>
     api.get("/api/user/portfolio-assets", authHeaders(token)),
 
+    /* ---------------- TARGET SYSTEM ---------------- */
+  getUserTarget: (token) =>
+    api.get("/api/user/target", authHeaders(token)),
+
+  setUserTarget: (payload, token) =>
+    api.post("/api/user/target/set", payload, authHeaders(token)),
+
+  updateTargetProfit: (payload, token) =>
+    api.post("/api/user/target/update-profit", payload, authHeaders(token)),
+
+  /* ---------------- PROFIT WITHDRAWAL (Before Target Achieved) ---------------- */
+  getWithdrawalSettings: () =>
+    api.get("/api/withdrawal-settings"),
+
+  requestProfitWithdrawal: (payload, token) =>
+    api.post("/api/withdraw/profit-request", payload, authHeaders(token)),
+
+  getProfitWithdrawalHistory: (token) =>
+    api.get("/api/withdraw/profit-history", authHeaders(token)),
+
   getNotifications: (token) =>
     api.get("/api/user/notifications", authHeaders(token)),
 
