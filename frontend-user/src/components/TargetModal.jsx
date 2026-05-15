@@ -18,6 +18,10 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
   const [existingTarget, setExistingTarget] = useState(null);
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
+  // ========== ADDED NEW STATE ==========
+  const [showNewTargetForm, setShowNewTargetForm] = useState(false);
+  // ========== END ADDED STATE ==========
+
   useEffect(() => {
     if (isOpen && token) {
       checkExistingTarget();
@@ -62,6 +66,9 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
           onClose();
           setShowSuccessScreen(false);
           setTargetAmount("");
+          // ========== ADDED: Reset new target form flag ==========
+          setShowNewTargetForm(false);
+          // ========== END ADDED ==========
         }, 2000);
       }
     } catch (err) {
@@ -71,9 +78,46 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
     }
   }
 
+  // ========== ADDED NEW FUNCTION ==========
+  async function handleSetNewTarget() {
+    const amount = Number(targetAmount);
+    if (!amount || amount <= 0) {
+      showError("Please enter a valid target amount");
+      return;
+    }
+
+    if (amount < 100) {
+      showError("Minimum target amount is 100 USDT");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await userApi.setUserTarget({ targetAmount: amount }, token);
+      if (res.data?.success) {
+        setShowSuccessScreen(true);
+        setTimeout(() => {
+          onTargetSet?.(amount);
+          onClose();
+          setShowSuccessScreen(false);
+          setTargetAmount("");
+          setShowNewTargetForm(false);
+        }, 2000);
+      }
+    } catch (err) {
+      showError(err.response?.data?.message || "Failed to set new target");
+    } finally {
+      setLoading(false);
+    }
+  }
+  // ========== END ADDED FUNCTION ==========
+
   function resetAndClose() {
     setTargetAmount("");
     setShowSuccessScreen(false);
+    // ========== ADDED: Reset new target form flag ==========
+    setShowNewTargetForm(false);
+    // ========== END ADDED ==========
     onClose();
   }
 
@@ -82,6 +126,10 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
   const currentProfit = Number(existingTarget?.current_profit || 0);
   const targetTotal = Number(existingTarget?.target_amount || 0);
   const progressPercent = targetTotal > 0 ? (currentProfit / targetTotal) * 100 : 0;
+  
+  // ========== ADDED: Check if target is achieved ==========
+  const isTargetAchieved = existingTarget?.status === 'achieved' || (targetTotal > 0 && currentProfit >= targetTotal);
+  // ========== END ADDED ==========
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
@@ -103,7 +151,11 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Target size={22} className="text-cyan-400" />
-                <h2 className="text-xl font-bold text-white">Set Your Target</h2>
+                <h2 className="text-xl font-bold text-white">
+                  {/* ========== ADDED: Dynamic title ========== */}
+                  {showNewTargetForm ? "Set New Target" : "Set Your Target"}
+                  {/* ========== END ADDED ========== */}
+                </h2>
               </div>
               <button onClick={resetAndClose} className="text-slate-400 hover:text-white">
                 <X size={20} />
@@ -112,7 +164,7 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
 
             {checking ? (
               <div className="py-8 text-center text-slate-400">Loading...</div>
-            ) : existingTarget ? (
+            ) : existingTarget && !showNewTargetForm ? (
               <div className="space-y-4">
                 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
                   <div className="text-sm text-slate-400">Your Active Goal</div>
@@ -136,6 +188,29 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
                   </div>
                 </div>
 
+                {/* ========== ADDED: Target Achieved Section ========== */}
+                {isTargetAchieved && (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle size={18} className="text-emerald-400" />
+                      <span className="text-sm font-semibold text-emerald-300">Target Achieved!</span>
+                    </div>
+                    <p className="text-sm text-slate-300 mb-3">
+                      Congratulations! You've reached your goal of {targetTotal.toFixed(2)} USDT.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowNewTargetForm(true);
+                        setTargetAmount("");
+                      }}
+                      className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                    >
+                      Set New Target →
+                    </button>
+                  </div>
+                )}
+                {/* ========== END ADDED SECTION ========== */}
+
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <p className="text-sm text-slate-400">
                     {requiredFor === "trade"
@@ -155,8 +230,12 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
               <div className="space-y-4">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <p className="text-sm text-slate-400">
-                    Set a profit target you want to achieve. Once set, you can start trading
-                    and funding. Your profits will automatically count toward your goal.
+                    {/* ========== ADDED: Dynamic message ========== */}
+                    {showNewTargetForm 
+                      ? "Set a new profit target to continue trading and funding. Your previous goal has been achieved!"
+                      : "Set a profit target you want to achieve. Once set, you can start trading and funding. Your profits will automatically count toward your goal."
+                    }
+                    {/* ========== END ADDED ========== */}
                   </p>
                 </div>
 
@@ -190,11 +269,11 @@ export default function TargetModal({ isOpen, onClose, onTargetSet, requiredFor 
                 </div>
 
                 <button
-                  onClick={handleSetTarget}
+                  onClick={showNewTargetForm ? handleSetNewTarget : handleSetTarget}
                   disabled={loading}
                   className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
                 >
-                  {loading ? "Setting..." : "Set Target & Continue"}
+                  {loading ? "Setting..." : (showNewTargetForm ? "Set New Target" : "Set Target & Continue")}
                 </button>
               </div>
             )}
