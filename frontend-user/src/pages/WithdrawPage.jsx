@@ -9,9 +9,13 @@ import {
   ChevronRight,
   Wallet,
   Lock,
+  DollarSign,
+  Target,
 } from "lucide-react";
 import { withdrawalApi, userApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+// ✅ ADDED: Import Profit Withdrawal Modal
+import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 
 function formatAmount(v) {
   const num = Number(v || 0);
@@ -112,11 +116,67 @@ export default function WithdrawPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ✅ ADDED: Target system states for profit withdrawal
+  const [hasTarget, setHasTarget] = useState(false);
+  const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
+  const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
+  const [profitWithdrawalAmount, setProfitWithdrawalAmount] = useState(0);
+  const [targetChecking, setTargetChecking] = useState(true);
+
   const availableNetworks = useMemo(() => {
     return NETWORK_OPTIONS[form.coin] || [];
   }, [form.coin]);
 
   const isKycApproved = String(kycStatus || "").toLowerCase() === "approved";
+
+  // ✅ ADDED: Check user target
+  async function checkUserTarget() {
+    try {
+      setTargetChecking(true);
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setHasTarget(true);
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      } else {
+        setHasTarget(false);
+      }
+    } catch (err) {
+      console.error("Failed to check target:", err);
+      setHasTarget(false);
+    } finally {
+      setTargetChecking(false);
+    }
+  }
+
+  // ✅ ADDED: Refresh target progress
+  async function refreshTargetProgress() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to refresh target:", err);
+    }
+  }
+
+  // ✅ ADDED: Open profit withdrawal modal
+  function openProfitWithdrawal() {
+    if (targetProgress.currentProfit <= 0) {
+      showError("You don't have any profits to withdraw yet.");
+      return;
+    }
+    setProfitWithdrawalAmount(targetProgress.currentProfit);
+    setShowProfitWithdrawalModal(true);
+  }
 
   async function loadProfile() {
     try {
@@ -166,7 +226,7 @@ export default function WithdrawPage() {
 
   async function loadAll(silent = false) {
     setError("");
-    await Promise.all([loadProfile(), loadHistory(silent)]);
+    await Promise.all([loadProfile(), loadHistory(silent), checkUserTarget()]);
   }
 
   useEffect(() => {
@@ -174,6 +234,7 @@ export default function WithdrawPage() {
 
     const interval = setInterval(() => {
       loadAll(true);
+      refreshTargetProgress();
     }, 12000);
 
     return () => clearInterval(interval);
@@ -252,6 +313,18 @@ export default function WithdrawPage() {
       setSubmitting(false);
     }
   }
+
+  // ✅ ADDED: Handle profit withdrawal success
+  function handleProfitWithdrawalSuccess() {
+    showSuccess("Profit withdrawal request submitted. Admin will review and approve.");
+    refreshTargetProgress();
+    loadHistory(true);
+  }
+
+  const targetProgressPercent = useMemo(() => {
+    if (targetProgress.targetAmount <= 0) return 0;
+    return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
+  }, [targetProgress]);
 
   function renderKycCard() {
     if (kycLoading) {
@@ -346,6 +419,44 @@ export default function WithdrawPage() {
       </section>
 
       {renderKycCard()}
+
+      {/* ✅ ADDED: Target Progress Banner for Profit Withdrawal Info */}
+      {hasTarget && targetProgress.targetAmount > 0 && !targetChecking && (
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Target size={16} className="text-cyan-400" />
+              <span className="text-sm text-slate-300">Your Target Goal:</span>
+              <span className="text-sm font-semibold text-white">
+                {targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden">
+                <div 
+                  className="h-full bg-cyan-400 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, targetProgressPercent)}%` }}
+                />
+              </div>
+              <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-slate-400">
+            {targetProgress.currentProfit > 0 ? (
+              <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. 
+                <button 
+                  onClick={openProfitWithdrawal}
+                  className="ml-1 text-cyan-400 hover:text-cyan-300"
+                >
+                  Withdraw profits now →
+                </button>
+              </span>
+            ) : (
+              <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <button
@@ -479,6 +590,29 @@ export default function WithdrawPage() {
                   {formatAmount(walletBalance)} USDT
                 </div>
               </div>
+
+              {/* ✅ ADDED: Profit Balance Section */}
+              {hasTarget && targetProgress.currentProfit > 0 && (
+                <div className="rounded-[24px] border border-cyan-500/20 bg-cyan-500/10 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-cyan-300">Profit Balance (Before Target)</div>
+                    <DollarSign size={16} className="text-cyan-300" />
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-cyan-300">
+                    {formatAmount(targetProgress.currentProfit)} USDT
+                  </div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    Withdraw from profits without affecting your main balance
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openProfitWithdrawal}
+                    className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition"
+                  >
+                    Withdraw Profits
+                  </button>
+                </div>
+              )}
 
               <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4">
                 <div className="text-sm text-slate-500">Selected Coin</div>
@@ -631,6 +765,15 @@ export default function WithdrawPage() {
           </div>
         </GlassCard>
       ) : null}
+
+      {/* ✅ ADDED: Profit Withdrawal Modal */}
+      <ProfitWithdrawalModal
+        isOpen={showProfitWithdrawalModal}
+        onClose={() => setShowProfitWithdrawalModal(false)}
+        onSuccess={handleProfitWithdrawalSuccess}
+        currentProfit={profitWithdrawalAmount}
+        targetAmount={targetProgress.targetAmount}
+      />
     </div>
   );
 }
