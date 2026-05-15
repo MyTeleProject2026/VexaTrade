@@ -896,24 +896,24 @@ async function settleExpiredTrades() {
       if (result === "win") {
         profit = Number((amount * (payoutPercent / 100)).toFixed(2));
         const creditAmount = Number((amount + profit).toFixed(2));
-      
+
         await connection.execute(
           `UPDATE users
            SET balance = balance + ?
            WHERE id = ?`,
           [creditAmount, trade.user_id]
         );
-      
+
         await createTransactionLog(connection, {
           userId: trade.user_id,
-          type: "trade_win_manual",
+          type: "trade_win",
           amount: creditAmount,
           status: "completed",
           referenceId: trade.id,
-          note: `${trade.pair} ${trade.direction} trade manually overridden to win by admin ${req.admin.id}`,
+          note: `${trade.pair} ${trade.direction} trade settled as win`,
         });
-      
-        // ✅ ADD THIS - Update user's target profit
+
+        // ✅ Update user's target profit
         try {
           await connection.execute(
             `UPDATE user_targets 
@@ -922,9 +922,10 @@ async function settleExpiredTrades() {
              ORDER BY id DESC LIMIT 1`,
             [profit, trade.user_id]
           );
-        } catch (_targetError) {}
-      }
-         
+        } catch (_targetError) {
+          // Silent fail - target might not exist
+        }
+
       } else {
         profit = Number((-amount).toFixed(2));
 
