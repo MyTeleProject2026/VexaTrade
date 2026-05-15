@@ -11,6 +11,7 @@ import {
   Activity,
   X,
   Flame,
+  Target,
 } from "lucide-react";
 import MarketChart from "../components/MarketChart";
 import {
@@ -20,6 +21,8 @@ import {
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+// ✅ ADDED: Import Target Modal
+import TargetModal from "../components/TargetModal";
 
 const DEFAULT_PAIRS = [
   "BTCUSDT",
@@ -289,8 +292,56 @@ export default function TradePage() {
     typeof window !== "undefined" ? window.innerWidth : 1440
   );
 
+  // ✅ ADDED: Target system states
+  const [hasTarget, setHasTarget] = useState(false);
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [targetChecking, setTargetChecking] = useState(true);
+  const [userTarget, setUserTarget] = useState(null);
+  const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
+
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
+
+  // ✅ ADDED: Check if user has set a target
+  async function checkUserTarget() {
+    try {
+      setTargetChecking(true);
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setHasTarget(true);
+        setUserTarget(targetData);
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      } else {
+        setHasTarget(false);
+        setUserTarget(null);
+      }
+    } catch (err) {
+      console.error("Failed to check target:", err);
+      setHasTarget(false);
+    } finally {
+      setTargetChecking(false);
+    }
+  }
+
+  // ✅ ADDED: Refresh target progress after trades
+  async function refreshTargetProgress() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to refresh target:", err);
+    }
+  }
 
   const marketMap = useMemo(() => {
     const map = {};
@@ -345,8 +396,15 @@ export default function TradePage() {
     return 420;
   }, [screenWidth]);
 
+  const targetProgressPercent = useMemo(() => {
+    if (targetProgress.targetAmount <= 0) return 0;
+    return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
+  }, [targetProgress]);
+
   useEffect(() => {
     loadTradePage();
+    // ✅ ADDED: Check target on page load
+    checkUserTarget();
   }, []);
 
   useEffect(() => {
@@ -398,6 +456,8 @@ export default function TradePage() {
 
     setShowRunningTradeModal(false);
     syncTradeState();
+    // ✅ ADDED: Refresh target progress after trade settles
+    refreshTargetProgress();
   }, [remainingSeconds, showRunningTradeModal]);
 
   useEffect(() => {
@@ -531,6 +591,8 @@ export default function TradePage() {
         if (settledTrade && shownSettledTradeIdRef.current !== settledTrade.id) {
           shownSettledTradeIdRef.current = settledTrade.id;
           setResultModal(settledTrade);
+          // ✅ ADDED: Refresh target progress when trade settles
+          refreshTargetProgress();
         }
       }
     } catch (_err) {
@@ -550,10 +612,16 @@ export default function TradePage() {
     }
   }
 
+  // ✅ ADDED: Modified handlePlaceTrade with target check
   async function handlePlaceTrade(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!hasTarget) {
+      setShowTargetModal(true);
+      return;
+    }
 
     if (!pair) {
       showError("Please select a trading pair");
@@ -649,6 +717,16 @@ export default function TradePage() {
     }
   }
 
+  // ✅ ADDED: Handle target set success
+  function handleTargetSet(targetAmount) {
+    setHasTarget(true);
+    setTargetProgress({
+      currentProfit: 0,
+      targetAmount: Number(targetAmount),
+    });
+    showSuccess(`Target set to ${targetAmount} USDT! You can now start trading.`);
+  }
+
   if (loading) {
     return (
       <div className="p-4 sm:p-6">
@@ -672,6 +750,30 @@ export default function TradePage() {
 
   return (
     <div className="space-y-4 bg-[#050812] p-3 pb-24 sm:space-y-5 sm:p-6 xl:pb-6">
+      {/* ✅ ADDED: Target Progress Banner */}
+      {hasTarget && targetProgress.targetAmount > 0 && (
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Target size={16} className="text-cyan-400" />
+              <span className="text-sm text-slate-300">Target Goal:</span>
+              <span className="text-sm font-semibold text-white">
+                {targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden">
+                <div 
+                  className="h-full bg-cyan-400 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, targetProgressPercent)}%` }}
+                />
+              </div>
+              <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-xl sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1185,6 +1287,14 @@ export default function TradePage() {
           </div>
         </div>
       ) : null}
+
+      {/* ✅ ADDED: Target Modal */}
+      <TargetModal
+        isOpen={showTargetModal}
+        onClose={() => setShowTargetModal(false)}
+        onTargetSet={handleTargetSet}
+        requiredFor="trade"
+      />
     </div>
   );
 }
