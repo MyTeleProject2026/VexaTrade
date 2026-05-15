@@ -37,6 +37,15 @@ const PAGE_META = {
     title: "Withdrawal Fees",
     subtitle: "Configure fee amounts and fee types by network.",
   },
+  // ✅ ADDED: New withdrawal settings and profit withdrawal requests pages
+  "/admin/withdrawal-settings": {
+    title: "Withdrawal Settings",
+    subtitle: "Configure withdrawal limits for users who haven't achieved their target yet.",
+  },
+  "/admin/profit-withdrawal-requests": {
+    title: "Profit Withdrawal Requests",
+    subtitle: "Review and approve/decline profit withdrawal requests from users.",
+  },
   "/admin/trades": {
     title: "Trades",
     subtitle:
