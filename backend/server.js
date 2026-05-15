@@ -3254,6 +3254,101 @@ app.post("/api/user/target/update-profit", authenticateUser, async (req, res, ne
   }
 });
 
+// ============================================
+// NEW ADDITIVE ENDPOINTS - Principal/Profit Separation
+// Add these BEFORE the 404 handler
+// ============================================
+
+// Get user's principal vs profit breakdown
+app.get("/api/user/balance-breakdown", authenticateUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get main balance
+    const [userRows] = await pool.execute(
+      "SELECT balance FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    
+    // Get principal/profit breakdown
+    let [breakdownRows] = await pool.execute(
+      "SELECT principal_locked, profit_available, target_achieved FROM user_principal_balance WHERE user_id = ? LIMIT 1",
+      [userId]
+    );
+    
+    let principalLocked = 0;
+    let profitAvailable = 0;
+    let targetAchieved = 0;
+    
+    if (breakdownRows.length) {
+      principalLocked = Number(breakdownRows[0].principal_locked || 0);
+      profitAvailable = Number(breakdownRows[0].profit_available || 0);
+      targetAchieved = breakdownRows[0].target_achieved || 0;
+    } else {
+      // If no record, all balance is considered profit (no locked principal)
+      profitAvailable = Number(userRows[0]?.balance || 0);
+    }
+    
+    // Get target status
+    const [targetRows] = await pool.execute(
+      "SELECT target_amount, current_profit, status FROM user_targets WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+      [userId]
+    );
+    
+    let isTargetAchieved = false;
+    if (targetRows.length) {
+      isTargetAchieved = Number(targetRows[0].current_profit) >= Number(targetRows[0].target_amount);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        total_balance: Number(userRows[0]?.balance || 0),
+        principal_locked: principalLocked,
+        profit_available: profitAvailable,
+        target_achieved: isTargetAchieved || targetAchieved === 1
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Initialize principal breakdown when user first trades/funds
+app.post("/api/user/initialize-principal", authenticateUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  
+  try {
+    const userId = req.user.id;
+    const { amount, type } = req.body; // type: 'trade' or 'fund'
+    
+    await connection.beginTransaction();
+    
+    // Check if user already has principal record
+    const [existing] = await connection.execute(
+      "SELECT id FROM user_principal_balance WHERE user_id = ? LIMIT 1",
+      [userId]
+    );
+    
+    if (!existing.length) {
+      // Create record - initial deposit is considered principal
+      await connection.execute(
+        `INSERT INTO user_principal_balance (user_id, principal_locked, profit_available, target_achieved)
+         VALUES (?, ?, 0, 0)`,
+        [userId, amount]
+      );
+    }
+    
+    await connection.commit();
+    
+    res.json({ success: true, message: "Principal initialized" });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
 /* =========================
    WITHDRAWAL SETTINGS (ADMIN)
 ========================= */
