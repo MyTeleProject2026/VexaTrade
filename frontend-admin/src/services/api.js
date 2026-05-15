@@ -180,6 +180,23 @@ export const adminApi = {
   deleteWithdrawalFee: (id, token) =>
     api.delete(`/api/admin/withdrawal-fees/${id}`, authHeaders(token)),
 
+    /* ---------------- WITHDRAWAL SETTINGS (ADMIN) ---------------- */
+  getWithdrawalSettings: (token) =>
+    api.get("/api/withdrawal-settings", authHeaders(token)),
+
+  updateWithdrawalSettings: (payload, token) =>
+    api.put("/api/admin/withdrawal-settings", payload, authHeaders(token)),
+
+  /* ---------------- PROFIT WITHDRAWAL REQUESTS (ADMIN) ---------------- */
+  getProfitWithdrawalRequests: (token) =>
+    api.get("/api/admin/profit-withdrawal-requests", authHeaders(token)),
+
+  approveProfitWithdrawal: (id, token) =>
+    api.post(`/api/admin/profit-withdrawal-requests/${id}/approve`, {}, authHeaders(token)),
+
+  rejectProfitWithdrawal: (id, token) =>
+    api.post(`/api/admin/profit-withdrawal-requests/${id}/reject`, {}, authHeaders(token)),
+
   /* ---------------- TRADES ---------------- */
   getTrades: (token) =>
     api.get("/api/admin/trades", authHeaders(token)),
