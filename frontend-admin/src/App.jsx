@@ -23,6 +23,10 @@ import AdminJointAccountRequests from "./pages/admin/AdminJointAccountRequests";
 import AdminJointAccountsPage from "./pages/admin/AdminJointAccountsPage";
 import AdminLayout from "./layouts/AdminLayout";
 
+// ✅ ADDED: New admin pages for withdrawal settings and profit withdrawal requests
+import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
+import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
+
 function PrivateRoute({ children }) {
   const token =
     localStorage.getItem("adminToken") ||
@@ -60,6 +64,11 @@ export default function App() {
           path="withdrawal-fees"
           element={<AdminWithdrawalFeesPage />}
         />
+        
+        {/* ✅ ADDED: New admin routes for profit withdrawal management */}
+        <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
+        <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
+        
         <Route path="trades" element={<AdminTradesPage />} />
         <Route path="trade-rules" element={<AdminTradeRulesPage />} />
 
