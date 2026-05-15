@@ -176,6 +176,7 @@ export default function ConvertPage() {
   const [success, setSuccess] = useState("");
   const [convertVoucher, setConvertVoucher] = useState(null);
 
+  // ✅ FIX: Force refresh fee from backend with cache-busting
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
@@ -184,6 +185,7 @@ export default function ConvertPage() {
       const [walletRes, marketRes, platformRes] = await Promise.allSettled([
         userApi.getWalletSummary(token),
         marketApi.home(),
+        // ✅ FIX: Call with cache-busting (already handled in api.js)
         userApi.getPublicPlatformSettings(),
       ]);
 
@@ -207,11 +209,14 @@ export default function ConvertPage() {
 
       if (platformRes.status === "fulfilled") {
         const settings = platformRes.value?.data?.data || {};
+        const newFee = Number(settings.default_convert_fee_percent ?? 0.2);
+        
+        // ✅ DEBUG: Log the fee from backend
+        console.log("📊 Fee from backend:", newFee, "Raw settings:", settings);
+        
         setPlatformSettings({
           wallet_label: settings.wallet_label || "Main Wallet",
-          default_convert_fee_percent: Number(
-            settings.default_convert_fee_percent ?? 0.2
-          ),
+          default_convert_fee_percent: newFee,
         });
       }
 
@@ -224,14 +229,28 @@ export default function ConvertPage() {
     }
   }
 
+  // ✅ FIX: Also refresh fee when page becomes visible
   useEffect(() => {
     loadData();
 
+    // ✅ FIX: Refresh every 30 seconds (instead of 10)
     const interval = setInterval(() => {
       loadData(true);
-    }, 10000);
+    }, 30000);
 
-    return () => clearInterval(interval);
+    // ✅ FIX: Refresh when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log("🔄 Tab visible, refreshing fee...");
+        loadData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const pairMap = useMemo(() => buildPairPriceMap(markets), [markets]);
@@ -244,9 +263,17 @@ export default function ConvertPage() {
     return getCoinPriceInUsdt(form.toCoin, pairMap);
   }, [form.toCoin, pairMap]);
 
+  // ✅ FIX: Calculate fee with proper debugging
   const convertFeePercent = useMemo(() => {
-    const num = Number(platformSettings.default_convert_fee_percent || 0.2);
-    return Number.isFinite(num) ? num : 0.2;
+    const num = Number(platformSettings.default_convert_fee_percent);
+    const finalFee = Number.isFinite(num) ? num : 0.2;
+    
+    // ✅ DEBUG: Log when fee changes
+    if (finalFee !== 0.2) {
+      console.log("🔧 Using custom fee:", finalFee, "%");
+    }
+    
+    return finalFee;
   }, [platformSettings.default_convert_fee_percent]);
 
   const preview = useMemo(() => {
