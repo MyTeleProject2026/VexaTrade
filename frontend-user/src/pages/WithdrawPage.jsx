@@ -325,6 +325,13 @@ export default function WithdrawPage() {
     if (targetProgress.targetAmount <= 0) return 0;
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
+  // ========== ADD THIS CODE ==========
+  // Check if target is achieved
+  const isTargetAchieved = useMemo(() => {
+    if (!hasTarget) return false;
+    return targetProgress.currentProfit >= targetProgress.targetAmount;
+  }, [hasTarget, targetProgress]);
+  // ========== END ADDED CODE ==========
 
   function renderKycCard() {
     if (kycLoading) {
@@ -441,6 +448,27 @@ export default function WithdrawPage() {
               <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
             </div>
           </div>
+           {/* ========== ADDED: Different message based on target achievement ========== */}
+          {isTargetAchieved ? (
+            <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
+              <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-slate-400">
+              {targetProgress.currentProfit > 0 ? (
+                <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. 
+                  <button 
+                    onClick={openProfitWithdrawal}
+                    className="ml-1 text-cyan-400 hover:text-cyan-300"
+                  >
+                    Withdraw profits now →
+                  </button>
+                </span>
+              ) : (
+                <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>
+              )}
+            </div>
+          )}
           <div className="mt-2 text-xs text-slate-400">
             {targetProgress.currentProfit > 0 ? (
               <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. 
