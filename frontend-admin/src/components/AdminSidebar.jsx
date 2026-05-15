@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   UserCog,
+  DollarSign,
 } from "lucide-react";
 
 const navItems = [
@@ -38,6 +39,9 @@ const navItems = [
       { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
       { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
       { label: "Withdrawal Fees", to: "/admin/withdrawal-fees", icon: BadgeDollarSign },
+      // ✅ ADDED: New withdrawal settings under Users > Withdrawals group
+      { label: "Withdrawal Settings", to: "/admin/withdrawal-settings", icon: Settings2 },
+      { label: "Profit Withdrawal Requests", to: "/admin/profit-withdrawal-requests", icon: DollarSign },
       { label: "Loans", to: "/admin/loans", icon: Landmark },
       { label: "Loan Settings", to: "/admin/loan-settings", icon: HandCoins },
     ],
