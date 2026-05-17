@@ -18,6 +18,9 @@ import { adminApi, getApiErrorMessage } from "../../services/api";
 // ✅ ADDED: Import toast notification hook
 import useToast from "../../components/ToastNotification";
 
+import AdminChatPanel from "../../components/AdminChatPanel";
+import { MessageCircle } from "lucide-react";
+
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -133,6 +136,9 @@ export default function AdminDashboardPage() {
 
   // ✅ ADDED: Toast notification hook
   const { toasts, addToast, removeToast, ToastContainer } = useToast();
+  // ✅ ADDED: Get admin info for chat
+  const adminId = localStorage.getItem("adminId") || "1";
+  const adminName = localStorage.getItem("adminName") || "Admin";
 
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -153,6 +159,7 @@ export default function AdminDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -233,6 +240,17 @@ export default function AdminDashboardPage() {
     <div className="space-y-5 pb-20 xl:pb-5">
       {/* ✅ ADDED: Toast Container */}
       <ToastContainer />
+
+      {/* ✅ ADDED: Chat Panel */}
+      <AdminChatPanel adminId={adminId} adminName={adminName} />
+      
+      {/* ✅ ADDED: Chat Toggle Button (floating) */}
+      <button
+        onClick={() => setShowChatPanel(!showChatPanel)}
+        className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-black shadow-lg transition hover:bg-lime-300 md:bottom-6"
+      >
+        <MessageCircle size={20} />
+      </button>
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
