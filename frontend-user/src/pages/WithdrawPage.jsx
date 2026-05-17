@@ -129,6 +129,12 @@ export default function WithdrawPage() {
 
   const isKycApproved = String(kycStatus || "").toLowerCase() === "approved";
 
+  // ✅ ADDED: Check if target is achieved (MOVED UP - BEFORE isMainWithdrawDisabled)
+  const isTargetAchieved = useMemo(() => {
+    if (!hasTarget) return false;
+    return targetProgress.currentProfit >= targetProgress.targetAmount;
+  }, [hasTarget, targetProgress]);
+
   // ✅ ADDED: Check if user has target AND target is NOT achieved
   // This determines if main withdraw should be disabled
   const isMainWithdrawDisabled = useMemo(() => {
@@ -175,12 +181,6 @@ export default function WithdrawPage() {
       console.error("Failed to refresh target:", err);
     }
   }
-
-  // ✅ ADDED: Check if target is achieved
-  const isTargetAchieved = useMemo(() => {
-    if (!hasTarget) return false;
-    return targetProgress.currentProfit >= targetProgress.targetAmount;
-  }, [hasTarget, targetProgress]);
 
   // ✅ ADDED: Open profit withdrawal modal
   function openProfitWithdrawal() {
@@ -462,7 +462,6 @@ export default function WithdrawPage() {
             </div>
           </div>
 
-          {/* ✅ FIXED: Single block without duplicate */}
           {isTargetAchieved ? (
             <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
               <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span>
