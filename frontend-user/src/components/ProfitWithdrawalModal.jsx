@@ -180,7 +180,7 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
           </button>
 
           <p className="text-center text-xs text-slate-500">
-            Request will be Blockchain-based ecosystem. Funds will be deducted from your balance upon approval.
+            Withdrawal requests are processed within a blockchain-based ecosystem and typically take 2 to 3 minutes, depending on the blockchain network
           </p>
         </div>
       </div>
