@@ -1291,7 +1291,7 @@ export default function TradePage() {
               </div>
 
               <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[15px] leading-7 text-slate-200">
-                The final price is subject to system settlement.
+                The final price is subject to Blockchain-based ecosystem.
               </div>
             </div>
           </div>
