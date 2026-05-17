@@ -205,7 +205,7 @@ function ActiveFundCard({ item }) {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Total If Complete</div>
+          <div className="text-xs text-slate-500">Total Still Complete Funds</div>
           <div className="mt-1 text-sm font-semibold text-cyan-300">
             {formatMoney(totalReceive)} USDT
           </div>
@@ -834,7 +834,7 @@ export default function FundsPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Active Funds</h2>
             <div className="text-sm text-slate-500">
-              Total receive if complete: {formatMoney(activeTotalReceive)} USDT
+              Total funds still to be receive: {formatMoney(activeTotalReceive)} USDT
             </div>
           </div>
 
