@@ -129,6 +129,14 @@ export default function WithdrawPage() {
 
   const isKycApproved = String(kycStatus || "").toLowerCase() === "approved";
 
+  // ✅ ADDED: Check if user has target AND target is NOT achieved
+  // This determines if main withdraw should be disabled
+  const isMainWithdrawDisabled = useMemo(() => {
+    if (!hasTarget) return false; // No target = can withdraw freely
+    if (isTargetAchieved) return false; // Target achieved = can withdraw freely
+    return true; // Has target but not achieved = DISABLED
+  }, [hasTarget, isTargetAchieved]);
+
   // ✅ ADDED: Check user target
   async function checkUserTarget() {
     try {
@@ -167,6 +175,12 @@ export default function WithdrawPage() {
       console.error("Failed to refresh target:", err);
     }
   }
+
+  // ✅ ADDED: Check if target is achieved
+  const isTargetAchieved = useMemo(() => {
+    if (!hasTarget) return false;
+    return targetProgress.currentProfit >= targetProgress.targetAmount;
+  }, [hasTarget, targetProgress]);
 
   // ✅ ADDED: Open profit withdrawal modal
   function openProfitWithdrawal() {
@@ -248,6 +262,12 @@ export default function WithdrawPage() {
       return;
     }
 
+    // ✅ ADDED: Check if main withdraw is disabled due to target not achieved
+    if (isMainWithdrawDisabled) {
+      showError("You have an active target that is not yet achieved. Please withdraw from profits only, or achieve your target first.");
+      return;
+    }
+
     if (!form.address.trim()) {
       showError("Please enter a valid wallet address.");
       return;
@@ -325,13 +345,6 @@ export default function WithdrawPage() {
     if (targetProgress.targetAmount <= 0) return 0;
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
-  // ========== ADD THIS CODE ==========
-  // Check if target is achieved
-  const isTargetAchieved = useMemo(() => {
-    if (!hasTarget) return false;
-    return targetProgress.currentProfit >= targetProgress.targetAmount;
-  }, [hasTarget, targetProgress]);
-  // ========== END ADDED CODE ==========
 
   function renderKycCard() {
     if (kycLoading) {
@@ -448,7 +461,8 @@ export default function WithdrawPage() {
               <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
             </div>
           </div>
-           {/* ========== ADDED: Different message based on target achievement ========== */}
+
+          {/* ✅ FIXED: Single block without duplicate */}
           {isTargetAchieved ? (
             <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
               <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span>
@@ -469,20 +483,6 @@ export default function WithdrawPage() {
               )}
             </div>
           )}
-          <div className="mt-2 text-xs text-slate-400">
-            {targetProgress.currentProfit > 0 ? (
-              <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. 
-                <button 
-                  onClick={openProfitWithdrawal}
-                  className="ml-1 text-cyan-400 hover:text-cyan-300"
-                >
-                  Withdraw profits now →
-                </button>
-              </span>
-            ) : (
-              <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>
-            )}
-          </div>
         </div>
       )}
 
@@ -522,6 +522,20 @@ export default function WithdrawPage() {
               </div>
             </div>
 
+            {/* ✅ ADDED: Warning banner when main withdraw is disabled due to target not achieved */}
+            {isMainWithdrawDisabled && (
+              <div className="mx-5 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                <div className="flex items-start gap-2">
+                  <Target size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                  <div className="text-xs text-amber-300">
+                    You have an active target that is not yet achieved. 
+                    Please use the <strong>"Withdraw Profits"</strong> button below to withdraw from your profits only.
+                    Main withdrawal is disabled until you achieve your target.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4 p-5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -536,7 +550,7 @@ export default function WithdrawPage() {
                       })
                     }
                     className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
-                    disabled={!isKycApproved}
+                    disabled={!isKycApproved || isMainWithdrawDisabled}
                   >
                     {Object.keys(NETWORK_OPTIONS).map((c) => (
                       <option key={c}>{c}</option>
@@ -552,7 +566,7 @@ export default function WithdrawPage() {
                       setForm({ ...form, network: e.target.value })
                     }
                     className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
-                    disabled={!isKycApproved}
+                    disabled={!isKycApproved || isMainWithdrawDisabled}
                   >
                     {availableNetworks.map((n) => (
                       <option key={n}>{n}</option>
@@ -571,7 +585,7 @@ export default function WithdrawPage() {
                     setForm({ ...form, address: e.target.value })
                   }
                   className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
-                  disabled={!isKycApproved}
+                  disabled={!isKycApproved || isMainWithdrawDisabled}
                 />
               </div>
 
@@ -585,17 +599,19 @@ export default function WithdrawPage() {
                     setForm({ ...form, amount: e.target.value })
                   }
                   className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
-                  disabled={!isKycApproved}
+                  disabled={!isKycApproved || isMainWithdrawDisabled}
                 />
               </div>
 
               <ActionButton
                 type="submit"
-                disabled={submitting || !isKycApproved}
+                disabled={submitting || !isKycApproved || isMainWithdrawDisabled}
                 className="w-full"
               >
                 {submitting
                   ? "Processing..."
+                  : isMainWithdrawDisabled
+                  ? "Withdraw Disabled (Target Active)"
                   : isKycApproved
                   ? "Withdraw"
                   : "KYC Required"}
@@ -619,8 +635,8 @@ export default function WithdrawPage() {
                 </div>
               </div>
 
-              {/* ✅ ADDED: Profit Balance Section */}
-              {hasTarget && targetProgress.currentProfit > 0 && (
+              {/* ✅ ADDED: Profit Balance Section - Always show if has target */}
+              {hasTarget && (
                 <div className="rounded-[24px] border border-cyan-500/20 bg-cyan-500/10 p-4">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-cyan-300">Profit Balance (Before Target)</div>
@@ -635,7 +651,8 @@ export default function WithdrawPage() {
                   <button
                     type="button"
                     onClick={openProfitWithdrawal}
-                    className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition"
+                    disabled={targetProgress.currentProfit <= 0}
+                    className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Withdraw Profits
                   </button>
