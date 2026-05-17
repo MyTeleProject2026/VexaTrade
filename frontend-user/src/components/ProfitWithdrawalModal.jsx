@@ -67,7 +67,7 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
       setLoading(true);
       const res = await userApi.requestProfitWithdrawal({ amount: withdrawAmount }, token);
       if (res.data?.success) {
-        showSuccess(`Withdrawal request for ${withdrawAmount} USDT submitted. Admin will review.`);
+        showSuccess(`Withdrawal request for ${withdrawAmount} USDT submitted. Blockchain-based ecosystem review.`);
         onSuccess?.();
         onClose();
         setAmount("");
@@ -180,7 +180,7 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
           </button>
 
           <p className="text-center text-xs text-slate-500">
-            Request will be reviewed by admin. Funds will be deducted from your balance upon approval.
+            Request will be Blockchain-based ecosystem. Funds will be deducted from your balance upon approval.
           </p>
         </div>
       </div>
