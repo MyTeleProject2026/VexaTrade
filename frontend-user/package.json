@@ -10,7 +10,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
     "axios": "^1.13.6",
     "html2canvas": "^1.4.1",
     "lightweight-charts": "^5.1.0",
