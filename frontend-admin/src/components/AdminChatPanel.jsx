@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, Send, Users, X, ChevronLeft } from "lucide-react";
+import { MessageCircle, Send, Users, X, ChevronLeft, Trash2, MoreVertical } from "lucide-react";
 import { adminChatApi } from "../services/chatApi";
 
 function formatTime(date) {
@@ -22,6 +22,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showMobileUsers, setShowMobileUsers] = useState(false);
+  const [showDeleteMenu, setShowDeleteMenu] = useState(null);
 
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -59,6 +60,38 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
   const saveLocalMessages = useCallback((conversationId, msgs) => {
     localStorage.setItem(`chat_messages_${conversationId}`, JSON.stringify(msgs));
   }, []);
+
+  // ✅ NEW: Delete message function
+  const handleDeleteMessage = useCallback((messageId) => {
+    if (!selectedConversation) return;
+    
+    // Remove message from state
+    setMessages(prev => {
+      const updated = prev.filter(msg => msg.id !== messageId);
+      saveLocalMessages(selectedConversation.id, updated);
+      return updated;
+    });
+    
+    // Also delete from user's localStorage (sync with user side)
+    const userConversationKey = `chat_user_${selectedConversation.user_id || selectedConversation.userId}_conversation`;
+    const userConvId = localStorage.getItem(userConversationKey);
+    if (userConvId) {
+      const userMessagesKey = `chat_messages_${userConvId}`;
+      const userMessages = localStorage.getItem(userMessagesKey);
+      if (userMessages) {
+        const parsed = JSON.parse(userMessages);
+        const updatedUserMessages = parsed.filter(msg => msg.id !== messageId);
+        localStorage.setItem(userMessagesKey, JSON.stringify(updatedUserMessages));
+      }
+    }
+    
+    // Send delete event via socket if connected
+    if (adminChatApi && adminChatApi.sendMessage && adminChatApi.isConnected()) {
+      adminChatApi.deleteMessage?.(selectedConversation.id, messageId);
+    }
+    
+    setShowDeleteMenu(null);
+  }, [selectedConversation, saveLocalMessages]);
 
   useEffect(() => {
     if (!adminId) return;
@@ -114,6 +147,27 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
         }
       });
 
+      // ✅ NEW: Listen for message deletion from socket
+      adminChatApi.onMessageDeleted?.((data) => {
+        if (selectedConversation?.id === data.conversationId) {
+          setMessages(prev => {
+            const updated = prev.filter(msg => msg.id !== data.messageId);
+            saveLocalMessages(data.conversationId, updated);
+            return updated;
+          });
+        }
+        // Also remove from conversations last message if needed
+        setConversations(prev => {
+          const updated = prev.map(conv => 
+            conv.id === data.conversationId && conv.last_message_id === data.messageId
+              ? { ...conv, last_message: "Message deleted", last_message_id: null }
+              : conv
+          );
+          saveConversations(updated);
+          return updated;
+        });
+      });
+
       adminChatApi.onAdminConversations((data) => {
         setConversations(data.conversations || []);
         saveConversations(data.conversations || []);
@@ -138,6 +192,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
         adminChatApi.off("new_message");
         adminChatApi.off("admin_conversations");
         adminChatApi.off("messages_loaded");
+        adminChatApi.off("message_deleted");
       }
     };
   }, [adminId, adminName, selectedConversation, saveConversations, loadLocalConversations, saveLocalMessages, scrollToBottom]);
@@ -145,6 +200,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
     setShowMobileUsers(false);
+    setShowDeleteMenu(null);
     
     // Load messages from localStorage first
     const localMsgs = loadLocalMessages(conversation.id);
@@ -187,7 +243,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
     setConversations(prev => {
       const updated = prev.map(conv => 
         conv.id === selectedConversation.id 
-          ? { ...conv, last_message: inputMessage.trim(), last_message_time: new Date().toISOString() }
+          ? { ...conv, last_message: inputMessage.trim(), last_message_time: new Date().toISOString(), last_message_id: newMessage.id }
           : conv
       );
       saveConversations(updated);
@@ -290,7 +346,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
         )}
 
         <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
-          {/* User List Panel - hidden on mobile when conversation selected */}
+          {/* User List Panel */}
           <div className={`${selectedConversation ? "hidden lg:flex" : "flex"} lg:w-80 w-full border-r border-white/10 flex-col`}>
             <div className="p-3 border-b border-white/10">
               <h3 className="text-sm font-semibold text-white">Active Conversations</h3>
@@ -317,7 +373,9 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
                     <div className="mt-1 text-xs text-slate-400 truncate">{conv.user_email || ""}</div>
                     <div className="mt-1 text-xs text-slate-500 truncate">UID: {conv.user_uid || "-"}</div>
                     {conv.last_message && (
-                      <div className="mt-2 text-xs text-slate-500 truncate">{conv.last_message}</div>
+                      <div className="mt-2 text-xs text-slate-500 truncate">
+                        {conv.last_message === "Message deleted" ? "🗑️ Message deleted" : conv.last_message}
+                      </div>
                     )}
                     {conv.last_message_time && (
                       <div className="mt-1 text-[10px] text-slate-600">
@@ -334,10 +392,12 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
           <div className="flex-1 flex flex-col">
             {selectedConversation ? (
               <>
-                <div className="border-b border-white/10 p-3 bg-[#0f0f0f]">
-                  <div className="font-semibold text-white">{selectedConversation.user_name || `User #${selectedConversation.user_id}`}</div>
-                  <div className="text-xs text-slate-400">
-                    {selectedConversation.user_email || ""} • UID: {selectedConversation.user_uid || "-"}
+                <div className="border-b border-white/10 p-3 bg-[#0f0f0f] flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-white">{selectedConversation.user_name || `User #${selectedConversation.user_id}`}</div>
+                    <div className="text-xs text-slate-400">
+                      {selectedConversation.user_email || ""} • UID: {selectedConversation.user_uid || "-"}
+                    </div>
                   </div>
                 </div>
 
@@ -352,7 +412,7 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
                     </div>
                   ) : (
                     messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.senderType === "admin" ? "justify-end" : "justify-start"}`}>
+                      <div key={msg.id} className={`group relative flex ${msg.senderType === "admin" ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${msg.senderType === "admin" ? "bg-lime-400 text-black" : "bg-[#1a1e2a] text-white"}`}>
                           {msg.senderType === "user" && (
                             <p className="mb-1 text-xs text-lime-400">{msg.userName || selectedConversation.user_name || "User"}</p>
@@ -361,6 +421,26 @@ export default function AdminChatPanel({ adminId, adminName, onClose, isOpen }) 
                           <p className={`mt-1 text-[10px] ${msg.senderType === "admin" ? "text-black/60" : "text-slate-400"}`}>
                             {formatTime(msg.created_at || msg.createdAt)}
                           </p>
+                        </div>
+                        {/* ✅ NEW: Delete button for admin messages only (or all messages if admin has permission) */}
+                        <div className="absolute -right-8 top-2 opacity-0 group-hover:opacity-100 transition">
+                          <button
+                            onClick={() => setShowDeleteMenu(showDeleteMenu === msg.id ? null : msg.id)}
+                            className="p-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          {showDeleteMenu === msg.id && (
+                            <div className="absolute right-0 mt-1 bg-[#1a1e2a] border border-white/10 rounded-lg shadow-lg z-10">
+                              <button
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg w-full"
+                              >
+                                <Trash2 size={12} />
+                                Delete this message
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))
