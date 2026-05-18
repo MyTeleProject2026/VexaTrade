@@ -239,10 +239,10 @@ io.on('connection', (socket) => {
         );
         
         if (senderRole === 'user') {
-          await connection.execute(
-            `UPDATE chat_conversations SET unread_admin = unread_admin + 1, updated_at = NOW() WHERE id = ?`,
-            [convId]
-          );
+           await connection.execute(
+             `UPDATE chat_conversations SET unread_admin = unread_admin + 1, last_message = ?, last_message_id = ?, updated_at = NOW() WHERE id = ?`,
+             [message.trim(), msgResult.insertId, convId]
+           );
           
           io.to('admin_room').emit('new_message', {
             id: msgResult.insertId,
@@ -263,8 +263,8 @@ io.on('connection', (socket) => {
             const userId = convRows[0].user_id;
             
             await connection.execute(
-              `UPDATE chat_conversations SET unread_user = unread_user + 1, updated_at = NOW() WHERE id = ?`,
-              [convId]
+              `UPDATE chat_conversations SET unread_user = unread_user + 1, last_message = ?, last_message_id = ?, updated_at = NOW() WHERE id = ?`,
+              [message.trim(), msgResult.insertId, convId]
             );
             
             const userSocket = connectedUsers.get(userId);
@@ -409,6 +409,130 @@ io.on('connection', (socket) => {
       connection.release();
     }
   });
+
+   // ✅ DELETE MESSAGE HANDLER
+  socket.on('delete_message', async (data) => {
+    try {
+      const { conversationId, messageId } = data;
+      const senderId = socket.userId;
+      const senderRole = socket.role;
+      
+      if (!conversationId || !messageId) {
+        socket.emit('error', { message: 'Conversation ID and Message ID are required' });
+        return;
+      }
+      
+      const connection = await pool.getConnection();
+      
+      try {
+        // Check if user has permission to delete (admin only or message owner)
+        let hasPermission = false;
+        
+        if (senderRole === 'admin') {
+          hasPermission = true; // Admin can delete any message
+        } else {
+          // User can only delete their own messages that are not read yet
+          const [msgRows] = await connection.execute(
+            `SELECT sender_id, sender_type, is_read FROM chat_messages WHERE id = ?`,
+            [messageId]
+          );
+          
+          if (msgRows.length > 0 && msgRows[0].sender_type === 'user' && msgRows[0].sender_id === senderId) {
+            hasPermission = msgRows[0].is_read === 0; // Can only delete unread messages
+          }
+        }
+        
+        if (!hasPermission) {
+          socket.emit('error', { message: 'You do not have permission to delete this message' });
+          return;
+        }
+        
+        // Delete the message from database
+        await connection.execute(
+          `DELETE FROM chat_messages WHERE id = ?`,
+          [messageId]
+        );
+        
+        // Update last_message in conversation if needed
+        const [lastMsgRows] = await connection.execute(
+          `SELECT id, message FROM chat_messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`,
+          [conversationId]
+        );
+        
+        const lastMessage = lastMsgRows.length > 0 ? lastMsgRows[0].message : null;
+        const lastMessageId = lastMsgRows.length > 0 ? lastMsgRows[0].id : null;
+        
+        await connection.execute(
+          `UPDATE chat_conversations 
+           SET last_message = ?, last_message_id = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [lastMessage, lastMessageId, conversationId]
+        );
+        
+        console.log(`Message ${messageId} deleted from conversation ${conversationId} by ${senderRole}`);
+        
+        // Get conversation details to notify both participants
+        const [convRows] = await connection.execute(
+          `SELECT user_id FROM chat_conversations WHERE id = ?`,
+          [conversationId]
+        );
+        
+        if (convRows.length > 0) {
+          const userId = convRows[0].user_id;
+          
+          // Notify admin room
+          io.to('admin_room').emit('message_deleted', {
+            conversationId,
+            messageId,
+            deletedBy: senderRole,
+            deletedAt: new Date().toISOString()
+          });
+          
+          // Notify user if online
+          const userSocket = connectedUsers.get(userId);
+          if (userSocket) {
+            io.to(userSocket.socketId).emit('message_deleted', {
+              conversationId,
+              messageId,
+              deletedBy: senderRole,
+              deletedAt: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Also emit to the sender
+        socket.emit('message_deleted', {
+          conversationId,
+          messageId,
+          deletedBy: senderRole,
+          deletedAt: new Date().toISOString()
+        });
+        
+      } finally {
+        connection.release();
+      }
+    } catch (error) {
+      console.error('Delete message error:', error);
+      socket.emit('error', { message: error.message });
+    }
+  });
+  
+  // ✅ ADD: Join conversation room for real-time updates
+  socket.on('join_conversation', (conversationId) => {
+    if (conversationId) {
+      socket.join(`conversation_${conversationId}`);
+      console.log(`Socket ${socket.id} joined conversation room: conversation_${conversationId}`);
+    }
+  });
+  
+  // ✅ ADD: Leave conversation room
+  socket.on('leave_conversation', (conversationId) => {
+    if (conversationId) {
+      socket.leave(`conversation_${conversationId}`);
+      console.log(`Socket ${socket.id} left conversation room: conversation_${conversationId}`);
+    }
+  });
+
 
   socket.on('disconnect', () => {
     if (socket.userId) {
