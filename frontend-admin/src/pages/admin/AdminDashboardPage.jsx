@@ -160,6 +160,25 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
+  // ✅ ADDED: State for chat unread count
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  // ✅ ADDED: Effect to check unread messages from localStorage
+  useEffect(() => {
+    const checkUnreadMessages = () => {
+      try {
+        const conversations = JSON.parse(localStorage.getItem("chat_conversations_admin") || "[]");
+        const total = conversations.reduce((sum, conv) => sum + (conv.unread_admin || 0), 0);
+        setChatUnreadCount(total);
+      } catch (e) {
+        console.error("Error checking unread messages:", e);
+      }
+    };
+    
+    checkUnreadMessages();
+    const interval = setInterval(checkUnreadMessages, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     loadDashboard();
@@ -241,15 +260,25 @@ export default function AdminDashboardPage() {
       {/* ✅ ADDED: Toast Container */}
       <ToastContainer />
 
-      {/* ✅ ADDED: Chat Panel */}
-      <AdminChatPanel adminId={adminId} adminName={adminName} />
+      {/* ✅ FIXED: Chat Panel - Now properly controlled with isOpen and onClose */}
+      <AdminChatPanel 
+        adminId={adminId} 
+        adminName={adminName} 
+        isOpen={showChatPanel}
+        onClose={() => setShowChatPanel(false)}
+      />
       
-      {/* ✅ ADDED: Chat Toggle Button (floating) */}
+      {/* ✅ FIXED: Chat Toggle Button with notification badge */}
       <button
-        onClick={() => setShowChatPanel(!showChatPanel)}
-        className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-black shadow-lg transition hover:bg-lime-300 md:bottom-6"
+        onClick={() => setShowChatPanel(true)}
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-lime-400 to-green-500 text-black shadow-lg transition hover:scale-105 hover:shadow-lime-500/25"
       >
-        <MessageCircle size={20} />
+        <MessageCircle size={24} />
+        {chatUnreadCount > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+            {chatUnreadCount > 9 ? "9+" : chatUnreadCount}
+          </span>
+        )}
       </button>
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-xl">
