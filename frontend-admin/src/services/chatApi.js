@@ -5,22 +5,165 @@ let isConnected = false;
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
+// Local storage helpers for fallback
+const getLocalConversations = (adminId) => {
+  const stored = localStorage.getItem(`chat_admin_${adminId}_conversations`);
+  return stored ? JSON.parse(stored) : [];
+};
+
+const saveLocalConversation = (adminId, conversationId, message) => {
+  const convKey = `chat_admin_${adminId}_conversations`;
+  const existing = getLocalConversations(adminId);
+  const existingConv = existing.find(c => c.id === conversationId);
+  
+  if (existingConv) {
+    existingConv.last_message = message;
+    existingConv.last_message_time = new Date().toISOString();
+    existingConv.unread_admin = (existingConv.unread_admin || 0) + 1;
+  } else {
+    existing.push({
+      id: conversationId,
+      last_message: message,
+      last_message_time: new Date().toISOString(),
+      unread_admin: 1
+    });
+  }
+  
+  localStorage.setItem(convKey, JSON.stringify(existing));
+};
+
 export const adminChatApi = {
-  connect: (adminId, adminName, token) => {
+  connect: (adminId, name, token) => {
     if (socket && isConnected) return socket;
-    socket = io(API_BASE_URL, { transports: ["websocket", "polling"], withCredentials: true });
-    socket.on("connect", () => { isConnected = true; socket.emit("authenticate", { userId: adminId, role: "admin", name: adminName, token }); });
-    socket.on("disconnect", () => { isConnected = false; });
+    
+    try {
+      socket = io(API_BASE_URL, { 
+        transports: ["websocket", "polling"], 
+        withCredentials: true,
+        timeout: 10000
+      });
+      
+      socket.on("connect", () => { 
+        isConnected = true; 
+        socket.emit("authenticate", { userId: adminId, role: "admin", name, token }); 
+      });
+      
+      socket.on("disconnect", () => { 
+        isConnected = false; 
+      });
+      
+      socket.on("connect_error", (err) => {
+        console.error("Socket connection error:", err);
+        isConnected = false;
+      });
+    } catch (err) {
+      console.error("Failed to connect socket:", err);
+      isConnected = false;
+    }
+    
     return socket;
   },
-  disconnect: () => { if (socket) { socket.disconnect(); socket = null; isConnected = false; } },
+  
+  disconnect: () => { 
+    if (socket) { 
+      socket.disconnect(); 
+      socket = null; 
+      isConnected = false; 
+    } 
+  },
+  
   getSocket: () => socket,
   isConnected: () => isConnected,
-  getMessages: (conversationId) => { if (socket && isConnected) socket.emit("get_messages", { conversationId }); },
-  sendMessage: (conversationId, message) => { if (socket && isConnected) socket.emit("send_message", { conversationId, message }); },
-  markRead: (conversationId) => { if (socket && isConnected) socket.emit("mark_read", { conversationId }); },
-  onNewMessage: (callback) => { if (socket) socket.on("new_message", callback); },
-  onAdminConversations: (callback) => { if (socket) socket.on("admin_conversations", callback); },
-  onMessagesLoaded: (callback) => { if (socket) socket.on("messages_loaded", callback); },
-  off: (event) => { if (socket) socket.off(event); }
+  
+  sendMessage: (conversationId, message) => { 
+    if (socket && isConnected) {
+      socket.emit("send_message", { conversationId, message });
+    }
+    // Store in localStorage as fallback
+    const convKey = `chat_messages_${conversationId}`;
+    const existing = localStorage.getItem(convKey);
+    const messages = existing ? JSON.parse(existing) : [];
+    messages.push({
+      id: Date.now(),
+      message: message,
+      senderType: "admin",
+      createdAt: new Date().toISOString(),
+      read: true
+    });
+    localStorage.setItem(convKey, JSON.stringify(messages));
+  },
+  
+  // ✅ DELETE MESSAGE METHOD
+  deleteMessage: (conversationId, messageId) => { 
+    if (socket && isConnected) {
+      socket.emit("delete_message", { conversationId, messageId });
+    }
+    // Also delete from localStorage
+    const convKey = `chat_messages_${conversationId}`;
+    const stored = localStorage.getItem(convKey);
+    if (stored) {
+      const messages = JSON.parse(stored);
+      const updated = messages.filter(msg => msg.id !== messageId);
+      localStorage.setItem(convKey, JSON.stringify(updated));
+    }
+  },
+  
+  getMessages: (conversationId) => { 
+    if (socket && isConnected) {
+      socket.emit("get_messages", { conversationId });
+    } else {
+      // Load from localStorage
+      const convKey = `chat_messages_${conversationId}`;
+      const stored = localStorage.getItem(convKey);
+      const messages = stored ? JSON.parse(stored) : [];
+      if (adminChatApi._messagesCallback) {
+        adminChatApi._messagesCallback({ messages, conversationId });
+      }
+    }
+  },
+  
+  markRead: (conversationId) => { 
+    if (socket && isConnected) {
+      socket.emit("mark_read", { conversationId });
+    }
+    // Mark messages as read in localStorage
+    const convKey = `chat_messages_${conversationId}`;
+    const stored = localStorage.getItem(convKey);
+    if (stored) {
+      const messages = JSON.parse(stored);
+      const updated = messages.map(msg => 
+        msg.senderType === "user" ? { ...msg, read: true } : msg
+      );
+      localStorage.setItem(convKey, JSON.stringify(updated));
+    }
+  },
+  
+  getConversations: () => { 
+    if (socket && isConnected) {
+      socket.emit("get_conversations"); 
+    }
+  },
+  
+  onNewMessage: (callback) => { 
+    if (socket) socket.on("new_message", callback);
+    adminChatApi._newMessageCallback = callback;
+  },
+  
+  onMessagesLoaded: (callback) => { 
+    if (socket) socket.on("messages_loaded", callback);
+    adminChatApi._messagesCallback = callback;
+  },
+  
+  onAdminConversations: (callback) => { 
+    if (socket) socket.on("admin_conversations", callback);
+  },
+  
+  // ✅ ON MESSAGE DELETED EVENT
+  onMessageDeleted: (callback) => { 
+    if (socket) socket.on("message_deleted", callback);
+  },
+  
+  off: (event) => { 
+    if (socket) socket.off(event); 
+  }
 };
