@@ -102,6 +102,9 @@ export default function ProfilePage() {
     avatarPreview: "",
   });
 
+  // ✅ ADDED: State for chat widget visibility
+  const [showChat, setShowChat] = useState(false);
+
   // ✅ ADDED: Get user info for chat widget
   const userId = profile?.id || null;
   const userName = profile?.name || profile?.email?.split("@")[0] || "User";
@@ -129,6 +132,7 @@ export default function ProfilePage() {
         country: user.country || "Not set",
         avatar_url: user.avatar_url || user.profile_image || "",
         trading_fee_tier: user.trading_fee_tier || "Regular user",
+        id: user.id || user.user_id || null,
       };
 
       setProfile(nextProfile);
@@ -279,8 +283,14 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-5 bg-[#050812] px-2 pb-24 pt-3 sm:px-6 xl:pb-8">
-      {/* ✅ ADDED: Chat Widget */}
-      <ChatWidget userId={profile.id} userName={profile.name || profile.email?.split("@")[0]} />
+      {/* ✅ FIXED: Chat Widget - Now properly opens when clicked */}
+      {profile?.id && (
+        <ChatWidget 
+          userId={profile.id.toString()} 
+          userName={profile.name || profile.email?.split("@")[0] || "User"} 
+        />
+      )}
+      
       <section className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <button
@@ -338,8 +348,8 @@ export default function ProfilePage() {
       >
         <div className="grid grid-cols-4 gap-2 sm:gap-4">
           <QuickIcon icon={Headphones} label="Get help" onClick={() => navigate("/support")} />
-          {/* ✅ ADDED: Chat icon in Shortcuts */}
-          <QuickIcon icon={MessageCircle} label="Live Chat" onClick={() => {}} />
+          {/* ✅ FIXED: Live Chat button - Now opens the chat widget */}
+          <QuickIcon icon={MessageCircle} label="Live Chat" onClick={() => setShowChat(true)} />
           <QuickIcon icon={Gift} label="Referral" onClick={() => navigate("/referral")} />
           <QuickIcon icon={FileText} label="Legal Docs" onClick={() => navigate("/legal-documents")} />
           <QuickIcon icon={ArrowRightLeft} label="Trading" onClick={() => navigate("/trade")} />
