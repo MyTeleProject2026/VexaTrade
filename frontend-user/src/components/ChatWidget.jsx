@@ -1,17 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, X, Send, Minimize2, Maximize2, ChevronLeft } from "lucide-react";
+import { MessageCircle, X, Send, Trash2 } from "lucide-react";
 import { chatApi } from "../services/chatApi";
 
 function formatTime(date) {
   if (!date) return "";
   const d = new Date(date);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatDate(date) {
-  if (!date) return "";
-  const d = new Date(date);
-  return d.toLocaleDateString();
 }
 
 export default function ChatWidget({ userId, userName }) {
@@ -22,10 +16,8 @@ export default function ChatWidget({ userId, userName }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -127,6 +119,17 @@ export default function ChatWidget({ userId, userName }) {
         }
       });
 
+      // ✅ NEW: Listen for message deletion from admin
+      chatApi.onMessageDeleted?.((data) => {
+        if (data.conversationId === conversationId) {
+          setMessages(prev => {
+            const updated = prev.filter(msg => msg.id !== data.messageId);
+            saveMessages(updated);
+            return updated;
+          });
+        }
+      });
+
       chatApi.onMessagesLoaded((data) => {
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
@@ -140,6 +143,7 @@ export default function ChatWidget({ userId, userName }) {
       if (chatApi && chatApi.off) {
         chatApi.off("new_message");
         chatApi.off("messages_loaded");
+        chatApi.off("message_deleted");
       }
     };
   }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
@@ -234,7 +238,7 @@ export default function ChatWidget({ userId, userName }) {
         </div>
 
         {/* Messages Area */}
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
               <div className="animate-pulse">Loading messages...</div>
