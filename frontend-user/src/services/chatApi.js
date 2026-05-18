@@ -129,6 +129,21 @@ export const chatApi = {
     }
   },
   
+  // ✅ DELETE METHOD - Properly placed inside the object
+  deleteMessage: (conversationId, messageId) => { 
+    if (socket && isConnected) {
+      socket.emit("delete_message", { conversationId, messageId });
+    }
+    // Also delete from localStorage
+    const convKey = `chat_messages_${conversationId}`;
+    const stored = localStorage.getItem(convKey);
+    if (stored) {
+      const messages = JSON.parse(stored);
+      const updated = messages.filter(msg => msg.id !== messageId);
+      localStorage.setItem(convKey, JSON.stringify(updated));
+    }
+  },
+  
   onNewMessage: (callback) => { 
     if (socket) socket.on("new_message", callback);
     chatApi._newMessageCallback = callback;
@@ -141,6 +156,11 @@ export const chatApi = {
   
   onUserConversations: (callback) => { 
     if (socket) socket.on("user_conversations", callback);
+  },
+  
+  // ✅ ON MESSAGE DELETED - Properly placed inside the object
+  onMessageDeleted: (callback) => { 
+    if (socket) socket.on("message_deleted", callback);
   },
   
   off: (event) => { 
