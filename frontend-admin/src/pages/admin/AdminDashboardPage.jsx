@@ -152,6 +152,8 @@ export default function AdminDashboardPage() {
     todayTrades: 0,
     totalBalance: 0,
     pendingLoans: 0,
+    emailVerifiedUsers: 0,        // ✅ ADDED
+    pendingJointAccounts: 0,      // ✅ ADDED
   });
 
   const [notifications, setNotifications] = useState([]);
@@ -198,16 +200,30 @@ export default function AdminDashboardPage() {
       else setRefreshing(true);
 
       const res = await adminApi.getDashboardStats(token);
-      setStats(res.data?.data || {});
+      const dashboardData = res.data?.data || {};
       
-      // ✅ ADDED: Success toast for silent refresh (optional)
+      setStats({
+        totalUsers: dashboardData.totalUsers || 0,
+        activeUsers: dashboardData.activeUsers || 0,
+        pendingKyc: dashboardData.pendingKyc || 0,
+        totalDeposits: dashboardData.totalDeposits || 0,
+        pendingDeposits: dashboardData.pendingDeposits || 0,
+        totalWithdrawals: dashboardData.totalWithdrawals || 0,
+        pendingWithdrawals: dashboardData.pendingWithdrawals || 0,
+        totalTrades: dashboardData.totalTrades || 0,
+        todayTrades: dashboardData.todayTrades || 0,
+        totalBalance: dashboardData.totalBalance || 0,
+        pendingLoans: dashboardData.pendingLoans || 0,
+        emailVerifiedUsers: dashboardData.emailVerifiedUsers || 0,
+        pendingJointAccounts: dashboardData.pendingJointAccounts || 0,
+      });
+      
       if (silent) {
         addToast("Dashboard data refreshed successfully", "success");
       }
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setLoading(false);
@@ -221,7 +237,6 @@ export default function AdminDashboardPage() {
       setNotifications(res.data?.data || []);
     } catch (err) {
       console.error("Failed to load notifications:", err);
-      // ✅ ADDED: Error toast for notification load failure
       addToast("Failed to load notifications", "error");
     }
   }
@@ -230,11 +245,9 @@ export default function AdminDashboardPage() {
     try {
       await adminApi.markNotificationRead?.(id, token);
       await loadNotifications(true);
-      // ✅ ADDED: Success toast
       addToast("Notification marked as read", "success");
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
-      // ✅ ADDED: Error toast
       addToast("Failed to mark notification as read", "error");
     }
   }
