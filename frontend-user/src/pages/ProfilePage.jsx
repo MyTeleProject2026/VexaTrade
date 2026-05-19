@@ -95,6 +95,7 @@ export default function ProfilePage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showChat, setShowChat] = useState(false);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -102,10 +103,6 @@ export default function ProfilePage() {
     avatarPreview: "",
   });
 
-  // ✅ ADDED: State for chat widget visibility
-  const [showChat, setShowChat] = useState(false);
-
-  // ✅ ADDED: Get user info for chat widget
   const userId = profile?.id || null;
   const userName = profile?.name || profile?.email?.split("@")[0] || "User";
 
@@ -283,11 +280,13 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-5 bg-[#050812] px-2 pb-24 pt-3 sm:px-6 xl:pb-8">
-      {/* ✅ FIXED: Chat Widget - Now properly opens when clicked */}
+      {/* Chat Widget - shows when showChat is true OR user clicks floating button */}
       {profile?.id && (
         <ChatWidget 
           userId={profile.id.toString()} 
           userName={profile.name || profile.email?.split("@")[0] || "User"} 
+          isOpen={showChat}
+          onClose={() => setShowChat(false)}
         />
       )}
       
@@ -348,7 +347,7 @@ export default function ProfilePage() {
       >
         <div className="grid grid-cols-4 gap-2 sm:gap-4">
           <QuickIcon icon={Headphones} label="Get help" onClick={() => navigate("/support")} />
-          {/* ✅ FIXED: Live Chat button - Now opens the chat widget */}
+          {/* Live Chat button - opens the chat widget */}
           <QuickIcon icon={MessageCircle} label="Live Chat" onClick={() => setShowChat(true)} />
           <QuickIcon icon={Gift} label="Referral" onClick={() => navigate("/referral")} />
           <QuickIcon icon={FileText} label="Legal Docs" onClick={() => navigate("/legal-documents")} />
