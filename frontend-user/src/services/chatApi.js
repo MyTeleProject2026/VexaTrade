@@ -157,6 +157,10 @@ export const chatApi = {
   onUserConversations: (callback) => { 
     if (socket) socket.on("user_conversations", callback);
   },
+
+  onConversationCreated: (callback) => { 
+    if (socket) socket.on("conversation_created", callback);
+  },
   
   // ✅ ON MESSAGE DELETED - Properly placed inside the object
   onMessageDeleted: (callback) => { 
