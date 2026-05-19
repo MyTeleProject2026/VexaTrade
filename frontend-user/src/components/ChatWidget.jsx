@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, X, Send, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send } from "lucide-react";
 import { chatApi } from "../services/chatApi";
 
 function formatTime(date) {
@@ -8,8 +8,8 @@ function formatTime(date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatWidget({ userId, userName }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, onClose: externalOnClose }) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [inputMessage, setInputMessage] = useState("");
@@ -18,6 +18,17 @@ export default function ChatWidget({ userId, userName }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
+
+  // Use external open state if provided, otherwise use internal
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+  const handleClose = externalOnClose || (() => setInternalIsOpen(false));
+  const handleOpen = () => {
+    if (externalOnClose) {
+      // If external control, we need to communicate up
+      // For now, just set internal
+    }
+    setInternalIsOpen(true);
+  };
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,30 +56,12 @@ export default function ChatWidget({ userId, userName }) {
         try {
           const parsed = JSON.parse(storedMessages);
           setMessages(parsed);
-          // Count unread messages from admin
           const unread = parsed.filter(msg => msg.senderType === "admin" && !msg.read).length;
           setUnreadCount(unread);
         } catch (e) {
           console.error("Error loading messages:", e);
         }
       }
-    } else {
-      // Create new conversation ID
-      const newConvId = `conv_${userId}_${Date.now()}`;
-      setConversationId(newConvId);
-      localStorage.setItem(storedKey, newConvId);
-      
-      // Add welcome message
-      const welcomeMsg = [{
-        id: Date.now(),
-        message: "Hello! Welcome to VexaTrade Support. How can we help you today?",
-        senderType: "admin",
-        createdAt: new Date().toISOString(),
-        read: false
-      }];
-      setMessages(welcomeMsg);
-      localStorage.setItem(`chat_messages_${newConvId}`, JSON.stringify(welcomeMsg));
-      setUnreadCount(1);
     }
   };
 
@@ -119,7 +112,6 @@ export default function ChatWidget({ userId, userName }) {
         }
       });
 
-      // ✅ NEW: Listen for message deletion from admin
       chatApi.onMessageDeleted?.((data) => {
         if (data.conversationId === conversationId) {
           setMessages(prev => {
@@ -137,6 +129,15 @@ export default function ChatWidget({ userId, userName }) {
         }
         setIsLoading(false);
       });
+      
+      // Also listen for conversation ID from server
+      chatApi.onConversationCreated?.((data) => {
+        if (data.conversationId && !conversationId) {
+          setConversationId(data.conversationId);
+          const storedKey = `chat_user_${userId}_conversation`;
+          localStorage.setItem(storedKey, data.conversationId);
+        }
+      });
     }
 
     return () => {
@@ -144,6 +145,7 @@ export default function ChatWidget({ userId, userName }) {
         chatApi.off("new_message");
         chatApi.off("messages_loaded");
         chatApi.off("message_deleted");
+        chatApi.off("conversation_created");
       }
     };
   }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
@@ -165,8 +167,7 @@ export default function ChatWidget({ userId, userName }) {
       return updated;
     });
     
-    // Send via socket if connected
-    if (chatApi && chatApi.sendMessage && conversationId) {
+    if (chatApi && chatApi.sendMessage) {
       chatApi.sendMessage(conversationId, inputMessage.trim());
     }
     
@@ -181,9 +182,12 @@ export default function ChatWidget({ userId, userName }) {
     }
   };
 
-  const handleOpen = () => {
-    setIsOpen(true);
-    // Mark messages as read when opening
+  const onOpen = () => {
+    if (externalOnClose) {
+      // If we have external control, we need to notify parent
+      // For now, use internal
+    }
+    setInternalIsOpen(true);
     setMessages(prev => {
       const updated = prev.map(msg => 
         msg.senderType === "admin" ? { ...msg, read: true } : msg
@@ -193,20 +197,19 @@ export default function ChatWidget({ userId, userName }) {
     });
     setUnreadCount(0);
     
-    // Mark as read via API
     if (chatApi && chatApi.markRead && conversationId) {
       chatApi.markRead(conversationId);
     }
   };
 
-  const handleClose = () => {
-    setIsOpen(false);
+  const onCloseHandler = () => {
+    handleClose();
   };
 
   if (!isOpen) {
     return (
       <button
-        onClick={handleOpen}
+        onClick={onOpen}
         className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-lime-400 to-green-500 text-black shadow-lg transition hover:scale-105 hover:shadow-lime-500/25 md:bottom-6"
       >
         {unreadCount > 0 && (
@@ -222,7 +225,6 @@ export default function ChatWidget({ userId, userName }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="flex h-[85vh] w-full max-w-lg flex-col bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3">
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="text-lime-400" />
@@ -230,14 +232,13 @@ export default function ChatWidget({ userId, userName }) {
             {isConnected && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
           </div>
           <button
-            onClick={handleClose}
+            onClick={onCloseHandler}
             className="rounded-lg p-1 text-slate-400 hover:text-white transition"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
@@ -275,7 +276,6 @@ export default function ChatWidget({ userId, userName }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="border-t border-white/10 bg-[#111111] p-3">
           <div className="flex gap-2">
             <textarea
