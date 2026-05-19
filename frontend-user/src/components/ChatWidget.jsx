@@ -167,8 +167,9 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
       return updated;
     });
     
+    // ✅ FIX: Send null instead of undefined for conversationId
     if (chatApi && chatApi.sendMessage) {
-      chatApi.sendMessage(conversationId, inputMessage.trim());
+      chatApi.sendMessage(conversationId || null, inputMessage.trim());
     }
     
     setInputMessage("");
