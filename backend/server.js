@@ -223,6 +223,7 @@ io.on('connection', (socket) => {
             [senderId, message.trim()]
           );
           convId = result.insertId;
+          socket.emit('conversation_created', { conversationId: convId });
         } else {
           await connection.execute(
             `UPDATE chat_conversations 
