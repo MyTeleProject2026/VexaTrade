@@ -8343,26 +8343,86 @@ app.get("/api/funds/plans", authenticateUser, async (req, res, next) => {
 });
 
 // Assign private plan to specific user
+// Assign private plan to specific user
 app.post("/api/admin/fund-rules/:planId/assign-user", authenticateAdmin, async (req, res, next) => {
   try {
-    const planId = Number(req.params.id);
+    const planId = Number(req.params.planId);  // ✅ FIXED: Use correct param name
     const { userId } = req.body;
-    if (!planId || !userId) return res.status(400).json({ success: false, message: "Plan ID and User ID are required" });
-    await pool.execute(`INSERT IGNORE INTO user_plan_assignments (plan_id, user_id, assigned_by, created_at) VALUES (?, ?, ?, NOW())`, [planId, userId, req.admin.id]);
-    await createAuditLog(pool, { adminId: req.admin.id, action: "assign_private_plan", targetUserId: userId, referenceId: planId, note: `Assigned private plan #${planId} to user #${userId}` });
-    res.json({ success: true, message: "Private plan assigned to user successfully" });
-  } catch (error) { next(error); }
+    
+    if (!planId || !userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Plan ID and User ID are required" 
+      });
+    }
+    
+    // Check if plan exists
+    const [planRows] = await pool.execute(
+      "SELECT id, name FROM fund_plans WHERE id = ?",
+      [planId]
+    );
+    
+    if (!planRows.length) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Plan not found" 
+      });
+    }
+    
+    // Check if user exists
+    const [userRows] = await pool.execute(
+      "SELECT id, uid, name FROM users WHERE id = ?",
+      [userId]
+    );
+    
+    if (!userRows.length) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+    
+    // Insert assignment (prevent duplicate)
+    await pool.execute(
+      `INSERT IGNORE INTO user_plan_assignments (plan_id, user_id, assigned_by, created_at) 
+       VALUES (?, ?, ?, NOW())`,
+      [planId, userId, req.admin.id]
+    );
+    
+    await createAuditLog(pool, { 
+      adminId: req.admin.id, 
+      action: "assign_private_plan", 
+      targetUserId: userId, 
+      referenceId: planId, 
+      note: `Assigned private plan #${planId} to user #${userId}` 
+    });
+    
+    res.json({ 
+      success: true, 
+      message: "Private plan assigned to user successfully" 
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Get users assigned to a private plan
+// Get users assigned to a private plan
 app.get("/api/admin/fund-rules/:planId/assigned-users", authenticateAdmin, async (req, res, next) => {
   try {
-    const planId = Number(req.params.id);
-    const [rows] = await pool.execute(`SELECT upa.*, u.uid, u.name, u.email FROM user_plan_assignments upa JOIN users u ON u.id = upa.user_id WHERE upa.plan_id = ?`, [planId]);
+    const planId = Number(req.params.planId);  // ✅ This one might be correct
+    const [rows] = await pool.execute(
+      `SELECT upa.*, u.uid, u.name, u.email 
+       FROM user_plan_assignments upa 
+       JOIN users u ON u.id = upa.user_id 
+       WHERE upa.plan_id = ?`,
+      [planId]
+    );
     res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
+  } catch (error) { 
+    next(error); 
+  }
 });
-
 // Remove user from private plan
 app.delete("/api/admin/fund-rules/:planId/remove-user/:userId", authenticateAdmin, async (req, res, next) => {
   try {
