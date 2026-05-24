@@ -59,6 +59,19 @@ export const adminApi = {
   getDashboard: (token) =>
     api.get("/api/admin/dashboard", authHeaders(token)),
 
+  // Add these to your adminApi object in VexaTrade api.js:
+
+  /* ---------------- DASHBOARD STATS ---------------- */
+  getDashboardStats: (token) =>
+    api.get("/api/admin/dashboard-stats", authHeaders(token)),
+  
+  /* ---------------- NOTIFICATIONS ---------------- */
+  getNotifications: (token) =>
+    api.get("/api/admin/notifications", authHeaders(token)),
+  
+  markNotificationRead: (id, token) =>
+    api.put(`/api/admin/notifications/${id}/read`, {}, authHeaders(token)),
+
   /* ---------------- USERS ---------------- */
   getUsers: (token) =>
     api.get("/api/admin/users", authHeaders(token)),
