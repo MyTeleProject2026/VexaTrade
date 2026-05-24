@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Pause, Play, TrendingUp } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
-import { addToast, ToastContainer } from "../../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -48,6 +48,7 @@ function getStatusClass(status) {
 
 export default function AdminFundsPage() {
   const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token") || "";
+  const { addToast, ToastContainer } = useToast();
 
   const [funds, setFunds] = useState([]);
   const [summary, setSummary] = useState({ total_funds: 0, active_funds: 0, completed_funds: 0, total_funded_amount: 0, total_earned_profit: 0 });
