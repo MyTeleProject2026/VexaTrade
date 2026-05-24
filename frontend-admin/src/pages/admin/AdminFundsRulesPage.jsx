@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Lock, Users, UserPlus, UserMinus, Info, AlertTriangle } from "lucide-react";
+import { RefreshCw, Lock, Users, UserPlus, UserMinus } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
-import { addToast, ToastContainer } from "../../components/ToastNotification";
+import useToast from "../../components/ToastNotification";
 
 function StatCard({ title, value, tone = "text-white" }) {
   return (
@@ -21,7 +21,7 @@ function DetailRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-// User Assignment Modal Component - FIXED with addToast prop
+// User Assignment Modal Component
 function UserAssignmentModal({ isOpen, onClose, plan, onAssign, onRemove, assignedUsers, addToast }) {
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -125,6 +125,7 @@ const EMPTY_FORM = {
 
 export default function AdminFundsRulesPage() {
   const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token") || "";
+  const { addToast, ToastContainer } = useToast();
 
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
