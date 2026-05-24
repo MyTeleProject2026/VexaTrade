@@ -8431,7 +8431,7 @@ app.get("/api/admin/fund-rules/:planId/assigned-users", authenticateAdmin, async
 // Remove user from private plan
 app.delete("/api/admin/fund-rules/:planId/remove-user/:userId", authenticateAdmin, async (req, res, next) => {
   try {
-    const planId = Number(req.params.id);
+    const planId = Number(req.params.planId);
     const userId = Number(req.params.userId);
     await pool.execute(`DELETE FROM user_plan_assignments WHERE plan_id = ? AND user_id = ?`, [planId, userId]);
     await createAuditLog(pool, { adminId: req.admin.id, action: "remove_private_plan_assignment", targetUserId: userId, referenceId: planId, note: `Removed user #${userId} from private plan #${planId}` });
