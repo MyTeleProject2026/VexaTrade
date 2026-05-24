@@ -1398,7 +1398,9 @@ async function settleDailyFunds() {
         uf.created_at,
         uf.is_compounded,
         uf.original_principal,
-        fp.name AS plan_name
+        uf.compound_percentage,
+        fp.name AS plan_name,
+        fp.compound_percentage AS plan_compound_percentage
       FROM user_funds uf
       INNER JOIN fund_plans fp ON fp.id = uf.plan_id
       WHERE uf.status = 'active'
@@ -1414,18 +1416,24 @@ async function settleDailyFunds() {
       const totalDays = Number(fund.total_days || 0);
       let currentDay = Number(fund.current_day || 0);
       
-      // Get current principal (could be compounded from previous days)
       let currentPrincipal = Number(fund.locked_principal || fund.amount || 0);
       let originalPrincipal = Number(fund.original_principal || fund.amount || 0);
       
-      // If this is day 1 and not compounded yet, set original principal
+      let compoundPercentage = Number(fund.compound_percentage);
+      if (isNaN(compoundPercentage) || compoundPercentage === 0) {
+        compoundPercentage = Number(fund.plan_compound_percentage);
+      }
+      if (isNaN(compoundPercentage) || compoundPercentage === 0) {
+        compoundPercentage = 100;
+      }
+      
       if (currentDay === 0 && !fund.is_compounded) {
         originalPrincipal = currentPrincipal;
         await connection.execute(
           `UPDATE user_funds 
-           SET original_principal = ?, is_compounded = 1
+           SET original_principal = ?, is_compounded = 1, compound_percentage = ?
            WHERE id = ?`,
-          [originalPrincipal, fund.id]
+          [originalPrincipal, compoundPercentage, fund.id]
         );
       }
 
@@ -1442,13 +1450,13 @@ async function settleDailyFunds() {
 
       const dailyRate = toNumber(fund.selected_daily_profit_percent);
       
-      // ✅ FIX: Calculate daily profit based on CURRENT principal (after compounding)
       const dailyProfit = Number(((currentPrincipal * dailyRate) / 100).toFixed(10));
+      const compoundAmount = Number((dailyProfit * compoundPercentage / 100).toFixed(10));
+      const profitToWallet = Number((dailyProfit - compoundAmount).toFixed(10));
+      
       const nextDay = currentDay + 1;
       const nextEarnedProfit = Number((toNumber(fund.earned_profit) + dailyProfit).toFixed(10));
-      
-      // ✅ FIX: Compound the profit into principal for next day
-      const newPrincipal = Number((currentPrincipal + dailyProfit).toFixed(10));
+      const newPrincipal = Number((currentPrincipal + compoundAmount).toFixed(10));
 
       await connection.execute(
         `
@@ -1456,7 +1464,7 @@ async function settleDailyFunds() {
         SET
           current_day = ?,
           earned_profit = ?,
-          locked_principal = ?,  -- ✅ Update principal with compounded profit
+          locked_principal = ?,
           last_profit_at = ?,
           updated_at = NOW()
         WHERE id = ?
@@ -1472,25 +1480,43 @@ async function settleDailyFunds() {
           day_number,
           profit_percent,
           profit_amount,
+          compound_percentage,
+          compounded_amount,
+          wallet_amount,
           credited_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [fund.id, fund.user_id, nextDay, dailyRate, dailyProfit, now]
+        [fund.id, fund.user_id, nextDay, dailyRate, dailyProfit, compoundPercentage, compoundAmount, profitToWallet, now]
       );
+
+      if (profitToWallet > 0) {
+        await connection.execute(
+          `UPDATE users SET balance = balance + ? WHERE id = ?`,
+          [profitToWallet, fund.user_id]
+        );
+        
+        await createTransactionLog(connection, {
+          userId: fund.user_id,
+          type: "funds_profit",
+          amount: profitToWallet,
+          status: "completed",
+          referenceId: fund.id,
+          note: `Daily profit of ${profitToWallet} USDT from ${fund.plan_name} (${compoundPercentage}% compounded, ${compoundAmount} added to principal)`,
+        });
+      }
 
       creditedCount += 1;
 
       try {
         await createUserNotification(connection, {
           userId: fund.user_id,
-          title: "Daily Fund Profit (Compounded)",
-          message: `${fund.plan_name}: Day ${nextDay} profit of ${dailyProfit.toFixed(2)} USDT credited and compounded. New principal: ${newPrincipal.toFixed(2)} USDT`,
+          title: "Daily Fund Profit",
+          message: `${fund.plan_name}: Day ${nextDay} profit of ${dailyProfit.toFixed(2)} USDT. ${compoundAmount.toFixed(2)} USDT compounded into principal, ${profitToWallet.toFixed(2)} USDT added to wallet. New principal: ${newPrincipal.toFixed(2)} USDT`,
           type: "funds",
         });
       } catch (_notificationError) {}
 
       if (nextDay >= totalDays) {
-        // ✅ FIX: Calculate total return including all compounded profits
         const totalReturn = newPrincipal;
         const totalProfitEarned = totalReturn - originalPrincipal;
 
@@ -1521,12 +1547,11 @@ async function settleDailyFunds() {
           await createUserNotification(connection, {
             userId: fund.user_id,
             title: "Fund Completed",
-            message: `${fund.plan_name} completed. Total compounded return: ${totalReturn.toFixed(2)} USDT (Original: ${originalPrincipal.toFixed(2)} USDT + Profit: ${totalProfitEarned.toFixed(2)} USDT) returned to main wallet.`,
+            message: `${fund.plan_name} completed. Total compounded return: ${totalReturn.toFixed(2)} USDT (Original: ${originalPrincipal.toFixed(2)} USDT + Total Profit: ${totalProfitEarned.toFixed(2)} USDT) returned to main wallet.`,
             type: "funds",
           });
         } catch (_notificationError) {}
         
-        // ✅ Update user's target profit
         try {
           await connection.execute(
             `UPDATE user_targets 
@@ -1549,11 +1574,13 @@ async function settleDailyFunds() {
     };
   } catch (error) {
     await connection.rollback();
+    console.error("settleDailyFunds error:", error);
     throw error;
   } finally {
     connection.release();
   }
 }
+
 /* =========================
    USER QR CODE FOR TRANSFERS
 ========================= */
@@ -8235,6 +8262,116 @@ app.delete("/api/admin/funds/:id", authenticateAdmin, async (req, res, next) => 
   } finally {
     connection.release();
   }
+});
+
+
+// =========================
+// FUNDS - PAUSE/RESUME (ADMIN)
+// =========================
+
+app.post("/api/admin/funds/:id/pause", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT id, user_id, status FROM user_funds WHERE id = ? FOR UPDATE`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const fund = fundRows[0];
+    if (fund.status !== "active") { await connection.rollback(); return res.status(400).json({ success: false, message: "Only active funds can be paused" }); }
+    await connection.execute(`UPDATE user_funds SET status = 'paused', updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Paused", message: `Your fund #${fundId} has been paused by admin. Daily profits will not accrue until resumed.`, type: "funds" });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "pause_fund", targetUserId: fund.user_id, referenceId: fundId, note: `Paused fund #${fundId}` });
+    await connection.commit();
+    res.json({ success: true, message: "Fund paused successfully" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+app.post("/api/admin/funds/:id/resume", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT id, user_id, status FROM user_funds WHERE id = ? FOR UPDATE`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const fund = fundRows[0];
+    if (fund.status !== "paused") { await connection.rollback(); return res.status(400).json({ success: false, message: "Only paused funds can be resumed" }); }
+    await connection.execute(`UPDATE user_funds SET status = 'active', updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Resumed", message: `Your fund #${fundId} has been resumed by admin. Daily profits will now accrue again.`, type: "funds" });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "resume_fund", targetUserId: fund.user_id, referenceId: fundId, note: `Resumed fund #${fundId}` });
+    await connection.commit();
+    res.json({ success: true, message: "Fund resumed successfully" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+app.post("/api/admin/funds/:id/modify-profit-rate", authenticateAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    const { profit_rate } = req.body;
+    if (!profit_rate || profit_rate <= 0) return res.status(400).json({ success: false, message: "Invalid profit rate" });
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT id, user_id, status, selected_daily_profit_percent FROM user_funds WHERE id = ? FOR UPDATE`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const fund = fundRows[0];
+    const oldRate = fund.selected_daily_profit_percent;
+    await connection.execute(`UPDATE user_funds SET selected_daily_profit_percent = ?, updated_at = NOW() WHERE id = ?`, [profit_rate, fundId]);
+    await createUserNotification(connection, { userId: fund.user_id, title: "Profit Rate Changed", message: `Your fund profit rate has been changed from ${oldRate}% to ${profit_rate}% by admin.`, type: "funds" });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "modify_fund_profit_rate", targetUserId: fund.user_id, referenceId: fundId, note: `Changed fund #${fundId} profit rate from ${oldRate}% to ${profit_rate}%` });
+    await connection.commit();
+    res.json({ success: true, message: "Profit rate updated successfully" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+// Get fund plans with private plan filtering
+app.get("/api/funds/plans", authenticateUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [assignedPlans] = await pool.execute(`SELECT plan_id FROM user_plan_assignments WHERE user_id = ?`, [userId]);
+    const assignedPlanIds = assignedPlans.map(p => p.plan_id);
+    let query = `SELECT id, name, duration_days, min_amount, max_amount, min_daily_profit_percent, max_daily_profit_percent, user_limit_count, is_active, admin_note, admin_note_background_image, additional_notes, disclaimer, is_private, compound_percentage FROM fund_plans WHERE is_active = 1`;
+    const params = [];
+    if (assignedPlanIds.length > 0) {
+      query += ` AND (is_private = 0 OR id IN (${assignedPlanIds.map(() => '?').join(',')}))`;
+      params.push(...assignedPlanIds);
+    } else {
+      query += ` AND is_private = 0`;
+    }
+    query += ` ORDER BY duration_days ASC, id ASC`;
+    const [rows] = await pool.execute(query, params);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+// Assign private plan to specific user
+app.post("/api/admin/fund-rules/:planId/assign-user", authenticateAdmin, async (req, res, next) => {
+  try {
+    const planId = Number(req.params.id);
+    const { userId } = req.body;
+    if (!planId || !userId) return res.status(400).json({ success: false, message: "Plan ID and User ID are required" });
+    await pool.execute(`INSERT IGNORE INTO user_plan_assignments (plan_id, user_id, assigned_by, created_at) VALUES (?, ?, ?, NOW())`, [planId, userId, req.admin.id]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "assign_private_plan", targetUserId: userId, referenceId: planId, note: `Assigned private plan #${planId} to user #${userId}` });
+    res.json({ success: true, message: "Private plan assigned to user successfully" });
+  } catch (error) { next(error); }
+});
+
+// Get users assigned to a private plan
+app.get("/api/admin/fund-rules/:planId/assigned-users", authenticateAdmin, async (req, res, next) => {
+  try {
+    const planId = Number(req.params.id);
+    const [rows] = await pool.execute(`SELECT upa.*, u.uid, u.name, u.email FROM user_plan_assignments upa JOIN users u ON u.id = upa.user_id WHERE upa.plan_id = ?`, [planId]);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+// Remove user from private plan
+app.delete("/api/admin/fund-rules/:planId/remove-user/:userId", authenticateAdmin, async (req, res, next) => {
+  try {
+    const planId = Number(req.params.id);
+    const userId = Number(req.params.userId);
+    await pool.execute(`DELETE FROM user_plan_assignments WHERE plan_id = ? AND user_id = ?`, [planId, userId]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "remove_private_plan_assignment", targetUserId: userId, referenceId: planId, note: `Removed user #${userId} from private plan #${planId}` });
+    res.json({ success: true, message: "User removed from private plan successfully" });
+  } catch (error) { next(error); }
 });
 
 /* ---------------- ADMIN FUND RULES ---------------- */
