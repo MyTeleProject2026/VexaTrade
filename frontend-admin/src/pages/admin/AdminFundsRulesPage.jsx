@@ -211,6 +211,18 @@ export default function AdminFundsRulesPage() {
       setSavingId(rule.id);
       setError("");
       setSuccess("");
+      
+      console.log("Saving rule data:", {
+        id: rule.id,
+        name: rule.name,
+        admin_note: rule.admin_note,
+        admin_note_background_image: rule.admin_note_background_image,
+        additional_notes: rule.additional_notes,
+        disclaimer: rule.disclaimer,
+        is_private: rule.is_private,
+        compound_percentage: rule.compound_percentage,
+      });
+      
       await adminApi.updateFundRule(rule.id, {
         name: rule.name,
         duration_days: Number(rule.duration_days),
@@ -227,9 +239,11 @@ export default function AdminFundsRulesPage() {
         is_private: rule.is_private || 0,
         compound_percentage: rule.compound_percentage || 100,
       }, token);
+      
       addToast(`${rule.name} updated successfully.`, "success");
       await loadRules(false);
     } catch (err) {
+      console.error("Save error:", err);
       addToast(getApiErrorMessage(err), "error");
     } finally {
       setSavingId(null);
