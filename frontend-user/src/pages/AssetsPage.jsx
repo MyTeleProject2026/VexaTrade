@@ -10,7 +10,7 @@ import {
   Bell,
   RefreshCw,
   SlidersHorizontal,
-  ChevronRight,
+  ChevronRight,  // ← ADD THIS
   QrCode,
   X,
   User,
