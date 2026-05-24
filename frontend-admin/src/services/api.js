@@ -250,6 +250,26 @@ export const adminApi = {
   deleteFundRule: (id, token) =>
     api.delete(`/api/admin/fund-rules/${id}`, authHeaders(token)),
 
+  // Add these to adminApi object (around line 200-220)
+
+  assignUserToPrivatePlan: (planId, payload, token) =>
+    api.post(`/api/admin/fund-rules/${planId}/assign-user`, payload, authHeaders(token)),
+  
+  getAssignedUsers: (planId, token) =>
+    api.get(`/api/admin/fund-rules/${planId}/assigned-users`, authHeaders(token)),
+  
+  removeUserFromPrivatePlan: (planId, userId, token) =>
+    api.delete(`/api/admin/fund-rules/${planId}/remove-user/${userId}`, authHeaders(token)),
+  
+  pauseFund: (id, payload, token) =>
+    api.post(`/api/admin/funds/${id}/pause`, payload, authHeaders(token)),
+  
+  resumeFund: (id, payload, token) =>
+    api.post(`/api/admin/funds/${id}/resume`, payload, authHeaders(token)),
+  
+  modifyFundProfitRate: (id, payload, token) =>
+    api.post(`/api/admin/funds/${id}/modify-profit-rate`, payload, authHeaders(token)),
+
   /* ---------------- PLATFORM SETTINGS ---------------- */
   getSettings: (token) =>
     api.get("/api/admin/settings", authHeaders(token)),
