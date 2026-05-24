@@ -9,14 +9,16 @@ import {
   ChevronRight,
   X,
   Target,
+  Eye,
+  Lock,
+  AlertCircle,
 } from "lucide-react";
 import { getApiErrorMessage } from "../services/api";
 import api from "../services/api";
 import { useNotification } from "../hooks/useNotification";
-// ✅ ADDED: Import Target Modal
 import TargetModal from "../components/TargetModal";
-// ✅ ADDED: Import Profit Withdrawal Modal
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
+import PlanNoteModal from "../components/PlanNoteModal";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -51,6 +53,14 @@ function StatusPill({ status }) {
     );
   }
 
+  if (value === "paused") {
+    return (
+      <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300">
+        Paused by Admin
+      </span>
+    );
+  }
+
   if (value === "completed") {
     return (
       <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
@@ -66,23 +76,24 @@ function StatusPill({ status }) {
   );
 }
 
+// ✅ COMPACT SummaryCard (Smaller)
 function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] text-slate-300">
-          <Icon size={18} />
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 shadow-md">
+      <div className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.03] text-slate-300">
+          <Icon size={14} />
         </div>
-        <div className="text-xs text-slate-400 sm:text-sm">{label}</div>
+        <div className="text-[10px] text-slate-400">{label}</div>
       </div>
-
-      <div className={`mt-3 text-xl font-bold sm:text-[24px] ${tone}`}>{value}</div>
-      {subtext ? <div className="mt-1 text-xs text-slate-500">{subtext}</div> : null}
+      <div className={`mt-1 text-base font-bold ${tone}`}>{value}</div>
+      {subtext ? <div className="text-[9px] text-slate-500">{subtext}</div> : null}
     </div>
   );
 }
 
-function PlanCard({ plan, applying, onApply }) {
+// ✅ Plan Card with Note Preview and Private indicator
+function PlanCard({ plan, applying, onApply, onViewNote }) {
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
       ? "Unlimited"
@@ -93,74 +104,90 @@ function PlanCard({ plan, applying, onApply }) {
       ? "No limit"
       : `${plan.user_limit_count} times`;
 
+  const hasNote = plan.admin_note && plan.admin_note.trim().length > 0;
+  const isPrivate = plan.is_private === 1;
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-[0_12px_36px_rgba(0,0,0,0.25)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-base font-semibold text-white">{plan.name}</div>
-          <div className="mt-1 text-sm text-slate-400">
-            {plan.duration_days} day plan
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {isPrivate && (
+            <Lock size={12} className="text-amber-400" />
+          )}
+          <div>
+            <div className="text-sm font-semibold text-white">{plan.name}</div>
+            <div className="text-[10px] text-slate-400">
+              {plan.duration_days} day plan
+            </div>
           </div>
         </div>
 
-        <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+        <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-300">
           {Number(plan.min_daily_profit_percent).toFixed(1)}% -{" "}
           {Number(plan.max_daily_profit_percent).toFixed(1)}%
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Min Amount</div>
-          <div className="mt-1 text-sm font-semibold text-white">
-            {formatMoney(plan.min_amount)} USDT
+      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Min</div>
+          <div className="font-semibold text-white">{formatMoney(plan.min_amount)}</div>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Max</div>
+          <div className="font-semibold text-white">{maxAmount}</div>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Daily</div>
+          <div className="font-semibold text-emerald-300">
+            {Number(plan.min_daily_profit_percent).toFixed(1)}-{Number(plan.max_daily_profit_percent).toFixed(1)}%
           </div>
         </div>
-
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Max Amount</div>
-          <div className="mt-1 text-sm font-semibold text-white">{maxAmount}</div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Daily Profit</div>
-          <div className="mt-1 text-sm font-semibold text-emerald-300">
-            {Number(plan.min_daily_profit_percent).toFixed(1)}% -{" "}
-            {Number(plan.max_daily_profit_percent).toFixed(1)}%
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Usage Limit</div>
-          <div className="mt-1 text-sm font-semibold text-white">{limitText}</div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Usage</div>
+          <div className="font-semibold text-white">{limitText}</div>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onApply(plan)}
-        disabled={applying}
-        className="mt-3 w-full rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {applying ? "Applying..." : "Apply Now"}
-      </button>
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onApply(plan)}
+          disabled={applying}
+          className="flex-1 rounded-lg bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
+        >
+          {applying ? "..." : "Apply"}
+        </button>
+
+        {hasNote && (
+          <button
+            type="button"
+            onClick={() => onViewNote(plan)}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white transition hover:bg-white/10"
+          >
+            <Eye size={12} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
+// ✅ Active Fund Card with Pause status
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
   const totalReceive =
     Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
+  const isPaused = String(item.status || "").toLowerCase() === "paused";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-[0_12px_36px_rgba(0,0,0,0.25)]">
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-base font-semibold text-white">
+          <div className="text-sm font-semibold text-white">
             {item.plan_name || "Fund Plan"}
           </div>
-          <div className="mt-1 text-sm text-slate-400">
+          <div className="text-[10px] text-slate-400">
             Started: {formatDateTime(item.started_at)}
           </div>
         </div>
@@ -168,66 +195,72 @@ function ActiveFundCard({ item }) {
         <StatusPill status={item.status} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Funded Amount</div>
-          <div className="mt-1 text-sm font-semibold text-white">
+      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Funded</div>
+          <div className="font-semibold text-white">
             {formatMoney(item.locked_principal)} USDT
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Daily Rate</div>
-          <div className="mt-1 text-sm font-semibold text-emerald-300">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Daily Rate</div>
+          <div className="font-semibold text-emerald-300">
             {Number(item.selected_daily_profit_percent || 0).toFixed(2)}%
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Current Day</div>
-          <div className="mt-1 text-sm font-semibold text-white">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Day</div>
+          <div className="font-semibold text-white">
             {item.current_day}/{item.total_days}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Days Left</div>
-          <div className="mt-1 text-sm font-semibold text-amber-300">
-            {daysLeft}
-          </div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Left</div>
+          <div className="font-semibold text-amber-300">{daysLeft}</div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Earned Profit</div>
-          <div className="mt-1 text-sm font-semibold text-emerald-300">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Profit</div>
+          <div className="font-semibold text-emerald-300">
             +{formatMoney(item.earned_profit)} USDT
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Total Still Complete Funds</div>
-          <div className="mt-1 text-sm font-semibold text-cyan-300">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Total</div>
+          <div className="font-semibold text-cyan-300">
             {formatMoney(totalReceive)} USDT
           </div>
         </div>
       </div>
+
+      {isPaused && (
+        <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-center text-[10px] text-red-300">
+          <AlertCircle size={10} className="inline mr-1" />
+          This fund is temporarily paused by admin. Daily profits are on hold.
+        </div>
+      )}
     </div>
   );
 }
 
+// History Fund Card
 function HistoryFundCard({ item }) {
   const totalReceived =
     Number(item.total_received || 0) ||
     (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3">
-      <div className="flex items-start justify-between gap-3">
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-base font-semibold text-white">
+          <div className="text-sm font-semibold text-white">
             {item.plan_name || "Fund Plan"}
           </div>
-          <div className="mt-1 text-sm text-slate-400">
+          <div className="text-[10px] text-slate-400">
             Completed: {formatDateTime(item.completed_at || item.updated_at || item.created_at)}
           </div>
         </div>
@@ -235,24 +268,24 @@ function HistoryFundCard({ item }) {
         <StatusPill status={item.status} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Principal</div>
-          <div className="mt-1 text-sm font-semibold text-white">
+      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Principal</div>
+          <div className="font-semibold text-white">
             {formatMoney(item.locked_principal)} USDT
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-          <div className="text-xs text-slate-500">Profit</div>
-          <div className="mt-1 text-sm font-semibold text-emerald-300">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Profit</div>
+          <div className="font-semibold text-emerald-300">
             +{formatMoney(item.earned_profit)} USDT
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#050812] p-3 col-span-2">
-          <div className="text-xs text-slate-500">Total Received</div>
-          <div className="mt-1 text-sm font-semibold text-cyan-300">
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2 col-span-2">
+          <div className="text-slate-500">Total Received</div>
+          <div className="font-semibold text-cyan-300">
             {formatMoney(totalReceived)} USDT
           </div>
         </div>
@@ -302,24 +335,21 @@ export default function FundsPage() {
   const [applyModal, setApplyModal] = useState(null);
   const [applyAmount, setApplyAmount] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [selectedNotePlan, setSelectedNotePlan] = useState(null);
 
-  // ✅ ADDED: Target system states
+  // Target system states
   const [hasTarget, setHasTarget] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetChecking, setTargetChecking] = useState(true);
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
 
-  // ✅ ADDED: Profit withdrawal modal
+  // Profit withdrawal modal
   const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
   const [profitWithdrawalProfit, setProfitWithdrawalProfit] = useState(0);
   const [profitWithdrawalTarget, setProfitWithdrawalTarget] = useState(0);
-
-  // ========== ADDED NEW STATE ==========
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
-  // ========== END ADDED STATE ==========
 
-  // ✅ ADDED: Check if user has set a target
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
@@ -335,9 +365,7 @@ export default function FundsPage() {
           currentProfit: Number(targetData.current_profit || 0),
           targetAmount: Number(targetData.target_amount || 0),
         });
-        // ========== ADDED: Reset notification flag when target changes ==========
         setTargetAchievedNotified(false);
-        // ========== END ADDED ==========
       } else {
         setHasTarget(false);
         setUserTarget(null);
@@ -350,7 +378,6 @@ export default function FundsPage() {
     }
   }
 
-  // ✅ ADDED: Refresh target progress
   async function refreshTargetProgress() {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/user/target`, {
@@ -369,8 +396,6 @@ export default function FundsPage() {
     }
   }
 
-  // ========== ADD THIS FUNCTION ==========
-  // Check and prompt for new target if achieved
   async function checkAndPromptNewTarget() {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/user/target`, {
@@ -383,7 +408,6 @@ export default function FundsPage() {
         if (isAchieved && !targetAchievedNotified) {
           setTargetAchievedNotified(true);
           showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
-          // Open target modal to set new goal
           setShowTargetModal(true);
         }
       }
@@ -392,27 +416,21 @@ export default function FundsPage() {
     }
   }
 
-  // ========== ADDED: isTargetAchieved memo ==========
   const isTargetAchieved = useMemo(() => {
     if (!hasTarget) return false;
     return targetProgress.currentProfit >= targetProgress.targetAmount;
   }, [hasTarget, targetProgress]);
-  // ========== END ADDED ==========
 
-  // ✅ ADDED: Handle target set success
   function handleTargetSet(targetAmount) {
     setHasTarget(true);
     setTargetProgress({
       currentProfit: 0,
       targetAmount: Number(targetAmount),
     });
-    // ========== ADDED: Reset notification flag ==========
     setTargetAchievedNotified(false);
-    // ========== END ADDED ==========
     showSuccess(`Target set to ${targetAmount} USDT! You can now start funding.`);
   }
 
-  // ✅ ADDED: Handle profit withdrawal from completed fund profits
   function handleWithdrawFromProfit(profitAmount, targetAmount) {
     setProfitWithdrawalProfit(profitAmount);
     setProfitWithdrawalTarget(targetAmount);
@@ -477,25 +495,21 @@ export default function FundsPage() {
 
   useEffect(() => {
     loadData();
-    // ✅ ADDED: Check target on page load
     checkUserTarget();
 
     const interval = setInterval(() => {
       loadData(true);
-      // ✅ ADDED: Refresh target progress periodically
       refreshTargetProgress();
     }, 15000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // ========== ADDED: Effect to check target achievement after progress updates ==========
   useEffect(() => {
     if (hasTarget && targetProgress.targetAmount > 0) {
       checkAndPromptNewTarget();
     }
   }, [hasTarget, targetProgress]);
-  // ========== END ADDED ==========
 
   useEffect(() => {
     if (plans.length && !selectedPlanId) {
@@ -509,11 +523,9 @@ export default function FundsPage() {
 
   const activeTotalReceive = useMemo(() => {
     return activeFunds.reduce((sum, item) => {
-      return (
-        sum +
+      return sum +
         Number(item.locked_principal || 0) +
-        Number(item.earned_profit || 0)
-      );
+        Number(item.earned_profit || 0);
     }, 0);
   }, [activeFunds]);
 
@@ -523,7 +535,6 @@ export default function FundsPage() {
   }, [targetProgress]);
 
   function openApplyModal(plan) {
-    // ✅ ADDED: Check if user has target before applying
     if (!hasTarget) {
       setShowTargetModal(true);
       return;
@@ -604,33 +615,32 @@ export default function FundsPage() {
   }
 
   return (
-    <div className="space-y-5 bg-[#050812] px-3 pb-24 pt-3 sm:px-5 xl:pb-8">
-      {/* ========== REPLACE THIS ENTIRE TARGET BANNER BLOCK ========== */}
+    <div className="space-y-4 bg-[#050812] px-3 pb-24 pt-3 sm:px-5 xl:pb-8">
+      {/* Target Progress Banner */}
       {hasTarget && targetProgress.targetAmount > 0 && (
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
+          <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
             <div className="flex items-center gap-2">
-              <Target size={16} className="text-cyan-400" />
-              <span className="text-sm text-slate-300">Funding Target Goal:</span>
-              <span className="text-sm font-semibold text-white">
+              <Target size={14} className="text-cyan-400" />
+              <span className="text-slate-300">Target:</span>
+              <span className="font-semibold text-white">
                 {targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-1.5 w-24 rounded-full bg-white/10 overflow-hidden">
                 <div 
                   className="h-full bg-cyan-400 rounded-full transition-all"
                   style={{ width: `${Math.min(100, targetProgressPercent)}%` }}
                 />
               </div>
-              <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
+              <span className="text-[10px] text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
             </div>
           </div>
           
-          {/* ========== ADDED: Different message based on target achievement ========== */}
           {isTargetAchieved ? (
             <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
-              <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span>
+              <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance.</span>
             </div>
           ) : (
             <div className="mt-2 text-xs text-slate-400">
@@ -644,26 +654,25 @@ export default function FundsPage() {
                   </button>
                 </span>
               ) : (
-                <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>
+                <span>Start trading or funding to earn profits!</span>
               )}
             </div>
           )}
-          {/* ========== END ADDED SECTION ========== */}
         </div>
       )}
-      {/* ========== END REPLACED BLOCK ========== */}
 
-      <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-xl sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {/* Header Section */}
+      <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-3 shadow-lg">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.32em] text-cyan-300">
-              <Flame size={12} />
+            <div className="flex items-center gap-1 text-[9px] uppercase tracking-[0.32em] text-cyan-300">
+              <Flame size={10} />
               VexaTrade Funds
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
               Funds Center
             </h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-[11px] text-slate-400">
               Apply for fund plans, track daily profits, and view completed returns.
             </p>
           </div>
@@ -671,46 +680,48 @@ export default function FundsPage() {
           <button
             type="button"
             onClick={() => loadData(true)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.06]"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/[0.06]"
           >
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {/* Stats Row - COMPACT */}
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <SummaryCard
-          label="Active Funded Amount"
-          value={`${formatMoney(summary.active_funded_amount)} USDT`}
-          subtext={`${summary.active_count || 0} active fund(s)`}
+          label="Active Funded"
+          value={`${formatMoney(summary.active_funded_amount)}`}
+          subtext={`${summary.active_count || 0} fund(s)`}
           icon={Wallet}
         />
         <SummaryCard
-          label="Active Earned Profit"
-          value={`+${formatMoney(summary.active_earned_profit)} USDT`}
-          subtext="Locked until completion"
+          label="Active Profit"
+          value={`+${formatMoney(summary.active_earned_profit)}`}
+          subtext="Locked"
           icon={BadgeDollarSign}
           tone="text-emerald-300"
         />
         <SummaryCard
           label="Today Profit"
-          value={`+${formatMoney(summary.today_profit)} USDT`}
+          value={`+${formatMoney(summary.today_profit)}`}
           subtext="Credited today"
           icon={Clock3}
           tone="text-cyan-300"
         />
         <SummaryCard
           label="Completed Profit"
-          value={`+${formatMoney(summary.completed_profit)} USDT`}
-          subtext={`${summary.completed_count || 0} completed fund(s)`}
+          value={`+${formatMoney(summary.completed_profit)}`}
+          subtext={`${summary.completed_count || 0} fund(s)`}
           icon={CheckCircle2}
           tone="text-cyan-300"
         />
       </section>
 
-      <section className="rounded-[28px] border border-white/10 bg-[#0a0e1a] p-2">
-        <div className="grid grid-cols-3 gap-2">
+      {/* Tabs */}
+      <section className="rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
+        <div className="grid grid-cols-3 gap-1">
           {[
             ["plans", "Plans"],
             ["active", "Active"],
@@ -720,7 +731,7 @@ export default function FundsPage() {
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`rounded-2xl px-3 py-3 text-sm font-semibold transition ${
+              className={`rounded-lg py-2 text-xs font-semibold transition ${
                 tab === key
                   ? "bg-cyan-500 text-black"
                   : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
@@ -732,109 +743,53 @@ export default function FundsPage() {
         </div>
       </section>
 
+      {/* Plans Tab */}
       {tab === "plans" ? (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Available Plans</h2>
-            <div className="text-sm text-slate-500">
+            <h2 className="text-lg font-bold text-white">Available Plans</h2>
+            <div className="text-xs text-slate-500">
               {plans.length} plan{plans.length === 1 ? "" : "s"}
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-3">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {plans.map((plan) => {
-                const active = selectedPlanId === plan.id;
-                return (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => setSelectedPlanId(plan.id)}
-                    className={`shrink-0 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                      active
-                        ? "bg-cyan-500 text-black"
-                        : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
-                    }`}
-                  >
-                    {plan.duration_days} Day
-                  </button>
-                );
-              })}
+          <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {plans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    selectedPlanId === plan.id
+                      ? "bg-cyan-500 text-black"
+                      : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                  }`}
+                >
+                  {plan.duration_days} Day
+                </button>
+              ))}
             </div>
           </div>
 
           {selectedPlan ? (
-            <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-[0_12px_36px_rgba(0,0,0,0.25)]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-semibold text-white">{selectedPlan.name}</div>
-                  <div className="mt-1 text-sm text-slate-400">
-                    {selectedPlan.duration_days} day plan
-                  </div>
-                </div>
-
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-                  {Number(selectedPlan.min_daily_profit_percent).toFixed(1)}% -{" "}
-                  {Number(selectedPlan.max_daily_profit_percent).toFixed(1)}%
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-                  <div className="text-xs text-slate-500">Min Amount</div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {formatMoney(selectedPlan.min_amount)} USDT
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-                  <div className="text-xs text-slate-500">Max Amount</div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {selectedPlan.max_amount == null
-                      ? "Unlimited"
-                      : `${formatMoney(selectedPlan.max_amount)} USDT`}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-                  <div className="text-xs text-slate-500">Daily Profit</div>
-                  <div className="mt-1 text-sm font-semibold text-emerald-300">
-                    {Number(selectedPlan.min_daily_profit_percent).toFixed(1)}% -{" "}
-                    {Number(selectedPlan.max_daily_profit_percent).toFixed(1)}%
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-[#050812] p-3">
-                  <div className="text-xs text-slate-500">Usage Limit</div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {selectedPlan.user_limit_count == null
-                      ? "No limit"
-                      : `${selectedPlan.user_limit_count} times`}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => openApplyModal(selectedPlan)}
-                  disabled={applying}
-                  className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
-                >
-                  {applying ? "Applying..." : "Apply Now"}
-                </button>
-              </div>
-            </div>
+            <PlanCard
+              plan={selectedPlan}
+              applying={applying}
+              onApply={openApplyModal}
+              onViewNote={setSelectedNotePlan}
+            />
           ) : null}
         </section>
       ) : null}
 
+      {/* Active Tab */}
       {tab === "active" ? (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Active Funds</h2>
-            <div className="text-sm text-slate-500">
-              Total funds still to be receive: {formatMoney(activeTotalReceive)} USDT
+            <h2 className="text-lg font-bold text-white">Active Funds</h2>
+            <div className="text-xs text-slate-500">
+              Total to receive: {formatMoney(activeTotalReceive)} USDT
             </div>
           </div>
 
@@ -845,27 +800,28 @@ export default function FundsPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-10 text-center text-sm text-slate-400">
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
               No active funds right now.
             </div>
           )}
         </section>
       ) : null}
 
+      {/* History Tab */}
       {tab === "history" ? (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Funds History</h2>
+            <h2 className="text-lg font-bold text-white">Funds History</h2>
             <button
               type="button"
               onClick={() =>
                 latestCompleted &&
                 setLatestCompleted({ ...latestCompleted, __show: true })
               }
-              className="inline-flex items-center gap-1 text-sm text-slate-400 transition hover:text-white"
+              className="inline-flex items-center gap-1 text-xs text-slate-400 transition hover:text-white"
             >
               Latest Voucher
-              <ChevronRight size={16} />
+              <ChevronRight size={12} />
             </button>
           </div>
 
@@ -876,20 +832,21 @@ export default function FundsPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-10 text-center text-sm text-slate-400">
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
               No funds history yet.
             </div>
           )}
         </section>
       ) : null}
 
+      {/* Apply Modal */}
       {applyModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-5 shadow-2xl sm:rounded-[34px]">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
-                <div className="text-[22px] font-bold text-white">{applyModal.name}</div>
-                <div className="mt-1 text-sm text-slate-400">
+                <div className="text-lg font-bold text-white">{applyModal.name}</div>
+                <div className="text-xs text-slate-400">
                   {applyModal.duration_days} day fund plan
                 </div>
               </div>
@@ -898,28 +855,28 @@ export default function FundsPage() {
                 onClick={closeApplyModal}
                 className="text-slate-400 transition hover:text-white"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="pt-5">
-              <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4">
-                <div className="text-sm text-slate-500">Daily Profit Range</div>
-                <div className="mt-2 text-lg font-semibold text-emerald-300">
+            <div className="pt-4">
+              <div className="rounded-xl border border-white/10 bg-[#050812] p-3">
+                <div className="text-xs text-slate-500">Daily Profit Range</div>
+                <div className="mt-1 text-base font-semibold text-emerald-300">
                   {Number(applyModal.min_daily_profit_percent).toFixed(1)}% -{" "}
                   {Number(applyModal.max_daily_profit_percent).toFixed(1)}%
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <div className="text-slate-500">Min</div>
-                    <div className="mt-1 font-semibold text-white">
+                    <div className="font-semibold text-white">
                       {formatMoney(applyModal.min_amount)} USDT
                     </div>
                   </div>
                   <div>
                     <div className="text-slate-500">Max</div>
-                    <div className="mt-1 font-semibold text-white">
+                    <div className="font-semibold text-white">
                       {applyModal.max_amount == null
                         ? "Unlimited"
                         : `${formatMoney(applyModal.max_amount)} USDT`}
@@ -928,8 +885,8 @@ export default function FundsPage() {
                 </div>
               </div>
 
-              <div className="mt-4">
-                <label className="mb-2 block text-sm font-medium text-slate-300">
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-medium text-slate-300">
                   Enter funding amount
                 </label>
                 <input
@@ -939,16 +896,16 @@ export default function FundsPage() {
                   value={applyAmount}
                   onChange={(e) => setApplyAmount(e.target.value)}
                   placeholder="Enter amount"
-                  className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleApplyPlan}
                   disabled={applying}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                  className="rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
                 >
                   {applying ? "Applying..." : "Confirm"}
                 </button>
@@ -956,7 +913,7 @@ export default function FundsPage() {
                 <button
                   type="button"
                   onClick={closeApplyModal}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 font-semibold text-white"
+                  className="rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-semibold text-white"
                 >
                   Cancel
                 </button>
@@ -966,13 +923,14 @@ export default function FundsPage() {
         </div>
       ) : null}
 
+      {/* Latest Completed Voucher Modal */}
       {latestCompleted && latestCompleted.__show ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-5 shadow-2xl sm:rounded-[34px]">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
-                <div className="text-[22px] font-bold text-white">Fund Complete</div>
-                <div className="mt-1 text-sm text-slate-400">
+                <div className="text-lg font-bold text-white">Fund Complete</div>
+                <div className="text-xs text-slate-400">
                   {formatDateTime(latestCompleted.completed_at)}
                 </div>
               </div>
@@ -983,18 +941,18 @@ export default function FundsPage() {
                 }
                 className="text-slate-400 transition hover:text-white"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="pt-5">
-              <div className="mb-5 flex justify-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-                  <CheckCircle2 size={30} />
+            <div className="pt-4">
+              <div className="mb-4 flex justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+                  <CheckCircle2 size={22} />
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-2 text-xs">
                 <VoucherRow
                   label="Plan"
                   value={latestCompleted.plan_name || "Fund Plan"}
@@ -1019,7 +977,6 @@ export default function FundsPage() {
                 />
               </div>
 
-              {/* ✅ ADDED: Withdraw from profit button */}
               {latestCompleted.earned_profit > 0 && !hasTarget && (
                 <button
                   type="button"
@@ -1030,13 +987,13 @@ export default function FundsPage() {
                       targetProgress.targetAmount
                     );
                   }}
-                  className="mt-4 w-full rounded-xl bg-cyan-500 py-2 text-sm font-semibold text-black hover:bg-cyan-400"
+                  className="mt-3 w-full rounded-xl bg-cyan-500 py-1.5 text-xs font-semibold text-black hover:bg-cyan-400"
                 >
                   Withdraw ${formatMoney(latestCompleted.earned_profit)} from Profit
                 </button>
               )}
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-200">
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
                 Principal and profits have been returned to the user main wallet.
               </div>
             </div>
@@ -1044,7 +1001,7 @@ export default function FundsPage() {
         </div>
       ) : null}
 
-      {/* ✅ ADDED: Target Modal */}
+      {/* Target Modal */}
       <TargetModal
         isOpen={showTargetModal}
         onClose={() => setShowTargetModal(false)}
@@ -1052,7 +1009,7 @@ export default function FundsPage() {
         requiredFor="funds"
       />
 
-      {/* ✅ ADDED: Profit Withdrawal Modal */}
+      {/* Profit Withdrawal Modal */}
       <ProfitWithdrawalModal
         isOpen={showProfitWithdrawalModal}
         onClose={() => setShowProfitWithdrawalModal(false)}
@@ -1062,6 +1019,13 @@ export default function FundsPage() {
         }}
         currentProfit={profitWithdrawalProfit}
         targetAmount={profitWithdrawalTarget}
+      />
+
+      {/* Plan Note Modal */}
+      <PlanNoteModal
+        isOpen={selectedNotePlan !== null}
+        onClose={() => setSelectedNotePlan(null)}
+        plan={selectedNotePlan}
       />
     </div>
   );
