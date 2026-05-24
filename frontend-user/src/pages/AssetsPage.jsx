@@ -1,3 +1,6 @@
+import QRScanner from "../components/QRScanner";
+import TransferConfirmModal from "../components/TransferConfirmModal";
+import { getRecentContacts, addRecentContact } from "../utils/recentContacts";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -283,10 +286,11 @@ function HistoryRow({ title, date, amount, negative = false }) {
   );
 }
 
-// QR Transfer Modal Component (unchanged, keep your existing one)
+// QR Transfer Modal Component - FIXED VERSION (Replace your existing one)
 function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [mode, setMode] = useState("send");
-  const [scanning, setScanning] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [scannedUser, setScannedUser] = useState(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -296,11 +300,17 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [qrCodeError, setQrCodeError] = useState(false);
   const [userUid, setUserUid] = useState("");
   const [userName, setUserName] = useState("");
+  const [recentContacts, setRecentContacts] = useState([]);
   
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
   const { showSuccess, showError, showVoucher } = useNotification();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+
+  // Load recent contacts on mount
+  useEffect(() => {
+    setRecentContacts(getRecentContacts());
+  }, []);
 
   useEffect(() => {
     if (isOpen && mode === "receive") {
@@ -343,10 +353,10 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   async function findUserByUid(uid) {
     if (!uid || uid.length < 5) {
       showError("Please enter a valid UID");
-      return;
+      return null;
     }
     try {
-      setScanning(true);
+      setLoading(true);
       const res = await fetch(`${API_BASE_URL}/api/user/by-uid/${uid}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -354,22 +364,64 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       if (data.success) {
         setScannedUser(data.data);
         showSuccess(`Found user: ${data.data.name || data.data.email}`);
+        return data.data;
       } else {
         showError("User not found. Please check the UID.");
         setScannedUser(null);
+        return null;
       }
     } catch (err) {
       showError("Failed to find user");
       setScannedUser(null);
+      return null;
     } finally {
-      setScanning(false);
+      setLoading(false);
     }
+  }
+
+  // ✅ NEW: Handle QR scan success
+  async function handleQrScanSuccess(decodedText) {
+    try {
+      // Try to parse as JSON first (OKX-style format)
+      let uid = decodedText;
+      try {
+        const parsed = JSON.parse(decodedText);
+        if (parsed.uid) {
+          uid = parsed.uid;
+        } else if (parsed.type === "vexatrade" && parsed.uid) {
+          uid = parsed.uid;
+        }
+      } catch {
+        // Not JSON, treat as plain UID
+        uid = decodedText;
+      }
+      
+      // Clean UID (remove any prefix/suffix)
+      const cleanUid = String(uid).trim().toUpperCase();
+      
+      if (cleanUid) {
+        const user = await findUserByUid(cleanUid);
+        if (user) {
+          // Add to recent contacts
+          addRecentContact(user);
+          setRecentContacts(getRecentContacts());
+          // Automatically proceed to amount entry
+        }
+      }
+    } catch (err) {
+      showError("Invalid QR code format");
+    }
+    setShowScanner(false);
   }
 
   function handleManualUidInput(e) {
     if (e.key === "Enter") {
       findUserByUid(e.target.value);
     }
+  }
+
+  function selectRecentContact(contact) {
+    findUserByUid(contact.uid);
   }
 
   async function handleSendTransfer() {
@@ -385,7 +437,14 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
       showError("Minimum transfer amount is 1 USDT");
       return;
     }
+    
+    // Show confirmation modal instead of sending directly
+    setShowConfirm(true);
+  }
 
+  async function executeTransfer() {
+    if (!scannedUser) return false;
+    
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {
@@ -418,15 +477,19 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
         });
         
         onTransferComplete?.();
+        setShowConfirm(false);
         onClose();
         setScannedUser(null);
         setAmount("");
         setNote("");
+        return true;
       } else {
         showError(data.message || "Transfer failed");
+        return false;
       }
     } catch (err) {
       showError("Transfer failed. Please try again.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -449,610 +512,233 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050812]/80 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0e1a] p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMode("send")}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                mode === "send" ? "bg-cyan-500 text-black" : "bg-white/5 text-white"
-              }`}
-            >
-              <Send size={16} className="mr-1 inline" />
-              Send
-            </button>
-            <button
-              onClick={() => setMode("receive")}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                mode === "receive" ? "bg-cyan-500 text-black" : "bg-white/5 text-white"
-              }`}
-            >
-              <QrCode size={16} className="mr-1 inline" />
-              Receive
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050812]/80 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0e1a] p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode("send")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  mode === "send" ? "bg-cyan-500 text-black" : "bg-white/5 text-white"
+                }`}
+              >
+                <Send size={16} className="mr-1 inline" />
+                Send
+              </button>
+              <button
+                onClick={() => setMode("receive")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  mode === "receive" ? "bg-cyan-500 text-black" : "bg-white/5 text-white"
+                }`}
+              >
+                <QrCode size={16} className="mr-1 inline" />
+                Receive
+              </button>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-white">
+              <X size={20} />
             </button>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
-            <X size={20} />
-          </button>
-        </div>
 
-        {mode === "send" && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
-              <label className="mb-2 block text-sm text-slate-400">
-                Recipient's UID
-              </label>
-              <input
-                type="text"
-                placeholder="Enter recipient's UID (e.g., CP00000001)"
-                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
-                onKeyDown={handleManualUidInput}
-              />
-              <p className="mt-2 text-center text-xs text-slate-500">or</p>
-              <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400">
-                <Camera size={18} />
-                Scan QR Code
+          {mode === "send" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
+                <label className="mb-2 block text-sm text-slate-400">
+                  Recipient's UID
+                </label>
                 <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const uid = prompt("Enter the UID from the QR code:");
-                      if (uid) findUserByUid(uid);
-                    }
-                    e.target.value = "";
-                  }}
+                  type="text"
+                  placeholder="Enter recipient's UID (e.g., CP00000001)"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                  onKeyDown={handleManualUidInput}
                 />
-              </label>
-            </div>
-
-            {scanning && (
-              <div className="flex items-center justify-center py-4">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-                <span className="ml-2 text-sm text-slate-400">Searching...</span>
+                <p className="mt-2 text-center text-xs text-slate-500">or</p>
+                
+                {/* ✅ FIXED: Real QR Scanner button */}
+                <button
+                  onClick={() => setShowScanner(true)}
+                  className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400"
+                >
+                  <Camera size={18} />
+                  Scan QR Code
+                </button>
               </div>
-            )}
 
-            {scannedUser && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20">
-                    <User size={18} className="text-emerald-300" />
+              {/* ✅ NEW: Recent Contacts Section */}
+              {recentContacts.length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
+                  <label className="mb-2 block text-sm text-slate-400">
+                    Recent Contacts
+                  </label>
+                  <div className="space-y-2">
+                    {recentContacts.map((contact) => (
+                      <button
+                        key={contact.uid}
+                        onClick={() => selectRecentContact(contact)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-[#050812] p-3 text-left transition hover:bg-white/5"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20">
+                          <span className="text-cyan-400 font-semibold">
+                            {contact.name?.[0]?.toUpperCase() || "U"}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-white truncate">
+                            {contact.name || contact.uid}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            UID: {contact.uid}
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-500" />
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <div className="font-semibold text-white">
-                      {scannedUser.name || scannedUser.email}
-                    </div>
-                    <div className="text-xs text-slate-400">UID: {scannedUser.uid}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Amount (USDT)</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount (minimum 1 USDT)"
-                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Note (Optional)</label>
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a note"
-                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <button
-              onClick={handleSendTransfer}
-              disabled={loading || !scannedUser || !amount}
-              className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
-            >
-              {loading ? "Sending..." : `Send ${amount || "0"} USDT`}
-            </button>
-          </div>
-        )}
-
-        {mode === "receive" && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
-              <p className="text-sm text-slate-400">Share this QR code to receive payments</p>
-              
-              {myQrCode && !qrCodeError ? (
-                <div className="mt-4 flex flex-col items-center">
-                  <img
-                    src={getFullImageUrl(myQrCode)}
-                    alt="Your QR Code"
-                    className="h-48 w-48 rounded-xl border border-white/10 bg-white p-2"
-                    onError={() => setQrCodeError(true)}
-                  />
-                  <button
-                    onClick={() => copyToClipboard(userUid)}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    {copied ? "Copied!" : "Copy UID"}
-                  </button>
-                  <p className="mt-3 text-xs text-slate-500">
-                    Your UID: <span className="font-mono text-white">{userUid}</span>
-                  </p>
-                </div>
-              ) : qrCodeError ? (
-                <div className="mt-4 flex flex-col items-center">
-                  <div className="flex h-48 w-48 flex-col items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10">
-                    <QrCode size={48} className="text-red-400 mb-2" />
-                    <p className="text-xs text-red-400">QR Code unavailable</p>
-                    <button
-                      onClick={loadMyQrCode}
-                      className="mt-3 rounded-lg bg-cyan-500 px-3 py-1 text-xs text-black"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(userUid)}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    {copied ? "Copied!" : "Copy UID"}
-                  </button>
-                  <p className="mt-3 text-xs text-slate-500">
-                    Your UID: <span className="font-mono text-white">{userUid}</span>
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-4 flex h-48 items-center justify-center">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
                 </div>
               )}
-            </div>
 
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
-              <h3 className="text-sm font-semibold text-white">How to receive:</h3>
-              <ol className="mt-2 space-y-2 text-xs text-slate-400">
-                <li>1. Share this QR code with the sender</li>
-                <li>2. Or share your UID: <span className="font-mono text-white">{userUid}</span></li>
-                <li>3. Funds will be credited instantly to your wallet</li>
-              </ol>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+              {loading && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                  <span className="ml-2 text-sm text-slate-400">Searching...</span>
+                </div>
+              )}
 
-export default function AssetsPage() {
-  const navigate = useNavigate();
-  const { showError, showSuccess, showVoucher } = useNotification();
+              {scannedUser && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20">
+                      <User size={18} className="text-emerald-300" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-white">
+                        {scannedUser.name || scannedUser.email}
+                      </div>
+                      <div className="text-xs text-slate-400">UID: {scannedUser.uid}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-  const token =
-    localStorage.getItem("userToken") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken") ||
-    "";
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">Amount (USDT)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Enter amount (minimum 1 USDT)"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                />
+              </div>
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [wallet, setWallet] = useState({
-    balance: 0,
-    user: null,
-    walletLabel: "Main Wallet",
-  });
-  const [markets, setMarkets] = useState([]);
-  const [holdings, setHoldings] = useState([]);
-  const [openTrades, setOpenTrades] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  
-  // Joint Account State
-  const [jointAccount, setJointAccount] = useState(null);
-  const [jointPartner, setJointPartner] = useState(null);
-  const [combinedBalance, setCombinedBalance] = useState(null);
-  const [jointBalanceData, setJointBalanceData] = useState(null);
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">Note (Optional)</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add a note"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                />
+              </div>
 
-  // ✅ FIX: Load real user assets from backend
-  async function loadRealUserAssets() {
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-      const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      
-      if (data.success && Array.isArray(data.data?.assets)) {
-        const normalizedAssets = normalizeHoldings(data.data.assets, markets);
-        if (normalizedAssets.length > 0) {
-          setHoldings(normalizedAssets);
-          return true;
-        }
-      }
-      return false;
-    } catch (err) {
-      console.error("Failed to load user assets:", err);
-      return false;
-    }
-  }
-
-  async function loadData(silent = false) {
-    try {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
-
-      setError("");
-
-      const tasks = [
-        userApi.getWalletSummary(token),
-        marketApi.home(),
-        typeof tradeApi?.open === "function" ? tradeApi.open(token) : Promise.resolve({ data: { data: [] } }),
-        typeof userApi?.getNotifications === "function"
-          ? userApi.getNotifications(token)
-          : Promise.resolve({ data: { data: [] } }),
-        userApi.getJointAccountStatus(token),
-      ];
-
-      tasks.push(
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then(res => res.json())
-      );
-
-      const [walletRes, marketRes, openTradeRes, notificationRes, jointRes, combinedRes] =
-        await Promise.allSettled(tasks);
-
-      if (walletRes.status === "fulfilled") {
-        const data = walletRes.value?.data?.data || {};
-        setWallet({
-          balance: Number(data.balance || 0),
-          user: data.user || null,
-          walletLabel: data.walletLabel || "Main Wallet",
-        });
-      }
-
-      if (marketRes.status === "fulfilled") {
-        const rows = Array.isArray(marketRes.value?.data?.data)
-          ? marketRes.value.data.data
-          : [];
-        setMarkets(rows);
-      }
-
-      if (openTradeRes.status === "fulfilled") {
-        setOpenTrades(
-          Array.isArray(openTradeRes.value?.data?.data)
-            ? openTradeRes.value.data.data
-            : []
-        );
-      }
-
-      if (notificationRes.status === "fulfilled") {
-        setNotifications(
-          Array.isArray(notificationRes.value?.data?.data)
-            ? notificationRes.value.data.data
-            : []
-        );
-      }
-
-      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
-        const balanceData = combinedRes.value.data;
-        setJointBalanceData(balanceData);
-        
-        if (balanceData.hasJointAccount) {
-          setCombinedBalance(balanceData.combinedBalance);
-          setJointPartner({
-            name: balanceData.partnerName,
-            uid: balanceData.partnerUid,
-            balance: balanceData.partnerBalance
-          });
-        } else {
-          setCombinedBalance(null);
-          setJointPartner(null);
-        }
-      }
-
-      if (jointRes.status === "fulfilled" && jointRes.value?.data?.success) {
-        const jointData = jointRes.value.data.data;
-        if (jointData.hasJointAccount && jointData.jointAccount) {
-          setJointAccount(jointData.jointAccount);
-        } else {
-          setJointAccount(null);
-        }
-      }
-
-      // ✅ FIX: Load real user assets from database
-      const assetsLoaded = await loadRealUserAssets();
-      
-      // ✅ FIX: Fallback to market prices if no assets found
-      if (!assetsLoaded && Number(wallet.balance || 0) > 0) {
-        const usdtOnly = [{
-          symbol: "USDT",
-          amount: Number(wallet.balance || 0),
-          usdtValue: Number(wallet.balance || 0),
-          unitPrice: 1,
-          avgPrice: 1,
-          spotPnl: 0,
-          spotPnlPercent: 0,
-          accent: getCoinAccent("USDT"),
-          apr: "Up to 50% APR",
-          logo: COIN_LOGOS.USDT,
-        }];
-        setHoldings(usdtOnly);
-      }
-      
-    } catch (err) {
-      showError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
-
-  function handleTransferComplete() {
-    loadData(true);
-  }
-
-  useEffect(() => {
-    loadData();
-
-    // ✅ FIX: Changed refresh rate from 10s to 30s
-    const interval = setInterval(() => {
-      loadData(true);
-    }, 30000); // 30 seconds instead of 10
-
-    const onFocus = () => loadData(true);
-    const onStorage = (e) => {
-      if (e.key === "VexaTrade_assets_refresh") {
-        loadData(true);
-      }
-    };
-
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);
-  const totalBalance = displayBalance;
-  
-  // ✅ FIX: Use real holdings, not fallback
-  const normalizedHoldings = holdings.length > 0 ? holdings : [];
-
-  const totalSpotPnl = useMemo(() => {
-    return normalizedHoldings.reduce(
-      (sum, item) => sum + Number(item.spotPnl || 0),
-      0
-    );
-  }, [normalizedHoldings]);
-
-  const totalInvested = useMemo(() => {
-    return normalizedHoldings.reduce((sum, item) => {
-      return sum + Number(item.usdtValue || 0) - Number(item.spotPnl || 0);
-    }, 0);
-  }, [normalizedHoldings]);
-
-  const pnlPercent = useMemo(() => {
-    if (!totalInvested) return 0;
-    return (totalSpotPnl / totalInvested) * 100;
-  }, [totalSpotPnl, totalInvested]);
-
-  const tradingAmount = useMemo(() => {
-    return openTrades.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  }, [openTrades]);
-
-  const unreadNotifications = useMemo(() => {
-    return notifications.filter((item) => !Number(item?.is_read)).length;
-  }, [notifications]);
-
-  if (loading) {
-    return (
-      <div className="space-y-5 bg-[#050812] p-3 sm:p-5">
-        <section className="rounded-[28px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300 shadow-2xl">
-          Loading assets...
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5 bg-[#050812] px-2 pb-24 pt-3 sm:px-5 xl:pb-8">
-      <section className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.42)] sm:p-5">
-        <div className="flex items-center justify-between">
-          <div className="text-lg font-semibold text-white sm:text-xl">Assets</div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/transactions")}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06]"
-            >
-              <Bell size={17} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => loadData(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06]"
-            >
-              <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="text-sm text-slate-400">
-            {combinedBalance !== null ? "Combined Total Value" : "Est total value"}
-          </div>
-          <div className="mt-2 flex items-end gap-2">
-            <div className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              {formatMoney(displayBalance)}
-            </div>
-            <div className="mb-1 text-lg font-semibold text-white sm:text-xl">USD</div>
-          </div>
-
-          {jointBalanceData?.hasJointAccount && (
-            <div className="mt-2 text-xs text-slate-500">
-              Your balance: {formatMoney(jointBalanceData.userBalance)} USDT + 
-              {jointPartner?.name}'s balance: {formatMoney(jointBalanceData.partnerBalance)} USDT
+              <button
+                onClick={handleSendTransfer}
+                disabled={loading || !scannedUser || !amount}
+                className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
+              >
+                {loading ? "Sending..." : `Send ${amount || "0"} USDT`}
+              </button>
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => navigate("/transactions")}
-            className="mt-3 inline-flex items-center gap-1.5 text-sm text-slate-400 transition hover:text-white sm:text-base"
-          >
-            <span>
-              Today&apos;s PnL {totalSpotPnl >= 0 ? "+" : "-"}$
-              {formatMoney(Math.abs(totalSpotPnl))} ({totalSpotPnl >= 0 ? "+" : ""}
-              {Number(pnlPercent).toFixed(2)}%)
-            </span>
-            <ChevronRight size={16} />
-          </button>
-        </div>
+          {mode === "receive" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
+                <p className="text-sm text-slate-400">Share this QR code to receive payments</p>
+                
+                {myQrCode && !qrCodeError ? (
+                  <div className="mt-4 flex flex-col items-center">
+                    <img
+                      src={getFullImageUrl(myQrCode)}
+                      alt="Your QR Code"
+                      className="h-48 w-48 rounded-xl border border-white/10 bg-white p-2"
+                      onError={() => setQrCodeError(true)}
+                    />
+                    <button
+                      onClick={() => copyToClipboard(userUid)}
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? "Copied!" : "Copy UID"}
+                    </button>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Your UID: <span className="font-mono text-white">{userUid}</span>
+                    </p>
+                  </div>
+                ) : qrCodeError ? (
+                  <div className="mt-4 flex flex-col items-center">
+                    <div className="flex h-48 w-48 flex-col items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10">
+                      <QrCode size={48} className="text-red-400 mb-2" />
+                      <p className="text-xs text-red-400">QR Code unavailable</p>
+                      <button
+                        onClick={loadMyQrCode}
+                        className="mt-3 rounded-lg bg-cyan-500 px-3 py-1 text-xs text-black"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(userUid)}
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5"
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? "Copied!" : "Copy UID"}
+                    </button>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Your UID: <span className="font-mono text-white">{userUid}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex h-48 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                  </div>
+                )}
+              </div>
 
-        <div className="mt-6 grid grid-cols-4 gap-2 sm:gap-3">
-          <CircleAction
-            icon={ArrowDownToLine}
-            label="Deposit"
-            onClick={() => navigate("/deposit")}
-          />
-          <CircleAction
-            icon={ArrowUpToLine}
-            label="Withdraw"
-            onClick={() => navigate("/withdraw")}
-          />
-          <CircleAction
-            icon={ArrowRightLeft}
-            label="Convert"
-            onClick={() => navigate("/convert")}
-          />
-          <CircleAction
-            icon={QrCode}
-            label="Transfer"
-            onClick={() => setShowQrModal(true)}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white sm:text-3xl">Portfolio</h2>
-
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.06]"
-          >
-            <SlidersHorizontal size={17} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <PortfolioCard
-            value={displayBalance < 0.01 ? "$<0.01" : `$${formatMoney(displayBalance)}`}
-            title={combinedBalance !== null ? "Combined Balance" : "Funding"}
-            subtext={combinedBalance !== null && jointPartner 
-              ? `${jointPartner.name || "Partner"} + You` 
-              : `${normalizedHoldings.length} assets`}
-          />
-          <PortfolioCard
-            value={tradingAmount < 0.01 ? "$0" : `$${formatMoney(tradingAmount)}`}
-            title="Trading"
-            subtext={`${openTrades.length} open trade${openTrades.length === 1 ? "" : "s"}`}
-          />
-          <PortfolioCard
-            value={String(unreadNotifications)}
-            title="Notification"
-            subtext={unreadNotifications === 1 ? "Unread alert" : "Unread alerts"}
-          />
-        </div>
-
-        {jointAccount && jointPartner && jointBalanceData && (
-          <PortfolioCard
-            value={`${formatMoney(jointBalanceData.userBalance)} + ${formatMoney(jointBalanceData.partnerBalance)}`}
-            title={`Joint Account: You + ${jointPartner.name || jointPartner.uid}`}
-            subtext={`Total: ${formatMoney(jointBalanceData.combinedBalance)} USDT • Account ID: ${jointAccount.account_id}`}
-            icon={Users}
-            tone="text-cyan-300"
-          />
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-white sm:text-3xl">Crypto</h2>
-            <div className="mt-1 flex justify-between gap-3 text-xs text-slate-500 sm:text-sm">
-              <span>Name/Amount</span>
-            </div>
-          </div>
-
-          <div className="text-right text-xs text-slate-500 sm:text-sm">
-            Value/Spot PnL
-          </div>
-        </div>
-
-        <div className="space-y-2.5">
-          {normalizedHoldings.length > 0 ? (
-            normalizedHoldings.map((item) => (
-              <AssetRow key={item.symbol} item={item} />
-            ))
-          ) : (
-            <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
-              No assets found. Start by depositing or converting funds.
+              <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
+                <h3 className="text-sm font-semibold text-white">How to receive:</h3>
+                <ol className="mt-2 space-y-2 text-xs text-slate-400">
+                  <li>1. Share this QR code with the sender</li>
+                  <li>2. Or share your UID: <span className="font-mono text-white">{userUid}</span></li>
+                  <li>3. Funds will be credited instantly to your wallet</li>
+                </ol>
+              </div>
             </div>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-[28px] border border-white/10 bg-[#0a0e1a] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.32)] sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-2xl font-bold text-white sm:text-3xl">
-            Recent funding history
-          </h2>
-          <button
-            type="button"
-            onClick={() => navigate("/transactions")}
-            className="text-slate-300 transition hover:text-white"
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
-
-        <div className="mt-4">
-          <HistoryRow
-            title="Place an order"
-            date={new Date().toLocaleString()}
-            amount={`-${formatMoney(displayBalance > 0 ? Math.min(displayBalance, 371) : 0)} USDT`}
-            negative
-          />
-        </div>
-      </section>
-
-      {/* QR Transfer Modal */}
-      <QrTransferModal
-        isOpen={showQrModal}
-        onClose={() => setShowQrModal(false)}
-        onTransferComplete={handleTransferComplete}
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleQrScanSuccess}
       />
-    </div>
+
+      {/* Confirmation Modal */}
+      <TransferConfirmModal
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={executeTransfer}
+        recipient={scannedUser}
+        amount={amount}
+        note={note}
+        isProcessing={loading}
+      />
+    </>
   );
 }
