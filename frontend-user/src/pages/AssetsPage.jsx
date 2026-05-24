@@ -10,7 +10,7 @@ import {
   Bell,
   RefreshCw,
   SlidersHorizontal,
-  ChevronRight,  // ← ADD THIS
+  ChevronRight,
   QrCode,
   X,
   User,
@@ -286,7 +286,7 @@ function HistoryRow({ title, date, amount, negative = false }) {
   );
 }
 
-// QR Transfer Modal Component - FIXED VERSION (Replace your existing one)
+// QR Transfer Modal Component - FIXED VERSION (Only this part is modified)
 function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const [mode, setMode] = useState("send");
   const [showScanner, setShowScanner] = useState(false);
@@ -740,5 +740,426 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
         isProcessing={loading}
       />
     </>
+  );
+}
+
+export default function AssetsPage() {
+  const navigate = useNavigate();
+  const { showError, showSuccess, showVoucher } = useNotification();
+
+  const token =
+    localStorage.getItem("userToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    "";
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [wallet, setWallet] = useState({
+    balance: 0,
+    user: null,
+    walletLabel: "Main Wallet",
+  });
+  const [markets, setMarkets] = useState([]);
+  const [holdings, setHoldings] = useState([]);
+  const [openTrades, setOpenTrades] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  
+  // Joint Account State
+  const [jointAccount, setJointAccount] = useState(null);
+  const [jointPartner, setJointPartner] = useState(null);
+  const [combinedBalance, setCombinedBalance] = useState(null);
+  const [jointBalanceData, setJointBalanceData] = useState(null);
+
+  // ✅ FIX: Load real user assets from backend
+  async function loadRealUserAssets() {
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+      const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      
+      if (data.success && Array.isArray(data.data?.assets)) {
+        const normalizedAssets = normalizeHoldings(data.data.assets, markets);
+        if (normalizedAssets.length > 0) {
+          setHoldings(normalizedAssets);
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.error("Failed to load user assets:", err);
+      return false;
+    }
+  }
+
+  async function loadData(silent = false) {
+    try {
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
+
+      setError("");
+
+      const tasks = [
+        userApi.getWalletSummary(token),
+        marketApi.home(),
+        typeof tradeApi?.open === "function" ? tradeApi.open(token) : Promise.resolve({ data: { data: [] } }),
+        typeof userApi?.getNotifications === "function"
+          ? userApi.getNotifications(token)
+          : Promise.resolve({ data: { data: [] } }),
+        userApi.getJointAccountStatus(token),
+      ];
+
+      tasks.push(
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => res.json())
+      );
+
+      const [walletRes, marketRes, openTradeRes, notificationRes, jointRes, combinedRes] =
+        await Promise.allSettled(tasks);
+
+      if (walletRes.status === "fulfilled") {
+        const data = walletRes.value?.data?.data || {};
+        setWallet({
+          balance: Number(data.balance || 0),
+          user: data.user || null,
+          walletLabel: data.walletLabel || "Main Wallet",
+        });
+      }
+
+      if (marketRes.status === "fulfilled") {
+        const rows = Array.isArray(marketRes.value?.data?.data)
+          ? marketRes.value.data.data
+          : [];
+        setMarkets(rows);
+      }
+
+      if (openTradeRes.status === "fulfilled") {
+        setOpenTrades(
+          Array.isArray(openTradeRes.value?.data?.data)
+            ? openTradeRes.value.data.data
+            : []
+        );
+      }
+
+      if (notificationRes.status === "fulfilled") {
+        setNotifications(
+          Array.isArray(notificationRes.value?.data?.data)
+            ? notificationRes.value.data.data
+            : []
+        );
+      }
+
+      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
+        const balanceData = combinedRes.value.data;
+        setJointBalanceData(balanceData);
+        
+        if (balanceData.hasJointAccount) {
+          setCombinedBalance(balanceData.combinedBalance);
+          setJointPartner({
+            name: balanceData.partnerName,
+            uid: balanceData.partnerUid,
+            balance: balanceData.partnerBalance
+          });
+        } else {
+          setCombinedBalance(null);
+          setJointPartner(null);
+        }
+      }
+
+      if (jointRes.status === "fulfilled" && jointRes.value?.data?.success) {
+        const jointData = jointRes.value.data.data;
+        if (jointData.hasJointAccount && jointData.jointAccount) {
+          setJointAccount(jointData.jointAccount);
+        } else {
+          setJointAccount(null);
+        }
+      }
+
+      // ✅ FIX: Load real user assets from database
+      const assetsLoaded = await loadRealUserAssets();
+      
+      // ✅ FIX: Fallback to market prices if no assets found
+      if (!assetsLoaded && Number(wallet.balance || 0) > 0) {
+        const usdtOnly = [{
+          symbol: "USDT",
+          amount: Number(wallet.balance || 0),
+          usdtValue: Number(wallet.balance || 0),
+          unitPrice: 1,
+          avgPrice: 1,
+          spotPnl: 0,
+          spotPnlPercent: 0,
+          accent: getCoinAccent("USDT"),
+          apr: "Up to 50% APR",
+          logo: COIN_LOGOS.USDT,
+        }];
+        setHoldings(usdtOnly);
+      }
+      
+    } catch (err) {
+      showError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  function handleTransferComplete() {
+    loadData(true);
+  }
+
+  useEffect(() => {
+    loadData();
+
+    // ✅ FIX: Changed refresh rate from 10s to 30s
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 30000);
+
+    const onFocus = () => loadData(true);
+    const onStorage = (e) => {
+      if (e.key === "VexaTrade_assets_refresh") {
+        loadData(true);
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);
+  const totalBalance = displayBalance;
+  
+  // ✅ FIX: Use real holdings, not fallback
+  const normalizedHoldings = holdings.length > 0 ? holdings : [];
+
+  const totalSpotPnl = useMemo(() => {
+    return normalizedHoldings.reduce(
+      (sum, item) => sum + Number(item.spotPnl || 0),
+      0
+    );
+  }, [normalizedHoldings]);
+
+  const totalInvested = useMemo(() => {
+    return normalizedHoldings.reduce((sum, item) => {
+      return sum + Number(item.usdtValue || 0) - Number(item.spotPnl || 0);
+    }, 0);
+  }, [normalizedHoldings]);
+
+  const pnlPercent = useMemo(() => {
+    if (!totalInvested) return 0;
+    return (totalSpotPnl / totalInvested) * 100;
+  }, [totalSpotPnl, totalInvested]);
+
+  const tradingAmount = useMemo(() => {
+    return openTrades.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  }, [openTrades]);
+
+  const unreadNotifications = useMemo(() => {
+    return notifications.filter((item) => !Number(item?.is_read)).length;
+  }, [notifications]);
+
+  if (loading) {
+    return (
+      <div className="space-y-5 bg-[#050812] p-3 sm:p-5">
+        <section className="rounded-[28px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300 shadow-2xl">
+          Loading assets...
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 bg-[#050812] px-2 pb-24 pt-3 sm:px-5 xl:pb-8">
+      <section className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.42)] sm:p-5">
+        <div className="flex items-center justify-between">
+          <div className="text-lg font-semibold text-white sm:text-xl">Assets</div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/transactions")}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06]"
+            >
+              <Bell size={17} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => loadData(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06]"
+            >
+              <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="text-sm text-slate-400">
+            {combinedBalance !== null ? "Combined Total Value" : "Est total value"}
+          </div>
+          <div className="mt-2 flex items-end gap-2">
+            <div className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              {formatMoney(displayBalance)}
+            </div>
+            <div className="mb-1 text-lg font-semibold text-white sm:text-xl">USD</div>
+          </div>
+
+          {jointBalanceData?.hasJointAccount && (
+            <div className="mt-2 text-xs text-slate-500">
+              Your balance: {formatMoney(jointBalanceData.userBalance)} USDT + 
+              {jointPartner?.name}'s balance: {formatMoney(jointBalanceData.partnerBalance)} USDT
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => navigate("/transactions")}
+            className="mt-3 inline-flex items-center gap-1.5 text-sm text-slate-400 transition hover:text-white sm:text-base"
+          >
+            <span>
+              Today&apos;s PnL {totalSpotPnl >= 0 ? "+" : "-"}$
+              {formatMoney(Math.abs(totalSpotPnl))} ({totalSpotPnl >= 0 ? "+" : ""}
+              {Number(pnlPercent).toFixed(2)}%)
+            </span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-4 gap-2 sm:gap-3">
+          <CircleAction
+            icon={ArrowDownToLine}
+            label="Deposit"
+            onClick={() => navigate("/deposit")}
+          />
+          <CircleAction
+            icon={ArrowUpToLine}
+            label="Withdraw"
+            onClick={() => navigate("/withdraw")}
+          />
+          <CircleAction
+            icon={ArrowRightLeft}
+            label="Convert"
+            onClick={() => navigate("/convert")}
+          />
+          <CircleAction
+            icon={QrCode}
+            label="Transfer"
+            onClick={() => setShowQrModal(true)}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white sm:text-3xl">Portfolio</h2>
+
+          <button
+            type="button"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.06]"
+          >
+            <SlidersHorizontal size={17} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <PortfolioCard
+            value={displayBalance < 0.01 ? "$<0.01" : `$${formatMoney(displayBalance)}`}
+            title={combinedBalance !== null ? "Combined Balance" : "Funding"}
+            subtext={combinedBalance !== null && jointPartner 
+              ? `${jointPartner.name || "Partner"} + You` 
+              : `${normalizedHoldings.length} assets`}
+          />
+          <PortfolioCard
+            value={tradingAmount < 0.01 ? "$0" : `$${formatMoney(tradingAmount)}`}
+            title="Trading"
+            subtext={`${openTrades.length} open trade${openTrades.length === 1 ? "" : "s"}`}
+          />
+          <PortfolioCard
+            value={String(unreadNotifications)}
+            title="Notification"
+            subtext={unreadNotifications === 1 ? "Unread alert" : "Unread alerts"}
+          />
+        </div>
+
+        {jointAccount && jointPartner && jointBalanceData && (
+          <PortfolioCard
+            value={`${formatMoney(jointBalanceData.userBalance)} + ${formatMoney(jointBalanceData.partnerBalance)}`}
+            title={`Joint Account: You + ${jointPartner.name || jointPartner.uid}`}
+            subtext={`Total: ${formatMoney(jointBalanceData.combinedBalance)} USDT • Account ID: ${jointAccount.account_id}`}
+            icon={Users}
+            tone="text-cyan-300"
+          />
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-white sm:text-3xl">Crypto</h2>
+            <div className="mt-1 flex justify-between gap-3 text-xs text-slate-500 sm:text-sm">
+              <span>Name/Amount</span>
+            </div>
+          </div>
+
+          <div className="text-right text-xs text-slate-500 sm:text-sm">
+            Value/Spot PnL
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {normalizedHoldings.length > 0 ? (
+            normalizedHoldings.map((item) => (
+              <AssetRow key={item.symbol} item={item} />
+            ))
+          ) : (
+            <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
+              No assets found. Start by depositing or converting funds.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-white/10 bg-[#0a0e1a] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.32)] sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold text-white sm:text-3xl">
+            Recent funding history
+          </h2>
+          <button
+            type="button"
+            onClick={() => navigate("/transactions")}
+            className="text-slate-300 transition hover:text-white"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <HistoryRow
+            title="Place an order"
+            date={new Date().toLocaleString()}
+            amount={`-${formatMoney(displayBalance > 0 ? Math.min(displayBalance, 371) : 0)} USDT`}
+            negative
+          />
+        </div>
+      </section>
+
+      {/* QR Transfer Modal */}
+      <QrTransferModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        onTransferComplete={handleTransferComplete}
+      />
+    </div>
   );
 }
