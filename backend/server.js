@@ -8345,7 +8345,7 @@ app.get("/api/funds/plans", authenticateUser, async (req, res, next) => {
 // Assign private plan to specific user
 app.post("/api/admin/fund-rules/:planId/assign-user", authenticateAdmin, async (req, res, next) => {
   try {
-    const planId = Number(req.params.planId);  // ✅ CORRECT
+    const planId = Number(req.params.planId);  // ✅ FIXED: Changed from req.params.id to req.params.planId
     const { userId } = req.body;
     
     if (!planId || !userId) {
@@ -8355,7 +8355,7 @@ app.post("/api/admin/fund-rules/:planId/assign-user", authenticateAdmin, async (
       });
     }
     
-    // Check if plan exists and is private
+    // Check if plan exists
     const [planRows] = await pool.execute(
       `SELECT id, name, is_private FROM fund_plans WHERE id = ?`,
       [planId]
@@ -8441,11 +8441,11 @@ app.delete("/api/admin/fund-rules/:planId/remove-user/:userId", authenticateAdmi
 
 /* ---------------- ADMIN FUND RULES ---------------- */
 
+// Get fund rules - COMPLETE with all note fields
 app.get("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `
-      SELECT
+      `SELECT
         id,
         name,
         duration_days,
@@ -8455,11 +8455,16 @@ app.get("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
         max_daily_profit_percent,
         user_limit_count,
         CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END AS status,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
         created_at,
         updated_at
       FROM fund_plans
-      ORDER BY duration_days ASC, id ASC
-      `
+      ORDER BY duration_days ASC, id ASC`
     );
 
     res.json({
@@ -8467,10 +8472,12 @@ app.get("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
       data: rows,
     });
   } catch (error) {
+    console.error("Get fund rules error:", error);
     next(error);
   }
 });
 
+// Create fund rule - COMPLETE with all note fields
 app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
   try {
     const {
@@ -8482,6 +8489,12 @@ app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
       max_daily_profit_percent,
       user_limit_count,
       status,
+      admin_note,
+      admin_note_background_image,
+      additional_notes,
+      disclaimer,
+      is_private,
+      compound_percentage,
     } = req.body || {};
 
     if (!name || !String(name).trim()) {
@@ -8493,17 +8506,13 @@ app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
 
     const durationDays = Number(duration_days || 0);
     const minAmount = toNumber(min_amount);
-    const maxAmount =
-      max_amount === null || max_amount === "" || max_amount === undefined
-        ? null
-        : toNumber(max_amount);
+    const maxAmount = max_amount === null || max_amount === "" || max_amount === undefined ? null : toNumber(max_amount);
     const minRate = toNumber(min_daily_profit_percent);
     const maxRate = toNumber(max_daily_profit_percent);
-    const userLimit =
-      user_limit_count === null || user_limit_count === "" || user_limit_count === undefined
-        ? null
-        : Number(user_limit_count);
+    const userLimit = user_limit_count === null || user_limit_count === "" || user_limit_count === undefined ? null : Number(user_limit_count);
     const isActive = String(status || "active").toLowerCase() === "active" ? 1 : 0;
+    const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
+    const compoundPct = compound_percentage ? Number(compound_percentage) : 100;
 
     if (durationDays <= 0) {
       return res.status(400).json({
@@ -8534,8 +8543,7 @@ app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
     }
 
     const [result] = await pool.execute(
-      `
-      INSERT INTO fund_plans (
+      `INSERT INTO fund_plans (
         name,
         duration_days,
         min_amount,
@@ -8544,10 +8552,15 @@ app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
         max_daily_profit_percent,
         user_limit_count,
         is_active,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-      `,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         String(name).trim(),
         durationDays,
@@ -8557,21 +8570,39 @@ app.post("/api/admin/fund-rules", authenticateAdmin, async (req, res, next) => {
         maxRate,
         userLimit,
         isActive,
+        admin_note || null,
+        admin_note_background_image || null,
+        additional_notes || null,
+        disclaimer || null,
+        isPrivate,
+        compoundPct,
       ]
     );
+
+    const [createdRows] = await pool.execute(
+      `SELECT * FROM fund_plans WHERE id = ?`,
+      [result.insertId]
+    );
+
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: "create_fund_rule",
+      referenceId: result.insertId,
+      note: `Created fund rule: ${name}`,
+    });
 
     res.json({
       success: true,
       message: "Fund rule created successfully",
-      data: {
-        id: result.insertId,
-      },
+      data: createdRows[0] || null,
     });
   } catch (error) {
+    console.error("Create fund rule error:", error);
     next(error);
   }
 });
 
+// Update fund rule - COMPLETE with all note fields
 app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) => {
   try {
     const ruleId = Number(req.params.id);
@@ -8585,6 +8616,12 @@ app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) =
       max_daily_profit_percent,
       user_limit_count,
       status,
+      admin_note,
+      admin_note_background_image,
+      additional_notes,
+      disclaimer,
+      is_private,
+      compound_percentage,
     } = req.body || {};
 
     if (!ruleId) {
@@ -8596,17 +8633,13 @@ app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) =
 
     const durationDays = Number(duration_days || 0);
     const minAmount = toNumber(min_amount);
-    const maxAmount =
-      max_amount === null || max_amount === "" || max_amount === undefined
-        ? null
-        : toNumber(max_amount);
+    const maxAmount = max_amount === null || max_amount === "" || max_amount === undefined ? null : toNumber(max_amount);
     const minRate = toNumber(min_daily_profit_percent);
     const maxRate = toNumber(max_daily_profit_percent);
-    const userLimit =
-      user_limit_count === null || user_limit_count === "" || user_limit_count === undefined
-        ? null
-        : Number(user_limit_count);
+    const userLimit = user_limit_count === null || user_limit_count === "" || user_limit_count === undefined ? null : Number(user_limit_count);
     const isActive = String(status || "active").toLowerCase() === "active" ? 1 : 0;
+    const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
+    const compoundPct = compound_percentage ? Number(compound_percentage) : 100;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({
@@ -8637,20 +8670,24 @@ app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) =
     }
 
     const [result] = await pool.execute(
-      `
-      UPDATE fund_plans
-      SET
-        name = ?,
-        duration_days = ?,
-        min_amount = ?,
-        max_amount = ?,
-        min_daily_profit_percent = ?,
-        max_daily_profit_percent = ?,
-        user_limit_count = ?,
-        is_active = ?,
-        updated_at = NOW()
-      WHERE id = ?
-      `,
+      `UPDATE fund_plans
+       SET
+         name = ?,
+         duration_days = ?,
+         min_amount = ?,
+         max_amount = ?,
+         min_daily_profit_percent = ?,
+         max_daily_profit_percent = ?,
+         user_limit_count = ?,
+         is_active = ?,
+         admin_note = ?,
+         admin_note_background_image = ?,
+         additional_notes = ?,
+         disclaimer = ?,
+         is_private = ?,
+         compound_percentage = ?,
+         updated_at = NOW()
+       WHERE id = ?`,
       [
         String(name).trim(),
         durationDays,
@@ -8660,6 +8697,12 @@ app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) =
         maxRate,
         userLimit,
         isActive,
+        admin_note || null,
+        admin_note_background_image || null,
+        additional_notes || null,
+        disclaimer || null,
+        isPrivate,
+        compoundPct,
         ruleId,
       ]
     );
@@ -8671,11 +8714,26 @@ app.put("/api/admin/fund-rules/:id", authenticateAdmin, async (req, res, next) =
       });
     }
 
+    // Fetch updated rule to return
+    const [updatedRows] = await pool.execute(
+      `SELECT * FROM fund_plans WHERE id = ?`,
+      [ruleId]
+    );
+
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: "update_fund_rule",
+      referenceId: ruleId,
+      note: `Updated fund rule #${ruleId}`,
+    });
+
     res.json({
       success: true,
       message: "Fund rule updated successfully",
+      data: updatedRows[0] || null,
     });
   } catch (error) {
+    console.error("Update fund rule error:", error);
     next(error);
   }
 });
