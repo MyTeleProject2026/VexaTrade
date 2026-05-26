@@ -511,9 +511,16 @@ export default function FundsPage() {
     }
   }, [hasTarget, targetProgress]);
 
+  // ✅ FIXED: Initialize selectedPlanId - handles both public and private plans
   useEffect(() => {
     if (plans.length && !selectedPlanId) {
-      setSelectedPlanId(plans[0].id);
+      // Default to first public plan, or first private plan if no public plans
+      const firstPublicPlan = plans.find(p => p.is_private === 0);
+      if (firstPublicPlan) {
+        setSelectedPlanId(firstPublicPlan.id);
+      } else if (plans[0]) {
+        setSelectedPlanId(plans[0].id);
+      }
     }
   }, [plans, selectedPlanId]);
 
@@ -533,6 +540,11 @@ export default function FundsPage() {
     if (targetProgress.targetAmount <= 0) return 0;
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
+
+  // ✅ Check if user has any private plans
+  const hasPrivatePlans = useMemo(() => {
+    return plans.some(p => p.is_private === 1);
+  }, [plans]);
 
   function openApplyModal(plan) {
     if (!hasTarget) {
@@ -719,43 +731,50 @@ export default function FundsPage() {
         />
       </section>
 
-      {/* Tabs */}
+      {/* Tabs - ✅ ADDED Private Funds tab (only shows if user has private plans) */}
       <section className="rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-4 gap-1">
           {[
             ["plans", "Plans"],
+            ["private", "Private Funds"],
             ["active", "Active"],
             ["history", "History"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`rounded-lg py-2 text-xs font-semibold transition ${
-                tab === key
-                  ? "bg-cyan-500 text-black"
-                  : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          ].map(([key, label]) => {
+            // Only show Private Funds tab if user has any private plans
+            if (key === "private" && !hasPrivatePlans) {
+              return null;
+            }
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={`rounded-lg py-2 text-xs font-semibold transition ${
+                  tab === key
+                    ? "bg-cyan-500 text-black"
+                    : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* Plans Tab */}
+      {/* Plans Tab (Public Plans Only) */}
       {tab === "plans" ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Available Plans</h2>
             <div className="text-xs text-slate-500">
-              {plans.length} plan{plans.length === 1 ? "" : "s"}
+              {plans.filter(p => p.is_private === 0).length} plan{plans.filter(p => p.is_private === 0).length === 1 ? "" : "s"}
             </div>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
             <div className="flex gap-1 overflow-x-auto pb-1">
-              {plans.map((plan) => (
+              {plans.filter(p => p.is_private === 0).map((plan) => (
                 <button
                   key={plan.id}
                   type="button"
@@ -772,9 +791,67 @@ export default function FundsPage() {
             </div>
           </div>
 
-          {selectedPlan ? (
+          {selectedPlan && selectedPlan.is_private === 0 ? (
             <PlanCard
               plan={selectedPlan}
+              applying={applying}
+              onApply={openApplyModal}
+              onViewNote={setSelectedNotePlan}
+            />
+          ) : plans.filter(p => p.is_private === 0).length > 0 ? (
+            <PlanCard
+              plan={plans.filter(p => p.is_private === 0)[0]}
+              applying={applying}
+              onApply={openApplyModal}
+              onViewNote={setSelectedNotePlan}
+            />
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
+              No public plans available at the moment.
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {/* ✅ NEW: Private Plans Tab */}
+      {tab === "private" ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">Private Funds</h2>
+            <div className="text-xs text-slate-500">
+              {plans.filter(p => p.is_private === 1).length} private plan{plans.filter(p => p.is_private === 1).length === 1 ? "" : "s"}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {plans.filter(p => p.is_private === 1).map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    selectedPlanId === plan.id
+                      ? "bg-cyan-500 text-black"
+                      : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                  }`}
+                >
+                  {plan.duration_days} Day
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selectedPlan && selectedPlan.is_private === 1 ? (
+            <PlanCard
+              plan={selectedPlan}
+              applying={applying}
+              onApply={openApplyModal}
+              onViewNote={setSelectedNotePlan}
+            />
+          ) : plans.filter(p => p.is_private === 1).length > 0 ? (
+            <PlanCard
+              plan={plans.filter(p => p.is_private === 1)[0]}
               applying={applying}
               onApply={openApplyModal}
               onViewNote={setSelectedNotePlan}
