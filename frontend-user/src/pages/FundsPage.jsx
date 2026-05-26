@@ -56,7 +56,7 @@ function StatusPill({ status }) {
   if (value === "paused") {
     return (
       <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300">
-        Paused by Admin
+        Paused by Blockchain Ecosystem
       </span>
     );
   }
@@ -240,7 +240,7 @@ function ActiveFundCard({ item }) {
       {isPaused && (
         <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-center text-[10px] text-red-300">
           <AlertCircle size={10} className="inline mr-1" />
-          This fund is temporarily paused by admin. Daily profits are on hold.
+          This fund is temporarily paused by Blockchain Ecosystem. Daily profits are on hold.
         </div>
       )}
     </div>
