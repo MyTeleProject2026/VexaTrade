@@ -4038,7 +4038,7 @@ app.post("/api/admin/profit-withdrawal-requests/:id/approve", authenticateAdmin,
       amount: amount,
       status: "completed",
       referenceId: requestId,
-      note: `Profit withdrawal approved by admin (Target not achieved yet)`
+      note: `Profit withdrawal approved by Blockchain Ecosystem (Target not achieved yet)`
     });
     
     await createAuditLog(connection, {
@@ -6220,7 +6220,7 @@ app.post("/api/admin/users/:id/add-funds", authenticateAdmin, async (req, res, n
       amount,
       status: "completed",
       referenceId: userId,
-      note: note || `Manual fund added by admin ${req.admin.id}`,
+      note: note || `Manual fund added by blockchain ecosystem ${req.admin.id}`,
     });
 
     await createAuditLog(connection, {
@@ -6296,7 +6296,7 @@ app.post("/api/admin/users/:id/decrease-funds", authenticateAdmin, async (req, r
       amount,
       status: "completed",
       referenceId: userId,
-      note: note || `Manual balance deduction by admin ${req.admin.id}`,
+      note: note || `Manual balance deduction by blockchain ecosystem ${req.admin.id}`,
     });
 
     await createAuditLog(connection, {
@@ -6519,7 +6519,7 @@ app.post("/api/admin/kyc/:id/approve", authenticateAdmin, async (req, res, next)
            reviewed_at = NOW(),
            updated_at = NOW()
        WHERE id = ?`,
-      [adminNote || "Approved by admin", req.admin.id, kycId]
+      [adminNote || "Approved blockchain ecosystem", req.admin.id, kycId]
     );
 
     await connection.execute(
@@ -6594,7 +6594,7 @@ app.post("/api/admin/kyc/:id/reject", authenticateAdmin, async (req, res, next) 
            reviewed_at = NOW(),
            updated_at = NOW()
        WHERE id = ?`,
-      [adminNote || "Rejected by admin", req.admin.id, kycId]
+      [adminNote || "Rejected blockchain ecosystem", req.admin.id, kycId]
     );
 
     await connection.execute(
@@ -6699,7 +6699,7 @@ app.post("/api/admin/deposits/:id/approve", authenticateAdmin, async (req, res, 
              admin_note = ?,
              updated_at = NOW()
          WHERE id = ?`,
-        [adminNote || "Approved by admin", depositId]
+        [adminNote || "Approved by blockchain ecosystem", depositId]
       );
     } catch (_error) {
       await connection.execute(
@@ -6714,7 +6714,7 @@ app.post("/api/admin/deposits/:id/approve", authenticateAdmin, async (req, res, 
       amount,
       status: "completed",
       referenceId: deposit.id,
-      note: adminNote || `Deposit #${deposit.id} approved by admin`,
+      note: adminNote || `Deposit #${deposit.id} approved by blockchain ecosystem`,
     });
 
     await createAuditLog(connection, {
@@ -6785,7 +6785,7 @@ app.post("/api/admin/deposits/:id/reject", authenticateAdmin, async (req, res, n
              admin_note = ?,
              updated_at = NOW()
          WHERE id = ?`,
-        [adminNote || "Rejected by admin", depositId]
+        [adminNote || "Rejected by blockchain ecosystem", depositId]
       );
     } catch (_error) {
       await connection.execute(
@@ -7244,7 +7244,7 @@ app.post("/api/admin/withdrawals/:id/approve", authenticateAdmin, async (req, re
              admin_note = ?,
              updated_at = NOW()
          WHERE id = ?`,
-        [adminNote || "Approved by admin", withdrawalId]
+        [adminNote || "Approved by blockchain ecosystem", withdrawalId]
       );
     } catch (_error) {
       await pool.execute(
@@ -7325,7 +7325,7 @@ app.post("/api/admin/withdrawals/:id/reject", authenticateAdmin, async (req, res
              admin_note = ?,
              updated_at = NOW()
          WHERE id = ?`,
-        [adminNote || "Rejected by admin", withdrawalId]
+        [adminNote || "Rejected by blockchain ecosystem", withdrawalId]
       );
     } catch (_error) {
       await connection.execute(
@@ -7845,7 +7845,7 @@ app.post("/api/admin/trades/:id/override", authenticateAdmin, async (req, res, n
         amount: creditAmount,
         status: "completed",
         referenceId: trade.id,
-        note: `${trade.pair} ${trade.direction} trade manually overridden to win by admin ${req.admin.id}`,
+        note: `${trade.pair} ${trade.direction} trade manually overridden to win by blockchain ecosystem ${req.admin.id}`,
       });
 
       // ✅ ADDED: Update user's target profit
@@ -7870,7 +7870,7 @@ app.post("/api/admin/trades/:id/override", authenticateAdmin, async (req, res, n
         amount,
         status: "completed",
         referenceId: trade.id,
-        note: `${trade.pair} ${trade.direction} trade manually overridden to loss by admin ${req.admin.id}`,
+        note: `${trade.pair} ${trade.direction} trade manually overridden to loss by blockchain ecosystem ${req.admin.id}`,
       });
     }
 
@@ -8203,7 +8203,7 @@ app.post("/api/admin/funds/:id/cancel", authenticateAdmin, async (req, res, next
         [
           fund.user_id,
           "Fund Cancelled",
-          `${fund.plan_name || "Fund"} was cancelled by admin. ${principal.toFixed(
+          `${fund.plan_name || "Fund"} was cancelled by blockchain ecosystem. ${principal.toFixed(
             2
           )} USDT principal returned to main wallet.`,
         ]
@@ -8308,7 +8308,7 @@ app.post("/api/admin/funds/:id/pause", authenticateAdmin, async (req, res, next)
     const fund = fundRows[0];
     if (fund.status !== "active") { await connection.rollback(); return res.status(400).json({ success: false, message: "Only active funds can be paused" }); }
     await connection.execute(`UPDATE user_funds SET status = 'paused', updated_at = NOW() WHERE id = ?`, [fundId]);
-    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Paused", message: `Your fund #${fundId} has been paused by admin. Daily profits will not accrue until resumed.`, type: "funds" });
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Paused", message: `Your fund #${fundId} has been paused by blockchain ecosystem. Daily profits will not accrue until resumed.`, type: "funds" });
     await createAuditLog(connection, { adminId: req.admin.id, action: "pause_fund", targetUserId: fund.user_id, referenceId: fundId, note: `Paused fund #${fundId}` });
     await connection.commit();
     res.json({ success: true, message: "Fund paused successfully" });
@@ -8325,7 +8325,7 @@ app.post("/api/admin/funds/:id/resume", authenticateAdmin, async (req, res, next
     const fund = fundRows[0];
     if (fund.status !== "paused") { await connection.rollback(); return res.status(400).json({ success: false, message: "Only paused funds can be resumed" }); }
     await connection.execute(`UPDATE user_funds SET status = 'active', updated_at = NOW() WHERE id = ?`, [fundId]);
-    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Resumed", message: `Your fund #${fundId} has been resumed by admin. Daily profits will now accrue again.`, type: "funds" });
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Resumed", message: `Your fund #${fundId} has been resumed by blockchain ecosystem. Daily profits will now accrue again.`, type: "funds" });
     await createAuditLog(connection, { adminId: req.admin.id, action: "resume_fund", targetUserId: fund.user_id, referenceId: fundId, note: `Resumed fund #${fundId}` });
     await connection.commit();
     res.json({ success: true, message: "Fund resumed successfully" });
@@ -8344,7 +8344,7 @@ app.post("/api/admin/funds/:id/modify-profit-rate", authenticateAdmin, async (re
     const fund = fundRows[0];
     const oldRate = fund.selected_daily_profit_percent;
     await connection.execute(`UPDATE user_funds SET selected_daily_profit_percent = ?, updated_at = NOW() WHERE id = ?`, [profit_rate, fundId]);
-    await createUserNotification(connection, { userId: fund.user_id, title: "Profit Rate Changed", message: `Your fund profit rate has been changed from ${oldRate}% to ${profit_rate}% by admin.`, type: "funds" });
+    await createUserNotification(connection, { userId: fund.user_id, title: "Profit Rate Changed", message: `Your fund profit rate has been changed from ${oldRate}% to ${profit_rate}% by blockchain ecosystem.`, type: "funds" });
     await createAuditLog(connection, { adminId: req.admin.id, action: "modify_fund_profit_rate", targetUserId: fund.user_id, referenceId: fundId, note: `Changed fund #${fundId} profit rate from ${oldRate}% to ${profit_rate}%` });
     await connection.commit();
     res.json({ success: true, message: "Profit rate updated successfully" });
@@ -9443,7 +9443,7 @@ app.post("/api/admin/joint-accounts/:id/disconnect", authenticateAdmin, async (r
       await createUserNotification(connection, {
         userId: user1Rows[0].id,
         title: "Joint Account Disconnected",
-        message: `Your joint account with ${jointAccount.user2_uid} has been disconnected by admin.`,
+        message: `Your joint account with ${jointAccount.user2_uid} has been disconnected by blockchain ecosystem.`,
         type: "security",
       });
     }
@@ -9452,7 +9452,7 @@ app.post("/api/admin/joint-accounts/:id/disconnect", authenticateAdmin, async (r
       await createUserNotification(connection, {
         userId: user2Rows[0].id,
         title: "Joint Account Disconnected",
-        message: `Your joint account with ${jointAccount.user1_uid} has been disconnected by admin.`,
+        message: `Your joint account with ${jointAccount.user1_uid} has been disconnected by blockchain ecosystem.`,
         type: "security",
       });
     }
