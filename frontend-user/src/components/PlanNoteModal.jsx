@@ -67,11 +67,11 @@ export default function PlanNoteModal({ isOpen, onClose, plan }) {
               </div>
             </div>
 
-            {/* Admin Note */}
+            {/* BlockchainEcosystem Note */}
             {plan.admin_note && (
               <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
                 <h3 className="text-sm font-semibold text-cyan-400 mb-2">
-                  📢 Admin Note
+                  📢 Blockchain Ecosystem Note
                 </h3>
                 <div className="whitespace-pre-wrap text-sm text-slate-200 leading-relaxed">
                   {plan.admin_note}
