@@ -9,7 +9,6 @@ import {
   ChevronRight,
   X,
   Target,
-  Eye,
   Lock,
   AlertCircle,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import api from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
-import PlanNoteModal from "../components/PlanNoteModal";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -92,8 +90,10 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-// ✅ Plan Card with Note Preview and Private indicator
-function PlanCard({ plan, applying, onApply, onViewNote }) {
+// ✅ UPDATED Plan Card with inline notes and "Read Full Information" button
+function PlanCard({ plan, applying, onApply }) {
+  const [showFullNote, setShowFullNote] = useState(false);
+  
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
       ? "Unlimited"
@@ -105,6 +105,17 @@ function PlanCard({ plan, applying, onApply, onViewNote }) {
       : `${plan.user_limit_count} times`;
 
   const hasNote = plan.admin_note && plan.admin_note.trim().length > 0;
+  const hasAdditionalNotes = plan.additional_notes && plan.additional_notes.trim().length > 0;
+  const hasDisclaimer = plan.disclaimer && plan.disclaimer.trim().length > 0;
+  const hasAnyNote = hasNote || hasAdditionalNotes || hasDisclaimer;
+  
+  // For preview (short version - first 100 characters)
+  const getShortPreview = (text) => {
+    if (!text) return "";
+    if (text.length <= 100) return text;
+    return text.substring(0, 100) + "...";
+  };
+
   const isPrivate = plan.is_private === 1;
 
   return (
@@ -149,25 +160,59 @@ function PlanCard({ plan, applying, onApply, onViewNote }) {
         </div>
       </div>
 
-      <div className="mt-2 flex gap-2">
+      {/* ✅ Notes Section - Displayed directly below plan card */}
+      {hasAnyNote && (
+        <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
+          {/* blockchain ecosystem Note */}
+          {hasNote && (
+            <div className="mb-2">
+              <div className="text-[10px] font-semibold text-cyan-400 mb-1">📢 Information</div>
+              <div className="text-xs text-slate-300 leading-relaxed">
+                {showFullNote ? plan.admin_note : getShortPreview(plan.admin_note)}
+              </div>
+            </div>
+          )}
+          
+          {/* Additional Notes */}
+          {hasAdditionalNotes && (
+            <div className="mb-2">
+              <div className="text-[10px] font-semibold text-slate-300 mb-1">ℹ️ Additional Notes</div>
+              <div className="text-xs text-slate-400 leading-relaxed">
+                {showFullNote ? plan.additional_notes : getShortPreview(plan.additional_notes)}
+              </div>
+            </div>
+          )}
+          
+          {/* Disclaimer */}
+          {hasDisclaimer && (
+            <div className="mb-2">
+              <div className="text-[10px] font-semibold text-amber-400 mb-1">⚠️ Disclaimer</div>
+              <div className="text-xs text-amber-300/70 leading-relaxed">
+                {showFullNote ? plan.disclaimer : getShortPreview(plan.disclaimer)}
+              </div>
+            </div>
+          )}
+          
+          {/* "Click to read full information" button */}
+          <button
+            type="button"
+            onClick={() => setShowFullNote(!showFullNote)}
+            className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1"
+          >
+            {showFullNote ? "Show less ▲" : "Click to read full information ▼"}
+          </button>
+        </div>
+      )}
+
+      <div className="mt-2">
         <button
           type="button"
           onClick={() => onApply(plan)}
           disabled={applying}
-          className="flex-1 rounded-lg bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
+          className="w-full rounded-lg bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
         >
           {applying ? "..." : "Apply"}
         </button>
-
-        {hasNote && (
-          <button
-            type="button"
-            onClick={() => onViewNote(plan)}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white transition hover:bg-white/10"
-          >
-            <Eye size={12} />
-          </button>
-        )}
       </div>
     </div>
   );
@@ -335,7 +380,6 @@ export default function FundsPage() {
   const [applyModal, setApplyModal] = useState(null);
   const [applyAmount, setApplyAmount] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
-  const [selectedNotePlan, setSelectedNotePlan] = useState(null);
 
   // Target system states
   const [hasTarget, setHasTarget] = useState(false);
@@ -511,10 +555,9 @@ export default function FundsPage() {
     }
   }, [hasTarget, targetProgress]);
 
-  // ✅ FIXED: Initialize selectedPlanId - handles both public and private plans
+  // Initialize selectedPlanId - handles both public and private plans
   useEffect(() => {
     if (plans.length && !selectedPlanId) {
-      // Default to first public plan, or first private plan if no public plans
       const firstPublicPlan = plans.find(p => p.is_private === 0);
       if (firstPublicPlan) {
         setSelectedPlanId(firstPublicPlan.id);
@@ -541,7 +584,7 @@ export default function FundsPage() {
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
-  // ✅ Check if user has any private plans
+  // Check if user has any private plans
   const hasPrivatePlans = useMemo(() => {
     return plans.some(p => p.is_private === 1);
   }, [plans]);
@@ -731,7 +774,7 @@ export default function FundsPage() {
         />
       </section>
 
-      {/* Tabs - ✅ ADDED Private Funds tab (only shows if user has private plans) */}
+      {/* Tabs - with Private Funds tab (only shows if user has private plans) */}
       <section className="rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
         <div className="grid grid-cols-4 gap-1">
           {[
@@ -796,14 +839,12 @@ export default function FundsPage() {
               plan={selectedPlan}
               applying={applying}
               onApply={openApplyModal}
-              onViewNote={setSelectedNotePlan}
             />
           ) : plans.filter(p => p.is_private === 0).length > 0 ? (
             <PlanCard
               plan={plans.filter(p => p.is_private === 0)[0]}
               applying={applying}
               onApply={openApplyModal}
-              onViewNote={setSelectedNotePlan}
             />
           ) : (
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
@@ -813,7 +854,7 @@ export default function FundsPage() {
         </section>
       ) : null}
 
-      {/* ✅ NEW: Private Plans Tab */}
+      {/* Private Plans Tab */}
       {tab === "private" ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -847,14 +888,12 @@ export default function FundsPage() {
               plan={selectedPlan}
               applying={applying}
               onApply={openApplyModal}
-              onViewNote={setSelectedNotePlan}
             />
           ) : plans.filter(p => p.is_private === 1).length > 0 ? (
             <PlanCard
               plan={plans.filter(p => p.is_private === 1)[0]}
               applying={applying}
               onApply={openApplyModal}
-              onViewNote={setSelectedNotePlan}
             />
           ) : null}
         </section>
@@ -1096,13 +1135,6 @@ export default function FundsPage() {
         }}
         currentProfit={profitWithdrawalProfit}
         targetAmount={profitWithdrawalTarget}
-      />
-
-      {/* Plan Note Modal */}
-      <PlanNoteModal
-        isOpen={selectedNotePlan !== null}
-        onClose={() => setSelectedNotePlan(null)}
-        plan={selectedNotePlan}
       />
     </div>
   );
