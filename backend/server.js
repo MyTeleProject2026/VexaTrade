@@ -1409,6 +1409,9 @@ async function settleDailyFunds() {
     );
 
     const now = new Date();
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    
     let creditedCount = 0;
     let completedCount = 0;
 
@@ -1439,21 +1442,30 @@ async function settleDailyFunds() {
 
       if (totalDays <= 0) continue;
 
-      // Get the date of last credit (without time)
+      // ✅ FIXED: Use calendar date comparison instead of 24-hour intervals
       const lastCreditDate = fund.last_profit_at
         ? new Date(fund.last_profit_at)
         : new Date(fund.started_at);
       lastCreditDate.setHours(0, 0, 0, 0);
       
-      // Get today's date (without time)
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0);
+      const startDate = new Date(fund.started_at);
+      startDate.setHours(0, 0, 0, 0);
       
-      // If last credit was today, skip
+      // Calculate expected current day based on calendar days since start
+      const daysSinceStart = Math.floor((todayDate - startDate) / (1000 * 60 * 60 * 24));
+      const expectedDay = Math.min(daysSinceStart, totalDays);
+      
+      // If already credited today, skip
       if (lastCreditDate >= todayDate) continue;
       
-      // If current day already equals total days, skip
+      // If already completed, skip
       if (currentDay >= totalDays) continue;
+      
+      // Determine the next day to credit
+      const nextDay = currentDay + 1;
+      
+      // If next day would exceed total days, skip
+      if (nextDay > totalDays) continue;
 
       const dailyRate = toNumber(fund.selected_daily_profit_percent);
       
@@ -1461,7 +1473,6 @@ async function settleDailyFunds() {
       const compoundAmount = Number((dailyProfit * compoundPercentage / 100).toFixed(10));
       const profitToWallet = Number((dailyProfit - compoundAmount).toFixed(10));
       
-      const nextDay = currentDay + 1;
       const nextEarnedProfit = Number((toNumber(fund.earned_profit) + dailyProfit).toFixed(10));
       const newPrincipal = Number((currentPrincipal + compoundAmount).toFixed(10));
 
