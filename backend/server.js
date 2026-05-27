@@ -1439,13 +1439,20 @@ async function settleDailyFunds() {
 
       if (totalDays <= 0) continue;
 
-      const lastCreditBase = fund.last_profit_at
+      // Get the date of last credit (without time)
+      const lastCreditDate = fund.last_profit_at
         ? new Date(fund.last_profit_at)
         : new Date(fund.started_at);
-
-      const nextCreditAt = addDays(lastCreditBase, 1);
-
-      if (now < nextCreditAt) continue;
+      lastCreditDate.setHours(0, 0, 0, 0);
+      
+      // Get today's date (without time)
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      // If last credit was today, skip
+      if (lastCreditDate >= todayDate) continue;
+      
+      // If current day already equals total days, skip
       if (currentDay >= totalDays) continue;
 
       const dailyRate = toNumber(fund.selected_daily_profit_percent);
