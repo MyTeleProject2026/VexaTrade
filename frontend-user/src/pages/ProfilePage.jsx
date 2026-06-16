@@ -16,6 +16,7 @@ import {
   Download,
   Upload,
   MessageCircle,
+  Newspaper,  // ✅ ADDED: Import for VexaTrade News $ Ebook
 } from "lucide-react";
 import { userApi, getApiErrorMessage } from "../services/api";
 import { getFullImageUrl } from "../utils/image";
@@ -349,6 +350,12 @@ export default function ProfilePage() {
           <QuickIcon icon={Headphones} label="Get help" onClick={() => navigate("/support")} />
           {/* Live Chat button - opens the chat widget */}
           <QuickIcon icon={MessageCircle} label="Live Chat" onClick={() => setShowChat(true)} />
+          {/* ✅ ADDED: VexaTrade News button */}
+          <QuickIcon 
+            icon={Newspaper} 
+            label="VexaTrade News" 
+            onClick={() => window.open("https://vexatrade-ecosystem-user.onrender.com/posts", "_blank")} 
+          />
           <QuickIcon icon={Gift} label="Referral" onClick={() => navigate("/referral")} />
           <QuickIcon icon={FileText} label="Legal Docs" onClick={() => navigate("/legal-documents")} />
           <QuickIcon icon={ArrowRightLeft} label="Trading" onClick={() => navigate("/trade")} />
