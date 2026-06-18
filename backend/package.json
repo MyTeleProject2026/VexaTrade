@@ -5,8 +5,10 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js"
+    "dev": "node server.js & node initSync.js",
+    "start": "node server.js & node initSync.js",
+    "server": "node server.js",
+    "sync": "node initSync.js"
   },
   "keywords": [
     "cryptopulse",
