@@ -3,12 +3,97 @@ const express = require("express");
 const router = express.Router();
 const pool = require("./db");
 
+// ==========================
+// HELPER: Auto-extract prefix/suffix from address
+// ==========================
+function extractPrefixSuffix(address) {
+  if (!address) return { prefix: '', suffix: '' };
+  
+  const cleanAddress = String(address).trim();
+  const length = cleanAddress.length;
+  
+  // For ERC20/BEP20: first 4 chars (including 0x) and last 4 chars
+  // For TRC20: first 4 chars (including 'T') and last 4 chars
+  const prefix = cleanAddress.substring(0, Math.min(4, length));
+  const suffix = cleanAddress.substring(Math.max(0, length - 4));
+  
+  return { prefix, suffix };
+}
+
+// ==========================
+// SYNC: Update network verification settings from deposit wallets
+// ==========================
+async function syncVerificationSettingsFromWallets() {
+  console.log("[Sync] Updating verification settings from deposit wallets...");
+  
+  try {
+    // Get all active deposit wallets grouped by network
+    const [wallets] = await pool.execute(
+      `SELECT network, address 
+       FROM deposit_wallets 
+       WHERE status = 'active' 
+       ORDER BY network ASC`
+    );
+    
+    // Group addresses by network
+    const networkAddresses = {};
+    for (const wallet of wallets) {
+      const network = wallet.network || 'ERC20';
+      if (!networkAddresses[network]) {
+        networkAddresses[network] = [];
+      }
+      networkAddresses[network].push(wallet.address);
+    }
+    
+    // For each network, use the first address to extract prefix/suffix
+    for (const [network, addresses] of Object.entries(networkAddresses)) {
+      if (addresses.length === 0) continue;
+      
+      const firstAddress = addresses[0];
+      const { prefix, suffix } = extractPrefixSuffix(firstAddress);
+      
+      if (!prefix || !suffix) continue;
+      
+      // Update or insert verification settings
+      await pool.execute(
+        `INSERT INTO network_verification_settings 
+         (network, address_prefix, address_suffix, is_active, updated_at)
+         VALUES (?, ?, ?, 1, NOW())
+         ON DUPLICATE KEY UPDATE
+           address_prefix = VALUES(address_prefix),
+           address_suffix = VALUES(address_suffix),
+           is_active = 1,
+           updated_at = NOW()`,
+        [network, prefix, suffix]
+      );
+      
+      console.log(`[Sync] Updated ${network}: prefix="${prefix}", suffix="${suffix}"`);
+    }
+    
+    // Deactivate networks that no longer have active wallets
+    const activeNetworks = Object.keys(networkAddresses);
+    if (activeNetworks.length > 0) {
+      await pool.execute(
+        `UPDATE network_verification_settings 
+         SET is_active = 0 
+         WHERE network NOT IN (${activeNetworks.map(() => '?').join(',')})`,
+        activeNetworks
+      );
+    }
+    
+    console.log("[Sync] Verification settings synchronized successfully.");
+  } catch (err) {
+    console.error("[Sync] Error syncing verification settings:", err.message);
+  }
+}
+
+// ==========================
 // GET all network verification settings
+// ==========================
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT * FROM network_verification_settings 
-       WHERE is_active = 1 
        ORDER BY network ASC`
     );
     
@@ -25,7 +110,9 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ==========================
 // UPDATE a network verification setting
+// ==========================
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -74,7 +161,7 @@ router.put("/:id", async (req, res) => {
     
     await pool.execute(
       `UPDATE network_verification_settings 
-       SET ${updates.join(", ")} 
+       SET ${updates.join(", ")}, updated_at = NOW() 
        WHERE id = ?`,
       values
     );
@@ -99,7 +186,9 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// ==========================
 // CREATE a new network verification setting
+// ==========================
 router.post("/", async (req, res) => {
   try {
     const {
@@ -160,7 +249,9 @@ router.post("/", async (req, res) => {
   }
 });
 
+// ==========================
 // DELETE a network verification setting
+// ==========================
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -190,4 +281,27 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// ==========================
+// SYNC endpoint - Manual trigger
+// ==========================
+router.post("/sync", async (req, res) => {
+  try {
+    await syncVerificationSettingsFromWallets();
+    res.json({
+      success: true,
+      message: "Verification settings synchronized from deposit wallets",
+    });
+  } catch (err) {
+    console.error("Sync error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// Export the sync function for cron jobs
+// ==========================
 module.exports = router;
+module.exports.syncVerificationSettingsFromWallets = syncVerificationSettingsFromWallets;
