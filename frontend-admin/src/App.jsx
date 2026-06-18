@@ -55,6 +55,7 @@ export default function App() {
         <Route path="users/:id" element={<AdminUserDetailsPage />} />
         <Route path="kyc" element={<AdminKycPage />} />
         <Route path="deposits" element={<AdminDepositsPage />} />
+        <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
         <Route
           path="deposit-networks"
           element={<AdminDepositNetworksPage />}
