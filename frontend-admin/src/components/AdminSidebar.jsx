@@ -37,6 +37,8 @@ const navItems = [
       { label: "Joint Accounts", to: "/admin/joint-accounts", icon: UserCog },
       { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
       { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
+      // ✅ ADDED: Deposit Verification Settings (right after Deposit Networks)
+      { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
       { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
       { label: "Withdrawal Fees", to: "/admin/withdrawal-fees", icon: BadgeDollarSign },
       // ✅ ADDED: New withdrawal settings under Users > Withdrawals group
