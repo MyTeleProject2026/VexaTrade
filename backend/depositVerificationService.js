@@ -1,19 +1,17 @@
 // depositVerificationService.js
-// Complete rewrite with tolerance, better logging, and robust error handling.
-// Version: 2.0 – Auto-approve deposits with ±10% amount tolerance.
+// Version 2.1 – With amount tolerance, robust logging, and database‑driven tolerance.
 
 require("dotenv").config();
 const axios = require("axios");
 const pool = require("./db");
 
 // ==========================
-// CONFIGURATION
+// CONSTANTS
 // ==========================
-// Default tolerance percentage (can be overridden per network via DB column)
-const DEFAULT_TOLERANCE_PERCENT = 10; // 10%
+const DEFAULT_TOLERANCE_PERCENT = 10; // 10% default if DB column missing
 
 // ==========================
-// HELPER: Extract prefix/suffix from wallet address
+// HELPER: Extract prefix/suffix from address
 // ==========================
 function extractPrefixSuffix(address) {
   if (!address) return { prefix: '', suffix: '' };
@@ -73,10 +71,10 @@ async function syncVerificationSettingsFromWallets() {
 }
 
 // ==========================
-// GET network settings (with optional tolerance column)
+// GET network settings (with tolerance)
 // ==========================
 async function getNetworkSettings(network) {
-  // Try to get tolerance from DB if column exists, else use default
+  // Try to get tolerance from DB; fallback to default if column missing
   try {
     const [rows] = await pool.execute(
       `SELECT *, 
@@ -87,7 +85,7 @@ async function getNetworkSettings(network) {
     );
     return rows[0] || null;
   } catch (err) {
-    // If column doesn't exist, fallback to simple SELECT and inject default
+    // If column doesn't exist, fallback to simple SELECT
     const [rows] = await pool.execute(
       `SELECT * FROM network_verification_settings 
        WHERE network = ? AND is_active = 1 LIMIT 1`,
@@ -101,7 +99,7 @@ async function getNetworkSettings(network) {
 }
 
 // ==========================
-// UPDATE network setting (for admin UI)
+// UPDATE network setting (admin UI)
 // ==========================
 async function updateNetworkSetting(id, updates) {
   const fields = [];
@@ -121,7 +119,7 @@ async function updateNetworkSetting(id, updates) {
 }
 
 // ==========================
-// GET all network settings (for admin UI)
+// GET all network settings (admin UI)
 // ==========================
 async function getAllNetworkSettings() {
   const [rows] = await pool.execute(
@@ -131,7 +129,7 @@ async function getAllNetworkSettings() {
 }
 
 // ==========================
-// VERIFY TRANSACTION – Main verification logic with tolerance
+// VERIFY TRANSACTION – with tolerance
 // ==========================
 async function verifyTransaction(txid, network, expectedAmount) {
   const settings = await getNetworkSettings(network);
@@ -155,7 +153,7 @@ async function verifyTransaction(txid, network, expectedAmount) {
 
     // ---------- ERC20 / BEP20 ----------
     if (network === 'ERC20' || network === 'BEP20') {
-      // 1. Get receipt status
+      // 1. Receipt status
       const receiptUrl = `${explorer_api_url}?module=transaction&action=gettxreceiptstatus&txhash=${txid}&apikey=${api_key}`;
       const receiptRes = await axios.get(receiptUrl, { timeout: 15000 });
       const receiptData = receiptRes.data;
@@ -163,7 +161,7 @@ async function verifyTransaction(txid, network, expectedAmount) {
         return { success: false, reason: "Transaction not confirmed or failed" };
       }
 
-      // 2. Get transaction details
+      // 2. Transaction details
       const txUrl = `${explorer_api_url}?module=transaction&action=gettx&txhash=${txid}&apikey=${api_key}`;
       const txRes = await axios.get(txUrl, { timeout: 15000 });
       const txData = txRes.data;
@@ -173,11 +171,10 @@ async function verifyTransaction(txid, network, expectedAmount) {
       const tx = txData.result;
       toAddress = tx.to ? tx.to.toLowerCase() : "";
 
-      // 3. Get amount (native or token)
+      // 3. Amount (native or token)
       if (token_type === 'native') {
-        actualAmount = parseFloat(tx.value) / 1e18; // ETH/BNB
+        actualAmount = parseFloat(tx.value) / 1e18;
       } else {
-        // Token transfer
         const tokenTxUrl = `${explorer_api_url}?module=account&action=tokentx&txhash=${txid}&apikey=${api_key}`;
         const tokenRes = await axios.get(tokenTxUrl, { timeout: 15000 });
         const tokenData = tokenRes.data;
@@ -188,13 +185,12 @@ async function verifyTransaction(txid, network, expectedAmount) {
         toAddress = transfer.to ? transfer.to.toLowerCase() : "";
         const decimals = parseInt(transfer.tokenDecimal || 18);
         actualAmount = parseFloat(transfer.value) / Math.pow(10, decimals);
-        // Optional contract address check
         if (contract_address && transfer.contractAddress.toLowerCase() !== contract_address.toLowerCase()) {
           return { success: false, reason: "Token contract mismatch" };
         }
       }
 
-      // 4. Check address pattern
+      // 4. Address pattern
       if (!toAddress.startsWith(address_prefix) || !toAddress.endsWith(address_suffix)) {
         return { success: false, reason: `Destination address mismatch (expected ${address_prefix}...${address_suffix})` };
       }
@@ -228,7 +224,7 @@ async function verifyTransaction(txid, network, expectedAmount) {
       if (!parameter) return { success: false, reason: "No parameter data" };
       toAddress = parameter.to ? parameter.to : "";
       const amount = parameter.amount || 0;
-      actualAmount = amount / 1e6; // USDT decimals on Tron = 6
+      actualAmount = amount / 1e6;
 
       if (!toAddress.startsWith(address_prefix) || !toAddress.endsWith(address_suffix)) {
         return { success: false, reason: `Destination address mismatch (expected ${address_prefix}...${address_suffix})` };
@@ -243,11 +239,9 @@ async function verifyTransaction(txid, network, expectedAmount) {
           reason: `Amount mismatch: expected ~${expectedAmount.toFixed(2)}, got ${actualAmount.toFixed(2)} (tolerance: ±${tolerance_percent}%)`
         };
       }
-
       return { success: true, actualAmount, toAddress };
     }
 
-    // ---------- Other networks ----------
     else {
       return { success: false, reason: `Network ${network} not yet implemented` };
     }
@@ -258,7 +252,7 @@ async function verifyTransaction(txid, network, expectedAmount) {
 }
 
 // ==========================
-// MAIN VERIFICATION FUNCTION (called by cron)
+// MAIN VERIFICATION FUNCTION (cron)
 // ==========================
 async function processPendingDeposits() {
   console.log("[DepositVerification] Starting scan...");
@@ -322,7 +316,6 @@ async function processPendingDeposits() {
       const amount = Number(dep.amount);
       await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, userId]);
 
-      // Transaction log
       await createTransactionLog(connection, {
         userId,
         type: "deposit_approved",
@@ -343,17 +336,13 @@ async function processPendingDeposits() {
 }
 
 // ==========================
-// HELPER FUNCTIONS
+// HELPERS
 // ==========================
 async function notifyAndLog(connection, userId, depositId, status, reason) {
   await connection.execute(
     `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
      VALUES (?, ?, ?, 'deposit', 0, NOW())`,
-    [
-      userId,
-      `Deposit ${status}`,
-      `Your deposit #${depositId} has been ${status}. ${reason ? `Reason: ${reason}` : ''}`,
-    ]
+    [userId, `Deposit ${status}`, `Your deposit #${depositId} has been ${status}. ${reason ? `Reason: ${reason}` : ''}`]
   );
   await connection.execute(
     `INSERT INTO admin_audit_logs (admin_id, action, target_user_id, reference_id, note, created_at)
