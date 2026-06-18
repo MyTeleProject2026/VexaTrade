@@ -178,6 +178,9 @@ export const adminApi = {
 
   updateNetworkVerificationSetting: (id, payload, token) =>
     api.put(`/api/admin/network-verification-settings/${id}`, payload, authHeaders(token)),
+  // Add this inside the adminApi object
+  syncNetworkVerificationSettings: (token) =>
+    api.post("/api/admin/network-verification-settings/sync", {}, authHeaders(token)),
   
 
   /* ---------------- WITHDRAWALS ---------------- */
