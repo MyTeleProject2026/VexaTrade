@@ -8,7 +8,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// This replicates your existing folder logic exactly
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
@@ -22,7 +21,6 @@ const storage = new CloudinaryStorage({
       return "uploads/misc";
     },
     format: async (req, file) => {
-      // Preserve original extension, fallback to png
       const ext = file.originalname.split('.').pop().toLowerCase();
       return ['jpg','jpeg','png','gif','webp'].includes(ext) ? ext : 'png';
     },
