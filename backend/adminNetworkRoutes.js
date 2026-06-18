@@ -3,103 +3,22 @@ const express = require("express");
 const router = express.Router();
 const pool = require("./db");
 
-// ==========================
-// HELPER: Auto-extract prefix/suffix from address
-// ==========================
-function extractPrefixSuffix(address) {
-  if (!address) return { prefix: '', suffix: '' };
-  
-  const cleanAddress = String(address).trim();
-  const length = cleanAddress.length;
-  
-  // For ERC20/BEP20: first 4 chars (including 0x) and last 4 chars
-  // For TRC20: first 4 chars (including 'T') and last 4 chars
-  const prefix = cleanAddress.substring(0, Math.min(4, length));
-  const suffix = cleanAddress.substring(Math.max(0, length - 4));
-  
-  return { prefix, suffix };
-}
-
-// ==========================
-// SYNC: Update network verification settings from deposit wallets
-// ==========================
-async function syncVerificationSettingsFromWallets() {
-  console.log("[Sync] Updating verification settings from deposit wallets...");
-  
-  try {
-    // Get all active deposit wallets grouped by network
-    const [wallets] = await pool.execute(
-      `SELECT network, address 
-       FROM deposit_wallets 
-       WHERE status = 'active' 
-       ORDER BY network ASC`
-    );
-    
-    // Group addresses by network
-    const networkAddresses = {};
-    for (const wallet of wallets) {
-      const network = wallet.network || 'ERC20';
-      if (!networkAddresses[network]) {
-        networkAddresses[network] = [];
-      }
-      networkAddresses[network].push(wallet.address);
-    }
-    
-    // For each network, use the first address to extract prefix/suffix
-    for (const [network, addresses] of Object.entries(networkAddresses)) {
-      if (addresses.length === 0) continue;
-      
-      const firstAddress = addresses[0];
-      const { prefix, suffix } = extractPrefixSuffix(firstAddress);
-      
-      if (!prefix || !suffix) continue;
-      
-      // Update or insert verification settings
-      await pool.execute(
-        `INSERT INTO network_verification_settings 
-         (network, address_prefix, address_suffix, is_active, updated_at)
-         VALUES (?, ?, ?, 1, NOW())
-         ON DUPLICATE KEY UPDATE
-           address_prefix = VALUES(address_prefix),
-           address_suffix = VALUES(address_suffix),
-           is_active = 1,
-           updated_at = NOW()`,
-        [network, prefix, suffix]
-      );
-      
-      console.log(`[Sync] Updated ${network}: prefix="${prefix}", suffix="${suffix}"`);
-    }
-    
-    // Deactivate networks that no longer have active wallets
-    const activeNetworks = Object.keys(networkAddresses);
-    if (activeNetworks.length > 0) {
-      await pool.execute(
-        `UPDATE network_verification_settings 
-         SET is_active = 0 
-         WHERE network NOT IN (${activeNetworks.map(() => '?').join(',')})`,
-        activeNetworks
-      );
-    }
-    
-    console.log("[Sync] Verification settings synchronized successfully.");
-  } catch (err) {
-    console.error("[Sync] Error syncing verification settings:", err.message);
-  }
-}
+// Import sync functions from depositVerificationService
+const { 
+  syncVerificationSettingsFromWallets, 
+  getAllNetworkSettings,
+  updateNetworkSetting 
+} = require("./depositVerificationService");
 
 // ==========================
 // GET all network verification settings
 // ==========================
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `SELECT * FROM network_verification_settings 
-       ORDER BY network ASC`
-    );
-    
+    const data = await getAllNetworkSettings();
     res.json({
       success: true,
-      data: rows,
+      data: data,
     });
   } catch (err) {
     console.error("Get network settings error:", err);
@@ -118,64 +37,29 @@ router.put("/:id", async (req, res) => {
     const { id } = req.params;
     const { address_prefix, address_suffix, explorer_api_url, api_key, token_type, contract_address, is_active } = req.body;
     
-    const updates = [];
-    const values = [];
+    const updates = {};
     
-    if (address_prefix !== undefined) {
-      updates.push("address_prefix = ?");
-      values.push(address_prefix);
-    }
-    if (address_suffix !== undefined) {
-      updates.push("address_suffix = ?");
-      values.push(address_suffix);
-    }
-    if (explorer_api_url !== undefined) {
-      updates.push("explorer_api_url = ?");
-      values.push(explorer_api_url);
-    }
-    if (api_key !== undefined) {
-      updates.push("api_key = ?");
-      values.push(api_key);
-    }
-    if (token_type !== undefined) {
-      updates.push("token_type = ?");
-      values.push(token_type);
-    }
-    if (contract_address !== undefined) {
-      updates.push("contract_address = ?");
-      values.push(contract_address);
-    }
-    if (is_active !== undefined) {
-      updates.push("is_active = ?");
-      values.push(is_active);
-    }
+    if (address_prefix !== undefined) updates.address_prefix = address_prefix;
+    if (address_suffix !== undefined) updates.address_suffix = address_suffix;
+    if (explorer_api_url !== undefined) updates.explorer_api_url = explorer_api_url;
+    if (api_key !== undefined) updates.api_key = api_key;
+    if (token_type !== undefined) updates.token_type = token_type;
+    if (contract_address !== undefined) updates.contract_address = contract_address;
+    if (is_active !== undefined) updates.is_active = is_active;
     
-    if (updates.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         success: false,
         message: "No fields to update",
       });
     }
     
-    values.push(id);
-    
-    await pool.execute(
-      `UPDATE network_verification_settings 
-       SET ${updates.join(", ")}, updated_at = NOW() 
-       WHERE id = ?`,
-      values
-    );
-    
-    // Get updated record
-    const [updatedRows] = await pool.execute(
-      `SELECT * FROM network_verification_settings WHERE id = ?`,
-      [id]
-    );
+    const updated = await updateNetworkSetting(id, updates);
     
     res.json({
       success: true,
       message: "Setting updated successfully",
-      data: updatedRows[0] || null,
+      data: updated,
     });
   } catch (err) {
     console.error("Update network setting error:", err);
@@ -300,8 +184,4 @@ router.post("/sync", async (req, res) => {
   }
 });
 
-// ==========================
-// Export the sync function for cron jobs
-// ==========================
 module.exports = router;
-module.exports.syncVerificationSettingsFromWallets = syncVerificationSettingsFromWallets;
