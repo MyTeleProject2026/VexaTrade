@@ -817,6 +817,11 @@ function normalizeNewsActive(value) {
 
 function getLegalFileUrl(file) {
   if (!file) return null;
+  // If Cloudinary returned a full URL, use it directly
+  if (file.path && (file.path.startsWith("http://") || file.path.startsWith("https://"))) {
+    return file.path;
+  }
+  // Fallback to local path (for backward compatibility)
   return `/uploads/legal/${file.filename}`;
 }
 
@@ -827,10 +832,12 @@ function getSupportedConvertCoins() {
 function removeUploadedFile(fileUrl) {
   try {
     if (!fileUrl) return;
-
+    // If it's a Cloudinary URL, skip deletion (we don't want to delete from Cloudinary here)
+    if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+      return;
+    }
     const cleanPath = String(fileUrl).replace(/^\/+/, "");
     const fullPath = path.join(__dirname, cleanPath);
-
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
