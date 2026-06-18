@@ -168,6 +168,12 @@ export const adminApi = {
         "Content-Type": "multipart/form-data",
       },
     }),
+
+  getNetworkVerificationSettings: (token) =>
+    api.get("/api/admin/network-verification-settings", authHeaders(token)),
+
+  updateNetworkVerificationSetting: (id, payload, token) =>
+    api.put(`/api/admin/network-verification-settings/${id}`, payload, authHeaders(token)),
   
 
   /* ---------------- WITHDRAWALS ---------------- */
