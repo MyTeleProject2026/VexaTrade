@@ -47,31 +47,7 @@ if (!fs.existsSync(qrDir)) {
   console.log("✅ Created qr_codes directory at:", qrDir);
 }
 
-const storage = multer.diskStorage({
-  destination: function (_req, file, cb) {
-    if (file.fieldname === "receipt") {
-      cb(null, "uploads/deposits");
-    } else if (file.fieldname === "qr") {
-      cb(null, "uploads/qrcodes");
-    } else if (file.fieldname === "front" || file.fieldname === "back") {
-      cb(null, "uploads/kyc");
-    } else if (file.fieldname === "profile_picture") {
-      cb(null, "uploads/profiles");
-    } else if (file.fieldname === "legal_file") {
-      cb(null, "uploads/legal");
-    } else if (file.fieldname === "user_qr") {
-      cb(null, "uploads/qr_codes");
-    } else {
-      cb(null, "uploads");
-    }
-  },
-  filename: function (_req, file, cb) {
-    cb(
-      null,
-      `${Date.now()}-${String(file.originalname || "file").replace(/\s+/g, "-")}`
-    );
-  },
-});
+const storage = require("./cloudinaryStorage");
 
 const upload = multer({ storage });
 
