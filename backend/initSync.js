@@ -20,6 +20,6 @@ setInterval(() => {
   syncVerificationSettingsFromWallets().catch(err => {
     console.error("[Init] Hourly sync failed:", err.message);
   });
-}, 60 * 60 * 1000); // 1 hour
+}, 5 * 60 * 1000); // 1 hour
 
 console.log("[Init] Auto-sync service started. Will sync on startup and every hour.");
