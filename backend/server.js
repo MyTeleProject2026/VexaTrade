@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const { processPendingDeposits } = require("./  depositVerificationService");
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
