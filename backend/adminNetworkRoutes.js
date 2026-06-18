@@ -1,14 +1,9 @@
 // adminNetworkRoutes.js
-// This file contains routes for network verification settings
-// It runs as a separate Express app or can be mounted.
-
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
 
-// ==========================
 // GET all network verification settings
-// ==========================
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -30,9 +25,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ==========================
 // UPDATE a network verification setting
-// ==========================
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -106,9 +99,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// ==========================
 // CREATE a new network verification setting
-// ==========================
 router.post("/", async (req, res) => {
   try {
     const {
@@ -169,9 +160,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ==========================
 // DELETE a network verification setting
-// ==========================
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
