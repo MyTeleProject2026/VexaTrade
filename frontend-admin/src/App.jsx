@@ -7,6 +7,8 @@ import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
+// ✅ ADDED: New admin page for deposit verification settings
+import AdminDepositVerificationSettings from "./pages/admin/AdminDepositVerificationSettings";
 import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
 import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
 import AdminTradesPage from "./pages/admin/AdminTradesPage";
