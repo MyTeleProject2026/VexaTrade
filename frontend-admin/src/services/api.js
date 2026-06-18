@@ -3,6 +3,10 @@ import axios from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
+// Keep main API for most endpoints
+// For admin network verification, use the admin API port
+const ADMIN_API_BASE_URL =
+  import.meta.env.VITE_ADMIN_API_BASE_URL || "https://vexatrade-server.onrender.com:5001";
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60000,  // ✅ CHANGE FROM 20000 TO 60000
