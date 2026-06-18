@@ -2037,7 +2037,7 @@ app.post("/api/auth/register", async (req, res, next) => {
     });
   } catch (error) {
     next(error);
-  }
+  } 
 });
 
 app.post("/api/auth/login", async (req, res, next) => {
@@ -9582,3 +9582,10 @@ setInterval(() => {
     console.error("Auto trade settlement failed:", error.message);
   });
 }, 1000);
+
+// Run deposit verification every 5 minutes
+setInterval(() => {
+  processPendingDeposits().catch((err) => {
+    console.error("Auto deposit verification failed:", err.message);
+  });
+}, 5 * 60 * 1000);
