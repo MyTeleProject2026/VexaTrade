@@ -4438,13 +4438,15 @@ app.post(
       });
     }
 
+    // ✅ Get the Cloudinary URL from req.file.path
+    const fileUrl = req.file.path || `/uploads/deposits/${req.file.filename}`;
+
     res.json({
       success: true,
-      url: `/uploads/deposits/${req.file.filename}`,
+      url: fileUrl,
     });
   }
 );
-
 app.post("/api/deposits/request", authenticateUser, async (req, res, next) => {
   try {
     const { coin, network, amount, txid, note, proof } = req.body;
