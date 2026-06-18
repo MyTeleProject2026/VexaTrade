@@ -74,7 +74,7 @@ router.put("/:id", async (req, res) => {
     
     await pool.execute(
       `UPDATE network_verification_settings 
-       SET ${updates.join(", ")}, updated_at = NOW() 
+       SET ${updates.join(", ")} 
        WHERE id = ?`,
       values
     );
