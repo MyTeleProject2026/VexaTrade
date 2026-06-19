@@ -46,7 +46,6 @@ function PlanCard({
   };
 
   const handleSave = () => {
-    // If HTML mode, clear individual fields and use html_content
     if (contentMode === "html") {
       onSave({
         ...localRule,
@@ -57,7 +56,6 @@ function PlanCard({
         html_content: localRule.html_content,
       });
     } else {
-      // Normal mode: clear html_content and use individual fields
       onSave({
         ...localRule,
         html_content: null,
@@ -84,7 +82,6 @@ function PlanCard({
       </div>
 
       <div className="mt-4 space-y-4">
-        {/* Name */}
         <div>
           <label className="mb-2 block text-sm text-slate-300">Name</label>
           <input
@@ -95,7 +92,6 @@ function PlanCard({
           />
         </div>
 
-        {/* Basic numeric fields (always visible) */}
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label className="mb-2 block text-sm text-slate-300">Duration Days</label>
@@ -168,7 +164,7 @@ function PlanCard({
           </select>
         </div>
 
-        {/* ---------- Content Mode Toggle ---------- */}
+        {/* Content Mode Toggle */}
         <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
           <span className="text-sm text-slate-300">Content Mode</span>
           <div className="flex rounded-lg border border-white/10 overflow-hidden bg-[#0a0e1a]">
@@ -197,7 +193,6 @@ function PlanCard({
           </div>
         </div>
 
-        {/* Normal Mode: individual content fields */}
         {contentMode === "normal" && (
           <>
             <div>
@@ -239,7 +234,6 @@ function PlanCard({
           </>
         )}
 
-        {/* HTML Mode: single code box for all content */}
         {contentMode === "html" && (
           <div>
             <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
@@ -257,7 +251,6 @@ function PlanCard({
           </div>
         )}
 
-        {/* Private plan checkbox and compound % */}
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -329,7 +322,7 @@ function PlanCard({
   );
 }
 
-// ---------- Modal for per-plan user assignment (unchanged) ----------
+// ---------- Modal for per-plan user assignment ----------
 function AssignUserModal({
   isOpen,
   plan,
@@ -422,7 +415,7 @@ function AssignUserModal({
   );
 }
 
-// ---------- Modal for per‑user private plans ----------
+// ---------- Modal for per-user private plans editing ----------
 function UserPrivatePlansModal({
   isOpen,
   user,
@@ -562,6 +555,11 @@ export default function AdminFundsRulesPage() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
+  // NEW: For assigning a private plan to a new user from the Private tab
+  const [newUserAssignPlanId, setNewUserAssignPlanId] = useState("");
+  const [newUserAssignUserId, setNewUserAssignUserId] = useState("");
+  const [assigningNewUser, setAssigningNewUser] = useState(false);
+
   useEffect(() => {
     loadAllData();
   }, [token]);
@@ -658,6 +656,34 @@ export default function AdminFundsRulesPage() {
     }
   }
 
+  // NEW: Assign a private plan to a new user
+  async function handleAssignNewUser() {
+    if (!newUserAssignPlanId) {
+      addToast("Please select a private plan", "error");
+      return;
+    }
+    if (!newUserAssignUserId) {
+      addToast("Please enter a User ID", "error");
+      return;
+    }
+    setAssigningNewUser(true);
+    try {
+      await adminApi.assignUserToPrivatePlan(
+        parseInt(newUserAssignPlanId),
+        { userId: parseInt(newUserAssignUserId) },
+        token
+      );
+      addToast("Private plan assigned to user successfully", "success");
+      setNewUserAssignPlanId("");
+      setNewUserAssignUserId("");
+      await loadAllData();
+    } catch (err) {
+      addToast(getApiErrorMessage(err), "error");
+    } finally {
+      setAssigningNewUser(false);
+    }
+  }
+
   function handleCreateChange(field, value) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -704,6 +730,9 @@ export default function AdminFundsRulesPage() {
         payload.additional_notes = createForm.additional_notes || null;
         payload.disclaimer = createForm.disclaimer || null;
       }
+
+      // If the plan is private and we have a userId to assign immediately, we can handle it later,
+      // but we'll keep it simple: create plan first, then admin can assign via the new section.
 
       await adminApi.createFundRule(payload, token);
       addToast("Fund rule created successfully.", "success");
@@ -873,7 +902,6 @@ export default function AdminFundsRulesPage() {
             </div>
 
             <div className="mt-4 space-y-4">
-              {/* Name */}
               <input
                 type="text"
                 value={createForm.name}
@@ -882,7 +910,6 @@ export default function AdminFundsRulesPage() {
                 className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
               />
 
-              {/* Normal mode fields */}
               {contentMode === "normal" && (
                 <>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -903,7 +930,6 @@ export default function AdminFundsRulesPage() {
                 </>
               )}
 
-              {/* HTML mode: single box */}
               {contentMode === "html" && (
                 <div>
                   <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
@@ -921,7 +947,6 @@ export default function AdminFundsRulesPage() {
                 </div>
               )}
 
-              {/* Common fields */}
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={createForm.is_private === 1} onChange={(e) => handleCreateChange("is_private", e.target.checked ? 1 : 0)} className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan</span></label>
                 <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
@@ -953,7 +978,50 @@ export default function AdminFundsRulesPage() {
       {/* ----- PRIVATE PLANS TAB ----- */}
       {activeTab === "private" && (
         <>
-          {/* Create Private Form (same toggle as public) */}
+          {/* NEW: Assign Private Plan to New User */}
+          <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
+            <h2 className="text-lg font-semibold text-white">Assign Private Plan to User</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              Select a private plan and enter the User ID to assign it to a new user.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[150px]">
+                <label className="mb-1 block text-sm text-slate-300">Select Private Plan</label>
+                <select
+                  value={newUserAssignPlanId}
+                  onChange={(e) => setNewUserAssignPlanId(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+                >
+                  <option value="">Choose a plan...</option>
+                  {privateRules.map((plan) => (
+                    <option key={plan.id} value={plan.id}>{plan.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1 min-w-[150px]">
+                <label className="mb-1 block text-sm text-slate-300">User ID</label>
+                <input
+                  type="number"
+                  value={newUserAssignUserId}
+                  onChange={(e) => setNewUserAssignUserId(e.target.value)}
+                  placeholder="Enter User ID"
+                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+                />
+              </div>
+              <div>
+                <button
+                  onClick={handleAssignNewUser}
+                  disabled={assigningNewUser}
+                  className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-400 disabled:opacity-50"
+                >
+                  <UserPlus size={16} className="inline mr-1" />
+                  {assigningNewUser ? "Assigning..." : "Assign Plan"}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Create Private Form */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Create Private Fund Rule</h2>
@@ -985,7 +1053,6 @@ export default function AdminFundsRulesPage() {
             <p className="text-sm text-slate-400 mb-4">This plan will be private and must be assigned to specific users.</p>
 
             <div className="mt-4 space-y-4">
-              {/* Name */}
               <input
                 type="text"
                 value={createForm.name}
@@ -994,7 +1061,6 @@ export default function AdminFundsRulesPage() {
                 className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
               />
 
-              {/* Normal mode fields */}
               {contentMode === "normal" && (
                 <>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1015,7 +1081,6 @@ export default function AdminFundsRulesPage() {
                 </>
               )}
 
-              {/* HTML mode: single box */}
               {contentMode === "html" && (
                 <div>
                   <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
@@ -1033,7 +1098,6 @@ export default function AdminFundsRulesPage() {
                 </div>
               )}
 
-              {/* Common fields */}
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={true} disabled className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan (always enabled)</span></label>
                 <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
@@ -1048,7 +1112,7 @@ export default function AdminFundsRulesPage() {
             </button>
           </section>
 
-          {/* Users with Private Plans - ONLY the user list, no plan cards */}
+          {/* Users with Private Plans - list */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-white">Users with Private Plans</h2>
             <p className="text-sm text-slate-400 mb-4">Click "Edit Plans" to manage all private plans for a specific user.</p>
@@ -1076,7 +1140,7 @@ export default function AdminFundsRulesPage() {
         </>
       )}
 
-      {/* Per-plan Assign User Modal (for "Manage Assigned Users" on private plans) */}
+      {/* Per-plan Assign User Modal */}
       <AssignUserModal
         isOpen={showAssignModal}
         plan={selectedPlanForAssign}
