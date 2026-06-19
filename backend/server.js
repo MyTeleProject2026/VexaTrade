@@ -40,6 +40,10 @@ const app = express();
   }
 });
 
+// Override /api/funds/plans to include html_content
+const overrideFundsPlans = require("./overrideFundsPlans");
+app.use("/api/funds/plans", overrideFundsPlans);
+
 // ========== ADD THIS - Force create qr_codes directory with extra check ==========
 const qrDir = path.join(__dirname, "uploads/qr_codes");
 if (!fs.existsSync(qrDir)) {
