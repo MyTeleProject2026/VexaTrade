@@ -440,6 +440,8 @@ export default function FundsPage() {
 
       setError("");
 
+      // 🔍 TOKEN DEBUG LOGS - ADDED HERE
+      console.log("🔍 [FundsPage] Token:", token);
       console.log("🔍 [FundsPage] Token exists:", !!token);
       console.log("🔍 [FundsPage] Token length:", token.length);
 
