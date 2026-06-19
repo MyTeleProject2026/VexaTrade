@@ -3,8 +3,51 @@ const express = require("express");
 const router = express.Router();
 const pool = require("./db");
 
-// GET all users who have at least one private plan assigned,
-// along with the private plans assigned to them.
+// ==========================
+// GET all fund rules (with html_content)
+// ==========================
+router.get("/", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT
+        id,
+        name,
+        duration_days,
+        min_amount,
+        max_amount,
+        min_daily_profit_percent,
+        max_daily_profit_percent,
+        user_limit_count,
+        CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END AS status,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
+        html_content,        -- ✅ INCLUDED
+        created_at,
+        updated_at
+      FROM fund_plans
+      ORDER BY duration_days ASC, id ASC`
+    );
+
+    res.json({
+      success: true,
+      data: rows,
+    });
+  } catch (err) {
+    console.error("Get fund rules error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// GET all users with private plans (including html_content)
+// ==========================
 router.get("/users-with-private-plans", async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -28,6 +71,7 @@ router.get("/users-with-private-plans", async (req, res) => {
         fp.disclaimer,
         fp.is_private,
         fp.compound_percentage,
+        fp.html_content,      -- ✅ INCLUDED
         fp.created_at,
         fp.updated_at
       FROM user_plan_assignments upa
@@ -50,7 +94,6 @@ router.get("/users-with-private-plans", async (req, res) => {
           plans: []
         };
       }
-      // Build plan object (exclude user fields)
       const plan = {
         id: planData.plan_id,
         name: planData.plan_name,
@@ -67,6 +110,7 @@ router.get("/users-with-private-plans", async (req, res) => {
         disclaimer: planData.disclaimer,
         is_private: planData.is_private,
         compound_percentage: planData.compound_percentage,
+        html_content: planData.html_content,   // ✅ INCLUDED
         created_at: planData.created_at,
         updated_at: planData.updated_at,
       };
