@@ -1,3 +1,4 @@
+// frontend-user/src/services/api.js
 import axios from "axios";
 
 const API_BASE_URL =
@@ -33,31 +34,62 @@ export function getApiErrorMessage(error) {
   );
 }
 
+// ✅ IMPROVED: Get token from localStorage with multiple key support
 const getUserToken = (token) => {
-  // Log which token source is being used
-  const userToken = token ||
-    localStorage.getItem("userToken") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken") ||
-    "";
+  // If token is passed directly, use it
+  if (token) return token;
   
-  if (userToken) {
-    console.log("🔑 [API] Token found (first 20 chars):", userToken.substring(0, 20) + "...");
-  } else {
-    console.warn("⚠️ [API] No token found in localStorage");
-    console.log("🔍 [API] Available keys:", Object.keys(localStorage));
+  // Check all possible token keys in order
+  const tokenKeys = [
+    "userToken",
+    "token", 
+    "accessToken",
+    "authToken",
+    "jwt",
+    "user_token",
+    "access_token"
+  ];
+  
+  for (const key of tokenKeys) {
+    const value = localStorage.getItem(key);
+    if (value) {
+      console.log(`🔑 [API] Token found in localStorage key: "${key}"`);
+      return value;
+    }
   }
   
-  return userToken;
+  console.warn("⚠️ [API] No token found in localStorage");
+  console.log("🔍 [API] Available localStorage keys:", Object.keys(localStorage));
+  return "";
 };
 
-const authHeaders = (token) => ({
-  headers: {
-    Authorization: `Bearer ${getUserToken(token)}`,
-  },
-});
+const authHeaders = (token) => {
+  const finalToken = getUserToken(token);
+  return {
+    headers: {
+      Authorization: `Bearer ${finalToken}`,
+    },
+  };
+};
 
 // ✅ Improved interceptor with logging
+api.interceptors.request.use(
+  (config) => {
+    // Add token to every request if not already present
+    if (!config.headers.Authorization) {
+      const token = getUserToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log(`🔑 [API] Added token to request: ${config.url}`);
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ [API] ${response.config.url} – Status: ${response.status}`);
@@ -76,13 +108,15 @@ api.interceptors.response.use(
         !url.includes("/api/auth/register") &&
         !url.includes("/api/auth/refresh")
       ) {
-        console.warn("⚠️ [API] 401 – Clearing tokens and redirecting to login.");
-        localStorage.removeItem("userToken");
-        localStorage.removeItem("token");
-        localStorage.removeItem("accessToken");
+        console.warn("⚠️ [API] 401 – Token expired or invalid. Please login again.");
+        // Clear all possible token keys
+        const tokenKeys = ["userToken", "token", "accessToken", "authToken", "jwt", "user_token", "access_token"];
+        for (const key of tokenKeys) {
+          localStorage.removeItem(key);
+        }
         localStorage.removeItem("user");
         localStorage.removeItem("userData");
-        // Optionally redirect to login page
+        // Optionally redirect to login
         // if (window.location.pathname !== "/login") {
         //   window.location.href = "/login";
         // }
