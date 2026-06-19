@@ -8,10 +8,11 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || "cryptopulse_v3",
-  // ⚠️ TEMPORARY: Disable SSL for testing
-  // ssl: {
-  //   rejectUnauthorized: false
-  // },
+  ssl: {
+    // ✅ CORRECT: Use full SSL/TLS configuration for TiDB Cloud
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: true  // ✅ This is required for TiDB Cloud
+  },
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
