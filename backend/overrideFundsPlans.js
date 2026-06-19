@@ -38,6 +38,9 @@ router.get("/", authenticateUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
+    // Log that the route was called (visible in Render logs)
+    console.log(`[overrideFundsPlans] User ${userId} requested plans.`);
+
     // Get IDs of private plans assigned to this user
     const [assignedPlans] = await pool.execute(
       `SELECT plan_id FROM user_plan_assignments WHERE user_id = ?`,
@@ -63,7 +66,7 @@ router.get("/", authenticateUser, async (req, res, next) => {
         disclaimer,
         is_private,
         compound_percentage,
-        html_content,        -- ✅ INCLUDED
+        html_content,
         created_at,
         updated_at
       FROM fund_plans
@@ -83,15 +86,21 @@ router.get("/", authenticateUser, async (req, res, next) => {
 
     const [rows] = await pool.execute(query, params);
 
+    // Log the number of rows returned
+    console.log(`[overrideFundsPlans] Returning ${rows.length} plans for user ${userId}`);
+
     res.json({
       success: true,
       data: rows,
     });
   } catch (error) {
-    console.error("Override /api/funds/plans error:", error);
+    // Log and send detailed error
+    console.error("[overrideFundsPlans] Error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
+      // Optionally include stack trace for debugging (remove in production)
+      // stack: error.stack
     });
   }
 });
