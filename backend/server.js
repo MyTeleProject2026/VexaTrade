@@ -8308,27 +8308,6 @@ app.post("/api/admin/funds/:id/modify-profit-rate", authenticateAdmin, async (re
     res.json({ success: true, message: "Profit rate updated successfully" });
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
-
-// Get fund plans with private plan filtering
-app.get("/api/funds/plans", authenticateUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const [assignedPlans] = await pool.execute(`SELECT plan_id FROM user_plan_assignments WHERE user_id = ?`, [userId]);
-    const assignedPlanIds = assignedPlans.map(p => p.plan_id);
-    let query = `SELECT id, name, duration_days, min_amount, max_amount, min_daily_profit_percent, max_daily_profit_percent, user_limit_count, is_active, admin_note, admin_note_background_image, additional_notes, disclaimer, is_private, compound_percentage FROM fund_plans WHERE is_active = 1`;
-    const params = [];
-    if (assignedPlanIds.length > 0) {
-      query += ` AND (is_private = 0 OR id IN (${assignedPlanIds.map(() => '?').join(',')}))`;
-      params.push(...assignedPlanIds);
-    } else {
-      query += ` AND is_private = 0`;
-    }
-    query += ` ORDER BY duration_days ASC, id ASC`;
-    const [rows] = await pool.execute(query, params);
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
-});
-
 // Assign private plan to specific user
 app.post("/api/admin/fund-rules/:planId/assign-user", authenticateAdmin, async (req, res, next) => {
   try {
