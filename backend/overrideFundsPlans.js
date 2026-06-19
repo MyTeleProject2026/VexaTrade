@@ -40,15 +40,8 @@ router.get("/", authenticateUser, async (req, res, next) => {
     const userId = req.user.id;
     console.log(`[override] User ${userId} requested plans.`);
 
-    // Get user's assigned private plans
-    const [assignedPlans] = await pool.execute(
-      `SELECT plan_id FROM user_plan_assignments WHERE user_id = ?`,
-      [userId]
-    );
-    const assignedPlanIds = assignedPlans.map(p => p.plan_id);
-
-    // Build query - include ALL public plans + assigned private plans
-    let query = `
+    // 🔥 SUPER SIMPLE: Return ALL active plans (public + private)
+    const query = `
       SELECT
         id, name, duration_days, min_amount, max_amount,
         min_daily_profit_percent, max_daily_profit_percent,
@@ -59,26 +52,12 @@ router.get("/", authenticateUser, async (req, res, next) => {
         created_at, updated_at
       FROM fund_plans
       WHERE is_active = 1
+      ORDER BY duration_days ASC, id ASC
     `;
-    
-    const params = [];
-    
-    if (assignedPlanIds.length > 0) {
-      query += ` AND (is_private = 0 OR id IN (${assignedPlanIds.map(() => '?').join(',')}))`;
-      params.push(...assignedPlanIds);
-    } else {
-      query += ` AND is_private = 0`;
-    }
-    
-    query += ` ORDER BY duration_days ASC, id ASC`;
 
     console.log(`[override] SQL: ${query}`);
-    console.log(`[override] Params:`, params);
-    
-    const [rows] = await pool.execute(query, params);
-
+    const [rows] = await pool.execute(query);
     console.log(`[override] Returning ${rows.length} plans.`);
-    console.log(`[override] First plan:`, rows.length > 0 ? rows[0] : "None");
 
     res.json({
       success: true,
