@@ -1,3 +1,4 @@
+// backend/db.js
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 
@@ -7,9 +8,10 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || "cryptopulse_v3",
-  ssl: {
-    rejectUnauthorized: false  // Simplified for TiDB Cloud
-  },
+  // ⚠️ TEMPORARY: Disable SSL for testing
+  // ssl: {
+  //   rejectUnauthorized: false
+  // },
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
@@ -25,6 +27,11 @@ async function testConnection() {
     console.log("✅ TiDB Cloud connected successfully");
   } catch (error) {
     console.error("❌ TiDB Cloud connection failed:", error.message);
+    console.error("Error details:", {
+      code: error.code,
+      errno: error.errno,
+      sqlMessage: error.sqlMessage
+    });
   }
 }
 
