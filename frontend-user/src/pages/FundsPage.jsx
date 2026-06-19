@@ -497,6 +497,9 @@ export default function FundsPage() {
 
       setError("");
 
+      // 🔍 DEBUG LOG 1 – Check token
+      console.log("🔍 [FundsPage] Token:", token);
+
       const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
         await Promise.allSettled([
           api.get("/api/funds/plans", {
@@ -516,11 +519,17 @@ export default function FundsPage() {
           }),
         ]);
 
+      // 🔍 DEBUG LOG 2 – Plans response
+      console.log("🔍 [FundsPage] Plans response:", plansRes);
+
       if (plansRes.status === "fulfilled") {
         const nextPlans = Array.isArray(plansRes.value?.data?.data)
           ? plansRes.value.data.data
           : [];
+        console.log("🔍 [FundsPage] Plans data:", nextPlans);
         setPlans(nextPlans);
+      } else {
+        console.error("🔍 [FundsPage] Plans request failed:", plansRes.reason);
       }
 
       if (summaryRes.status === "fulfilled") {
@@ -539,6 +548,7 @@ export default function FundsPage() {
         setLatestCompleted(latestRes.value?.data?.data || null);
       }
     } catch (err) {
+      console.error("🔍 [FundsPage] loadData error:", err);
       showError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
