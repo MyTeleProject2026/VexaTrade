@@ -1,6 +1,6 @@
 // frontend-admin/src/pages/admin/AdminFundsRulesPage.jsx
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Lock, Users, UserPlus, UserMinus, Edit, Eye } from "lucide-react";
+import { RefreshCw, Lock, Users, UserPlus, UserMinus, Edit, Eye, Code, FileText } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 import useToast from "../../components/ToastNotification";
 
@@ -24,14 +24,74 @@ function DetailRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-// ---------- Reusable Plan Card (used in both tabs and modal) ----------
+// ---------- Toggle Field Component (Normal / HTML) ----------
+function ToggleField({ label, value, onChange, placeholder = "", rows = 4 }) {
+  const [mode, setMode] = useState("normal"); // 'normal' or 'html'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-4">
+        <label className="block text-sm text-slate-300">{label}</label>
+        <div className="flex rounded-lg border border-white/10 overflow-hidden bg-[#0a0e1a]">
+          <button
+            type="button"
+            onClick={() => setMode("normal")}
+            className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
+              mode === "normal"
+                ? "bg-cyan-500/20 text-cyan-300"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <FileText size={14} /> Normal
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("html")}
+            className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
+              mode === "html"
+                ? "bg-cyan-500/20 text-cyan-300"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Code size={14} /> HTML
+          </button>
+        </div>
+      </div>
+
+      {mode === "normal" ? (
+        <textarea
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || `Enter ${label.toLowerCase()} in plain text`}
+          rows={rows}
+          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-400 resize-y"
+        />
+      ) : (
+        <textarea
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || `Enter raw HTML code for ${label}`}
+          rows={Math.max(rows, 6)}
+          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
+          spellCheck={false}
+        />
+      )}
+      <p className="text-[11px] text-slate-500">
+        {mode === "normal"
+          ? "Plain text will be automatically wrapped in paragraphs."
+          : "You can write custom HTML/CSS – it will be rendered as‑is on the user side."}
+      </p>
+    </div>
+  );
+}
+
+// ---------- Reusable Plan Card ----------
 function PlanCard({
   rule,
   onSave,
   onDelete,
   onAssignUsers,
   savingId,
-  isPrivateTab = false,
   showAssignButton = false,
 }) {
   const [localRule, setLocalRule] = useState(rule);
@@ -64,7 +124,8 @@ function PlanCard({
         </span>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-4">
+        {/* Basic fields */}
         <div>
           <label className="mb-2 block text-sm text-slate-300">Name</label>
           <input
@@ -74,32 +135,45 @@ function PlanCard({
             className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
           />
         </div>
-        <div>
-          <label className="mb-2 block text-sm text-slate-300">Duration Days</label>
-          <input
-            type="number"
-            value={localRule.duration_days || ""}
-            onChange={(e) => handleChange("duration_days", e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Duration Days</label>
+            <input
+              type="number"
+              value={localRule.duration_days || ""}
+              onChange={(e) => handleChange("duration_days", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Usage Limit</label>
+            <input
+              type="number"
+              value={localRule.user_limit_count ?? ""}
+              onChange={(e) => handleChange("user_limit_count", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
         </div>
-        <div>
-          <label className="mb-2 block text-sm text-slate-300">Min Amount</label>
-          <input
-            type="number"
-            value={localRule.min_amount || ""}
-            onChange={(e) => handleChange("min_amount", e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm text-slate-300">Max Amount</label>
-          <input
-            type="number"
-            value={localRule.max_amount ?? ""}
-            onChange={(e) => handleChange("max_amount", e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Min Amount</label>
+            <input
+              type="number"
+              value={localRule.min_amount || ""}
+              onChange={(e) => handleChange("min_amount", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Max Amount</label>
+            <input
+              type="number"
+              value={localRule.max_amount ?? ""}
+              onChange={(e) => handleChange("max_amount", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
@@ -122,15 +196,6 @@ function PlanCard({
           </div>
         </div>
         <div>
-          <label className="mb-2 block text-sm text-slate-300">Usage Limit</label>
-          <input
-            type="number"
-            value={localRule.user_limit_count ?? ""}
-            onChange={(e) => handleChange("user_limit_count", e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
-        </div>
-        <div>
           <label className="mb-2 block text-sm text-slate-300">Status</label>
           <select
             value={localRule.status}
@@ -141,42 +206,57 @@ function PlanCard({
             <option value="inactive">inactive</option>
           </select>
         </div>
+
+        {/* Cover Image URL */}
         <div>
-          <label className="mb-2 block text-sm text-slate-300">Admin Note</label>
-          <textarea
-            value={localRule.admin_note || ""}
-            onChange={(e) => handleChange("admin_note", e.target.value)}
-            rows="3"
+          <label className="mb-2 block text-sm text-slate-300">Cover Image URL</label>
+          <input
+            type="text"
+            value={localRule.cover_image_url || ""}
+            onChange={(e) => handleChange("cover_image_url", e.target.value)}
+            placeholder="https://example.com/image.jpg"
             className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
           />
+          <p className="text-[11px] text-slate-500">Optional – displayed as a banner on the user-facing fund page.</p>
         </div>
+
+        {/* Admin Note with toggle */}
+        <ToggleField
+          label="Admin Note"
+          value={localRule.admin_note || ""}
+          onChange={(val) => handleChange("admin_note", val)}
+          rows={4}
+        />
+
+        {/* Background Image URL (kept separate) */}
         <div>
           <label className="mb-2 block text-sm text-slate-300">Note Background Image URL</label>
           <input
             type="text"
             value={localRule.admin_note_background_image || ""}
             onChange={(e) => handleChange("admin_note_background_image", e.target.value)}
+            placeholder="https://example.com/bg.jpg"
             className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
           />
         </div>
-        <div>
-          <label className="mb-2 block text-sm text-slate-300">Additional Notes</label>
-          <textarea
-            value={localRule.additional_notes || ""}
-            onChange={(e) => handleChange("additional_notes", e.target.value)}
-            rows="2"
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm text-slate-300">Disclaimer</label>
-          <textarea
-            value={localRule.disclaimer || ""}
-            onChange={(e) => handleChange("disclaimer", e.target.value)}
-            rows="2"
-            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-          />
-        </div>
+
+        {/* Additional Information with toggle */}
+        <ToggleField
+          label="Additional Information"
+          value={localRule.additional_notes || ""}
+          onChange={(val) => handleChange("additional_notes", val)}
+          rows={4}
+        />
+
+        {/* Disclaimer with toggle */}
+        <ToggleField
+          label="Disclaimer / Risk Warning"
+          value={localRule.disclaimer || ""}
+          onChange={(val) => handleChange("disclaimer", val)}
+          rows={4}
+        />
+
+        {/* Private plan toggle and compound percentage */}
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -214,6 +294,9 @@ function PlanCard({
           <DetailRow label="Compound %" value={`${localRule.compound_percentage}%`} valueClassName="text-cyan-300" />
         )}
         {localRule.is_private === 1 && <DetailRow label="Type" value="Private Plan" valueClassName="text-amber-300" />}
+        {localRule.cover_image_url && (
+          <DetailRow label="Cover Image" value={localRule.cover_image_url} valueClassName="text-cyan-300 truncate" />
+        )}
       </div>
 
       {showAssignButton && localRule.is_private === 1 && (
@@ -245,7 +328,100 @@ function PlanCard({
   );
 }
 
-// ---------- Modal for editing a user's private plans ----------
+// ---------- Modal for per-plan user assignment ----------
+function AssignUserModal({
+  isOpen,
+  plan,
+  assignedUsers,
+  onAssign,
+  onRemove,
+  onClose,
+  addToast,
+}) {
+  const [userId, setUserId] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen || !plan) return null;
+
+  const handleAssign = async () => {
+    if (!userId) {
+      addToast("Please enter a User ID", "error");
+      return;
+    }
+    setLoading(true);
+    await onAssign(plan.id, parseInt(userId));
+    setUserId("");
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111111] p-5 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-cyan-400" />
+            <h2 className="text-lg font-bold text-white">Assign Users to Plan</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <div className="pt-4">
+          <p className="text-sm text-slate-300 mb-3">Plan: <span className="font-semibold text-white">{plan.name}</span></p>
+
+          <div className="mb-4">
+            <label className="mb-2 block text-sm text-slate-300">Assigned Users</label>
+            <div className="max-h-40 overflow-y-auto space-y-2 rounded-xl border border-white/10 bg-black/40 p-3">
+              {assignedUsers.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center">No users assigned yet</p>
+              ) : (
+                assignedUsers.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-slate-800/50 p-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-white truncate">{user.name || user.email}</div>
+                      <div className="text-xs text-slate-400">UID: {user.uid} | ID: {user.user_id}</div>
+                    </div>
+                    <button
+                      onClick={() => onRemove(plan.id, user.user_id)}
+                      className="rounded-lg bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300"
+                    >
+                      <UserMinus size={14} className="inline mr-1" /> Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Add User by ID</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="Enter User ID"
+                className="flex-1 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400"
+              />
+              <button
+                onClick={handleAssign}
+                disabled={loading}
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-400"
+              >
+                <UserPlus size={16} className="inline mr-1" /> Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Modal for per-user private plans editing ----------
 function UserPrivatePlansModal({
   isOpen,
   user,
@@ -323,7 +499,6 @@ function UserPrivatePlansModal({
                   onSave={onSavePlan}
                   onDelete={onDeletePlan}
                   savingId={savingId}
-                  isPrivateTab={true}
                   showAssignButton={false}
                 />
                 <button
@@ -362,6 +537,7 @@ const EMPTY_FORM = {
   disclaimer: "",
   is_private: 0,
   compound_percentage: 100,
+  cover_image_url: "",
 };
 
 export default function AdminFundsRulesPage() {
@@ -374,17 +550,17 @@ export default function AdminFundsRulesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
-  const [activeTab, setActiveTab] = useState("public"); // "public" or "private"
+  const [activeTab, setActiveTab] = useState("public");
 
-  // For private plans user view
-  const [usersWithPlans, setUsersWithPlans] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-
-  // For assignment modal (per-plan)
+  // For per-plan assignment modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedPlanForAssign, setSelectedPlanForAssign] = useState(null);
   const [assignedUsers, setAssignedUsers] = useState([]);
+
+  // For per-user private plans modal
+  const [usersWithPlans, setUsersWithPlans] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -395,7 +571,6 @@ export default function AdminFundsRulesPage() {
       setLoading(true);
       const res = await adminApi.getFundRules(token);
       setRules(Array.isArray(res.data?.data) ? res.data.data : []);
-      // Also fetch users with private plans
       await loadUsersWithPrivatePlans();
     } catch (err) {
       addToast(getApiErrorMessage(err), "error");
@@ -409,8 +584,7 @@ export default function AdminFundsRulesPage() {
       const res = await adminApi.getUsersWithPrivatePlans(token);
       setUsersWithPlans(Array.isArray(res.data?.data) ? res.data.data : []);
     } catch (err) {
-      // Fallback: if endpoint not available, we can compute client-side (but we'll assume endpoint exists)
-      addToast("Could not load user-private plans data", "error");
+      setUsersWithPlans([]);
     }
   }
 
@@ -423,6 +597,34 @@ export default function AdminFundsRulesPage() {
     }
   }
 
+  async function openAssignUserModal(plan) {
+    setSelectedPlanForAssign(plan);
+    await loadAssignedUsers(plan.id);
+    setShowAssignModal(true);
+  }
+
+  async function assignUserToPlan(planId, userId) {
+    try {
+      await adminApi.assignUserToPrivatePlan(planId, { userId }, token);
+      addToast("User assigned successfully", "success");
+      await loadAssignedUsers(planId);
+      await loadAllData();
+    } catch (err) {
+      addToast(getApiErrorMessage(err), "error");
+    }
+  }
+
+  async function removeUserFromPlan(planId, userId) {
+    try {
+      await adminApi.removeUserFromPrivatePlan(planId, userId, token);
+      addToast("User removed successfully", "success");
+      await loadAssignedUsers(planId);
+      await loadAllData();
+    } catch (err) {
+      addToast(getApiErrorMessage(err), "error");
+    }
+  }
+
   async function openUserModal(user) {
     setSelectedUser(user);
     setIsUserModalOpen(true);
@@ -432,20 +634,10 @@ export default function AdminFundsRulesPage() {
     try {
       await adminApi.assignUserToPrivatePlan(planId, { userId }, token);
       addToast("Plan assigned to user successfully", "success");
-      // Refresh data
       await loadAllData();
-      // Update the modal's plan list for this user
-      const updatedUser = usersWithPlans.find(u => u.user_id === userId);
-      if (updatedUser) {
-        // Refetch the user's plans from the updated rules
-        const newPlans = rules.filter(r => r.is_private === 1 && assignedPlansForUser(userId).includes(r.id));
-        // We'll just reload the whole users list
-        await loadUsersWithPrivatePlans();
-        // Also update selectedUser if it's the same
-        if (selectedUser && selectedUser.user_id === userId) {
-          const refreshedUser = usersWithPlans.find(u => u.user_id === userId);
-          setSelectedUser(refreshedUser);
-        }
+      if (selectedUser && selectedUser.user_id === userId) {
+        const refreshedUser = usersWithPlans.find(u => u.user_id === userId);
+        setSelectedUser(refreshedUser);
       }
     } catch (err) {
       addToast(getApiErrorMessage(err), "error");
@@ -457,7 +649,6 @@ export default function AdminFundsRulesPage() {
       await adminApi.removeUserFromPrivatePlan(planId, userId, token);
       addToast("Plan removed from user successfully", "success");
       await loadAllData();
-      // Update modal
       if (selectedUser && selectedUser.user_id === userId) {
         const refreshedUser = usersWithPlans.find(u => u.user_id === userId);
         setSelectedUser(refreshedUser);
@@ -467,13 +658,6 @@ export default function AdminFundsRulesPage() {
     }
   }
 
-  // Helper to get assigned plan IDs for a user
-  function assignedPlansForUser(userId) {
-    const user = usersWithPlans.find(u => u.user_id === userId);
-    return user ? user.plans.map(p => p.id) : [];
-  }
-
-  // Handle create form changes
   function handleCreateChange(field, value) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
   }
@@ -504,6 +688,7 @@ export default function AdminFundsRulesPage() {
         disclaimer: createForm.disclaimer || null,
         is_private: createForm.is_private || 0,
         compound_percentage: createForm.compound_percentage || 100,
+        cover_image_url: createForm.cover_image_url || null,
       }, token);
       addToast("Fund rule created successfully.", "success");
       setCreateForm(EMPTY_FORM);
@@ -533,10 +718,10 @@ export default function AdminFundsRulesPage() {
         disclaimer: updatedRule.disclaimer || null,
         is_private: updatedRule.is_private || 0,
         compound_percentage: updatedRule.compound_percentage || 100,
+        cover_image_url: updatedRule.cover_image_url || null,
       }, token);
       addToast(`${updatedRule.name} updated successfully.`, "success");
       await loadAllData();
-      // Update modal if open
       if (selectedUser) {
         const refreshedUser = usersWithPlans.find(u => u.user_id === selectedUser.user_id);
         setSelectedUser(refreshedUser);
@@ -572,11 +757,9 @@ export default function AdminFundsRulesPage() {
     setRefreshing(false);
   }
 
-  // Filter rules
   const publicRules = useMemo(() => rules.filter(r => r.is_private !== 1), [rules]);
   const privateRules = useMemo(() => rules.filter(r => r.is_private === 1), [rules]);
 
-  // Statistics
   const summary = useMemo(() => ({
     total: rules.length,
     active: rules.filter((item) => String(item.status || "").toLowerCase() === "active").length,
@@ -584,113 +767,8 @@ export default function AdminFundsRulesPage() {
     highestMaxRate: rules.length > 0 ? Math.max(...rules.map((item) => Number(item.max_daily_profit_percent || 0))) : 0,
   }), [rules]);
 
-  // Open assign users modal for a private plan
-  async function openAssignUsersModal(plan) {
-    setSelectedPlanForAssign(plan);
-    await loadAssignedUsers(plan.id);
-    setShowAssignModal(true);
-  }
-
-  // Assign / remove user from plan (used in the per-plan modal)
-  async function assignUserToPlan(planId, userId) {
-    try {
-      await adminApi.assignUserToPrivatePlan(planId, { userId }, token);
-      addToast("User assigned successfully", "success");
-      await loadAssignedUsers(planId);
-      await loadAllData();
-    } catch (err) {
-      addToast(getApiErrorMessage(err), "error");
-    }
-  }
-
-  async function removeUserFromPlan(planId, userId) {
-    try {
-      await adminApi.removeUserFromPrivatePlan(planId, userId, token);
-      addToast("User removed successfully", "success");
-      await loadAssignedUsers(planId);
-      await loadAllData();
-    } catch (err) {
-      addToast(getApiErrorMessage(err), "error");
-    }
-  }
-
   if (loading) {
     return <div className="rounded-[24px] border border-white/10 bg-[#111111] p-5 text-sm text-slate-300">Loading fund rules...</div>;
-  }
-
-  // Modal for per-plan user management (existing functionality)
-  function AssignUserModal() {
-    if (!showAssignModal || !selectedPlanForAssign) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111111] p-5 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
-              <Users size={18} className="text-cyan-400" />
-              <h2 className="text-lg font-bold text-white">Assign Users to Plan</h2>
-            </div>
-            <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-white">✕</button>
-          </div>
-          <div className="pt-4">
-            <p className="text-sm text-slate-300 mb-3">Plan: <span className="font-semibold text-white">{selectedPlanForAssign.name}</span></p>
-            <div className="mb-4">
-              <label className="mb-2 block text-sm text-slate-300">Assigned Users</label>
-              <div className="max-h-40 overflow-y-auto space-y-2 rounded-xl border border-white/10 bg-black/40 p-3">
-                {assignedUsers.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center">No users assigned yet</p>
-                ) : (
-                  assignedUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-slate-800/50 p-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-white truncate">{user.name || user.email}</div>
-                        <div className="text-xs text-slate-400">UID: {user.uid} | ID: {user.user_id}</div>
-                      </div>
-                      <button
-                        onClick={() => removeUserFromPlan(selectedPlanForAssign.id, user.user_id)}
-                        className="rounded-lg bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300"
-                      >
-                        <UserMinus size={14} className="inline mr-1" /> Remove
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Add User by ID</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="Enter User ID"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const val = e.target.value;
-                      if (val) assignUserToPlan(selectedPlanForAssign.id, parseInt(val));
-                      e.target.value = "";
-                    }
-                  }}
-                  className="flex-1 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-cyan-400"
-                />
-                <button
-                  onClick={(e) => {
-                    const input = e.currentTarget.previousElementSibling;
-                    const val = input.value;
-                    if (val) assignUserToPlan(selectedPlanForAssign.id, parseInt(val));
-                    input.value = "";
-                  }}
-                  className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-400"
-                >
-                  <UserPlus size={16} className="inline mr-1" /> Add
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 flex justify-end">
-            <button onClick={() => setShowAssignModal(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white">Close</button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -703,7 +781,7 @@ export default function AdminFundsRulesPage() {
           <div>
             <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">Funds Rules</p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">Funds Rules</h1>
-            <p className="mt-2 text-sm text-slate-400">Manage public and private fund plans.</p>
+            <p className="mt-2 text-sm text-slate-400">Manage public and private fund plans with rich content.</p>
           </div>
           <button onClick={refreshData} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-white hover:bg-white/5">
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
@@ -746,7 +824,7 @@ export default function AdminFundsRulesPage() {
       {/* ----- PUBLIC PLANS TAB ----- */}
       {activeTab === "public" && (
         <>
-          {/* Create form (public) */}
+          {/* Create Public Form */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-white">Create Public Fund Rule</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -762,10 +840,30 @@ export default function AdminFundsRulesPage() {
               </select>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Admin Note" rows="3" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+              <input type="text" value={createForm.cover_image_url} onChange={(e) => handleCreateChange("cover_image_url", e.target.value)} placeholder="Cover Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
               <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-              <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Additional Information" rows="2" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-              <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Disclaimer / Risk Warning" rows="2" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+            </div>
+            <div className="mt-4 grid gap-4">
+              <ToggleField
+                label="Admin Note"
+                value={createForm.admin_note || ""}
+                onChange={(val) => handleCreateChange("admin_note", val)}
+                rows={4}
+              />
+              <ToggleField
+                label="Additional Information"
+                value={createForm.additional_notes || ""}
+                onChange={(val) => handleCreateChange("additional_notes", val)}
+                rows={4}
+              />
+              <ToggleField
+                label="Disclaimer / Risk Warning"
+                value={createForm.disclaimer || ""}
+                onChange={(val) => handleCreateChange("disclaimer", val)}
+                rows={4}
+              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="flex items-center gap-2"><input type="checkbox" checked={createForm.is_private === 1} onChange={(e) => handleCreateChange("is_private", e.target.checked ? 1 : 0)} className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan</span></label>
               <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
             </div>
@@ -781,7 +879,7 @@ export default function AdminFundsRulesPage() {
                 onSave={handleSavePlan}
                 onDelete={handleDeletePlan}
                 savingId={savingId}
-                showAssignButton={false} // public plans don't have assignments
+                showAssignButton={false}
                 onAssignUsers={() => {}}
               />
             ))}
@@ -792,7 +890,7 @@ export default function AdminFundsRulesPage() {
       {/* ----- PRIVATE PLANS TAB ----- */}
       {activeTab === "private" && (
         <>
-          {/* Create form for private plans (auto-set is_private=1) */}
+          {/* Create Private Form */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-white">Create Private Fund Rule</h2>
             <p className="text-sm text-slate-400 mb-4">This plan will be private and must be assigned to specific users.</p>
@@ -809,24 +907,62 @@ export default function AdminFundsRulesPage() {
               </select>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Admin Note" rows="3" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+              <input type="text" value={createForm.cover_image_url} onChange={(e) => handleCreateChange("cover_image_url", e.target.value)} placeholder="Cover Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
               <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-              <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Additional Information" rows="2" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-              <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Disclaimer / Risk Warning" rows="2" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+            </div>
+            <div className="mt-4 grid gap-4">
+              <ToggleField
+                label="Admin Note"
+                value={createForm.admin_note || ""}
+                onChange={(val) => handleCreateChange("admin_note", val)}
+                rows={4}
+              />
+              <ToggleField
+                label="Additional Information"
+                value={createForm.additional_notes || ""}
+                onChange={(val) => handleCreateChange("additional_notes", val)}
+                rows={4}
+              />
+              <ToggleField
+                label="Disclaimer / Risk Warning"
+                value={createForm.disclaimer || ""}
+                onChange={(val) => handleCreateChange("disclaimer", val)}
+                rows={4}
+              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="flex items-center gap-2"><input type="checkbox" checked={true} disabled className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan (always enabled)</span></label>
               <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
             </div>
             <button onClick={async () => {
-              // Force is_private = 1 for private tab
               setCreateForm(prev => ({ ...prev, is_private: 1 }));
               await handleCreateRule();
             }} disabled={creating} className="mt-4 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-cyan-400 disabled:opacity-50">{creating ? "Creating..." : "Create Private Rule"}</button>
           </section>
 
-          {/* User list for private plans */}
+          {/* Private plans list with Manage Assigned Users */}
+          <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
+            <h2 className="text-lg font-semibold text-white">All Private Plans</h2>
+            <p className="text-sm text-slate-400 mb-4">Each plan can be assigned to specific users via the "Manage Assigned Users" button.</p>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {privateRules.map((rule) => (
+                <PlanCard
+                  key={rule.id}
+                  rule={rule}
+                  onSave={handleSavePlan}
+                  onDelete={handleDeletePlan}
+                  savingId={savingId}
+                  showAssignButton={true}
+                  onAssignUsers={openAssignUserModal}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* Users with Private Plans section */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-white">Users with Private Plans</h2>
-            <p className="text-sm text-slate-400 mb-4">Each user has their own set of assigned private plans.</p>
+            <p className="text-sm text-slate-400 mb-4">Click "Edit Plans" to manage all private plans for a specific user.</p>
             {usersWithPlans.length === 0 ? (
               <p className="text-slate-400">No users have private plans assigned yet.</p>
             ) : (
@@ -851,7 +987,18 @@ export default function AdminFundsRulesPage() {
         </>
       )}
 
-      {/* User Private Plans Modal */}
+      {/* Per-plan Assign User Modal */}
+      <AssignUserModal
+        isOpen={showAssignModal}
+        plan={selectedPlanForAssign}
+        assignedUsers={assignedUsers}
+        onAssign={assignUserToPlan}
+        onRemove={removeUserFromPlan}
+        onClose={() => { setShowAssignModal(false); setSelectedPlanForAssign(null); setAssignedUsers([]); }}
+        addToast={addToast}
+      />
+
+      {/* Per-user Private Plans Modal */}
       {selectedUser && (
         <UserPrivatePlansModal
           isOpen={isUserModalOpen}
@@ -867,10 +1014,6 @@ export default function AdminFundsRulesPage() {
           addToast={addToast}
         />
       )}
-
-      {/* Per-plan Assign Users Modal (existing functionality) */}
-      <AssignUserModal />
-
     </div>
   );
 }
