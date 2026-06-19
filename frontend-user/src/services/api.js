@@ -46,9 +46,14 @@ const authHeaders = (token) => ({
   },
 });
 
+// ✅ Interceptor with logging to help debug
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log("✅ [API] Response success:", response.config.url, response.status);
+    return response;
+  },
   (error) => {
+    console.error("❌ [API] Response error:", error.config?.url, error.response?.status, error.message);
     const status = error?.response?.status;
     const url = error?.config?.url || "";
 
@@ -58,6 +63,7 @@ api.interceptors.response.use(
         !url.includes("/api/auth/register") &&
         !url.includes("/api/auth/refresh")
       ) {
+        console.warn("⚠️ [API] 401 – clearing tokens");
         localStorage.removeItem("userToken");
         localStorage.removeItem("token");
         localStorage.removeItem("accessToken");
@@ -105,7 +111,7 @@ export const userApi = {
   getPortfolioAssets: (token) =>
     api.get("/api/user/portfolio-assets", authHeaders(token)),
 
-    /* ---------------- TARGET SYSTEM ---------------- */
+  /* ---------------- TARGET SYSTEM ---------------- */
   getUserTarget: (token) =>
     api.get("/api/user/target", authHeaders(token)),
 
@@ -190,7 +196,7 @@ export const userApi = {
         "Content-Type": "multipart/form-data",
       },
     }),
-  // Add this inside your existing userApi object (around line 100-150)
+  
   getUserAssets: (token) => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
     return fetch(`${API_BASE_URL}/api/user/assets`, {
@@ -225,9 +231,6 @@ export const userApi = {
   getTransferHistory: (token) =>
     api.get("/api/user/transfers", authHeaders(token)),
 
-  // Add these inside your existing userApi object (around line 168-175)
-
-  // Get QR code as base64
   getMyQrCodeBase64: async (token) => {
     const response = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
@@ -239,7 +242,6 @@ export const userApi = {
     throw new Error("Failed to get QR code");
   },
 
-  // Search user by UID
   searchUserByUid: async (uid, token) => {
     const response = await fetch(`${API_BASE_URL}/api/user/by-uid/${uid}`, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
@@ -249,7 +251,6 @@ export const userApi = {
     throw new Error("User not found");
   },
 
-  // Execute transfer
   executeTransfer: async (recipientUid, amount, note, token) => {
     const response = await fetch(`${API_BASE_URL}/api/user/transfer`, {
       method: "POST",
