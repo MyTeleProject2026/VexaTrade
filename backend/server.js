@@ -44,8 +44,7 @@ const app = express();
 const overrideFundsPlans = require("./overrideFundsPlans");
 app.use("/api/funds/plans", overrideFundsPlans);
 
-const adminFundRoutes = require("./adminFundRoutes");
-app.use("/api/admin/fund-rules", adminFundRoutes);
+
 
 // ========== ADD THIS - Force create qr_codes directory with extra check ==========
 const qrDir = path.join(__dirname, "uploads/qr_codes");
