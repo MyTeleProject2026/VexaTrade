@@ -152,11 +152,13 @@ function PlanCard({ plan, applying, onApply }) {
         </div>
       </div>
 
+      {/* ✅ HTML CONTENT SUPPORT - PRIORITY 1 */}
       {plan.html_content ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3 prose prose-invert max-w-none">
           <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
         </div>
       ) : (
+        /* ✅ FALLBACK - Individual fields if no HTML */
         hasAnyNote && (
           <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
             {hasNote && (
@@ -440,8 +442,6 @@ export default function FundsPage() {
 
       setError("");
 
-      // 🔍 TOKEN DEBUG LOGS - ADDED HERE
-      console.log("🔍 [FundsPage] Token:", token);
       console.log("🔍 [FundsPage] Token exists:", !!token);
       console.log("🔍 [FundsPage] Token length:", token.length);
 
@@ -473,6 +473,12 @@ export default function FundsPage() {
         console.log(`🔍 [FundsPage] ${nextPlans.length} plans found`);
         if (nextPlans.length > 0) {
           console.log("🔍 [FundsPage] First plan:", nextPlans[0]);
+          // Check if first plan has html_content
+          if (nextPlans[0].html_content) {
+            console.log("🔍 [FundsPage] ✅ First plan has HTML content");
+          } else {
+            console.log("🔍 [FundsPage] ℹ️ First plan uses individual fields (admin_note, etc.)");
+          }
         }
         setPlans(nextPlans);
       } else {
