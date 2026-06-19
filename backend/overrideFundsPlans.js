@@ -39,8 +39,9 @@ router.get("/", authenticateUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     console.log(`[override] User ${userId} requested plans.`);
+    console.log(`[override] User role: ${req.user.role}`);
 
-    // 🔥 SUPER SIMPLE: Return ALL active plans (public + private)
+    // 🔥 SUPER SIMPLE - Return ALL active plans (public + private)
     const query = `
       SELECT
         id, name, duration_days, min_amount, max_amount,
@@ -55,9 +56,17 @@ router.get("/", authenticateUser, async (req, res, next) => {
       ORDER BY duration_days ASC, id ASC
     `;
 
-    console.log(`[override] SQL: ${query}`);
+    console.log(`[override] Executing SQL: ${query}`);
     const [rows] = await pool.execute(query);
-    console.log(`[override] Returning ${rows.length} plans.`);
+    
+    console.log(`[override] Query returned ${rows.length} rows.`);
+    
+    if (rows.length > 0) {
+      console.log(`[override] First plan:`, JSON.stringify(rows[0], null, 2));
+    } else {
+      console.log(`[override] ⚠️ NO PLANS FOUND in database!`);
+      console.log(`[override] Check if fund_plans table has is_active=1 rows.`);
+    }
 
     res.json({
       success: true,
@@ -68,6 +77,7 @@ router.get("/", authenticateUser, async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: error.message,
+      stack: error.stack,
     });
   }
 });
