@@ -1,4 +1,4 @@
-// adminFundRoutes.js
+// backend/adminFundRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
@@ -32,7 +32,7 @@ router.get("/", async (req, res) => {
         disclaimer,
         is_private,
         compound_percentage,
-        html_content,        -- ✅ INCLUDED
+        html_content,
         created_at,
         updated_at
       FROM fund_plans
@@ -72,7 +72,7 @@ router.post("/", async (req, res) => {
       disclaimer,
       is_private,
       compound_percentage,
-      html_content,          // ✅ INCLUDED
+      html_content,
     } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -116,7 +116,7 @@ router.post("/", async (req, res) => {
         disclaimer,
         is_private,
         compound_percentage,
-        html_content,          -- ✅ INCLUDED
+        html_content,
         created_at,
         updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -202,7 +202,7 @@ router.put("/:id", async (req, res) => {
       disclaimer,
       is_private,
       compound_percentage,
-      html_content,          // ✅ INCLUDED
+      html_content,
     } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -246,7 +246,7 @@ router.put("/:id", async (req, res) => {
         disclaimer = ?,
         is_private = ?,
         compound_percentage = ?,
-        html_content = ?,       -- ✅ INCLUDED
+        html_content = ?,
         updated_at = NOW()
       WHERE id = ?`,
       [
@@ -371,7 +371,7 @@ router.get("/users-with-private-plans", async (req, res) => {
         fp.disclaimer,
         fp.is_private,
         fp.compound_percentage,
-        fp.html_content,      -- ✅ INCLUDED
+        fp.html_content,
         fp.created_at,
         fp.updated_at
       FROM user_plan_assignments upa
@@ -409,7 +409,7 @@ router.get("/users-with-private-plans", async (req, res) => {
         disclaimer: planData.disclaimer,
         is_private: planData.is_private,
         compound_percentage: planData.compound_percentage,
-        html_content: planData.html_content,   // ✅ INCLUDED
+        html_content: planData.html_content,
         created_at: planData.created_at,
         updated_at: planData.updated_at,
       };
