@@ -19,20 +19,6 @@ import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
 
-// Inside component
-const sanitize = (html) => ({ __html: DOMPurify.sanitize(html) });
-
-// Render
-{plan.html_content ? (
-  <div dangerouslySetInnerHTML={sanitize(plan.html_content)} />
-) : (
-  // Fallback to normal fields
-  <>
-    <div>{plan.admin_note}</div>
-    <div>{plan.additional_notes}</div>
-    <div>{plan.disclaimer}</div>
-  </>
-)}
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -105,7 +91,7 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-// ✅ UPDATED Plan Card with inline notes and "Read Full Information" button
+// ✅ UPDATED Plan Card – now renders html_content if present
 function PlanCard({ plan, applying, onApply }) {
   const [showFullNote, setShowFullNote] = useState(false);
   
@@ -175,48 +161,56 @@ function PlanCard({ plan, applying, onApply }) {
         </div>
       </div>
 
-      {/* ✅ Notes Section - Displayed directly below plan card */}
-      {hasAnyNote && (
-        <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
-          {/* blockchain ecosystem Note */}
-          {hasNote && (
-            <div className="mb-2">
-              <div className="text-[10px] font-semibold text-cyan-400 mb-1">📢 Information</div>
-              <div className="text-xs text-slate-300 leading-relaxed">
-                {showFullNote ? plan.admin_note : getShortPreview(plan.admin_note)}
-              </div>
-            </div>
-          )}
-          
-          {/* Additional Notes */}
-          {hasAdditionalNotes && (
-            <div className="mb-2">
-              <div className="text-[10px] font-semibold text-slate-300 mb-1">ℹ️ Additional Notes</div>
-              <div className="text-xs text-slate-400 leading-relaxed">
-                {showFullNote ? plan.additional_notes : getShortPreview(plan.additional_notes)}
-              </div>
-            </div>
-          )}
-          
-          {/* Disclaimer */}
-          {hasDisclaimer && (
-            <div className="mb-2">
-              <div className="text-[10px] font-semibold text-amber-400 mb-1">⚠️ Disclaimer</div>
-              <div className="text-xs text-amber-300/70 leading-relaxed">
-                {showFullNote ? plan.disclaimer : getShortPreview(plan.disclaimer)}
-              </div>
-            </div>
-          )}
-          
-          {/* "Click to read full information" button */}
-          <button
-            type="button"
-            onClick={() => setShowFullNote(!showFullNote)}
-            className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1"
-          >
-            {showFullNote ? "Show less ▲" : "Click to read full information ▼"}
-          </button>
+      {/* ✅ Notes Section – now checks html_content first */}
+      {plan.html_content ? (
+        <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3 prose prose-invert max-w-none">
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
         </div>
+      ) : (
+        hasAnyNote && (
+          <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
+            {/* Admin Note */}
+            {hasNote && (
+              <div className="mb-2">
+                <div className="text-[10px] font-semibold text-cyan-400 mb-1">📢 Information</div>
+                <div className="text-xs text-slate-300 leading-relaxed">
+                  {showFullNote ? plan.admin_note : getShortPreview(plan.admin_note)}
+                </div>
+              </div>
+            )}
+            
+            {/* Additional Notes */}
+            {hasAdditionalNotes && (
+              <div className="mb-2">
+                <div className="text-[10px] font-semibold text-slate-300 mb-1">ℹ️ Additional Notes</div>
+                <div className="text-xs text-slate-400 leading-relaxed">
+                  {showFullNote ? plan.additional_notes : getShortPreview(plan.additional_notes)}
+                </div>
+              </div>
+            )}
+            
+            {/* Disclaimer */}
+            {hasDisclaimer && (
+              <div className="mb-2">
+                <div className="text-[10px] font-semibold text-amber-400 mb-1">⚠️ Disclaimer</div>
+                <div className="text-xs text-amber-300/70 leading-relaxed">
+                  {showFullNote ? plan.disclaimer : getShortPreview(plan.disclaimer)}
+                </div>
+              </div>
+            )}
+            
+            {/* "Read more" button – only if any note is longer than 100 chars */}
+            {(plan.admin_note?.length > 100 || plan.additional_notes?.length > 100 || plan.disclaimer?.length > 100) && (
+              <button
+                type="button"
+                onClick={() => setShowFullNote(!showFullNote)}
+                className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1"
+              >
+                {showFullNote ? "Show less ▲" : "Click to read full information ▼"}
+              </button>
+            )}
+          </div>
+        )
       )}
 
       <div className="mt-2">
@@ -233,7 +227,7 @@ function PlanCard({ plan, applying, onApply }) {
   );
 }
 
-// ✅ Active Fund Card with Pause status
+// Active Fund Card with Pause status (unchanged)
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
   const totalReceive =
@@ -307,7 +301,7 @@ function ActiveFundCard({ item }) {
   );
 }
 
-// History Fund Card
+// History Fund Card (unchanged)
 function HistoryFundCard({ item }) {
   const totalReceived =
     Number(item.total_received || 0) ||
