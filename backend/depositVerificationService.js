@@ -43,10 +43,12 @@ async function syncVerificationSettingsFromWallets() {
       const firstAddr = addresses[0];
       const { prefix, suffix } = extractPrefixSuffix(firstAddr);
       if (!prefix || !suffix) continue;
+
+      // ✅ FIXED: Provide default explorer_api_url and token_type
       await pool.execute(
         `INSERT INTO network_verification_settings 
-         (network, address_prefix, address_suffix, is_active, updated_at)
-         VALUES (?, ?, ?, 1, NOW())
+         (network, explorer_api_url, address_prefix, address_suffix, token_type, is_active, updated_at)
+         VALUES (?, 'https://api.etherscan.io/api', ?, ?, 'token', 1, NOW())
          ON DUPLICATE KEY UPDATE
            address_prefix = VALUES(address_prefix),
            address_suffix = VALUES(address_suffix),
