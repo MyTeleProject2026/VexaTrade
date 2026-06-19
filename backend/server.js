@@ -40,10 +40,6 @@ const app = express();
   }
 });
 
-// Override /api/funds/plans to include html_content
-const overrideFundsPlans = require("./overrideFundsPlans");
-app.use("/api/funds/plans", overrideFundsPlans);
-
 
 
 // ========== ADD THIS - Force create qr_codes directory with extra check ==========
@@ -70,7 +66,7 @@ const allowedOrigins = [
   
   // ✅ VexaTrade Frontend URLs
   "https://vexatrade.onrender.com",
-  "https://www.vexatrade-v.2bd.net",
+  "https://www.vexatrade-v.2bd.net",  // ✅ THIS IS ALREADY HERE
   "https://vexatrade-v.2bd.net",
   
   // ✅ VexaTrade Admin URLs
@@ -104,6 +100,7 @@ const corsOptions = {
   ],
 };
 
+// ✅ CORS middleware - MUST COME FIRST
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
@@ -131,6 +128,10 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// Then mount the override
+const overrideFundsPlans = require("./overrideFundsPlans");
+app.use("/api/funds/plans", overrideFundsPlans);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
