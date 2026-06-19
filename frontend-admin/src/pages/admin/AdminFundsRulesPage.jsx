@@ -34,9 +34,11 @@ function PlanCard({
   showAssignButton = false,
 }) {
   const [localRule, setLocalRule] = useState(rule);
+  const [contentMode, setContentMode] = useState(rule.html_content ? "html" : "normal");
 
   useEffect(() => {
     setLocalRule(rule);
+    setContentMode(rule.html_content ? "html" : "normal");
   }, [rule]);
 
   const handleChange = (field, value) => {
@@ -44,11 +46,26 @@ function PlanCard({
   };
 
   const handleSave = () => {
-    onSave(localRule);
+    // If HTML mode, clear individual fields and use html_content
+    if (contentMode === "html") {
+      onSave({
+        ...localRule,
+        admin_note: null,
+        additional_notes: null,
+        disclaimer: null,
+        admin_note_background_image: null,
+        html_content: localRule.html_content,
+      });
+    } else {
+      // Normal mode: clear html_content and use individual fields
+      onSave({
+        ...localRule,
+        html_content: null,
+      });
+    }
   };
 
-  // Determine if this rule uses HTML mode (has html_content)
-  const isHtmlMode = localRule.html_content && localRule.html_content.trim() !== "";
+  const isHtmlMode = contentMode === "html";
 
   return (
     <div className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
@@ -67,7 +84,7 @@ function PlanCard({
       </div>
 
       <div className="mt-4 space-y-4">
-        {/* Basic fields */}
+        {/* Name */}
         <div>
           <label className="mb-2 block text-sm text-slate-300">Name</label>
           <input
@@ -78,93 +95,111 @@ function PlanCard({
           />
         </div>
 
-        {/* If HTML mode is active, show the HTML content preview */}
-        {isHtmlMode && (
-          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-            <div className="flex items-center gap-2 text-cyan-300 text-xs mb-2">
-              <Code size={14} /> HTML Mode Active
-            </div>
-            <div className="max-h-40 overflow-y-auto text-xs text-slate-400 font-mono whitespace-pre-wrap break-all">
-              {localRule.html_content.substring(0, 300)}...
-            </div>
+        {/* Basic numeric fields (always visible) */}
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Duration Days</label>
+            <input
+              type="number"
+              value={localRule.duration_days || ""}
+              onChange={(e) => handleChange("duration_days", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
           </div>
-        )}
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Usage Limit</label>
+            <input
+              type="number"
+              value={localRule.user_limit_count ?? ""}
+              onChange={(e) => handleChange("user_limit_count", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Min Amount</label>
+            <input
+              type="number"
+              value={localRule.min_amount || ""}
+              onChange={(e) => handleChange("min_amount", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Max Amount</label>
+            <input
+              type="number"
+              value={localRule.max_amount ?? ""}
+              onChange={(e) => handleChange("max_amount", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Min Daily %</label>
+            <input
+              type="number"
+              value={localRule.min_daily_profit_percent || ""}
+              onChange={(e) => handleChange("min_daily_profit_percent", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">Max Daily %</label>
+            <input
+              type="number"
+              value={localRule.max_daily_profit_percent || ""}
+              onChange={(e) => handleChange("max_daily_profit_percent", e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm text-slate-300">Status</label>
+          <select
+            value={localRule.status}
+            onChange={(e) => handleChange("status", e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
+          >
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+          </select>
+        </div>
 
-        {/* If normal mode, show individual fields */}
-        {!isHtmlMode && (
+        {/* ---------- Content Mode Toggle ---------- */}
+        <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+          <span className="text-sm text-slate-300">Content Mode</span>
+          <div className="flex rounded-lg border border-white/10 overflow-hidden bg-[#0a0e1a]">
+            <button
+              type="button"
+              onClick={() => setContentMode("normal")}
+              className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
+                contentMode === "normal"
+                  ? "bg-cyan-500/20 text-cyan-300"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <FileText size={14} /> Normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setContentMode("html")}
+              className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
+                contentMode === "html"
+                  ? "bg-cyan-500/20 text-cyan-300"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Code size={14} /> HTML
+            </button>
+          </div>
+        </div>
+
+        {/* Normal Mode: individual content fields */}
+        {contentMode === "normal" && (
           <>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Duration Days</label>
-                <input
-                  type="number"
-                  value={localRule.duration_days || ""}
-                  onChange={(e) => handleChange("duration_days", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Usage Limit</label>
-                <input
-                  type="number"
-                  value={localRule.user_limit_count ?? ""}
-                  onChange={(e) => handleChange("user_limit_count", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Min Amount</label>
-                <input
-                  type="number"
-                  value={localRule.min_amount || ""}
-                  onChange={(e) => handleChange("min_amount", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Max Amount</label>
-                <input
-                  type="number"
-                  value={localRule.max_amount ?? ""}
-                  onChange={(e) => handleChange("max_amount", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Min Daily %</label>
-                <input
-                  type="number"
-                  value={localRule.min_daily_profit_percent || ""}
-                  onChange={(e) => handleChange("min_daily_profit_percent", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Max Daily %</label>
-                <input
-                  type="number"
-                  value={localRule.max_daily_profit_percent || ""}
-                  onChange={(e) => handleChange("max_daily_profit_percent", e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Status</label>
-              <select
-                value={localRule.status}
-                onChange={(e) => handleChange("status", e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none"
-              >
-                <option value="active">active</option>
-                <option value="inactive">inactive</option>
-              </select>
-            </div>
-
             <div>
               <label className="mb-2 block text-sm text-slate-300">Admin Note</label>
               <textarea
@@ -204,7 +239,25 @@ function PlanCard({
           </>
         )}
 
-        {/* Private plan toggle and compound percentage */}
+        {/* HTML Mode: single code box for all content */}
+        {contentMode === "html" && (
+          <div>
+            <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
+            <p className="text-xs text-slate-500 mb-2">
+              Write your full content here (admin note, additional info, disclaimer, images, etc.)
+            </p>
+            <textarea
+              value={localRule.html_content || ""}
+              onChange={(e) => handleChange("html_content", e.target.value)}
+              placeholder="<h1>Fund Name</h1><p>Description...</p><div class='disclaimer'>Risk warning...</div>"
+              rows="10"
+              className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
+              spellCheck={false}
+            />
+          </div>
+        )}
+
+        {/* Private plan checkbox and compound % */}
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -276,7 +329,7 @@ function PlanCard({
   );
 }
 
-// ---------- Modal for per-plan user assignment ----------
+// ---------- Modal for per-plan user assignment (unchanged) ----------
 function AssignUserModal({
   isOpen,
   plan,
@@ -369,7 +422,7 @@ function AssignUserModal({
   );
 }
 
-// ---------- Modal for per-user private plans editing ----------
+// ---------- Modal for per‑user private plans ----------
 function UserPrivatePlansModal({
   isOpen,
   user,
@@ -412,7 +465,6 @@ function UserPrivatePlansModal({
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">✕</button>
         </div>
 
-        {/* Assign new plan */}
         <div className="mt-4 flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <label className="mb-1 block text-sm text-slate-300">Assign new private plan</label>
@@ -435,7 +487,6 @@ function UserPrivatePlansModal({
           </button>
         </div>
 
-        {/* List of assigned plans */}
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           {plans.length === 0 ? (
             <p className="text-slate-400 col-span-2">No private plans assigned to this user yet.</p>
@@ -499,7 +550,7 @@ export default function AdminFundsRulesPage() {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState("public");
-  const [contentMode, setContentMode] = useState("normal"); // "normal" or "html"
+  const [contentMode, setContentMode] = useState("normal"); // for create form
 
   // For per-plan assignment modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -616,37 +667,45 @@ export default function AdminFundsRulesPage() {
       addToast("Rule name is required", "error");
       return;
     }
-
-    // If HTML mode is active, require html_content
+    if (contentMode === "normal" && !createForm.duration_days) {
+      addToast("Duration days must be greater than 0", "error");
+      return;
+    }
     if (contentMode === "html" && (!createForm.html_content || !createForm.html_content.trim())) {
       addToast("HTML content is required when HTML mode is selected", "error");
       return;
     }
 
-    if (contentMode === "normal" && !createForm.duration_days) {
-      addToast("Duration days must be greater than 0", "error");
-      return;
-    }
-
     try {
       setCreating(true);
-      await adminApi.createFundRule({
+      const payload = {
         name: createForm.name,
-        duration_days: contentMode === "html" ? 0 : Number(createForm.duration_days || 0),
-        min_amount: contentMode === "html" ? 0 : Number(createForm.min_amount || 0),
-        max_amount: contentMode === "html" ? null : (createForm.max_amount === "" ? null : Number(createForm.max_amount)),
-        min_daily_profit_percent: contentMode === "html" ? 0 : Number(createForm.min_daily_profit_percent || 0),
-        max_daily_profit_percent: contentMode === "html" ? 0 : Number(createForm.max_daily_profit_percent || 0),
-        user_limit_count: contentMode === "html" ? null : (createForm.user_limit_count === "" ? null : Number(createForm.user_limit_count)),
+        duration_days: Number(createForm.duration_days || 0),
+        min_amount: Number(createForm.min_amount || 0),
+        max_amount: createForm.max_amount === "" ? null : Number(createForm.max_amount),
+        min_daily_profit_percent: Number(createForm.min_daily_profit_percent || 0),
+        max_daily_profit_percent: Number(createForm.max_daily_profit_percent || 0),
+        user_limit_count: createForm.user_limit_count === "" ? null : Number(createForm.user_limit_count),
         status: createForm.status || "active",
-        admin_note: contentMode === "html" ? null : (createForm.admin_note || null),
-        admin_note_background_image: contentMode === "html" ? null : (createForm.admin_note_background_image || null),
-        additional_notes: contentMode === "html" ? null : (createForm.additional_notes || null),
-        disclaimer: contentMode === "html" ? null : (createForm.disclaimer || null),
         is_private: createForm.is_private || 0,
         compound_percentage: createForm.compound_percentage || 100,
-        html_content: contentMode === "html" ? createForm.html_content : null,
-      }, token);
+      };
+
+      if (contentMode === "html") {
+        payload.html_content = createForm.html_content;
+        payload.admin_note = null;
+        payload.admin_note_background_image = null;
+        payload.additional_notes = null;
+        payload.disclaimer = null;
+      } else {
+        payload.html_content = null;
+        payload.admin_note = createForm.admin_note || null;
+        payload.admin_note_background_image = createForm.admin_note_background_image || null;
+        payload.additional_notes = createForm.additional_notes || null;
+        payload.disclaimer = createForm.disclaimer || null;
+      }
+
+      await adminApi.createFundRule(payload, token);
       addToast("Fund rule created successfully.", "success");
       setCreateForm(EMPTY_FORM);
       setContentMode("normal");
@@ -661,7 +720,7 @@ export default function AdminFundsRulesPage() {
   async function handleSavePlan(updatedRule) {
     try {
       setSavingId(updatedRule.id);
-      await adminApi.updateFundRule(updatedRule.id, {
+      const payload = {
         name: updatedRule.name,
         duration_days: Number(updatedRule.duration_days || 0),
         min_amount: Number(updatedRule.min_amount || 0),
@@ -670,14 +729,15 @@ export default function AdminFundsRulesPage() {
         max_daily_profit_percent: Number(updatedRule.max_daily_profit_percent || 0),
         user_limit_count: updatedRule.user_limit_count === "" || updatedRule.user_limit_count === null ? null : Number(updatedRule.user_limit_count),
         status: updatedRule.status,
+        is_private: updatedRule.is_private || 0,
+        compound_percentage: updatedRule.compound_percentage || 100,
+        html_content: updatedRule.html_content || null,
         admin_note: updatedRule.admin_note || null,
         admin_note_background_image: updatedRule.admin_note_background_image || null,
         additional_notes: updatedRule.additional_notes || null,
         disclaimer: updatedRule.disclaimer || null,
-        is_private: updatedRule.is_private || 0,
-        compound_percentage: updatedRule.compound_percentage || 100,
-        html_content: updatedRule.html_content || null,
-      }, token);
+      };
+      await adminApi.updateFundRule(updatedRule.id, payload, token);
       addToast(`${updatedRule.name} updated successfully.`, "success");
       await loadAllData();
       if (selectedUser) {
@@ -739,7 +799,7 @@ export default function AdminFundsRulesPage() {
           <div>
             <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-300">Funds Rules</p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">Funds Rules</h1>
-            <p className="mt-2 text-sm text-slate-400">Manage public and private fund plans with Normal or HTML mode.</p>
+            <p className="mt-2 text-sm text-slate-400">Manage public and private fund plans.</p>
           </div>
           <button onClick={refreshData} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-white hover:bg-white/5">
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
@@ -782,7 +842,7 @@ export default function AdminFundsRulesPage() {
       {/* ----- PUBLIC PLANS TAB ----- */}
       {activeTab === "public" && (
         <>
-          {/* Create Public Form with Mode Toggle */}
+          {/* Create Public Form */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Create Public Fund Rule</h2>
@@ -790,96 +850,82 @@ export default function AdminFundsRulesPage() {
                 <button
                   type="button"
                   onClick={() => setContentMode("normal")}
-                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 transition ${
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
                     contentMode === "normal"
                       ? "bg-cyan-500/20 text-cyan-300"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <FileText size={16} /> Normal Mode
+                  <FileText size={14} /> Normal
                 </button>
                 <button
                   type="button"
                   onClick={() => setContentMode("html")}
-                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 transition ${
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
                     contentMode === "html"
                       ? "bg-cyan-500/20 text-cyan-300"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <Code size={16} /> HTML Mode
+                  <Code size={14} /> HTML
                 </button>
               </div>
             </div>
 
-            {/* Name - always visible */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm text-slate-300">Rule Name</label>
+            <div className="mt-4 space-y-4">
+              {/* Name */}
               <input
                 type="text"
                 value={createForm.name}
                 onChange={(e) => handleCreateChange("name", e.target.value)}
-                placeholder="Enter fund plan name"
+                placeholder="Rule name"
                 className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
               />
-            </div>
 
-            {/* Normal Mode Fields */}
-            {contentMode === "normal" && (
-              <>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <input type="number" value={createForm.duration_days} onChange={(e) => handleCreateChange("duration_days", e.target.value)} placeholder="Duration days" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.min_amount} onChange={(e) => handleCreateChange("min_amount", e.target.value)} placeholder="Min amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.max_amount} onChange={(e) => handleCreateChange("max_amount", e.target.value)} placeholder="Max amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.min_daily_profit_percent} onChange={(e) => handleCreateChange("min_daily_profit_percent", e.target.value)} placeholder="Min daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.max_daily_profit_percent} onChange={(e) => handleCreateChange("max_daily_profit_percent", e.target.value)} placeholder="Max daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.user_limit_count} onChange={(e) => handleCreateChange("user_limit_count", e.target.value)} placeholder="User limit count" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <select value={createForm.status} onChange={(e) => handleCreateChange("status", e.target.value)} className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none">
-                    <option value="active">active</option><option value="inactive">inactive</option>
-                  </select>
-                  <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                </div>
-                <div className="mt-4 grid gap-4">
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Admin Note</label>
-                    <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Write admin note here..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+              {/* Normal mode fields */}
+              {contentMode === "normal" && (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <input type="number" value={createForm.duration_days} onChange={(e) => handleCreateChange("duration_days", e.target.value)} placeholder="Duration days" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.min_amount} onChange={(e) => handleCreateChange("min_amount", e.target.value)} placeholder="Min amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.max_amount} onChange={(e) => handleCreateChange("max_amount", e.target.value)} placeholder="Max amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.min_daily_profit_percent} onChange={(e) => handleCreateChange("min_daily_profit_percent", e.target.value)} placeholder="Min daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.max_daily_profit_percent} onChange={(e) => handleCreateChange("max_daily_profit_percent", e.target.value)} placeholder="Max daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.user_limit_count} onChange={(e) => handleCreateChange("user_limit_count", e.target.value)} placeholder="User limit count" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <select value={createForm.status} onChange={(e) => handleCreateChange("status", e.target.value)} className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none">
+                      <option value="active">active</option><option value="inactive">inactive</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Additional Information</label>
-                    <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Write additional info..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Disclaimer / Risk Warning</label>
-                    <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Write disclaimer..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                </div>
-              </>
-            )}
+                  <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Admin Note" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Additional Information" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Disclaimer / Risk Warning" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                </>
+              )}
 
-            {/* HTML Mode - Single Code Box */}
-            {contentMode === "html" && (
-              <div className="mt-4">
-                <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
-                <p className="text-xs text-slate-500 mb-2">Write your full HTML code here (including design, description, disclaimer, etc.)</p>
-                <textarea
-                  value={createForm.html_content}
-                  onChange={(e) => handleCreateChange("html_content", e.target.value)}
-                  placeholder="<h1>Fund Name</h1><p>Description...</p><div class='disclaimer'>Risk warning...</div>"
-                  rows="12"
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
-                  spellCheck={false}
-                />
-                <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-                  <span>💡 Write complete HTML with styles, content, and layout.</span>
-                  <span className="text-purple-400">All content will be rendered as-is on the user side.</span>
+              {/* HTML mode: single box */}
+              {contentMode === "html" && (
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Write everything here (admin note, additional info, disclaimer, images, etc.)
+                  </p>
+                  <textarea
+                    value={createForm.html_content}
+                    onChange={(e) => handleCreateChange("html_content", e.target.value)}
+                    placeholder="<h1>Fund Name</h1><p>Description...</p><div class='disclaimer'>Risk warning...</div>"
+                    rows="10"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
+                    spellCheck={false}
+                  />
                 </div>
+              )}
+
+              {/* Common fields */}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={createForm.is_private === 1} onChange={(e) => handleCreateChange("is_private", e.target.checked ? 1 : 0)} className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan</span></label>
+                <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
               </div>
-            )}
-
-            {/* Common fields */}
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={createForm.is_private === 1} onChange={(e) => handleCreateChange("is_private", e.target.checked ? 1 : 0)} className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan</span></label>
-              <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
             </div>
 
             <button onClick={handleCreateRule} disabled={creating} className="mt-4 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-cyan-400 disabled:opacity-50">
@@ -907,7 +953,7 @@ export default function AdminFundsRulesPage() {
       {/* ----- PRIVATE PLANS TAB ----- */}
       {activeTab === "private" && (
         <>
-          {/* Create Private Form with Mode Toggle */}
+          {/* Create Private Form (same toggle as public) */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Create Private Fund Rule</h2>
@@ -915,98 +961,83 @@ export default function AdminFundsRulesPage() {
                 <button
                   type="button"
                   onClick={() => setContentMode("normal")}
-                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 transition ${
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
                     contentMode === "normal"
                       ? "bg-cyan-500/20 text-cyan-300"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <FileText size={16} /> Normal Mode
+                  <FileText size={14} /> Normal
                 </button>
                 <button
                   type="button"
                   onClick={() => setContentMode("html")}
-                  className={`px-4 py-2 text-sm font-medium flex items-center gap-2 transition ${
+                  className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition ${
                     contentMode === "html"
                       ? "bg-cyan-500/20 text-cyan-300"
                       : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <Code size={16} /> HTML Mode
+                  <Code size={14} /> HTML
                 </button>
               </div>
             </div>
-
             <p className="text-sm text-slate-400 mb-4">This plan will be private and must be assigned to specific users.</p>
 
-            {/* Name - always visible */}
-            <div className="mb-4">
-              <label className="mb-2 block text-sm text-slate-300">Rule Name</label>
+            <div className="mt-4 space-y-4">
+              {/* Name */}
               <input
                 type="text"
                 value={createForm.name}
                 onChange={(e) => handleCreateChange("name", e.target.value)}
-                placeholder="Enter fund plan name"
+                placeholder="Rule name"
                 className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none"
               />
-            </div>
 
-            {/* Normal Mode Fields */}
-            {contentMode === "normal" && (
-              <>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <input type="number" value={createForm.duration_days} onChange={(e) => handleCreateChange("duration_days", e.target.value)} placeholder="Duration days" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.min_amount} onChange={(e) => handleCreateChange("min_amount", e.target.value)} placeholder="Min amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.max_amount} onChange={(e) => handleCreateChange("max_amount", e.target.value)} placeholder="Max amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.min_daily_profit_percent} onChange={(e) => handleCreateChange("min_daily_profit_percent", e.target.value)} placeholder="Min daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.max_daily_profit_percent} onChange={(e) => handleCreateChange("max_daily_profit_percent", e.target.value)} placeholder="Max daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <input type="number" value={createForm.user_limit_count} onChange={(e) => handleCreateChange("user_limit_count", e.target.value)} placeholder="User limit count" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                  <select value={createForm.status} onChange={(e) => handleCreateChange("status", e.target.value)} className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none">
-                    <option value="active">active</option><option value="inactive">inactive</option>
-                  </select>
-                  <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
-                </div>
-                <div className="mt-4 grid gap-4">
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Admin Note</label>
-                    <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Write admin note here..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+              {/* Normal mode fields */}
+              {contentMode === "normal" && (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <input type="number" value={createForm.duration_days} onChange={(e) => handleCreateChange("duration_days", e.target.value)} placeholder="Duration days" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.min_amount} onChange={(e) => handleCreateChange("min_amount", e.target.value)} placeholder="Min amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.max_amount} onChange={(e) => handleCreateChange("max_amount", e.target.value)} placeholder="Max amount" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.min_daily_profit_percent} onChange={(e) => handleCreateChange("min_daily_profit_percent", e.target.value)} placeholder="Min daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.max_daily_profit_percent} onChange={(e) => handleCreateChange("max_daily_profit_percent", e.target.value)} placeholder="Max daily %" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <input type="number" value={createForm.user_limit_count} onChange={(e) => handleCreateChange("user_limit_count", e.target.value)} placeholder="User limit count" className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none" />
+                    <select value={createForm.status} onChange={(e) => handleCreateChange("status", e.target.value)} className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2.5 text-sm text-white outline-none">
+                      <option value="active">active</option><option value="inactive">inactive</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Additional Information</label>
-                    <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Write additional info..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-slate-300">Disclaimer / Risk Warning</label>
-                    <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Write disclaimer..." rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
-                  </div>
-                </div>
-              </>
-            )}
+                  <textarea value={createForm.admin_note} onChange={(e) => handleCreateChange("admin_note", e.target.value)} placeholder="Admin Note" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <input type="text" value={createForm.admin_note_background_image} onChange={(e) => handleCreateChange("admin_note_background_image", e.target.value)} placeholder="Background Image URL" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <textarea value={createForm.additional_notes} onChange={(e) => handleCreateChange("additional_notes", e.target.value)} placeholder="Additional Information" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                  <textarea value={createForm.disclaimer} onChange={(e) => handleCreateChange("disclaimer", e.target.value)} placeholder="Disclaimer / Risk Warning" rows="3" className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" />
+                </>
+              )}
 
-            {/* HTML Mode - Single Code Box */}
-            {contentMode === "html" && (
-              <div className="mt-4">
-                <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
-                <p className="text-xs text-slate-500 mb-2">Write your full HTML code here (including design, description, disclaimer, etc.)</p>
-                <textarea
-                  value={createForm.html_content}
-                  onChange={(e) => handleCreateChange("html_content", e.target.value)}
-                  placeholder="<h1>Fund Name</h1><p>Description...</p><div class='disclaimer'>Risk warning...</div>"
-                  rows="12"
-                  className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
-                  spellCheck={false}
-                />
-                <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-                  <span>💡 Write complete HTML with styles, content, and layout.</span>
-                  <span className="text-purple-400">All content will be rendered as-is on the user side.</span>
+              {/* HTML mode: single box */}
+              {contentMode === "html" && (
+                <div>
+                  <label className="mb-2 block text-sm text-slate-300">HTML Content</label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Write everything here (admin note, additional info, disclaimer, images, etc.)
+                  </p>
+                  <textarea
+                    value={createForm.html_content}
+                    onChange={(e) => handleCreateChange("html_content", e.target.value)}
+                    placeholder="<h1>Fund Name</h1><p>Description...</p><div class='disclaimer'>Risk warning...</div>"
+                    rows="10"
+                    className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm font-mono text-cyan-300 outline-none focus:border-cyan-400 resize-y"
+                    spellCheck={false}
+                  />
                 </div>
+              )}
+
+              {/* Common fields */}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={true} disabled className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan (always enabled)</span></label>
+                <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
               </div>
-            )}
-
-            {/* Common fields */}
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={true} disabled className="rounded border-white/10 bg-[#0a0e1a]" /><span className="text-sm text-slate-300">Private Plan (always enabled)</span></label>
-              <div><label className="mb-1 block text-sm text-slate-300">Compound Percentage (%)</label><input type="number" min="0" max="100" step="1" value={createForm.compound_percentage} onChange={(e) => handleCreateChange("compound_percentage", e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none" /></div>
             </div>
 
             <button onClick={async () => {
@@ -1017,26 +1048,7 @@ export default function AdminFundsRulesPage() {
             </button>
           </section>
 
-          {/* Private plans list with Manage Assigned Users */}
-          <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
-            <h2 className="text-lg font-semibold text-white">All Private Plans</h2>
-            <p className="text-sm text-slate-400 mb-4">Each plan can be assigned to specific users via the "Manage Assigned Users" button.</p>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {privateRules.map((rule) => (
-                <PlanCard
-                  key={rule.id}
-                  rule={rule}
-                  onSave={handleSavePlan}
-                  onDelete={handleDeletePlan}
-                  savingId={savingId}
-                  showAssignButton={true}
-                  onAssignUsers={openAssignUserModal}
-                />
-              ))}
-            </div>
-          </section>
-
-          {/* Users with Private Plans section */}
+          {/* Users with Private Plans - ONLY the user list, no plan cards */}
           <section className="rounded-[24px] border border-white/10 bg-[#111111] p-4 shadow-xl">
             <h2 className="text-lg font-semibold text-white">Users with Private Plans</h2>
             <p className="text-sm text-slate-400 mb-4">Click "Edit Plans" to manage all private plans for a specific user.</p>
@@ -1064,7 +1076,7 @@ export default function AdminFundsRulesPage() {
         </>
       )}
 
-      {/* Per-plan Assign User Modal */}
+      {/* Per-plan Assign User Modal (for "Manage Assigned Users" on private plans) */}
       <AssignUserModal
         isOpen={showAssignModal}
         plan={selectedPlanForAssign}
