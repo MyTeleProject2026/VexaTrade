@@ -426,4 +426,117 @@ router.get("/users-with-private-plans", async (req, res) => {
   }
 });
 
+// ========================================
+// ✅ FIXED: PRIVATE PLAN ASSIGNMENT ROUTES
+// ========================================
+
+// ✅ Assign private plan to specific user
+router.post("/:planId/assign-user", async (req, res) => {
+  try {
+    const planId = Number(req.params.planId);
+    const { userId } = req.body;
+    
+    if (!planId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Plan ID and User ID are required",
+      });
+    }
+    
+    // Check if plan exists
+    const [planRows] = await pool.execute(
+      `SELECT id, name, is_private FROM fund_plans WHERE id = ?`,
+      [planId]
+    );
+    
+    if (!planRows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Plan not found",
+      });
+    }
+    
+    // Check if user exists
+    const [userRows] = await pool.execute(
+      `SELECT id, uid, email FROM users WHERE id = ?`,
+      [userId]
+    );
+    
+    if (!userRows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    
+    // Insert assignment (ignore if already exists)
+    await pool.execute(
+      `INSERT IGNORE INTO user_plan_assignments (plan_id, user_id, assigned_by, created_at)
+       VALUES (?, ?, ?, NOW())`,
+      [planId, userId, req.admin?.id || 1]
+    );
+    
+    res.json({
+      success: true,
+      message: `Private plan "${planRows[0].name}" assigned to user ${userRows[0].email} successfully`,
+    });
+  } catch (error) {
+    console.error("Assign private plan error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// ✅ Get users assigned to a private plan
+router.get("/:planId/assigned-users", async (req, res) => {
+  try {
+    const planId = Number(req.params.planId);
+    
+    const [rows] = await pool.execute(
+      `SELECT upa.*, u.uid, u.name, u.email
+       FROM user_plan_assignments upa
+       JOIN users u ON u.id = upa.user_id
+       WHERE upa.plan_id = ?`,
+      [planId]
+    );
+    
+    res.json({
+      success: true,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Get assigned users error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// ✅ Remove user from private plan
+router.delete("/:planId/remove-user/:userId", async (req, res) => {
+  try {
+    const planId = Number(req.params.planId);
+    const userId = Number(req.params.userId);
+    
+    await pool.execute(
+      `DELETE FROM user_plan_assignments WHERE plan_id = ? AND user_id = ?`,
+      [planId, userId]
+    );
+    
+    res.json({
+      success: true,
+      message: "User removed from private plan successfully",
+    });
+  } catch (error) {
+    console.error("Remove user from private plan error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;
