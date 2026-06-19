@@ -89,6 +89,9 @@ export const adminApi = {
   addUserFunds: (userId, payload, token) =>
     api.post(`/api/admin/users/${userId}/add-funds`, payload, authHeaders(token)),
 
+  getUsersWithPrivatePlans: (token) =>
+  api.get("/api/admin/fund-rules/users-with-private-plans", authHeaders(token)),
+
   decreaseUserFunds: (userId, payload, token) =>
     api.post(
       `/api/admin/users/${userId}/decrease-funds`,
