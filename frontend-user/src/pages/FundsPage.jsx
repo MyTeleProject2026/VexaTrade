@@ -1,7 +1,3 @@
-// =============================================================
-// DEBUG VERSION – REPLACE YOUR FUNDSPAGE.JSX WITH THIS
-// =============================================================
-
 import { useEffect, useMemo, useState } from "react";
 import {
   RefreshCw,
@@ -23,7 +19,6 @@ import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
 
-// ---------- (all helper functions remain the same) ----------
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -48,6 +43,7 @@ function getDaysLeft(item) {
 
 function StatusPill({ status }) {
   const value = String(status || "").toLowerCase();
+
   if (value === "active") {
     return (
       <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
@@ -55,6 +51,7 @@ function StatusPill({ status }) {
       </span>
     );
   }
+
   if (value === "paused") {
     return (
       <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300">
@@ -62,6 +59,7 @@ function StatusPill({ status }) {
       </span>
     );
   }
+
   if (value === "completed") {
     return (
       <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
@@ -69,6 +67,7 @@ function StatusPill({ status }) {
       </span>
     );
   }
+
   return (
     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
       {status || "-"}
@@ -93,23 +92,28 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
 
 function PlanCard({ plan, applying, onApply }) {
   const [showFullNote, setShowFullNote] = useState(false);
+  
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
       ? "Unlimited"
       : `${formatMoney(plan.max_amount)} USDT`;
+
   const limitText =
     plan.user_limit_count === null || plan.user_limit_count === undefined
       ? "No limit"
       : `${plan.user_limit_count} times`;
+
   const hasNote = plan.admin_note && plan.admin_note.trim().length > 0;
   const hasAdditionalNotes = plan.additional_notes && plan.additional_notes.trim().length > 0;
   const hasDisclaimer = plan.disclaimer && plan.disclaimer.trim().length > 0;
   const hasAnyNote = hasNote || hasAdditionalNotes || hasDisclaimer;
+  
   const getShortPreview = (text) => {
     if (!text) return "";
     if (text.length <= 100) return text;
     return text.substring(0, 100) + "...";
   };
+
   const isPrivate = plan.is_private === 1;
 
   return (
@@ -126,6 +130,7 @@ function PlanCard({ plan, applying, onApply }) {
           {Number(plan.min_daily_profit_percent).toFixed(1)}% - {Number(plan.max_daily_profit_percent).toFixed(1)}%
         </div>
       </div>
+
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Min</div>
@@ -207,8 +212,10 @@ function PlanCard({ plan, applying, onApply }) {
 
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
-  const totalReceive = Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
+  const totalReceive =
+    Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
   const isPaused = String(item.status || "").toLowerCase() === "paused";
+
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
       <div className="flex items-start justify-between gap-2">
@@ -255,7 +262,10 @@ function ActiveFundCard({ item }) {
 }
 
 function HistoryFundCard({ item }) {
-  const totalReceived = Number(item.total_received || 0) || (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
+  const totalReceived =
+    Number(item.total_received || 0) ||
+    (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
+
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-start justify-between gap-2">
@@ -292,9 +302,6 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-// =============================================================
-// MAIN COMPONENT (with debug alerts)
-// =============================================================
 export default function FundsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -339,104 +346,6 @@ export default function FundsPage() {
   const [profitWithdrawalTarget, setProfitWithdrawalTarget] = useState(0);
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
 
-  // ---------- DEBUG: show token ----------
-  console.log("🔍 DEBUG: Token =", token);
-  alert(`🔍 DEBUG: Token = ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
-
-  async function loadData(silent = false) {
-    try {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
-      setError("");
-
-      console.log("🔍 DEBUG: Calling /api/funds/plans with token:", token);
-      alert("🔍 DEBUG: Calling /api/funds/plans");
-
-      const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
-        await Promise.allSettled([
-          api.get("/api/funds/plans", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/summary", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/active", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/history", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/completed-latest", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-
-      console.log("🔍 DEBUG: Plans response status:", plansRes.status);
-      if (plansRes.status === "fulfilled") {
-        const data = plansRes.value?.data;
-        console.log("🔍 DEBUG: Plans response data:", data);
-        alert(`🔍 DEBUG: Plans response status = fulfilled, data length = ${data?.data?.length}`);
-        const nextPlans = Array.isArray(data?.data) ? data.data : [];
-        setPlans(nextPlans);
-      } else {
-        console.error("🔍 DEBUG: Plans request failed:", plansRes.reason);
-        alert(`🔍 DEBUG: Plans request failed: ${plansRes.reason?.message || 'unknown'}`);
-        // Fallback: set a dummy plan to see if UI works
-        setPlans([{
-          id: 99999,
-          name: "Debug Plan (API failed)",
-          duration_days: 30,
-          min_amount: 100,
-          max_amount: 10000,
-          min_daily_profit_percent: 1,
-          max_daily_profit_percent: 5,
-          user_limit_count: null,
-          is_active: 1,
-          admin_note: "This is a fallback plan because the API call failed.",
-          admin_note_background_image: null,
-          additional_notes: null,
-          disclaimer: null,
-          is_private: 0,
-          compound_percentage: 100,
-          html_content: null,
-          created_at: new Date(),
-          updated_at: new Date(),
-        }]);
-      }
-
-      if (summaryRes.status === "fulfilled") {
-        setSummary(summaryRes.value?.data?.data || {});
-      }
-      if (activeRes.status === "fulfilled") {
-        setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);
-      }
-      if (historyRes.status === "fulfilled") {
-        setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);
-      }
-      if (latestRes.status === "fulfilled") {
-        setLatestCompleted(latestRes.value?.data?.data || null);
-      }
-    } catch (err) {
-      console.error("🔍 DEBUG: loadData error:", err);
-      alert(`🔍 DEBUG: loadData error: ${err.message}`);
-      showError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
-    checkUserTarget();
-    const interval = setInterval(() => {
-      loadData(true);
-      refreshTargetProgress();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // ---------- other functions (unchanged) ----------
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
@@ -524,6 +433,99 @@ export default function FundsPage() {
     setShowProfitWithdrawalModal(true);
   }
 
+  async function loadData(silent = false) {
+    try {
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
+
+      setError("");
+
+      console.log("🔍 [FundsPage] Token:", token);
+
+      const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
+        await Promise.allSettled([
+          api.get("/api/funds/plans", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/summary", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/active", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/history", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/completed-latest", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+      console.log("🔍 [FundsPage] Plans response:", plansRes);
+
+      if (plansRes.status === "fulfilled") {
+        const nextPlans = Array.isArray(plansRes.value?.data?.data)
+          ? plansRes.value.data.data
+          : [];
+        console.log("🔍 [FundsPage] Plans data:", nextPlans);
+        setPlans(nextPlans);
+      } else {
+        console.error("🔍 [FundsPage] Plans request failed:", plansRes.reason);
+      }
+
+      if (summaryRes.status === "fulfilled") {
+        setSummary(summaryRes.value?.data?.data || {});
+      }
+
+      if (activeRes.status === "fulfilled") {
+        setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);
+      }
+
+      if (historyRes.status === "fulfilled") {
+        setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);
+      }
+
+      if (latestRes.status === "fulfilled") {
+        setLatestCompleted(latestRes.value?.data?.data || null);
+      }
+    } catch (err) {
+      console.error("🔍 [FundsPage] loadData error:", err);
+      showError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+    checkUserTarget();
+
+    const interval = setInterval(() => {
+      loadData(true);
+      refreshTargetProgress();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (hasTarget && targetProgress.targetAmount > 0) {
+      checkAndPromptNewTarget();
+    }
+  }, [hasTarget, targetProgress]);
+
+  useEffect(() => {
+    if (plans.length && !selectedPlanId) {
+      const firstPublicPlan = plans.find(p => p.is_private === 0);
+      if (firstPublicPlan) {
+        setSelectedPlanId(firstPublicPlan.id);
+      } else if (plans[0]) {
+        setSelectedPlanId(plans[0].id);
+      }
+    }
+  }, [plans, selectedPlanId]);
+
   const selectedPlan = useMemo(() => {
     return plans.find((item) => item.id === selectedPlanId) || plans[0] || null;
   }, [plans, selectedPlanId]);
@@ -562,14 +564,17 @@ export default function FundsPage() {
   async function handleApplyPlan() {
     try {
       if (!applyModal) return;
+
       const amount = Number(applyAmount || 0);
       if (!amount || amount <= 0) {
         showError("Please enter a valid amount");
         return;
       }
+
       setApplying(true);
       setError("");
       setSuccess("");
+
       const res = await api.post(
         "/api/funds/apply",
         {
@@ -580,8 +585,11 @@ export default function FundsPage() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
       const responseData = res?.data?.data || {};
+
       showSuccess(res?.data?.message || "Fund applied successfully");
+
       showVoucher({
         title: "Fund Investment",
         type: "funds",
@@ -596,6 +604,7 @@ export default function FundsPage() {
           ends_at: responseData.ends_at,
         },
       });
+
       closeApplyModal();
       await loadData(true);
       setTab("active");
@@ -606,7 +615,6 @@ export default function FundsPage() {
     }
   }
 
-  // ---------- Render ----------
   if (loading) {
     return (
       <div className="space-y-5 bg-[#050812] p-3 sm:p-5">
@@ -759,6 +767,7 @@ export default function FundsPage() {
               {plans.filter(p => p.is_private === 1).length} private plan{plans.filter(p => p.is_private === 1).length === 1 ? "" : "s"}
             </div>
           </div>
+
           <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
             <div className="flex gap-1 overflow-x-auto pb-1">
               {plans.filter(p => p.is_private === 1).map((plan) => (
@@ -775,6 +784,7 @@ export default function FundsPage() {
               ))}
             </div>
           </div>
+
           {selectedPlan && selectedPlan.is_private === 1 ? (
             <PlanCard plan={selectedPlan} applying={applying} onApply={openApplyModal} />
           ) : plans.filter(p => p.is_private === 1).length > 0 ? (
