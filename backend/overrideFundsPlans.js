@@ -36,12 +36,16 @@ router.get("/test", (req, res) => {
 
 // ─── Main endpoint ───
 router.get("/", authenticateUser, async (req, res, next) => {
+  let connection;
   try {
     const userId = req.user.id;
     console.log(`[override] User ${userId} requested plans.`);
-    console.log(`[override] User role: ${req.user.role}`);
 
-    // 🔥 SUPER SIMPLE - Return ALL active plans (public + private)
+    // ✅ Get a connection from the pool
+    connection = await pool.getConnection();
+    console.log("[override] ✅ Database connection acquired.");
+
+    // 🔥 SIMPLE QUERY - Return ALL active plans (public + private)
     const query = `
       SELECT
         id, name, duration_days, min_amount, max_amount,
@@ -56,16 +60,16 @@ router.get("/", authenticateUser, async (req, res, next) => {
       ORDER BY duration_days ASC, id ASC
     `;
 
-    console.log(`[override] Executing SQL: ${query}`);
-    const [rows] = await pool.execute(query);
+    console.log(`[override] Executing SQL...`);
+    const [rows] = await connection.execute(query);
     
-    console.log(`[override] Query returned ${rows.length} rows.`);
+    console.log(`[override] ✅ Query returned ${rows.length} rows.`);
     
+    // Log the first plan details
     if (rows.length > 0) {
-      console.log(`[override] First plan:`, JSON.stringify(rows[0], null, 2));
+      console.log(`[override] First plan: ID=${rows[0].id}, Name="${rows[0].name}", is_private=${rows[0].is_private}`);
     } else {
-      console.log(`[override] ⚠️ NO PLANS FOUND in database!`);
-      console.log(`[override] Check if fund_plans table has is_active=1 rows.`);
+      console.log(`[override] ⚠️ NO PLANS FOUND!`);
     }
 
     res.json({
@@ -73,12 +77,17 @@ router.get("/", authenticateUser, async (req, res, next) => {
       data: rows,
     });
   } catch (error) {
-    console.error("[override] Fatal error:", error);
+    console.error("[override] ❌ Fatal error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
       stack: error.stack,
     });
+  } finally {
+    if (connection) {
+      connection.release();
+      console.log("[override] ✅ Database connection released.");
+    }
   }
 });
 
