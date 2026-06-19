@@ -17,6 +17,8 @@ import api from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
+import DOMPurify from 'dompurify';
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.admin_note) }} />
 
 function formatMoney(value) {
   const num = Number(value || 0);
