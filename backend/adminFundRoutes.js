@@ -4,6 +4,13 @@ const router = express.Router();
 const pool = require("./db");
 
 // ==========================
+// HELPER: Convert status string to integer
+// ==========================
+function statusToInt(status) {
+  return String(status || "").toLowerCase() === "active" ? 1 : 0;
+}
+
+// ==========================
 // GET all fund rules (with html_content)
 // ==========================
 router.get("/", async (req, res) => {
@@ -38,6 +45,299 @@ router.get("/", async (req, res) => {
     });
   } catch (err) {
     console.error("Get fund rules error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// POST – Create a new fund rule (with html_content)
+// ==========================
+router.post("/", async (req, res) => {
+  try {
+    const {
+      name,
+      duration_days,
+      min_amount,
+      max_amount,
+      min_daily_profit_percent,
+      max_daily_profit_percent,
+      user_limit_count,
+      status,
+      admin_note,
+      admin_note_background_image,
+      additional_notes,
+      disclaimer,
+      is_private,
+      compound_percentage,
+      html_content,          // ✅ INCLUDED
+    } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, message: "Rule name is required" });
+    }
+    const durationDays = Number(duration_days || 0);
+    if (durationDays <= 0) {
+      return res.status(400).json({ success: false, message: "Duration days must be > 0" });
+    }
+
+    const minAmt = Number(min_amount || 0);
+    const maxAmt = max_amount === null || max_amount === "" ? null : Number(max_amount);
+    if (maxAmt !== null && maxAmt < minAmt) {
+      return res.status(400).json({ success: false, message: "Max amount must be >= min amount" });
+    }
+
+    const minRate = Number(min_daily_profit_percent || 0);
+    const maxRate = Number(max_daily_profit_percent || 0);
+    if (minRate < 0 || maxRate < 0 || maxRate < minRate) {
+      return res.status(400).json({ success: false, message: "Invalid profit rate range" });
+    }
+
+    const isActive = statusToInt(status);
+    const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
+    const compoundPct = Number(compound_percentage || 100);
+    const userLimit = user_limit_count === null || user_limit_count === "" ? null : Number(user_limit_count);
+
+    const [result] = await pool.execute(
+      `INSERT INTO fund_plans (
+        name,
+        duration_days,
+        min_amount,
+        max_amount,
+        min_daily_profit_percent,
+        max_daily_profit_percent,
+        user_limit_count,
+        is_active,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
+        html_content,          -- ✅ INCLUDED
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        String(name).trim(),
+        durationDays,
+        minAmt,
+        maxAmt,
+        minRate,
+        maxRate,
+        userLimit,
+        isActive,
+        admin_note || null,
+        admin_note_background_image || null,
+        additional_notes || null,
+        disclaimer || null,
+        isPrivate,
+        compoundPct,
+        html_content || null,
+      ]
+    );
+
+    const [newRow] = await pool.execute(
+      `SELECT
+        id,
+        name,
+        duration_days,
+        min_amount,
+        max_amount,
+        min_daily_profit_percent,
+        max_daily_profit_percent,
+        user_limit_count,
+        CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END AS status,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
+        html_content,
+        created_at,
+        updated_at
+      FROM fund_plans WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Fund rule created successfully",
+      data: newRow[0] || null,
+    });
+  } catch (err) {
+    console.error("Create fund rule error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// PUT – Update a fund rule (with html_content)
+// ==========================
+router.put("/:id", async (req, res) => {
+  try {
+    const ruleId = Number(req.params.id);
+    if (!ruleId || ruleId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid rule id" });
+    }
+
+    const {
+      name,
+      duration_days,
+      min_amount,
+      max_amount,
+      min_daily_profit_percent,
+      max_daily_profit_percent,
+      user_limit_count,
+      status,
+      admin_note,
+      admin_note_background_image,
+      additional_notes,
+      disclaimer,
+      is_private,
+      compound_percentage,
+      html_content,          // ✅ INCLUDED
+    } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, message: "Rule name is required" });
+    }
+    const durationDays = Number(duration_days || 0);
+    if (durationDays <= 0) {
+      return res.status(400).json({ success: false, message: "Duration days must be > 0" });
+    }
+
+    const minAmt = Number(min_amount || 0);
+    const maxAmt = max_amount === null || max_amount === "" ? null : Number(max_amount);
+    if (maxAmt !== null && maxAmt < minAmt) {
+      return res.status(400).json({ success: false, message: "Max amount must be >= min amount" });
+    }
+
+    const minRate = Number(min_daily_profit_percent || 0);
+    const maxRate = Number(max_daily_profit_percent || 0);
+    if (minRate < 0 || maxRate < 0 || maxRate < minRate) {
+      return res.status(400).json({ success: false, message: "Invalid profit rate range" });
+    }
+
+    const isActive = statusToInt(status);
+    const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
+    const compoundPct = Number(compound_percentage || 100);
+    const userLimit = user_limit_count === null || user_limit_count === "" ? null : Number(user_limit_count);
+
+    await pool.execute(
+      `UPDATE fund_plans SET
+        name = ?,
+        duration_days = ?,
+        min_amount = ?,
+        max_amount = ?,
+        min_daily_profit_percent = ?,
+        max_daily_profit_percent = ?,
+        user_limit_count = ?,
+        is_active = ?,
+        admin_note = ?,
+        admin_note_background_image = ?,
+        additional_notes = ?,
+        disclaimer = ?,
+        is_private = ?,
+        compound_percentage = ?,
+        html_content = ?,       -- ✅ INCLUDED
+        updated_at = NOW()
+      WHERE id = ?`,
+      [
+        String(name).trim(),
+        durationDays,
+        minAmt,
+        maxAmt,
+        minRate,
+        maxRate,
+        userLimit,
+        isActive,
+        admin_note || null,
+        admin_note_background_image || null,
+        additional_notes || null,
+        disclaimer || null,
+        isPrivate,
+        compoundPct,
+        html_content || null,
+        ruleId,
+      ]
+    );
+
+    // Fetch updated record
+    const [updatedRow] = await pool.execute(
+      `SELECT
+        id,
+        name,
+        duration_days,
+        min_amount,
+        max_amount,
+        min_daily_profit_percent,
+        max_daily_profit_percent,
+        user_limit_count,
+        CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END AS status,
+        admin_note,
+        admin_note_background_image,
+        additional_notes,
+        disclaimer,
+        is_private,
+        compound_percentage,
+        html_content,
+        created_at,
+        updated_at
+      FROM fund_plans WHERE id = ?`,
+      [ruleId]
+    );
+
+    res.json({
+      success: true,
+      message: "Fund rule updated successfully",
+      data: updatedRow[0] || null,
+    });
+  } catch (err) {
+    console.error("Update fund rule error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// DELETE – Remove a fund rule
+// ==========================
+router.delete("/:id", async (req, res) => {
+  try {
+    const ruleId = Number(req.params.id);
+    if (!ruleId || ruleId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid rule id" });
+    }
+
+    // Check if any active user funds reference this plan
+    const [activeUseRows] = await pool.execute(
+      `SELECT COUNT(*) AS total FROM user_funds WHERE plan_id = ? AND status = 'active'`,
+      [ruleId]
+    );
+    if (Number(activeUseRows[0]?.total || 0) > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete a rule with active user funds",
+      });
+    }
+
+    await pool.execute(`DELETE FROM fund_plans WHERE id = ?`, [ruleId]);
+
+    res.json({
+      success: true,
+      message: "Fund rule deleted successfully",
+    });
+  } catch (err) {
+    console.error("Delete fund rule error:", err);
     res.status(500).json({
       success: false,
       message: err.message,
@@ -81,7 +381,6 @@ router.get("/users-with-private-plans", async (req, res) => {
       ORDER BY u.id, fp.id
     `);
 
-    // Group by user
     const userMap = {};
     for (const row of rows) {
       const { user_id, uid, name, email, ...planData } = row;
