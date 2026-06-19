@@ -33,12 +33,23 @@ export function getApiErrorMessage(error) {
   );
 }
 
-const getUserToken = (token) =>
-  token ||
-  localStorage.getItem("userToken") ||
-  localStorage.getItem("token") ||
-  localStorage.getItem("accessToken") ||
-  "";
+const getUserToken = (token) => {
+  // Log which token source is being used
+  const userToken = token ||
+    localStorage.getItem("userToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    "";
+  
+  if (userToken) {
+    console.log("🔑 [API] Token found (first 20 chars):", userToken.substring(0, 20) + "...");
+  } else {
+    console.warn("⚠️ [API] No token found in localStorage");
+    console.log("🔍 [API] Available keys:", Object.keys(localStorage));
+  }
+  
+  return userToken;
+};
 
 const authHeaders = (token) => ({
   headers: {
@@ -46,16 +57,18 @@ const authHeaders = (token) => ({
   },
 });
 
-// ✅ Interceptor with logging to help debug
+// ✅ Improved interceptor with logging
 api.interceptors.response.use(
   (response) => {
-    console.log("✅ [API] Response success:", response.config.url, response.status);
+    console.log(`✅ [API] ${response.config.url} – Status: ${response.status}`);
     return response;
   },
   (error) => {
-    console.error("❌ [API] Response error:", error.config?.url, error.response?.status, error.message);
     const status = error?.response?.status;
     const url = error?.config?.url || "";
+    const message = error?.response?.data?.message || error.message;
+
+    console.error(`❌ [API] ${url} – Status: ${status || 'Network Error'} – ${message}`);
 
     if (status === 401) {
       if (
@@ -63,12 +76,16 @@ api.interceptors.response.use(
         !url.includes("/api/auth/register") &&
         !url.includes("/api/auth/refresh")
       ) {
-        console.warn("⚠️ [API] 401 – clearing tokens");
+        console.warn("⚠️ [API] 401 – Clearing tokens and redirecting to login.");
         localStorage.removeItem("userToken");
         localStorage.removeItem("token");
         localStorage.removeItem("accessToken");
         localStorage.removeItem("user");
         localStorage.removeItem("userData");
+        // Optionally redirect to login page
+        // if (window.location.pathname !== "/login") {
+        //   window.location.href = "/login";
+        // }
       }
     }
 
