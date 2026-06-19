@@ -75,6 +75,14 @@ router.get("/", authenticateUser, async (req, res, next) => {
     
     console.log(`[override] ✅ Query returned ${rows.length} rows.`);
 
+    if (rows.length > 0) {
+      console.log(`[override] Plan IDs: ${rows.map(r => r.id).join(', ')}`);
+      console.log(`[override] Plan names: ${rows.map(r => r.name).join(', ')}`);
+      // Check if html_content exists
+      const hasHtml = rows.some(r => r.html_content);
+      console.log(`[override] Plans with HTML content: ${hasHtml ? 'YES' : 'NO'}`);
+    }
+
     res.json({
       success: true,
       data: rows,
