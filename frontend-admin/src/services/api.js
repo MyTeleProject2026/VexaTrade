@@ -3,16 +3,25 @@ import axios from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
-// Keep main API for most endpoints
-// For admin network verification, use the admin API port
-const ADMIN_API_BASE_URL =
-  import.meta.env.VITE_ADMIN_API_BASE_URL || "https://vexatrade-server.onrender.com:5001";
+export function getFullImageUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${API_BASE_URL}${url}`;
+}
+
+export function getAvatarLetter(user) {
+  const email = String(user?.email || "");
+  const name = String(user?.name || "");
+  return (name[0] || email[0] || "U").toUpperCase();
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000,  // ✅ CHANGE FROM 20000 TO 60000
+  timeout: 20000,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: false,
 });
 
 export function getApiErrorMessage(error) {
@@ -24,30 +33,42 @@ export function getApiErrorMessage(error) {
   );
 }
 
-const getAdminToken = (token) =>
+const getUserToken = (token) =>
   token ||
-  localStorage.getItem("adminToken") ||
-  localStorage.getItem("admin_token") ||
+  localStorage.getItem("userToken") ||
+  localStorage.getItem("token") ||
+  localStorage.getItem("accessToken") ||
   "";
 
 const authHeaders = (token) => ({
   headers: {
-    Authorization: `Bearer ${getAdminToken(token)}`,
+    Authorization: `Bearer ${getUserToken(token)}`,
   },
 });
 
+// ✅ Interceptor with logging to help debug
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log("✅ [API] Response success:", response.config.url, response.status);
+    return response;
+  },
   (error) => {
+    console.error("❌ [API] Response error:", error.config?.url, error.response?.status, error.message);
     const status = error?.response?.status;
     const url = error?.config?.url || "";
 
     if (status === 401) {
-      if (!url.includes("/api/admin/login")) {
-        localStorage.removeItem("adminToken");
-        localStorage.removeItem("admin_token");
-        localStorage.removeItem("adminData");
-        localStorage.removeItem("adminUser");
+      if (
+        !url.includes("/api/auth/login") &&
+        !url.includes("/api/auth/register") &&
+        !url.includes("/api/auth/refresh")
+      ) {
+        console.warn("⚠️ [API] 401 – clearing tokens");
+        localStorage.removeItem("userToken");
+        localStorage.removeItem("token");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+        localStorage.removeItem("userData");
       }
     }
 
@@ -55,372 +76,301 @@ api.interceptors.response.use(
   }
 );
 
-export const adminApi = {
-  /* ---------------- AUTH ---------------- */
-  login: (payload) => api.post("/api/admin/login", payload),
+/* ---------------- AUTH ---------------- */
 
-  /* ---------------- DASHBOARD ---------------- */
-  getDashboard: (token) =>
-    api.get("/api/admin/dashboard", authHeaders(token)),
+export const authApi = {
+  login: (payload) => api.post("/api/auth/login", payload),
+  register: (payload) => api.post("/api/auth/register", payload),
+  refresh: (payload) => api.post("/api/auth/refresh", payload),
+  logout: (payload) => api.post("/api/auth/logout", payload),
+};
 
-  // Add these to your adminApi object in VexaTrade api.js:
+/* ---------------- USER ---------------- */
 
-  /* ---------------- DASHBOARD STATS ---------------- */
-  getDashboardStats: (token) =>
-    api.get("/api/admin/dashboard-stats", authHeaders(token)),
-  
-  /* ---------------- NOTIFICATIONS ---------------- */
+export const userApi = {
+  getProfile: (token) => api.get("/api/user/profile", authHeaders(token)),
+
+  updateProfile: (payload, token) =>
+    api.put("/api/user/profile", payload, authHeaders(token)),
+
+  securityStatus: (token) =>
+    api.get("/api/user/security-status", authHeaders(token)),
+
+  setPasscode: (data, token) =>
+    api.post("/api/user/set-passcode", data, authHeaders(token)),
+
+  verifyPasscode: (payload, token) =>
+    api.post("/api/user/verify-passcode", payload, authHeaders(token)),
+
+  sendEmailVerificationCode: (token) =>
+    api.post("/api/user/send-email-verification-code", {}, authHeaders(token)),
+
+  verifyEmailCode: (payload, token) =>
+    api.post("/api/user/verify-email-code", payload, authHeaders(token)),
+
+  getPortfolioAssets: (token) =>
+    api.get("/api/user/portfolio-assets", authHeaders(token)),
+
+  /* ---------------- TARGET SYSTEM ---------------- */
+  getUserTarget: (token) =>
+    api.get("/api/user/target", authHeaders(token)),
+
+  setUserTarget: (payload, token) =>
+    api.post("/api/user/target/set", payload, authHeaders(token)),
+
+  updateTargetProfit: (payload, token) =>
+    api.post("/api/user/target/update-profit", payload, authHeaders(token)),
+
+  /* ---------------- PROFIT WITHDRAWAL (Before Target Achieved) ---------------- */
+  getWithdrawalSettings: () =>
+    api.get("/api/withdrawal-settings"),
+
+  requestProfitWithdrawal: (payload, token) =>
+    api.post("/api/withdraw/profit-request", payload, authHeaders(token)),
+
+  getProfitWithdrawalHistory: (token) =>
+    api.get("/api/withdraw/profit-history", authHeaders(token)),
+
   getNotifications: (token) =>
-    api.get("/api/admin/notifications", authHeaders(token)),
-  
+    api.get("/api/user/notifications", authHeaders(token)),
+
   markNotificationRead: (id, token) =>
-    api.put(`/api/admin/notifications/${id}/read`, {}, authHeaders(token)),
+    api.post(`/api/user/notifications/${id}/read`, {}, authHeaders(token)),
 
-  /* ---------------- USERS ---------------- */
-  getUsers: (token) =>
-    api.get("/api/admin/users", authHeaders(token)),
+  deleteNotification: (id, token) =>
+    api.delete(`/api/user/notifications/${id}`, authHeaders(token)),
 
-  getUserDetails: (userId, token) =>
-    api.get(`/api/admin/users/${userId}`, authHeaders(token)),
+  uploadProfilePicture: (file, token) => {
+    const formData = new FormData();
+    formData.append("profile_picture", file);
 
-  getUserById: (userId, token) =>
-    api.get(`/api/admin/users/${userId}`, authHeaders(token)),
-
-  addUserFunds: (userId, payload, token) =>
-    api.post(`/api/admin/users/${userId}/add-funds`, payload, authHeaders(token)),
-
-  getUsersWithPrivatePlans: (token) =>
-  api.get("/api/admin/fund-rules/users-with-private-plans", authHeaders(token)),
-
-  decreaseUserFunds: (userId, payload, token) =>
-    api.post(
-      `/api/admin/users/${userId}/decrease-funds`,
-      payload,
-      authHeaders(token)
-    ),
-
-  updateUserStatus: (userId, payload, token) =>
-    api.put(`/api/admin/users/${userId}/status`, payload, authHeaders(token)),
-
-  updateUserSecurity: (userId, payload, token) =>
-    api.put(`/api/admin/users/${userId}/security`, payload, authHeaders(token)),
-
-  deleteUser: (userId, token) =>
-    api.delete(`/api/admin/users/${userId}`, authHeaders(token)),
-
-    /* ---------------- JOINT ACCOUNT ---------------- */
-  getJointAccountRequests: (token) =>
-    api.get("/api/admin/joint-account-requests", authHeaders(token)),
-
-  approveJointAccountRequest: (id, payload, token) =>
-    api.post(`/api/admin/joint-account-requests/${id}/approve`, payload || {}, authHeaders(token)),
-
-  rejectJointAccountRequest: (id, payload, token) =>
-    api.post(`/api/admin/joint-account-requests/${id}/reject`, payload || {}, authHeaders(token)),
-
-  // Joint Accounts Management
-  getJointAccounts: (token) =>
-    api.get("/api/admin/joint-accounts", authHeaders(token)),
-
-  disconnectJointAccount: (id, token) =>
-    api.post(`/api/admin/joint-accounts/${id}/disconnect`, {}, authHeaders(token)),
-
-  /* ---------------- USER NOTIFICATIONS ---------------- */
-  sendNotification: (payload, token) =>
-    api.post("/api/admin/notifications/send", payload, authHeaders(token)),
-
-  /* ---------------- KYC ---------------- */
-  getKycSubmissions: (token) =>
-    api.get("/api/admin/kyc", authHeaders(token)),
-
-  getKycList: (token) =>
-    api.get("/api/admin/kyc", authHeaders(token)),
-
-  approveKyc: (id, payload = {}, token) =>
-    api.post(`/api/admin/kyc/${id}/approve`, payload, authHeaders(token)),
-
-  rejectKyc: (id, payload = {}, token) =>
-    api.post(`/api/admin/kyc/${id}/reject`, payload, authHeaders(token)),
-
-  /* ---------------- DEPOSITS ---------------- */
-  getDeposits: (token) =>
-    api.get("/api/admin/deposits", authHeaders(token)),
-
-  approveDeposit: (id, payload = {}, token) =>
-    api.post(`/api/admin/deposits/${id}/approve`, payload, authHeaders(token)),
-
-  rejectDeposit: (id, payload = {}, token) =>
-    api.post(`/api/admin/deposits/${id}/reject`, payload, authHeaders(token)),
-
-  /* ---------------- DEPOSIT NETWORKS ---------------- */
-  getDepositNetworks: (token) =>
-    api.get("/api/admin/deposit-networks", authHeaders(token)),
-
-  createDepositNetwork: (payload, token) =>
-    api.post("/api/admin/deposit-networks", payload, authHeaders(token)),
-
-  updateDepositNetwork: (id, payload, token) =>
-    api.put(`/api/admin/deposit-networks/${id}`, payload, authHeaders(token)),
-
-  deleteDepositNetwork: (id, token) =>
-    api.delete(`/api/admin/deposit-networks/${id}`, authHeaders(token)),
-  
-  generateWalletQr: (payload, token) =>
-    api.post("/api/admin/generate-wallet-qr", payload, authHeaders(token)),
-
-  uploadDepositNetworkQr: (formData, token) =>
-    api.post("/api/admin/deposit-networks/upload-qr", formData, {
+    return api.post("/api/user/profile/upload-picture", formData, {
       headers: {
-        Authorization: `Bearer ${getAdminToken(token)}`,
+        Authorization: `Bearer ${getUserToken(token)}`,
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+
+  uploadKyc: (payload, token) => {
+    const formData = new FormData();
+
+    if (payload?.front) formData.append("front", payload.front);
+    if (payload?.back) formData.append("back", payload.back);
+    if (payload?.country) formData.append("country", payload.country);
+    if (payload?.document_type) {
+      formData.append("document_type", payload.document_type);
+    }
+    if (payload?.document_number) {
+      formData.append("document_number", payload.document_number);
+    }
+
+    return api.post("/api/kyc/upload", formData, {
+      headers: {
+        Authorization: `Bearer ${getUserToken(token)}`,
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+
+  // Joint Account APIs
+  requestJointAccount: (payload, token) =>
+    api.post("/api/joint-account/request", payload, authHeaders(token)),
+
+  getJointAccountStatus: (token) =>
+    api.get("/api/joint-account/status", authHeaders(token)),
+
+  getStatus: (token) => 
+    api.get("/api/joint-account/status", authHeaders(token)),
+
+  requestJointWithdrawal: (payload, token) =>
+    api.post("/api/joint-account/withdraw-request", payload, authHeaders(token)),
+
+  approveJointWithdrawal: (payload, token) =>
+    api.post("/api/joint-account/approve-withdrawal", payload, authHeaders(token)),
+
+  submitKyc: (formData, token) =>
+    api.post("/api/kyc/upload", formData, {
+      headers: {
+        Authorization: `Bearer ${getUserToken(token)}`,
         "Content-Type": "multipart/form-data",
       },
     }),
-
-  getNetworkVerificationSettings: (token) =>
-    api.get("/api/admin/network-verification-settings", authHeaders(token)),
-
-  updateNetworkVerificationSetting: (id, payload, token) =>
-    api.put(`/api/admin/network-verification-settings/${id}`, payload, authHeaders(token)),
-  // Add this inside the adminApi object
-  syncNetworkVerificationSettings: (token) =>
-    api.post("/api/admin/network-verification-settings/sync", {}, authHeaders(token)),
   
+  getUserAssets: (token) => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+    return fetch(`${API_BASE_URL}/api/user/assets`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }).then(res => res.json());
+  },
+  getWalletSummary: (token) =>
+    api.get("/api/wallet/summary", authHeaders(token)),
 
-  /* ---------------- WITHDRAWALS ---------------- */
-  getWithdrawals: (token) =>
-    api.get("/api/admin/withdrawals", authHeaders(token)),
+  getTransactions: (token) =>
+    api.get("/api/transactions", authHeaders(token)),
 
-  approveWithdrawal: (id, payload = {}, token) =>
-    api.post(`/api/admin/withdrawals/${id}/approve`, payload, authHeaders(token)),
+  getLegalDocuments: () => api.get("/api/legal-documents"),
 
-  rejectWithdrawal: (id, payload = {}, token) =>
-    api.post(`/api/admin/withdrawals/${id}/reject`, payload, authHeaders(token)),
+  getSupport: (token) => api.get("/api/support", authHeaders(token)),
 
-  /* ---------------- WITHDRAWAL FEES ---------------- */
-  getWithdrawalFees: (token) =>
-    api.get("/api/admin/withdrawal-fees", authHeaders(token)),
+  getPublicPlatformSettings: () => {
+    const cacheBuster = Date.now();
+    return api.get(`/api/platform/public-settings?t=${cacheBuster}`);
+  },
 
-  saveWithdrawalFee: (payload, token) =>
-    api.post("/api/admin/withdrawal-fees", payload, authHeaders(token)),
+  // Transfer APIs (User to User)
+  getMyQrCode: (token) =>
+    api.get("/api/user/qr-code", authHeaders(token)),
 
-  createWithdrawalFee: (payload, token) =>
-    api.post("/api/admin/withdrawal-fees", payload, authHeaders(token)),
+  getUserByUid: (uid, token) =>
+    api.get(`/api/user/by-uid/${uid}`, authHeaders(token)),
 
-  deleteWithdrawalFee: (id, token) =>
-    api.delete(`/api/admin/withdrawal-fees/${id}`, authHeaders(token)),
+  sendTransfer: (payload, token) =>
+    api.post("/api/user/transfer", payload, authHeaders(token)),
 
-    /* ---------------- WITHDRAWAL SETTINGS (ADMIN) ---------------- */
-  getWithdrawalSettings: (token) =>
-    api.get("/api/withdrawal-settings", authHeaders(token)),
+  getTransferHistory: (token) =>
+    api.get("/api/user/transfers", authHeaders(token)),
 
-  updateWithdrawalSettings: (payload, token) =>
-    api.put("/api/admin/withdrawal-settings", payload, authHeaders(token)),
+  getMyQrCodeBase64: async (token) => {
+    const response = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    });
+    const data = await response.json();
+    if (data.success && data.data?.qr_code_base64) {
+      return `data:image/png;base64,${data.data.qr_code_base64}`;
+    }
+    throw new Error("Failed to get QR code");
+  },
 
-  /* ---------------- PROFIT WITHDRAWAL REQUESTS (ADMIN) ---------------- */
-  getProfitWithdrawalRequests: (token) =>
-    api.get("/api/admin/profit-withdrawal-requests", authHeaders(token)),
+  searchUserByUid: async (uid, token) => {
+    const response = await fetch(`${API_BASE_URL}/api/user/by-uid/${uid}`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    });
+    const data = await response.json();
+    if (data.success) return data.data;
+    throw new Error("User not found");
+  },
 
-  approveProfitWithdrawal: (id, token) =>
-    api.post(`/api/admin/profit-withdrawal-requests/${id}/approve`, {}, authHeaders(token)),
-
-  rejectProfitWithdrawal: (id, token) =>
-    api.post(`/api/admin/profit-withdrawal-requests/${id}/reject`, {}, authHeaders(token)),
-
-  /* ---------------- TRADES ---------------- */
-  getTrades: (token) =>
-    api.get("/api/admin/trades", authHeaders(token)),
-
-  overrideTrade: (id, payload, token) =>
-    api.post(`/api/admin/trades/${id}/override`, payload, authHeaders(token)),
-
-  /* ---------------- TRADE RULES ---------------- */
-  getTradeRules: (token) =>
-    api.get("/api/admin/trade-rules", authHeaders(token)),
-
-  updateTradeRule: (id, payload, token) =>
-    api.put(`/api/admin/trade-rules/${id}`, payload, authHeaders(token)),
-
-  /* ---------------- TRADE OUTCOME QUEUE ---------------- */
-  getTradeOutcomeQueue: (token) =>
-    api.get("/api/admin/trade-outcome-queue", authHeaders(token)),
-
-  createTradeOutcomeQueue: (payload, token) =>
-    api.post("/api/admin/trade-outcome-queue", payload, authHeaders(token)),
-
-  deleteTradeOutcomeQueue: (id, token) =>
-    api.delete(`/api/admin/trade-outcome-queue/${id}`, authHeaders(token)),
-
-  /* ---------------- FUNDS ---------------- */
-  getFunds: (token) =>
-    api.get("/api/admin/funds", authHeaders(token)),
-
-  getFundsSummary: (token) =>
-    api.get("/api/admin/funds/summary", authHeaders(token)),
-
-  deleteFund: (id, token) =>
-    api.delete(`/api/admin/funds/${id}`, authHeaders(token)),
-
-  completeFund: (id, payload = {}, token) =>
-    api.post(`/api/admin/funds/${id}/complete`, payload, authHeaders(token)),
-
-  cancelFund: (id, payload = {}, token) =>
-    api.post(`/api/admin/funds/${id}/cancel`, payload, authHeaders(token)),
-
-  /* ---------------- FUND RULES ---------------- */
-  getFundRules: (token) =>
-    api.get("/api/admin/fund-rules", authHeaders(token)),
-
-  createFundRule: (payload, token) =>
-    api.post("/api/admin/fund-rules", payload, authHeaders(token)),
-
-  updateFundRule: (id, payload, token) =>
-    api.put(`/api/admin/fund-rules/${id}`, payload, authHeaders(token)),
-
-  deleteFundRule: (id, token) =>
-    api.delete(`/api/admin/fund-rules/${id}`, authHeaders(token)),
-
-  // Add these to adminApi object (around line 200-220)
-
-  assignUserToPrivatePlan: (planId, payload, token) =>
-    api.post(`/api/admin/fund-rules/${planId}/assign-user`, payload, authHeaders(token)),
-  
-  getAssignedUsers: (planId, token) =>
-    api.get(`/api/admin/fund-rules/${planId}/assigned-users`, authHeaders(token)),
-  
-  removeUserFromPrivatePlan: (planId, userId, token) =>
-    api.delete(`/api/admin/fund-rules/${planId}/remove-user/${userId}`, authHeaders(token)),
-  
-  pauseFund: (id, payload, token) =>
-    api.post(`/api/admin/funds/${id}/pause`, payload, authHeaders(token)),
-  
-  resumeFund: (id, payload, token) =>
-    api.post(`/api/admin/funds/${id}/resume`, payload, authHeaders(token)),
-  
-  modifyFundProfitRate: (id, payload, token) =>
-    api.post(`/api/admin/funds/${id}/modify-profit-rate`, payload, authHeaders(token)),
-
-  /* ---------------- PLATFORM SETTINGS ---------------- */
-  getSettings: (token) =>
-    api.get("/api/admin/settings", authHeaders(token)),
-
-  updateSetting: (key, payload, token) =>
-    api.put(`/api/admin/settings/${key}`, payload, authHeaders(token)),
-
-  /* ---------------- AUDIT LOGS ---------------- */
-  getAuditLogs: (token) =>
-    api.get("/api/admin/audit-logs", authHeaders(token)),
-
-  clearAuditLogs: (token) =>
-    api.delete("/api/admin/audit-logs", authHeaders(token)),
-
-  /* ---------------- SUPPORT ---------------- */
-  getSupportSettings: (token) =>
-    api.get("/api/admin/support", authHeaders(token)),
-
-  getSupportContact: (token) =>
-    api.get("/api/admin/support", authHeaders(token)),
-
-  updateSupportSettings: (payload, token) =>
-    api.put("/api/admin/support", payload, authHeaders(token)),
-
-  updateSupportContact: (payload, token) =>
-    api.put("/api/admin/support", payload, authHeaders(token)),
-
-  /* ---------------- LOANS ---------------- */
-  getLoans: (token) =>
-    api.get("/api/admin/loans", authHeaders(token)),
-
-  approveLoan: (id, payload = {}, token) =>
-    api.post(`/api/admin/loans/${id}/approve`, payload, authHeaders(token)),
-
-  rejectLoan: (id, payload = {}, token) =>
-    api.post(`/api/admin/loans/${id}/reject`, payload, authHeaders(token)),
-
-  getLoanSettings: (token) =>
-    api.get("/api/admin/loan-settings", authHeaders(token)),
-
-  updateLoanSettings: (payload, token) =>
-    api.post("/api/admin/loan-settings", payload, authHeaders(token)),
-
-  saveLoanSettings: (payload, token) =>
-    api.post("/api/admin/loan-settings", payload, authHeaders(token)),
-
-  /* ---------------- LEGAL DOCUMENTS ---------------- */
-  getLegalDocs: (token) =>
-    api.get("/api/admin/legal-documents", authHeaders(token)),
-
-  getLegalDocuments: (token) =>
-    api.get("/api/admin/legal-documents", authHeaders(token)),
-
-  createLegalDoc: (payload, token) =>
-    api.post("/api/admin/legal-documents", payload, {
+  executeTransfer: async (recipientUid, amount, note, token) => {
+    const response = await fetch(`${API_BASE_URL}/api/user/transfer`, {
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${getAdminToken(token)}`,
-        "Content-Type":
-          payload instanceof FormData ? "multipart/form-data" : "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getUserToken(token)}`
       },
-    }),
+      body: JSON.stringify({ recipientUid, amount: Number(amount), note: note || null })
+    });
+    const data = await response.json();
+    if (data.success) return data.data;
+    throw new Error(data.message || "Transfer failed");
+  },
+};
 
-  createLegalDocument: (payload, token) =>
-    api.post("/api/admin/legal-documents", payload, {
+/* ---------------- MARKET ---------------- */
+
+export const marketApi = {
+  home: () => api.get("/api/market/home"),
+  list: () => api.get("/api/market/list"),
+  price: (symbol) =>
+    api.get(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
+};
+
+/* ---------------- DEPOSIT ---------------- */
+
+export const depositApi = {
+  wallets: (token) => api.get("/api/deposit/wallets", authHeaders(token)),
+
+  history: (token) => api.get("/api/deposits", authHeaders(token)),
+
+  request: (payload, token) =>
+    api.post("/api/deposits/request", payload, authHeaders(token)),
+
+  uploadReceipt: (file, token) => {
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    return api.post("/api/deposits/upload-receipt", formData, {
       headers: {
-        Authorization: `Bearer ${getAdminToken(token)}`,
-        "Content-Type":
-          payload instanceof FormData ? "multipart/form-data" : "application/json",
+        Authorization: `Bearer ${getUserToken(token)}`,
+        "Content-Type": "multipart/form-data",
       },
-    }),
+    });
+  },
+};
 
-  updateLegalDoc: (id, payload, token) =>
-    api.put(`/api/admin/legal-documents/${id}`, payload, {
-      headers: {
-        Authorization: `Bearer ${getAdminToken(token)}`,
-        "Content-Type":
-          payload instanceof FormData ? "multipart/form-data" : "application/json",
+/* ---------------- WITHDRAW ---------------- */
+
+export const withdrawalApi = {
+  history: (token) => api.get("/api/withdrawals", authHeaders(token)),
+
+  request: (payload, token) =>
+    api.post("/api/withdrawals/request", payload, authHeaders(token)),
+};
+
+/* ---------------- TRADE ---------------- */
+
+export const tradeApi = {
+  rules: (token) => api.get("/api/trade/rules", authHeaders(token)),
+
+  quickAmount: (payload, token) =>
+    api.post("/api/trades/quick-amount", payload, authHeaders(token)),
+
+  place: (payload, token) =>
+    api.post("/api/trades/place", payload, authHeaders(token)),
+
+  open: (token) => api.get("/api/trades/open", authHeaders(token)),
+
+  history: (token) => api.get("/api/trades/history", authHeaders(token)),
+};
+
+/* ---------------- FUNDS ---------------- */
+
+export const fundsApi = {
+  plans: (token) => api.get("/api/funds/plans", authHeaders(token)),
+  summary: (token) => api.get("/api/funds/summary", authHeaders(token)),
+  active: (token) => api.get("/api/funds/active", authHeaders(token)),
+  history: (token) => api.get("/api/funds/history", authHeaders(token)),
+  latestCompleted: (token) =>
+    api.get("/api/funds/completed-latest", authHeaders(token)),
+  apply: (payload, token) =>
+    api.post("/api/funds/apply", payload, authHeaders(token)),
+};
+
+/* ---------------- CONVERT ---------------- */
+
+export const convertApi = {
+  execute: (payload, token) =>
+    api.post(
+      "/api/convert/execute",
+      {
+        fromCoin: payload?.fromCoin,
+        toCoin: payload?.toCoin,
+        fromAmount: payload?.fromAmount,
       },
-    }),
+      authHeaders(token)
+    ),
 
-  updateLegalDocument: (id, payload, token) =>
-    api.put(`/api/admin/legal-documents/${id}`, payload, {
-      headers: {
-        Authorization: `Bearer ${getAdminToken(token)}`,
-        "Content-Type":
-          payload instanceof FormData ? "multipart/form-data" : "application/json",
-      },
-    }),
+  history: (token) => api.get("/api/convert/history", authHeaders(token)),
+};
 
-  deleteLegalDoc: (id, token) =>
-    api.delete(`/api/admin/legal-documents/${id}`, authHeaders(token)),
+/* ---------------- LOAN ---------------- */
 
-  deleteLegalDocument: (id, token) =>
-    api.delete(`/api/admin/legal-documents/${id}`, authHeaders(token)),
+export const loanApi = {
+  getLoans: (token) => api.get("/api/loans", authHeaders(token)),
+  apply: (payload, token) =>
+    api.post("/api/loans/apply", payload, authHeaders(token)),
+};
 
-  /* ---------------- NEWS ---------------- */
-  getNews: (token) =>
-    api.get("/api/news/admin/all", authHeaders(token)),
+/* ---------------- TRANSACTIONS ---------------- */
 
-  getAdminNews: (token) =>
-    api.get("/api/news/admin/all", authHeaders(token)),
+export const transactionApi = {
+  getAll: (token) => api.get("/api/transactions", authHeaders(token)),
+};
 
-  createNews: (payload, token) =>
-    api.post("/api/news", payload, authHeaders(token)),
+/* ---------------- NEWS ---------------- */
 
-  updateNews: (id, payload, token) =>
-    api.put(`/api/news/${id}`, payload, authHeaders(token)),
-
-  deleteNews: (id, token) =>
-    api.delete(`/api/news/${id}`, authHeaders(token)),
-
-
-  /* ---------------- NOTIFICATIONS ---------------- */
-  getNotifications: (token) =>
-    api.get("/api/admin/notifications", authHeaders(token)),
-
-  markNotificationRead: (id, token) =>
-    api.put(`/api/admin/notifications/${id}/read`, {}, authHeaders(token)),
-
-  /* ---------------- DASHBOARD STATS ---------------- */
-  getDashboardStats: (token) =>
-    api.get("/api/admin/dashboard-stats", authHeaders(token)),
+export const newsApi = {
+  getNews: () => api.get("/api/news"),
 };
 
 export default api;
