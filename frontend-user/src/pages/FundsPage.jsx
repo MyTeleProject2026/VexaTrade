@@ -1,3 +1,7 @@
+// =============================================================
+// DEBUG VERSION – REPLACE YOUR FUNDSPAGE.JSX WITH THIS
+// =============================================================
+
 import { useEffect, useMemo, useState } from "react";
 import {
   RefreshCw,
@@ -19,6 +23,7 @@ import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
 
+// ---------- (all helper functions remain the same) ----------
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -43,7 +48,6 @@ function getDaysLeft(item) {
 
 function StatusPill({ status }) {
   const value = String(status || "").toLowerCase();
-
   if (value === "active") {
     return (
       <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
@@ -51,7 +55,6 @@ function StatusPill({ status }) {
       </span>
     );
   }
-
   if (value === "paused") {
     return (
       <span className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300">
@@ -59,7 +62,6 @@ function StatusPill({ status }) {
       </span>
     );
   }
-
   if (value === "completed") {
     return (
       <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
@@ -67,7 +69,6 @@ function StatusPill({ status }) {
       </span>
     );
   }
-
   return (
     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
       {status || "-"}
@@ -75,7 +76,6 @@ function StatusPill({ status }) {
   );
 }
 
-// ✅ COMPACT SummaryCard (Smaller)
 function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" }) {
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 shadow-md">
@@ -91,55 +91,41 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-// ✅ UPDATED Plan Card – now renders html_content if present
 function PlanCard({ plan, applying, onApply }) {
   const [showFullNote, setShowFullNote] = useState(false);
-  
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
       ? "Unlimited"
       : `${formatMoney(plan.max_amount)} USDT`;
-
   const limitText =
     plan.user_limit_count === null || plan.user_limit_count === undefined
       ? "No limit"
       : `${plan.user_limit_count} times`;
-
   const hasNote = plan.admin_note && plan.admin_note.trim().length > 0;
   const hasAdditionalNotes = plan.additional_notes && plan.additional_notes.trim().length > 0;
   const hasDisclaimer = plan.disclaimer && plan.disclaimer.trim().length > 0;
   const hasAnyNote = hasNote || hasAdditionalNotes || hasDisclaimer;
-  
-  // For preview (short version - first 100 characters)
   const getShortPreview = (text) => {
     if (!text) return "";
     if (text.length <= 100) return text;
     return text.substring(0, 100) + "...";
   };
-
   const isPrivate = plan.is_private === 1;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          {isPrivate && (
-            <Lock size={12} className="text-amber-400" />
-          )}
+          {isPrivate && <Lock size={12} className="text-amber-400" />}
           <div>
             <div className="text-sm font-semibold text-white">{plan.name}</div>
-            <div className="text-[10px] text-slate-400">
-              {plan.duration_days} day plan
-            </div>
+            <div className="text-[10px] text-slate-400">{plan.duration_days} day plan</div>
           </div>
         </div>
-
         <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-300">
-          {Number(plan.min_daily_profit_percent).toFixed(1)}% -{" "}
-          {Number(plan.max_daily_profit_percent).toFixed(1)}%
+          {Number(plan.min_daily_profit_percent).toFixed(1)}% - {Number(plan.max_daily_profit_percent).toFixed(1)}%
         </div>
       </div>
-
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Min</div>
@@ -161,7 +147,6 @@ function PlanCard({ plan, applying, onApply }) {
         </div>
       </div>
 
-      {/* ✅ Notes Section – now checks html_content first */}
       {plan.html_content ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3 prose prose-invert max-w-none">
           <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
@@ -169,7 +154,6 @@ function PlanCard({ plan, applying, onApply }) {
       ) : (
         hasAnyNote && (
           <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
-            {/* Admin Note */}
             {hasNote && (
               <div className="mb-2">
                 <div className="text-[10px] font-semibold text-cyan-400 mb-1">📢 Information</div>
@@ -178,8 +162,6 @@ function PlanCard({ plan, applying, onApply }) {
                 </div>
               </div>
             )}
-            
-            {/* Additional Notes */}
             {hasAdditionalNotes && (
               <div className="mb-2">
                 <div className="text-[10px] font-semibold text-slate-300 mb-1">ℹ️ Additional Notes</div>
@@ -188,8 +170,6 @@ function PlanCard({ plan, applying, onApply }) {
                 </div>
               </div>
             )}
-            
-            {/* Disclaimer */}
             {hasDisclaimer && (
               <div className="mb-2">
                 <div className="text-[10px] font-semibold text-amber-400 mb-1">⚠️ Disclaimer</div>
@@ -198,8 +178,6 @@ function PlanCard({ plan, applying, onApply }) {
                 </div>
               </div>
             )}
-            
-            {/* "Read more" button – only if any note is longer than 100 chars */}
             {(plan.admin_note?.length > 100 || plan.additional_notes?.length > 100 || plan.disclaimer?.length > 100) && (
               <button
                 type="button"
@@ -227,70 +205,45 @@ function PlanCard({ plan, applying, onApply }) {
   );
 }
 
-// Active Fund Card with Pause status (unchanged)
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
-  const totalReceive =
-    Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
+  const totalReceive = Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
   const isPaused = String(item.status || "").toLowerCase() === "paused";
-
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-white">
-            {item.plan_name || "Fund Plan"}
-          </div>
-          <div className="text-[10px] text-slate-400">
-            Started: {formatDateTime(item.started_at)}
-          </div>
+          <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
+          <div className="text-[10px] text-slate-400">Started: {formatDateTime(item.started_at)}</div>
         </div>
-
         <StatusPill status={item.status} />
       </div>
-
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Funded</div>
-          <div className="font-semibold text-white">
-            {formatMoney(item.locked_principal)} USDT
-          </div>
+          <div className="font-semibold text-white">{formatMoney(item.locked_principal)} USDT</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Daily Rate</div>
-          <div className="font-semibold text-emerald-300">
-            {Number(item.selected_daily_profit_percent || 0).toFixed(2)}%
-          </div>
+          <div className="font-semibold text-emerald-300">{Number(item.selected_daily_profit_percent || 0).toFixed(2)}%</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Day</div>
-          <div className="font-semibold text-white">
-            {item.current_day}/{item.total_days}
-          </div>
+          <div className="font-semibold text-white">{item.current_day}/{item.total_days}</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Left</div>
           <div className="font-semibold text-amber-300">{daysLeft}</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Profit</div>
-          <div className="font-semibold text-emerald-300">
-            +{formatMoney(item.earned_profit)} USDT
-          </div>
+          <div className="font-semibold text-emerald-300">+{formatMoney(item.earned_profit)} USDT</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Total</div>
-          <div className="font-semibold text-cyan-300">
-            {formatMoney(totalReceive)} USDT
-          </div>
+          <div className="font-semibold text-cyan-300">{formatMoney(totalReceive)} USDT</div>
         </div>
       </div>
-
       {isPaused && (
         <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-center text-[10px] text-red-300">
           <AlertCircle size={10} className="inline mr-1" />
@@ -301,47 +254,29 @@ function ActiveFundCard({ item }) {
   );
 }
 
-// History Fund Card (unchanged)
 function HistoryFundCard({ item }) {
-  const totalReceived =
-    Number(item.total_received || 0) ||
-    (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
-
+  const totalReceived = Number(item.total_received || 0) || (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-white">
-            {item.plan_name || "Fund Plan"}
-          </div>
-          <div className="text-[10px] text-slate-400">
-            Completed: {formatDateTime(item.completed_at || item.updated_at || item.created_at)}
-          </div>
+          <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
+          <div className="text-[10px] text-slate-400">Completed: {formatDateTime(item.completed_at || item.updated_at || item.created_at)}</div>
         </div>
-
         <StatusPill status={item.status} />
       </div>
-
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Principal</div>
-          <div className="font-semibold text-white">
-            {formatMoney(item.locked_principal)} USDT
-          </div>
+          <div className="font-semibold text-white">{formatMoney(item.locked_principal)} USDT</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
           <div className="text-slate-500">Profit</div>
-          <div className="font-semibold text-emerald-300">
-            +{formatMoney(item.earned_profit)} USDT
-          </div>
+          <div className="font-semibold text-emerald-300">+{formatMoney(item.earned_profit)} USDT</div>
         </div>
-
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2 col-span-2">
           <div className="text-slate-500">Total Received</div>
-          <div className="font-semibold text-cyan-300">
-            {formatMoney(totalReceived)} USDT
-          </div>
+          <div className="font-semibold text-cyan-300">{formatMoney(totalReceived)} USDT</div>
         </div>
       </div>
     </div>
@@ -357,6 +292,9 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
+// =============================================================
+// MAIN COMPONENT (with debug alerts)
+// =============================================================
 export default function FundsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -390,19 +328,115 @@ export default function FundsPage() {
   const [applyAmount, setApplyAmount] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
-  // Target system states
   const [hasTarget, setHasTarget] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetChecking, setTargetChecking] = useState(true);
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
 
-  // Profit withdrawal modal
   const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
   const [profitWithdrawalProfit, setProfitWithdrawalProfit] = useState(0);
   const [profitWithdrawalTarget, setProfitWithdrawalTarget] = useState(0);
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
 
+  // ---------- DEBUG: show token ----------
+  console.log("🔍 DEBUG: Token =", token);
+  alert(`🔍 DEBUG: Token = ${token ? token.substring(0, 20) + '...' : 'NO TOKEN'}`);
+
+  async function loadData(silent = false) {
+    try {
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
+      setError("");
+
+      console.log("🔍 DEBUG: Calling /api/funds/plans with token:", token);
+      alert("🔍 DEBUG: Calling /api/funds/plans");
+
+      const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
+        await Promise.allSettled([
+          api.get("/api/funds/plans", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/summary", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/active", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/history", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          api.get("/api/funds/completed-latest", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+      console.log("🔍 DEBUG: Plans response status:", plansRes.status);
+      if (plansRes.status === "fulfilled") {
+        const data = plansRes.value?.data;
+        console.log("🔍 DEBUG: Plans response data:", data);
+        alert(`🔍 DEBUG: Plans response status = fulfilled, data length = ${data?.data?.length}`);
+        const nextPlans = Array.isArray(data?.data) ? data.data : [];
+        setPlans(nextPlans);
+      } else {
+        console.error("🔍 DEBUG: Plans request failed:", plansRes.reason);
+        alert(`🔍 DEBUG: Plans request failed: ${plansRes.reason?.message || 'unknown'}`);
+        // Fallback: set a dummy plan to see if UI works
+        setPlans([{
+          id: 99999,
+          name: "Debug Plan (API failed)",
+          duration_days: 30,
+          min_amount: 100,
+          max_amount: 10000,
+          min_daily_profit_percent: 1,
+          max_daily_profit_percent: 5,
+          user_limit_count: null,
+          is_active: 1,
+          admin_note: "This is a fallback plan because the API call failed.",
+          admin_note_background_image: null,
+          additional_notes: null,
+          disclaimer: null,
+          is_private: 0,
+          compound_percentage: 100,
+          html_content: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }]);
+      }
+
+      if (summaryRes.status === "fulfilled") {
+        setSummary(summaryRes.value?.data?.data || {});
+      }
+      if (activeRes.status === "fulfilled") {
+        setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);
+      }
+      if (historyRes.status === "fulfilled") {
+        setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);
+      }
+      if (latestRes.status === "fulfilled") {
+        setLatestCompleted(latestRes.value?.data?.data || null);
+      }
+    } catch (err) {
+      console.error("🔍 DEBUG: loadData error:", err);
+      alert(`🔍 DEBUG: loadData error: ${err.message}`);
+      showError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+    checkUserTarget();
+    const interval = setInterval(() => {
+      loadData(true);
+      refreshTargetProgress();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ---------- other functions (unchanged) ----------
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
@@ -490,111 +524,13 @@ export default function FundsPage() {
     setShowProfitWithdrawalModal(true);
   }
 
-  async function loadData(silent = false) {
-    try {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
-
-      setError("");
-
-      // 🔍 DEBUG LOG 1 – Check token
-      console.log("🔍 [FundsPage] Token:", token);
-
-      const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
-        await Promise.allSettled([
-          api.get("/api/funds/plans", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/summary", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/active", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/history", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/completed-latest", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-
-      // 🔍 DEBUG LOG 2 – Plans response
-      console.log("🔍 [FundsPage] Plans response:", plansRes);
-
-      if (plansRes.status === "fulfilled") {
-        const nextPlans = Array.isArray(plansRes.value?.data?.data)
-          ? plansRes.value.data.data
-          : [];
-        console.log("🔍 [FundsPage] Plans data:", nextPlans);
-        setPlans(nextPlans);
-      } else {
-        console.error("🔍 [FundsPage] Plans request failed:", plansRes.reason);
-      }
-
-      if (summaryRes.status === "fulfilled") {
-        setSummary(summaryRes.value?.data?.data || {});
-      }
-
-      if (activeRes.status === "fulfilled") {
-        setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);
-      }
-
-      if (historyRes.status === "fulfilled") {
-        setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);
-      }
-
-      if (latestRes.status === "fulfilled") {
-        setLatestCompleted(latestRes.value?.data?.data || null);
-      }
-    } catch (err) {
-      console.error("🔍 [FundsPage] loadData error:", err);
-      showError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
-    checkUserTarget();
-
-    const interval = setInterval(() => {
-      loadData(true);
-      refreshTargetProgress();
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (hasTarget && targetProgress.targetAmount > 0) {
-      checkAndPromptNewTarget();
-    }
-  }, [hasTarget, targetProgress]);
-
-  // Initialize selectedPlanId - handles both public and private plans
-  useEffect(() => {
-    if (plans.length && !selectedPlanId) {
-      const firstPublicPlan = plans.find(p => p.is_private === 0);
-      if (firstPublicPlan) {
-        setSelectedPlanId(firstPublicPlan.id);
-      } else if (plans[0]) {
-        setSelectedPlanId(plans[0].id);
-      }
-    }
-  }, [plans, selectedPlanId]);
-
   const selectedPlan = useMemo(() => {
     return plans.find((item) => item.id === selectedPlanId) || plans[0] || null;
   }, [plans, selectedPlanId]);
 
   const activeTotalReceive = useMemo(() => {
     return activeFunds.reduce((sum, item) => {
-      return sum +
-        Number(item.locked_principal || 0) +
-        Number(item.earned_profit || 0);
+      return sum + Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
     }, 0);
   }, [activeFunds]);
 
@@ -603,7 +539,6 @@ export default function FundsPage() {
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
-  // Check if user has any private plans
   const hasPrivatePlans = useMemo(() => {
     return plans.some(p => p.is_private === 1);
   }, [plans]);
@@ -627,17 +562,14 @@ export default function FundsPage() {
   async function handleApplyPlan() {
     try {
       if (!applyModal) return;
-
       const amount = Number(applyAmount || 0);
       if (!amount || amount <= 0) {
         showError("Please enter a valid amount");
         return;
       }
-
       setApplying(true);
       setError("");
       setSuccess("");
-
       const res = await api.post(
         "/api/funds/apply",
         {
@@ -648,11 +580,8 @@ export default function FundsPage() {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-
       const responseData = res?.data?.data || {};
-
       showSuccess(res?.data?.message || "Fund applied successfully");
-
       showVoucher({
         title: "Fund Investment",
         type: "funds",
@@ -667,7 +596,6 @@ export default function FundsPage() {
           ends_at: responseData.ends_at,
         },
       });
-
       closeApplyModal();
       await loadData(true);
       setTab("active");
@@ -678,6 +606,7 @@ export default function FundsPage() {
     }
   }
 
+  // ---------- Render ----------
   if (loading) {
     return (
       <div className="space-y-5 bg-[#050812] p-3 sm:p-5">
@@ -690,7 +619,6 @@ export default function FundsPage() {
 
   return (
     <div className="space-y-4 bg-[#050812] px-3 pb-24 pt-3 sm:px-5 xl:pb-8">
-      {/* Target Progress Banner */}
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
           <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
@@ -711,7 +639,6 @@ export default function FundsPage() {
               <span className="text-[10px] text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
             </div>
           </div>
-          
           {isTargetAchieved ? (
             <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
               <span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance.</span>
@@ -735,65 +662,32 @@ export default function FundsPage() {
         </div>
       )}
 
-      {/* Header Section */}
       <section className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-3 shadow-lg">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-1 text-[9px] uppercase tracking-[0.32em] text-cyan-300">
-              <Flame size={10} />
-              VexaTrade Funds
+              <Flame size={10} /> VexaTrade Funds
             </div>
-            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
-              Funds Center
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              Apply for fund plans, track daily profits, and view completed returns.
-            </p>
+            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">Funds Center</h1>
+            <p className="text-[11px] text-slate-400">Apply for fund plans, track daily profits, and view completed returns.</p>
           </div>
-
           <button
             type="button"
             onClick={() => loadData(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/[0.06]"
           >
-            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-            Refresh
+            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} /> Refresh
           </button>
         </div>
       </section>
 
-      {/* Stats Row - COMPACT */}
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryCard
-          label="Active Funded"
-          value={`${formatMoney(summary.active_funded_amount)}`}
-          subtext={`${summary.active_count || 0} fund(s)`}
-          icon={Wallet}
-        />
-        <SummaryCard
-          label="Active Profit"
-          value={`+${formatMoney(summary.active_earned_profit)}`}
-          subtext="Locked"
-          icon={BadgeDollarSign}
-          tone="text-emerald-300"
-        />
-        <SummaryCard
-          label="Today Profit"
-          value={`+${formatMoney(summary.today_profit)}`}
-          subtext="Credited today"
-          icon={Clock3}
-          tone="text-cyan-300"
-        />
-        <SummaryCard
-          label="Completed Profit"
-          value={`+${formatMoney(summary.completed_profit)}`}
-          subtext={`${summary.completed_count || 0} fund(s)`}
-          icon={CheckCircle2}
-          tone="text-cyan-300"
-        />
+        <SummaryCard label="Active Funded" value={`${formatMoney(summary.active_funded_amount)}`} subtext={`${summary.active_count || 0} fund(s)`} icon={Wallet} />
+        <SummaryCard label="Active Profit" value={`+${formatMoney(summary.active_earned_profit)}`} subtext="Locked" icon={BadgeDollarSign} tone="text-emerald-300" />
+        <SummaryCard label="Today Profit" value={`+${formatMoney(summary.today_profit)}`} subtext="Credited today" icon={Clock3} tone="text-cyan-300" />
+        <SummaryCard label="Completed Profit" value={`+${formatMoney(summary.completed_profit)}`} subtext={`${summary.completed_count || 0} fund(s)`} icon={CheckCircle2} tone="text-cyan-300" />
       </section>
 
-      {/* Tabs - with Private Funds tab (only shows if user has private plans) */}
       <section className="rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
         <div className="grid grid-cols-4 gap-1">
           {[
@@ -802,19 +696,14 @@ export default function FundsPage() {
             ["active", "Active"],
             ["history", "History"],
           ].map(([key, label]) => {
-            // Only show Private Funds tab if user has any private plans
-            if (key === "private" && !hasPrivatePlans) {
-              return null;
-            }
+            if (key === "private" && !hasPrivatePlans) return null;
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
                 className={`rounded-lg py-2 text-xs font-semibold transition ${
-                  tab === key
-                    ? "bg-cyan-500 text-black"
-                    : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                  tab === key ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
                 }`}
               >
                 {label}
@@ -824,8 +713,7 @@ export default function FundsPage() {
         </div>
       </section>
 
-      {/* Plans Tab (Public Plans Only) */}
-      {tab === "plans" ? (
+      {tab === "plans" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Available Plans</h2>
@@ -842,9 +730,7 @@ export default function FundsPage() {
                   type="button"
                   onClick={() => setSelectedPlanId(plan.id)}
                   className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    selectedPlanId === plan.id
-                      ? "bg-cyan-500 text-black"
-                      : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                    selectedPlanId === plan.id ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
                   }`}
                 >
                   {plan.duration_days} Day
@@ -854,27 +740,18 @@ export default function FundsPage() {
           </div>
 
           {selectedPlan && selectedPlan.is_private === 0 ? (
-            <PlanCard
-              plan={selectedPlan}
-              applying={applying}
-              onApply={openApplyModal}
-            />
+            <PlanCard plan={selectedPlan} applying={applying} onApply={openApplyModal} />
           ) : plans.filter(p => p.is_private === 0).length > 0 ? (
-            <PlanCard
-              plan={plans.filter(p => p.is_private === 0)[0]}
-              applying={applying}
-              onApply={openApplyModal}
-            />
+            <PlanCard plan={plans.filter(p => p.is_private === 0)[0]} applying={applying} onApply={openApplyModal} />
           ) : (
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
               No public plans available at the moment.
             </div>
           )}
         </section>
-      ) : null}
+      )}
 
-      {/* Private Plans Tab */}
-      {tab === "private" ? (
+      {tab === "private" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Private Funds</h2>
@@ -882,7 +759,6 @@ export default function FundsPage() {
               {plans.filter(p => p.is_private === 1).length} private plan{plans.filter(p => p.is_private === 1).length === 1 ? "" : "s"}
             </div>
           </div>
-
           <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
             <div className="flex gap-1 overflow-x-auto pb-1">
               {plans.filter(p => p.is_private === 1).map((plan) => (
@@ -891,9 +767,7 @@ export default function FundsPage() {
                   type="button"
                   onClick={() => setSelectedPlanId(plan.id)}
                   className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    selectedPlanId === plan.id
-                      ? "bg-cyan-500 text-black"
-                      : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
+                    selectedPlanId === plan.id ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
                   }`}
                 >
                   {plan.duration_days} Day
@@ -901,129 +775,75 @@ export default function FundsPage() {
               ))}
             </div>
           </div>
-
           {selectedPlan && selectedPlan.is_private === 1 ? (
-            <PlanCard
-              plan={selectedPlan}
-              applying={applying}
-              onApply={openApplyModal}
-            />
+            <PlanCard plan={selectedPlan} applying={applying} onApply={openApplyModal} />
           ) : plans.filter(p => p.is_private === 1).length > 0 ? (
-            <PlanCard
-              plan={plans.filter(p => p.is_private === 1)[0]}
-              applying={applying}
-              onApply={openApplyModal}
-            />
+            <PlanCard plan={plans.filter(p => p.is_private === 1)[0]} applying={applying} onApply={openApplyModal} />
           ) : null}
         </section>
-      ) : null}
+      )}
 
-      {/* Active Tab */}
-      {tab === "active" ? (
+      {tab === "active" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Active Funds</h2>
-            <div className="text-xs text-slate-500">
-              Total to receive: {formatMoney(activeTotalReceive)} USDT
-            </div>
+            <div className="text-xs text-slate-500">Total to receive: {formatMoney(activeTotalReceive)} USDT</div>
           </div>
-
           {activeFunds.length ? (
             <div className="grid gap-3 xl:grid-cols-2">
-              {activeFunds.map((item) => (
-                <ActiveFundCard key={item.id} item={item} />
-              ))}
+              {activeFunds.map((item) => <ActiveFundCard key={item.id} item={item} />)}
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
-              No active funds right now.
-            </div>
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No active funds right now.</div>
           )}
         </section>
-      ) : null}
+      )}
 
-      {/* History Tab */}
-      {tab === "history" ? (
+      {tab === "history" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Funds History</h2>
             <button
               type="button"
-              onClick={() =>
-                latestCompleted &&
-                setLatestCompleted({ ...latestCompleted, __show: true })
-              }
+              onClick={() => latestCompleted && setLatestCompleted({ ...latestCompleted, __show: true })}
               className="inline-flex items-center gap-1 text-xs text-slate-400 transition hover:text-white"
             >
-              Latest Voucher
-              <ChevronRight size={12} />
+              Latest Voucher <ChevronRight size={12} />
             </button>
           </div>
-
           {historyFunds.length ? (
             <div className="grid gap-3 xl:grid-cols-2">
-              {historyFunds.map((item) => (
-                <HistoryFundCard key={item.id} item={item} />
-              ))}
+              {historyFunds.map((item) => <HistoryFundCard key={item.id} item={item} />)}
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
-              No funds history yet.
-            </div>
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No funds history yet.</div>
           )}
         </section>
-      ) : null}
+      )}
 
-      {/* Apply Modal */}
-      {applyModal ? (
+      {applyModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <div className="text-lg font-bold text-white">{applyModal.name}</div>
-                <div className="text-xs text-slate-400">
-                  {applyModal.duration_days} day fund plan
-                </div>
+                <div className="text-xs text-slate-400">{applyModal.duration_days} day fund plan</div>
               </div>
-              <button
-                type="button"
-                onClick={closeApplyModal}
-                className="text-slate-400 transition hover:text-white"
-              >
-                <X size={18} />
-              </button>
+              <button onClick={closeApplyModal} className="text-slate-400 transition hover:text-white"><X size={18} /></button>
             </div>
-
             <div className="pt-4">
               <div className="rounded-xl border border-white/10 bg-[#050812] p-3">
                 <div className="text-xs text-slate-500">Daily Profit Range</div>
                 <div className="mt-1 text-base font-semibold text-emerald-300">
-                  {Number(applyModal.min_daily_profit_percent).toFixed(1)}% -{" "}
-                  {Number(applyModal.max_daily_profit_percent).toFixed(1)}%
+                  {Number(applyModal.min_daily_profit_percent).toFixed(1)}% - {Number(applyModal.max_daily_profit_percent).toFixed(1)}%
                 </div>
-
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <div className="text-slate-500">Min</div>
-                    <div className="font-semibold text-white">
-                      {formatMoney(applyModal.min_amount)} USDT
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500">Max</div>
-                    <div className="font-semibold text-white">
-                      {applyModal.max_amount == null
-                        ? "Unlimited"
-                        : `${formatMoney(applyModal.max_amount)} USDT`}
-                    </div>
-                  </div>
+                  <div><div className="text-slate-500">Min</div><div className="font-semibold text-white">{formatMoney(applyModal.min_amount)} USDT</div></div>
+                  <div><div className="text-slate-500">Max</div><div className="font-semibold text-white">{applyModal.max_amount == null ? "Unlimited" : `${formatMoney(applyModal.max_amount)} USDT`}</div></div>
                 </div>
               </div>
-
               <div className="mt-3">
-                <label className="mb-1 block text-xs font-medium text-slate-300">
-                  Enter funding amount
-                </label>
+                <label className="mb-1 block text-xs font-medium text-slate-300">Enter funding amount</label>
                 <input
                   type="number"
                   min="0"
@@ -1034,124 +854,60 @@ export default function FundsPage() {
                   className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
                 />
               </div>
-
               <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleApplyPlan}
-                  disabled={applying}
-                  className="rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
-                >
+                <button onClick={handleApplyPlan} disabled={applying} className="rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black hover:bg-cyan-400 disabled:opacity-60">
                   {applying ? "Applying..." : "Confirm"}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={closeApplyModal}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-semibold text-white"
-                >
-                  Cancel
-                </button>
+                <button onClick={closeApplyModal} className="rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-semibold text-white">Cancel</button>
               </div>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {/* Latest Completed Voucher Modal */}
-      {latestCompleted && latestCompleted.__show ? (
+      {latestCompleted && latestCompleted.__show && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <div className="text-lg font-bold text-white">Fund Complete</div>
-                <div className="text-xs text-slate-400">
-                  {formatDateTime(latestCompleted.completed_at)}
-                </div>
+                <div className="text-xs text-slate-400">{formatDateTime(latestCompleted.completed_at)}</div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setLatestCompleted((prev) => ({ ...prev, __show: false }))
-                }
-                className="text-slate-400 transition hover:text-white"
-              >
-                <X size={18} />
-              </button>
+              <button onClick={() => setLatestCompleted((prev) => ({ ...prev, __show: false }))} className="text-slate-400 transition hover:text-white"><X size={18} /></button>
             </div>
-
             <div className="pt-4">
-              <div className="mb-4 flex justify-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-                  <CheckCircle2 size={22} />
-                </div>
-              </div>
-
+              <div className="mb-4 flex justify-center"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"><CheckCircle2 size={22} /></div></div>
               <div className="space-y-2 text-xs">
-                <VoucherRow
-                  label="Plan"
-                  value={latestCompleted.plan_name || "Fund Plan"}
-                />
-                <VoucherRow
-                  label="Principal"
-                  value={`${formatMoney(latestCompleted.locked_principal)} USDT`}
-                />
-                <VoucherRow
-                  label="Total Profit"
-                  value={`+${formatMoney(latestCompleted.earned_profit)} USDT`}
-                  valueClassName="text-emerald-300"
-                />
-                <VoucherRow
-                  label="Total Received"
-                  value={`${formatMoney(latestCompleted.total_received)} USDT`}
-                  valueClassName="text-cyan-300"
-                />
-                <VoucherRow
-                  label="Total Days"
-                  value={String(latestCompleted.total_days || 0)}
-                />
+                <VoucherRow label="Plan" value={latestCompleted.plan_name || "Fund Plan"} />
+                <VoucherRow label="Principal" value={`${formatMoney(latestCompleted.locked_principal)} USDT`} />
+                <VoucherRow label="Total Profit" value={`+${formatMoney(latestCompleted.earned_profit)} USDT`} valueClassName="text-emerald-300" />
+                <VoucherRow label="Total Received" value={`${formatMoney(latestCompleted.total_received)} USDT`} valueClassName="text-cyan-300" />
+                <VoucherRow label="Total Days" value={String(latestCompleted.total_days || 0)} />
               </div>
-
               {latestCompleted.earned_profit > 0 && !hasTarget && (
                 <button
-                  type="button"
                   onClick={() => {
                     setLatestCompleted((prev) => ({ ...prev, __show: false }));
-                    handleWithdrawFromProfit(
-                      Number(latestCompleted.earned_profit),
-                      targetProgress.targetAmount
-                    );
+                    handleWithdrawFromProfit(Number(latestCompleted.earned_profit), targetProgress.targetAmount);
                   }}
                   className="mt-3 w-full rounded-xl bg-cyan-500 py-1.5 text-xs font-semibold text-black hover:bg-cyan-400"
                 >
                   Withdraw ${formatMoney(latestCompleted.earned_profit)} from Profit
                 </button>
               )}
-
               <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
                 Principal and profits have been returned to the user main wallet.
               </div>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {/* Target Modal */}
-      <TargetModal
-        isOpen={showTargetModal}
-        onClose={() => setShowTargetModal(false)}
-        onTargetSet={handleTargetSet}
-        requiredFor="funds"
-      />
-
-      {/* Profit Withdrawal Modal */}
+      <TargetModal isOpen={showTargetModal} onClose={() => setShowTargetModal(false)} onTargetSet={handleTargetSet} requiredFor="funds" />
       <ProfitWithdrawalModal
         isOpen={showProfitWithdrawalModal}
         onClose={() => setShowProfitWithdrawalModal(false)}
-        onSuccess={() => {
-          refreshTargetProgress();
-          loadData(true);
-        }}
+        onSuccess={() => { refreshTargetProgress(); loadData(true); }}
         currentProfit={profitWithdrawalProfit}
         targetAmount={profitWithdrawalTarget}
       />
