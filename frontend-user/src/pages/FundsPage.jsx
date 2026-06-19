@@ -18,8 +18,21 @@ import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
-<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.admin_note) }} />
 
+// Inside component
+const sanitize = (html) => ({ __html: DOMPurify.sanitize(html) });
+
+// Render
+{plan.html_content ? (
+  <div dangerouslySetInnerHTML={sanitize(plan.html_content)} />
+) : (
+  // Fallback to normal fields
+  <>
+    <div>{plan.admin_note}</div>
+    <div>{plan.additional_notes}</div>
+    <div>{plan.disclaimer}</div>
+  </>
+)}
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
