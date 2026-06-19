@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, FileText, AlertTriangle, Info } from "lucide-react";
+import DOMPurify from 'dompurify';
 
 export default function PlanNoteModal({ isOpen, onClose, plan }) {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -52,7 +53,7 @@ export default function PlanNoteModal({ isOpen, onClose, plan }) {
           </div>
 
           <div className="space-y-4">
-            {/* Plan Details */}
+            {/* Plan Details (always shown) */}
             <div className="rounded-xl border border-white/10 bg-black/40 p-4">
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">
                 📋 Plan Details
@@ -67,42 +68,51 @@ export default function PlanNoteModal({ isOpen, onClose, plan }) {
               </div>
             </div>
 
-            {/* BlockchainEcosystem Note */}
-            {plan.admin_note && (
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-                <h3 className="text-sm font-semibold text-cyan-400 mb-2">
-                  📢 Blockchain Ecosystem Note
-                </h3>
-                <div className="whitespace-pre-wrap text-sm text-slate-200 leading-relaxed">
-                  {plan.admin_note}
-                </div>
+            {/* If HTML content exists, render it; otherwise fallback to individual fields */}
+            {plan.html_content ? (
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 prose prose-invert max-w-none">
+                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
               </div>
-            )}
+            ) : (
+              <>
+                {/* Admin Note */}
+                {plan.admin_note && (
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+                    <h3 className="text-sm font-semibold text-cyan-400 mb-2">
+                      📢 Blockchain Ecosystem Note
+                    </h3>
+                    <div className="whitespace-pre-wrap text-sm text-slate-200 leading-relaxed">
+                      {plan.admin_note}
+                    </div>
+                  </div>
+                )}
 
-            {/* Additional Information */}
-            {plan.additional_notes && (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
-                  <Info size={14} />
-                  Additional Information
-                </h3>
-                <div className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed">
-                  {plan.additional_notes}
-                </div>
-              </div>
-            )}
+                {/* Additional Information */}
+                {plan.additional_notes && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                      <Info size={14} />
+                      Additional Information
+                    </h3>
+                    <div className="whitespace-pre-wrap text-sm text-slate-300 leading-relaxed">
+                      {plan.additional_notes}
+                    </div>
+                  </div>
+                )}
 
-            {/* Disclaimer / Risk Warning */}
-            {plan.disclaimer && (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
-                <h3 className="text-sm font-semibold text-amber-400 mb-2 flex items-center gap-2">
-                  <AlertTriangle size={14} />
-                  Disclaimer
-                </h3>
-                <div className="whitespace-pre-wrap text-sm text-amber-200/80 leading-relaxed">
-                  {plan.disclaimer}
-                </div>
-              </div>
+                {/* Disclaimer / Risk Warning */}
+                {plan.disclaimer && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                    <h3 className="text-sm font-semibold text-amber-400 mb-2 flex items-center gap-2">
+                      <AlertTriangle size={14} />
+                      Disclaimer
+                    </h3>
+                    <div className="whitespace-pre-wrap text-sm text-amber-200/80 leading-relaxed">
+                      {plan.disclaimer}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
