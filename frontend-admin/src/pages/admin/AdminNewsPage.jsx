@@ -1,3 +1,4 @@
+// frontend-admin/src/pages/admin/AdminNewsPage.jsx
 import { useEffect, useState } from "react";
 import {
   Newspaper,
@@ -12,16 +13,14 @@ import {
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 import useToast from "../../components/ToastNotification";
-import DOMPurify from "dompurify";
 
-// ─── Helper Functions ────────────────────────────────────────────────
+// ─── DO NOT import DOMPurify ────────────────────────────────────────
+
 function resolveImage(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
   const base =
     import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-
   return `${base}${url}`;
 }
 
@@ -82,18 +81,14 @@ function NewsItem({ item, onToggle, onDelete }) {
                 <div
                   className="text-sm leading-6 text-slate-400 line-clamp-3"
                   dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(
-                      hasHtmlContent ? getPreview(item.html_content) : item.content
-                    ),
+                    __html: hasHtmlContent ? getPreview(item.html_content) : item.content,
                   }}
                 />
               ) : (
                 <div
                   className="text-sm leading-6 text-slate-200 prose prose-invert max-w-none"
                   dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(
-                      hasHtmlContent ? item.html_content : item.content
-                    ),
+                    __html: hasHtmlContent ? item.html_content : item.content,
                   }}
                 />
               )}
@@ -167,7 +162,7 @@ export default function AdminNewsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [contentMode, setContentMode] = useState("normal"); // "normal" | "html"
+  const [contentMode, setContentMode] = useState("normal");
 
   const [form, setForm] = useState({
     title: "",
@@ -210,7 +205,6 @@ export default function AdminNewsPage() {
         return;
       }
 
-      // Validate based on mode
       if (contentMode === "normal" && !form.content.trim()) {
         const errorMsg = "Content is required in Normal mode.";
         setError(errorMsg);
@@ -235,7 +229,6 @@ export default function AdminNewsPage() {
         is_active: form.is_active ? 1 : 0,
       };
 
-      // ✅ Send content based on mode
       if (contentMode === "normal") {
         payload.content = form.content.trim();
         payload.html_content = null;
@@ -293,7 +286,6 @@ export default function AdminNewsPage() {
       setSuccess("");
 
       if (typeof adminApi.updateNews === "function") {
-        // Preserve existing content fields
         await adminApi.updateNews(
           item.id,
           {
@@ -325,7 +317,6 @@ export default function AdminNewsPage() {
     }
   }
 
-  // ─── Render ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="space-y-5 text-white">
@@ -386,7 +377,6 @@ export default function AdminNewsPage() {
                 <h2 className="text-lg font-semibold text-white">Create News</h2>
               </div>
 
-              {/* ✅ Content Mode Toggle */}
               <div className="flex rounded-lg border border-white/10 overflow-hidden bg-[#050812]">
                 <button
                   type="button"
@@ -428,7 +418,6 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            {/* ✅ Content Field - Changes based on mode */}
             {contentMode === "normal" ? (
               <div>
                 <label className="mb-2 block text-sm text-slate-400">Content</label>
