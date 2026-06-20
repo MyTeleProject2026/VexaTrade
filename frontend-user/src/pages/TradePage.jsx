@@ -23,7 +23,7 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 
-// ---------- constants & helpers (keep unchanged) ----------
+// ---------- constants & helpers ----------
 const DEFAULT_PAIRS = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
@@ -163,14 +163,10 @@ export default function TradePage() {
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
-  // build order book with depth bars
+  // build order book (no depth bars)
   const orderBookData = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
-  const maxTotal = useMemo(() => {
-    const all = [...orderBookData.asks, ...orderBookData.bids];
-    return Math.max(...all.map(row => row.total), 1);
-  }, [orderBookData]);
 
-  // effects
+  // effects (unchanged)
   useEffect(() => {
     loadTradePage();
     checkUserTarget();
@@ -359,7 +355,7 @@ export default function TradePage() {
       setRemainingSeconds(Number(timer));
       setShowRunningTradeModal(true);
       await syncTradeState();
-      setBottomTab("orders"); // switch to orders tab to see new trade
+      setBottomTab("orders");
     } catch (err) {
       showError(getApiErrorMessage(err));
     } finally {
@@ -382,7 +378,7 @@ export default function TradePage() {
   return (
     <div className="min-h-screen bg-[#050812] pb-20 sm:pb-6">
 
-      {/* Target Banner (if any) */}
+      {/* Target Banner (sticky) */}
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#050812]/90 px-3 py-2 text-sm backdrop-blur-sm border-b border-cyan-500/20">
           <Target size={14} className="text-cyan-400" />
@@ -448,7 +444,7 @@ export default function TradePage() {
 
       {/* Two‑column: Order Book + Trade Panel */}
       <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        {/* Left: Order Book */}
+        {/* Left: Order Book (plain, no depth bars) */}
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold text-white">Order Book</h3>
@@ -457,11 +453,10 @@ export default function TradePage() {
           <div className="space-y-0.5">
             {/* Asks (red) */}
             {orderBookData.asks.map((row, idx) => (
-              <div key={`ask-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+              <div key={`ask-${idx}`} className="flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
                 <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
                 <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
                 <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
               </div>
             ))}
             {/* Spread */}
@@ -470,11 +465,10 @@ export default function TradePage() {
             </div>
             {/* Bids (green) */}
             {orderBookData.bids.map((row, idx) => (
-              <div key={`bid-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+              <div key={`bid-${idx}`} className="flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
                 <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
                 <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
                 <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
               </div>
             ))}
           </div>
@@ -544,10 +538,16 @@ export default function TradePage() {
               </div>
             </div>
 
-            {/* Available balance */}
+            {/* Available balance + Max buy */}
             <div className="flex justify-between text-xs text-slate-400">
               <span>Available</span>
               <span className="text-white">{formatAmount(wallet.balance)} USDT</span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Max buy</span>
+              <span className="text-white">
+                {selectedMarket ? (wallet.balance / selectedMarket.lastPrice).toFixed(8) : "0.00"} {pair.replace("USDT", "")}
+              </span>
             </div>
 
             {/* Summary (payout, profit, return) */}
@@ -708,12 +708,13 @@ export default function TradePage() {
 function buildOrderBook(price = 0) {
   const base = Number(price || 0);
   if (!base) return { asks: [], bids: [] };
-  const asks = Array.from({ length: 6 }).map((_, i) => {
+  // 5 rows each side – you can adjust length
+  const asks = Array.from({ length: 5 }).map((_, i) => {
     const p = base + base * (0.0006 + i * 0.00035);
     const a = 8 + i * 2.15;
     return { price: p, amount: a, total: p * a };
   });
-  const bids = Array.from({ length: 6 }).map((_, i) => {
+  const bids = Array.from({ length: 5 }).map((_, i) => {
     const p = base - base * (0.0006 + i * 0.00035);
     const a = 7.5 + i * 2.05;
     return { price: p, amount: a, total: p * a };
