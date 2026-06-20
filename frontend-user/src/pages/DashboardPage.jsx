@@ -18,7 +18,7 @@ import { userApi, marketApi, newsApi, getApiErrorMessage } from "../services/api
 import { useNotification } from "../hooks/useNotification";
 import DOMPurify from "dompurify";
 
-// ─── Helper Functions ────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -28,6 +28,7 @@ function formatMoney(value) {
   });
 }
 
+// Format large numbers compactly (e.g., 1,234,567 → 1.23M)
 function formatCompactNumber(value) {
   const num = Number(value || 0);
   if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
@@ -43,8 +44,11 @@ function formatDate(dateString) {
 }
 
 // ─── Components ──────────────────────────────────────────────────────
-function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
+function StatCard({ title, value, change, icon: Icon, onClick, subtext, compact }) {
   const isPositive = Number(change || 0) >= 0;
+  const displayValue = compact && Number(value.replace(/[$,]/g, '')) > 1000000 
+    ? formatCompactNumber(Number(value.replace(/[$,]/g, ''))) 
+    : value;
 
   return (
     <div
@@ -57,11 +61,10 @@ function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
         <div className="text-xs text-slate-500">{title}</div>
         <Icon size={16} className="text-slate-500" />
       </div>
-      <div className="mt-2 text-xl font-bold text-white">{value}</div>
+      <div className="mt-2 text-xl font-bold text-white">{displayValue}</div>
       {change !== undefined && (
         <div className={`mt-1 text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}
-          {change}%
+          {isPositive ? "+" : ""}{change}%
         </div>
       )}
       {subtext && <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>}
@@ -96,8 +99,7 @@ function MarketRow({ symbol, price, change, onClick }) {
       <div className="text-right">
         <div className="text-sm font-medium text-white">{formatMoney(price)}</div>
         <div className={`text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}
-          {change}%
+          {isPositive ? "+" : ""}{change}%
         </div>
       </div>
     </div>
@@ -107,15 +109,13 @@ function MarketRow({ symbol, price, change, onClick }) {
 // ─── News Item Component ─────────────────────────────────────────────
 function NewsItem({ news }) {
   const [expanded, setExpanded] = useState(false);
-  const hasContent = news.content && news.content.trim().length > 0;
-  const previewLength = 150; // characters
+  const hasContent = news.html_content || news.content;
 
   const getPreview = (html) => {
-    // Strip HTML tags for preview
     const div = document.createElement("div");
     div.innerHTML = html;
     const text = div.textContent || div.innerText || "";
-    return text.slice(0, previewLength) + (text.length > previewLength ? "..." : "");
+    return text.slice(0, 150) + (text.length > 150 ? "..." : "");
   };
 
   return (
@@ -149,14 +149,16 @@ function NewsItem({ news }) {
             <div
               className="prose prose-invert max-w-none text-xs text-slate-300 line-clamp-3"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(getPreview(news.content)),
+                __html: DOMPurify.sanitize(
+                  news.html_content ? getPreview(news.html_content) : getPreview(news.content)
+                ),
               }}
             />
           ) : (
             <div
               className="prose prose-invert max-w-none text-sm text-slate-200"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(news.content),
+                __html: DOMPurify.sanitize(news.html_content || news.content),
               }}
             />
           )}
@@ -189,7 +191,7 @@ export default function DashboardPage() {
   const [markets, setMarkets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [combinedBalanceData, setCombinedBalanceData] = useState(null);
-  const [news, setNews] = useState([]); // ✅ NEW state for news
+  const [news, setNews] = useState([]);
 
   async function loadData(silent = false) {
     try {
@@ -204,11 +206,9 @@ export default function DashboardPage() {
           `${
             import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"
           }/api/joint-account/combined-balance`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         ).then((res) => res.json()),
-        newsApi.getNews(), // ✅ Fetch news
+        newsApi.getNews(),
       ]);
 
       if (walletRes.status === "fulfilled") {
@@ -224,10 +224,11 @@ export default function DashboardPage() {
         setCombinedBalanceData(combinedRes.value.data);
       }
       if (newsRes.status === "fulfilled") {
-        // Ensure we have an array of news items
         const newsData = newsRes.value?.data;
         setNews(Array.isArray(newsData) ? newsData : []);
+        console.log(`📰 Loaded ${newsData?.length || 0} news items`);
       } else {
+        console.warn("📰 News fetch failed:", newsRes.reason);
         setNews([]);
       }
     } catch (err) {
@@ -259,6 +260,9 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // Format balance as string with $ prefix for StatCard
+  const balanceFormatted = `$${formatMoney(displayBalance)}`;
 
   return (
     <div className="min-h-screen bg-[#050812] p-4">
@@ -295,7 +299,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ✅ News Section - Full Scrollable List */}
+      {/* News Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-white">VexaTrade News</h2>
@@ -326,11 +330,12 @@ export default function DashboardPage() {
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           title={hasJointAccount ? "Combined Balance" : "Total Balance"}
-          value={`$${formatMoney(displayBalance)}`}
+          value={balanceFormatted}
           change="2.95"
           icon={hasJointAccount ? Users : Wallet}
           onClick={() => navigate("/assets")}
           subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
+          compact={true}   // ✅ Enable compact formatting for large numbers
         />
         <StatCard title="24h Change" value="+2.95%" change="2.95" icon={TrendingUp} />
         <StatCard
@@ -372,7 +377,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Custom Scrollbar Style (optional) */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;
