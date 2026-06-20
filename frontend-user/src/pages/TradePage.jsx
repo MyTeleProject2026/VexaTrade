@@ -1,4 +1,4 @@
-// frontend-user/src/pages/TradePage.jsx – ULTRA COMPACT
+// frontend-user/src/pages/TradePage.jsx – COMPLETE + ULTRA COMPACT
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw,
@@ -158,48 +158,115 @@ export default function TradePage() {
 
   const orderBookData = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
 
-  // effects (omitted for brevity – same as before)
-  useEffect(() => {
-    loadTradePage();
-    checkUserTarget();
-  }, []);
-  useEffect(() => {
-    if (hasTarget && targetProgress.targetAmount > 0) checkAndPromptNewTarget();
-  }, [hasTarget, targetProgress]);
-  useEffect(() => {
-    const interval = setInterval(() => syncTradeState(), 2500);
-    return () => clearInterval(interval);
-  }, [token]);
-  useEffect(() => {
-    if (!showRunningTradeModal || remainingSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setRemainingSeconds(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showRunningTradeModal, remainingSeconds]);
-  useEffect(() => {
-    if (!showRunningTradeModal) return;
-    if (remainingSeconds > 0) return;
-    setShowRunningTradeModal(false);
-    syncTradeState();
-    refreshTargetProgress();
-  }, [remainingSeconds, showRunningTradeModal]);
-  useEffect(() => {
-    if (!selectedMarket) return;
-    setPriceFlash(true);
-    const timeout = setTimeout(() => setPriceFlash(false), 300);
-    return () => clearTimeout(timeout);
-  }, [selectedMarket?.lastPrice, selectedMarket?.price]);
+  // ---------- API FUNCTIONS (fully implemented) ----------
+  async function loadTradePage() {
+    try {
+      setLoading(true);
+      const [walletRes, rulesRes, marketRes, openRes, historyRes] = await Promise.allSettled([
+        userApi.getWalletSummary(token),
+        tradeApi.rules(token),
+        marketApi.home(),
+        tradeApi.open(token),
+        tradeApi.history(token),
+      ]);
+      if (walletRes.status === "fulfilled") {
+        const data = walletRes.value.data?.data || {};
+        setWallet({ balance: Number(data.balance || 0) });
+      }
+      if (rulesRes.status === "fulfilled") setRules(Array.isArray(rulesRes.value.data?.data) ? rulesRes.value.data.data : []);
+      if (marketRes.status === "fulfilled") {
+        const rows = Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : [];
+        setMarketRows(rows);
+        if (rows.length > 0 && !rows.some(item => item.symbol === pair)) setPair(rows[0]?.symbol || "BTCUSDT");
+      }
+      if (openRes.status === "fulfilled") setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
+      if (historyRes.status === "fulfilled") setTradeHistory(Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : []);
+    } catch (err) {
+      showError(getApiErrorMessage(err) || "Failed to load trading terminal");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // API functions (same as earlier – copy from previous version)
-  async function loadTradePage() { /* ... keep exactly as before ... */ }
-  async function syncTradeState() { /* ... keep exactly as before ... */ }
-  async function checkUserTarget() { /* ... keep exactly as before ... */ }
-  async function refreshTargetProgress() { /* ... keep exactly as before ... */ }
-  async function checkAndPromptNewTarget() { /* ... keep exactly as before ... */ }
+  async function syncTradeState() {
+    try {
+      setRefreshing(true);
+      const [openRes, historyRes, walletRes, marketRes] = await Promise.allSettled([
+        tradeApi.open(token),
+        tradeApi.history(token),
+        userApi.getWalletSummary(token),
+        marketApi.home(),
+      ]);
+      let latestHistory = tradeHistory;
+      if (openRes.status === "fulfilled") setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
+      if (historyRes.status === "fulfilled") {
+        latestHistory = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
+        setTradeHistory(latestHistory);
+      }
+      if (walletRes.status === "fulfilled") {
+        const data = walletRes.value.data?.data || {};
+        setWallet({ balance: Number(data.balance || 0) });
+      }
+      if (marketRes.status === "fulfilled") setMarketRows(Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : []);
+      const latestPlacedId = lastPlacedTradeIdRef.current;
+      if (latestPlacedId) {
+        const settledTrade = latestHistory.find(item =>
+          Number(item.id) === Number(latestPlacedId) &&
+          ["win", "loss", "settled", "completed"].includes(String(item.status || item.result || "").toLowerCase())
+        );
+        if (settledTrade && shownSettledTradeIdRef.current !== settledTrade.id) {
+          shownSettledTradeIdRef.current = settledTrade.id;
+          setResultModal(settledTrade);
+          refreshTargetProgress();
+        }
+      }
+    } catch (_) { } finally { setRefreshing(false); }
+  }
+
+  async function checkUserTarget() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setHasTarget(true);
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+        setTargetAchievedNotified(false);
+      } else {
+        setHasTarget(false);
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  async function refreshTargetProgress() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  async function checkAndPromptNewTarget() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const target = res.data.data.target;
+        if (Number(target.current_profit) >= Number(target.target_amount) && !targetAchievedNotified) {
+          setTargetAchievedNotified(true);
+          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
+          setShowTargetModal(true);
+        }
+      }
+    } catch (err) { console.error(err); }
+  }
+
   async function handleQuickAmount(percent) {
     try {
       const res = await tradeApi.quickAmount({ percentage: percent }, token);
@@ -208,6 +275,7 @@ export default function TradePage() {
       showError(getApiErrorMessage(err));
     }
   }
+
   async function handlePlaceTrade(e) {
     e.preventDefault();
     if (!hasTarget) { setShowTargetModal(true); return; }
@@ -245,6 +313,7 @@ export default function TradePage() {
       setPlacing(false);
     }
   }
+
   function handleTargetSet(targetAmount) {
     setHasTarget(true);
     setTargetProgress({ currentProfit: 0, targetAmount: Number(targetAmount) });
@@ -252,8 +321,48 @@ export default function TradePage() {
     showSuccess(`Target set to ${targetAmount} USDT!`);
   }
 
+  // ---------- effects ----------
+  useEffect(() => {
+    loadTradePage();
+    checkUserTarget();
+  }, []);
+  useEffect(() => {
+    if (hasTarget && targetProgress.targetAmount > 0) checkAndPromptNewTarget();
+  }, [hasTarget, targetProgress]);
+  useEffect(() => {
+    const interval = setInterval(() => syncTradeState(), 2500);
+    return () => clearInterval(interval);
+  }, [token]);
+  useEffect(() => {
+    if (!showRunningTradeModal || remainingSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setRemainingSeconds(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showRunningTradeModal, remainingSeconds]);
+  useEffect(() => {
+    if (!showRunningTradeModal) return;
+    if (remainingSeconds > 0) return;
+    setShowRunningTradeModal(false);
+    syncTradeState();
+    refreshTargetProgress();
+  }, [remainingSeconds, showRunningTradeModal]);
+  useEffect(() => {
+    if (!selectedMarket) return;
+    setPriceFlash(true);
+    const timeout = setTimeout(() => setPriceFlash(false), 300);
+    return () => clearTimeout(timeout);
+  }, [selectedMarket?.lastPrice, selectedMarket?.price]);
+
   if (loading) {
-    return <div className="p-2 text-center text-slate-300">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-[#050812] flex items-center justify-center">
+        <div className="text-slate-300 text-sm">Loading terminal...</div>
+      </div>
+    );
   }
 
   // ---------- render ----------
@@ -519,7 +628,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Modals (unchanged) */}
+      {/* Running Trade Modal */}
       {showRunningTradeModal && runningTrade && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-[#0a0e1a] p-3 shadow-2xl sm:rounded-3xl">
@@ -541,6 +650,7 @@ export default function TradePage() {
         </div>
       )}
 
+      {/* Result Modal */}
       {resultModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-[#0a0e1a] p-3 shadow-2xl sm:rounded-3xl">
