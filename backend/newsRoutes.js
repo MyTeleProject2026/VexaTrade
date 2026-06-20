@@ -2,14 +2,37 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const { authenticateAdmin } = require("./server"); // You'll need to export authenticateAdmin from server.js, or redefine it here
+const jwt = require("jsonwebtoken");
 
-// ─── Helper Functions ────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
+
+// ─── Authentication Middleware (copied from server.js) ─────────────
+function authenticateAdmin(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ success: false, message: "Admin token missing" });
+  }
+  const token = authHeader.slice(7).trim();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Invalid admin token" });
+    }
+    req.admin = decoded;
+    next();
+  } catch (_error) {
+    return res.status(401).json({ success: false, message: "Invalid or expired admin token" });
+  }
+}
+
+// ─── Helper ──────────────────────────────────────────────────────────
 function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
 }
 
-// ─── GET all active news (public) ──────────────────────────────────
+// ─── Routes ─────────────────────────────────────────────────────────
+
+// GET /api/news – public active news
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -33,7 +56,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─── GET all news (admin) ────────────────────────────────────────────
+// GET /api/news/admin/all – admin view (all news)
 router.get("/admin/all", authenticateAdmin, async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -56,7 +79,7 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
   }
 });
 
-// ─── POST create news ──────────────────────────────────────────────
+// POST /api/news – create news (admin only)
 router.post("/", authenticateAdmin, async (req, res) => {
   try {
     const title = String(req.body.title || "").trim();
@@ -102,7 +125,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
   }
 });
 
-// ─── PUT update news ──────────────────────────────────────────────
+// PUT /api/news/:id – update news (admin only)
 router.put("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -162,7 +185,7 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
-// ─── DELETE news ──────────────────────────────────────────────────
+// DELETE /api/news/:id – delete news (admin only)
 router.delete("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
