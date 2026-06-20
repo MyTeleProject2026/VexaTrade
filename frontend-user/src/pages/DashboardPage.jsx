@@ -130,6 +130,8 @@ function NewsItem({ news }) {
     return text.slice(0, 150) + (text.length > 150 ? "..." : "");
   };
 
+  const hasContent = content && content.trim().length > 0;
+
   return (
     <div className="rounded-lg border border-white/10 bg-[#0a0e1a] p-3 transition hover:border-cyan-500/20">
       <div className="flex items-start justify-between gap-3">
@@ -145,16 +147,9 @@ function NewsItem({ news }) {
             )}
           </div>
         </div>
-        {content && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="shrink-0 rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:border-cyan-500/30 hover:text-white"
-          >
-            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-        )}
       </div>
-      {content && (
+
+      {hasContent && (
         <div className="mt-2">
           {!expanded ? (
             <div
@@ -171,8 +166,27 @@ function NewsItem({ news }) {
               }}
             />
           )}
+
+          {/* ✅ IMPROVED BUTTON – full width, cyan border, clear text */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-3 w-full rounded-lg bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-500/20 hover:text-cyan-300 flex items-center justify-center gap-2 border border-cyan-500/20"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp size={16} />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown size={16} />
+                Read Full Article →
+              </>
+            )}
+          </button>
         </div>
       )}
+
       {news.image_url && (
         <div className="mt-2">
           <img
@@ -313,7 +327,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ✅ NEWS SECTION - Full list, NOT NewsSlider */}
+      {/* News Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-white">VexaTrade News</h2>
