@@ -117,6 +117,7 @@ function MarketRow({ symbol, price, change, onClick }) {
   );
 }
 
+// ─── News Item Component ─────────────────────────────────────────────
 function NewsItem({ news }) {
   const [expanded, setExpanded] = useState(false);
   const rawContent = news.html_content || news.content || "";
@@ -218,37 +219,25 @@ export default function DashboardPage() {
         newsApi.getNews(),
       ]);
 
-      // ─── Wallet ──────────────────────────────────────────────────────
       if (walletRes.status === "fulfilled") {
         setWallet(walletRes.value?.data?.data || { balance: 0, walletLabel: "Main Wallet" });
       }
-
-      // ─── Markets ─────────────────────────────────────────────────────
       if (marketRes.status === "fulfilled") {
         setMarkets(Array.isArray(marketRes.value?.data?.data) ? marketRes.value.data.data : []);
       }
-
-      // ─── Notifications ──────────────────────────────────────────────
       if (notifRes.status === "fulfilled") {
         setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
       }
-
-      // ─── Combined Balance ──────────────────────────────────────────
       if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
         setCombinedBalanceData(combinedRes.value.data);
       }
-
-      // ─── NEWS ─── 🔥 Enhanced logging & fallback ──────────────────
       if (newsRes.status === "fulfilled") {
         const response = newsRes.value;
         console.log("📰 Full news response:", response);
-
-        // Try two possible data structures
         let newsData = response?.data?.data || response?.data || [];
         if (!Array.isArray(newsData)) {
           newsData = [];
         }
-
         console.log(`📰 Loaded ${newsData.length} news items`);
         if (newsData.length > 0) {
           console.log("📰 First news item:", newsData[0]);
@@ -324,7 +313,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* News Section */}
+      {/* ✅ NEWS SECTION - Full list, NOT NewsSlider */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-white">VexaTrade News</h2>
