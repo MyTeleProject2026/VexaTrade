@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
 
-// ─── Authentication Middleware (copied from server.js) ─────────────
+// ─── Authentication Middleware ──────────────────────────────────────
 function authenticateAdmin(req, res, next) {
   const authHeader = req.headers.authorization || "";
   if (!authHeader.startsWith("Bearer ")) {
@@ -25,7 +25,6 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
-// ─── Helper ──────────────────────────────────────────────────────────
 function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
 }
@@ -54,7 +53,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─── GET /api/news/admin/all – admin view (all news) ───────────────
+// ─── GET /api/news/admin/all – admin view ───────────────────────────
 router.get("/admin/all", authenticateAdmin, async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -123,7 +122,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
   }
 });
 
-// ─── PUT /api/news/:id – update news (admin only) ──────────────────
+// ─── PUT /api/news/:id – update news ────────────────────────────────
 router.put("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -183,7 +182,7 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
-// ─── DELETE /api/news/:id – delete news (admin only) ──────────────
+// ─── DELETE /api/news/:id – delete news ─────────────────────────────
 router.delete("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
