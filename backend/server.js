@@ -9066,3 +9066,5 @@ setInterval(() => {
     console.error("Auto deposit verification failed:", err.message);
   });
 }, 5 * 60 * 1000);
+
+module.exports = { authenticateAdmin, authenticateUser }; // or just authenticateAdmin
