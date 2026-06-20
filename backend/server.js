@@ -145,6 +145,10 @@ app.use("/api/admin/network-verification-settings", adminNetworkRoutes);
 const adminFundRoutes = require("./adminFundRoutes");
 app.use("/api/admin/fund-rules", adminFundRoutes);
 
+// ─── Override news routes ──────────────────────────────────────────
+const newsRoutes = require("./newsRoutes");
+app.use("/api/news", newsRoutes);
+
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
 const DB_NAME = process.env.DB_NAME;
