@@ -448,39 +448,44 @@ export default function TradePage() {
 
       {/* Two‑column: Order Book + Trade Panel */}
       <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        {/* Left: Order Book */}
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-white">Order Book</h3>
-            <span className="text-[10px] text-slate-500">Depth</span>
+        {/* ---------- UPDATED ORDER BOOK ---------- */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2 shadow-xl">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[10px] font-semibold text-white">Order Book</h3>
+            <span className="text-[8px] text-slate-500">Depth</span>
           </div>
-          <div className="space-y-0.5">
-            {/* Asks (red) */}
-            {orderBookData.asks.map((row, idx) => (
-              <div key={`ask-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
-                <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
-                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-              </div>
-            ))}
-            {/* Spread */}
-            <div className="my-1 rounded-lg border border-white/10 bg-[#050812] px-2 py-1 text-center text-[10px] text-slate-400">
-              Spread: {formatPrice(spread(orderBookData))}
+          <div className="flex gap-1">
+            {/* Asks - left column */}
+            <div className="flex-1 space-y-0.5">
+              {orderBookData.asks.map((row, idx) => (
+                <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[9px] px-1 py-0.5 hover:bg-white/5">
+                  <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
+                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                  <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+                </div>
+              ))}
             </div>
-            {/* Bids (green) */}
-            {orderBookData.bids.map((row, idx) => (
-              <div key={`bid-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
-                <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
-                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-              </div>
-            ))}
+            {/* Spread - middle */}
+            <div className="flex min-w-[50px] items-center justify-center border-x border-white/10 bg-[#050812] px-1 text-center text-[8px] text-slate-400">
+              {formatPrice(spread(orderBookData))}
+            </div>
+            {/* Bids - right column */}
+            <div className="flex-1 space-y-0.5">
+              {orderBookData.bids.map((row, idx) => (
+                <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[9px] px-1 py-0.5 hover:bg-white/5">
+                  <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
+                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                  <div className="absolute left-0 top-0 h-full rounded-l-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+        {/* ---------- END ORDER BOOK ---------- */}
 
-        {/* Right: Trade Panel */}
+        {/* Right: Trade Panel (unchanged) */}
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
           <form onSubmit={handlePlaceTrade} className="space-y-3">
             {/* Direction Tabs (Buy/Sell) */}
@@ -575,7 +580,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Bottom Navigation Tabs (Orders, Assets, History) */}
+      {/* Bottom Navigation Tabs (Orders, Assets, History) - unchanged */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0a0e1a] px-2 py-1 sm:static sm:mt-4 sm:border-t-0 sm:px-0 sm:py-0">
         <div className="flex justify-around sm:justify-start sm:gap-8">
           <button
