@@ -2,16 +2,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw,
-  Clock3,
   Wallet,
   TrendingUp,
   TrendingDown,
   History,
-  BarChart3,
   Activity,
   X,
   Flame,
   Target,
+  Clock3,
+  BarChart3,
 } from "lucide-react";
 import MarketChart from "../components/MarketChart";
 import {
@@ -23,7 +23,7 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 
-// ---------- constants & helpers ----------
+// ---------- constants & helpers (keep unchanged) ----------
 const DEFAULT_PAIRS = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
@@ -121,7 +121,9 @@ export default function TradePage() {
   const [timer, setTimer] = useState(60);
   const [amount, setAmount] = useState("");
   const [timeframe, setTimeframe] = useState("5m");
-  const [activeMobileTab, setActiveMobileTab] = useState("trade");
+
+  // bottom tab state (Orders / Assets / History)
+  const [bottomTab, setBottomTab] = useState("orders");
 
   const [resultModal, setResultModal] = useState(null);
   const [showRunningTradeModal, setShowRunningTradeModal] = useState(false);
@@ -161,6 +163,13 @@ export default function TradePage() {
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
+  // build order book with depth bars
+  const orderBookData = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
+  const maxTotal = useMemo(() => {
+    const all = [...orderBookData.asks, ...orderBookData.bids];
+    return Math.max(...all.map(row => row.total), 1);
+  }, [orderBookData]);
+
   // effects
   useEffect(() => {
     loadTradePage();
@@ -199,7 +208,7 @@ export default function TradePage() {
     return () => clearTimeout(timeout);
   }, [selectedMarket?.lastPrice, selectedMarket?.price]);
 
-  // API functions
+  // API functions (same as before)
   async function loadTradePage() {
     try {
       setLoading(true);
@@ -350,7 +359,7 @@ export default function TradePage() {
       setRemainingSeconds(Number(timer));
       setShowRunningTradeModal(true);
       await syncTradeState();
-      setActiveMobileTab("open");
+      setBottomTab("orders"); // switch to orders tab to see new trade
     } catch (err) {
       showError(getApiErrorMessage(err));
     } finally {
@@ -370,18 +379,12 @@ export default function TradePage() {
   }
 
   // ---------- render ----------
-  const mobileTabs = [
-    { key: "trade", label: "Trade" },
-    { key: "open", label: "Open" },
-    { key: "history", label: "History" },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5 xl:pb-5">
+    <div className="min-h-screen bg-[#050812] pb-20 sm:pb-6">
 
-      {/* Target banner (compact) */}
+      {/* Target Banner (if any) */}
       {hasTarget && targetProgress.targetAmount > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#050812]/90 px-3 py-2 text-sm backdrop-blur-sm border-b border-cyan-500/20">
           <Target size={14} className="text-cyan-400" />
           <span className="text-slate-300">Goal:</span>
           <span className="font-semibold text-white">
@@ -394,216 +397,257 @@ export default function TradePage() {
         </div>
       )}
 
-      {/* Header */}
-      <section className="mb-3 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_18%),#0a0e1a] p-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.32em] text-cyan-300">
-              <Flame size={12} /> VexaTrade
-            </div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">{pair}</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-[#050812] px-3 py-1.5 text-sm font-medium text-white">
-              {formatAmount(wallet.balance)} USDT
-            </span>
-            <button onClick={() => syncTradeState()} className="rounded-full border border-white/10 bg-[#050812] p-2 text-white transition hover:bg-white/5">
-              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            </button>
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+      {/* Header: Pair, Price, Change, Wallet */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <select
+            value={pair}
+            onChange={(e) => setPair(e.target.value)}
+            className="bg-transparent text-lg font-bold text-white outline-none"
+          >
+            {pairList.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
           <span className={`text-xl font-bold ${isPositive ? "text-emerald-300" : "text-red-300"} ${priceFlash ? "scale-105 transition" : ""}`}>
             {selectedMarket ? formatPrice(selectedMarket.lastPrice || selectedMarket.price) : "0.00"}
           </span>
           <span className={`text-sm font-semibold ${isPositive ? "text-emerald-300" : "text-red-300"}`}>
             {isPositive ? "+" : ""}{formatPercent(priceChange)}%
           </span>
-          <span className="text-xs text-slate-500">24h H: {formatPrice(selectedMarket?.highPrice || 0)}</span>
-          <span className="text-xs text-slate-500">L: {formatPrice(selectedMarket?.lowPrice || 0)}</span>
         </div>
-      </section>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-[#0a0e1a] px-3 py-1 text-xs font-medium text-white">
+            {formatAmount(wallet.balance)} USDT
+          </span>
+          <button onClick={() => syncTradeState()} className="rounded-full border border-white/10 bg-[#0a0e1a] p-2 text-white transition hover:bg-white/5">
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
+      </div>
 
-      {/* Desktop 2-column grid */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
+      {/* Chart Area */}
+      <div className="border-b border-white/10 bg-[#0a0e1a] p-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            {["1m", "5m", "15m", "1h"].map(tf => (
+              <button
+                key={tf}
+                type="button"
+                onClick={() => setTimeframe(tf)}
+                className={`rounded-md px-2 py-1 text-xs font-medium transition ${timeframe === tf ? "bg-cyan-500 text-black" : "text-slate-400 hover:text-white"}`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-slate-500">Live</span>
+        </div>
+        <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#050812]">
+          <MarketChart symbol={pair} interval={timeframe} height={280} />
+        </div>
+      </div>
 
-        {/* Left: Chart + Order Book */}
-        <div className="space-y-4">
-          {/* Chart */}
-          <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <select value={pair} onChange={(e) => setPair(e.target.value)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-sm text-white outline-none focus:border-cyan-500">
-                  {pairList.map(item => <option key={item} value={item}>{item}</option>)}
-                </select>
-                <div className="flex overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e1a]">
-                  {["1m", "5m", "15m", "1h"].map(item => (
-                    <button key={item} type="button" onClick={() => setTimeframe(item)} className={`px-3 py-1 text-xs font-medium transition ${timeframe === item ? "bg-cyan-500 text-black" : "text-slate-300 hover:bg-white/5"}`}>
-                      {item}
-                    </button>
-                  ))}
-                </div>
+      {/* Two‑column: Order Book + Trade Panel */}
+      <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
+        {/* Left: Order Book */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-white">Order Book</h3>
+            <span className="text-[10px] text-slate-500">Depth</span>
+          </div>
+          <div className="space-y-0.5">
+            {/* Asks (red) */}
+            {orderBookData.asks.map((row, idx) => (
+              <div key={`ask-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+                <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
+                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
               </div>
-              <button onClick={() => syncTradeState()} className="flex items-center gap-1 rounded-2xl border border-white/10 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/5">
-                <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
+            ))}
+            {/* Spread */}
+            <div className="my-1 rounded-lg border border-white/10 bg-[#050812] px-2 py-1 text-center text-[10px] text-slate-400">
+              Spread: {formatPrice(spread(orderBookData))}
+            </div>
+            {/* Bids (green) */}
+            {orderBookData.bids.map((row, idx) => (
+              <div key={`bid-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+                <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
+                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Trade Panel */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
+          <form onSubmit={handlePlaceTrade} className="space-y-3">
+            {/* Direction Tabs (Buy/Sell) */}
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#050812] p-1">
+              <button
+                type="button"
+                onClick={() => setDirection("bullish")}
+                className={`rounded-lg py-2 text-sm font-semibold transition ${direction === "bullish" ? "bg-emerald-500 text-black" : "text-slate-400 hover:text-white"}`}
+              >
+                <TrendingUp size={14} className="inline mr-1" /> Buy
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirection("bearish")}
+                className={`rounded-lg py-2 text-sm font-semibold transition ${direction === "bearish" ? "bg-red-500 text-black" : "text-slate-400 hover:text-white"}`}
+              >
+                <TrendingDown size={14} className="inline mr-1" /> Sell
               </button>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#050812]">
-              <MarketChart symbol={pair} interval={timeframe} height={360} />
-            </div>
-          </div>
 
-          {/* Order Book (desktop) - with depth bars */}
-          <div className="hidden xl:block rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-white">Order Book</h2>
-              <span className="text-[10px] text-slate-500">Depth</span>
-            </div>
-            <div className="space-y-1">
-              {/* Asks */}
-              {buildOrderBook(selectedMarket?.lastPrice || 0).asks.map((row, i) => (
-                <div key={`ask-${i}`} className="relative flex items-center justify-between rounded-md px-2 py-0.5 text-xs">
-                  <span className="font-medium text-red-300 w-1/3 truncate">{formatPrice(row.price)}</span>
-                  <span className="text-slate-300 w-1/3 truncate text-center">{formatAmount(row.amount)}</span>
-                  <span className="text-slate-400 w-1/3 truncate text-right">{formatPrice(row.total)}</span>
-                  <div className="absolute right-0 top-0 h-full w-1/6 rounded-r-md bg-red-500/20" style={{ width: `${Math.min(100, (row.total / orderBookMax) * 100)}%` }} />
-                </div>
-              ))}
-              {/* Spread */}
-              <div className="my-1 rounded-xl border border-white/10 bg-[#050812] px-3 py-1 text-center text-xs text-slate-400">
-                Spread: {formatPrice(spread())}
+            {/* Timer chips */}
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Timer</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[60, 180, 300].map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTimer(t)}
+                    className={`rounded-xl py-1.5 text-xs font-semibold transition ${Number(timer) === t ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}
+                  >
+                    {t}s
+                  </button>
+                ))}
               </div>
-              {/* Bids */}
-              {buildOrderBook(selectedMarket?.lastPrice || 0).bids.map((row, i) => (
-                <div key={`bid-${i}`} className="relative flex items-center justify-between rounded-md px-2 py-0.5 text-xs">
-                  <span className="font-medium text-emerald-300 w-1/3 truncate">{formatPrice(row.price)}</span>
-                  <span className="text-slate-300 w-1/3 truncate text-center">{formatAmount(row.amount)}</span>
-                  <span className="text-slate-400 w-1/3 truncate text-right">{formatPrice(row.total)}</span>
-                  <div className="absolute right-0 top-0 h-full w-1/6 rounded-r-md bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / orderBookMax) * 100)}%` }} />
-                </div>
-              ))}
             </div>
-          </div>
+
+            {/* Amount input + quick % */}
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Amount (USDT)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
+              />
+              <div className="mt-1 grid grid-cols-4 gap-1">
+                {[25, 50, 75, 100].map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handleQuickAmount(p)}
+                    className="rounded-xl border border-white/10 bg-[#0a0e1a] py-1 text-xs font-medium text-slate-300 hover:bg-white/5"
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Available balance */}
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>Available</span>
+              <span className="text-white">{formatAmount(wallet.balance)} USDT</span>
+            </div>
+
+            {/* Summary (payout, profit, return) */}
+            <div className="rounded-xl border border-white/10 bg-[#050812] p-2 text-xs">
+              <div className="grid grid-cols-3 gap-1">
+                <div><span className="text-slate-500">Payout</span> <span className="font-semibold text-white">{formatPercent(activeRule?.payout_percent || 0)}%</span></div>
+                <div><span className="text-slate-500">Profit</span> <span className="font-semibold text-emerald-300">+{formatAmount(estimatedProfit)}</span></div>
+                <div><span className="text-slate-500">Return</span> <span className="font-semibold text-cyan-300">{formatAmount(estimatedPayout)}</span></div>
+              </div>
+            </div>
+
+            {/* Action button */}
+            <button
+              type="submit"
+              disabled={placing || showRunningTradeModal}
+              className={`w-full rounded-xl py-2.5 text-sm font-bold text-black transition hover:scale-[1.02] disabled:opacity-60 ${
+                direction === "bullish"
+                  ? "bg-gradient-to-r from-emerald-400 to-emerald-600"
+                  : "bg-gradient-to-r from-red-400 to-red-600"
+              }`}
+            >
+              {placing ? "Placing..." : showRunningTradeModal ? "Trade Running..." : `${direction === "bullish" ? "Buy" : "Sell"} ${pair}`}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Bottom Navigation Tabs (Orders, Assets, History) */}
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0a0e1a] px-2 py-1 sm:static sm:mt-4 sm:border-t-0 sm:px-0 sm:py-0">
+        <div className="flex justify-around sm:justify-start sm:gap-8">
+          <button
+            type="button"
+            onClick={() => setBottomTab("orders")}
+            className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "orders" ? "text-cyan-400" : "text-slate-500"}`}
+          >
+            <BarChart3 size={18} />
+            <span>Orders ({openTrades.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBottomTab("assets")}
+            className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "assets" ? "text-cyan-400" : "text-slate-500"}`}
+          >
+            <Wallet size={18} />
+            <span>Assets</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBottomTab("history")}
+            className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "history" ? "text-cyan-400" : "text-slate-500"}`}
+          >
+            <History size={18} />
+            <span>History</span>
+          </button>
         </div>
 
-        {/* Right: Trade Form + Open/History */}
-        <div className="space-y-4">
-          {/* Mobile tabs */}
-          <div className="xl:hidden rounded-3xl border border-white/10 bg-[#0a0e1a] p-1 shadow-xl">
-            <div className="grid grid-cols-3 gap-1">
-              {mobileTabs.map(tab => (
-                <button key={tab.key} type="button" onClick={() => setActiveMobileTab(tab.key)} className={`rounded-2xl py-2 text-sm font-semibold transition ${activeMobileTab === tab.key ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300"}`}>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Trade Form */}
-          <div className={activeMobileTab === "trade" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-white">Place Trade</h2>
-                <span className="text-[10px] text-slate-500">AI powered</span>
-              </div>
-
-              <form onSubmit={handlePlaceTrade} className="space-y-3">
-                {/* Direction Tabs */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setDirection("bullish")} className={`rounded-2xl py-2 text-sm font-semibold transition ${direction === "bullish" ? "bg-emerald-500/20 text-emerald-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
-                    <TrendingUp size={14} className="inline mr-1" /> Long
-                  </button>
-                  <button type="button" onClick={() => setDirection("bearish")} className={`rounded-2xl py-2 text-sm font-semibold transition ${direction === "bearish" ? "bg-red-500/20 text-red-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
-                    <TrendingDown size={14} className="inline mr-1" /> Short
-                  </button>
-                </div>
-
-                {/* Timer chips */}
-                <div>
-                  <label className="mb-1 block text-xs text-slate-400">Timer</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[60, 180, 300].map(item => (
-                      <button key={item} type="button" onClick={() => setTimer(item)} className={`rounded-2xl py-1.5 text-xs font-semibold transition ${Number(timer) === item ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
-                        {item}s
-                      </button>
-                    ))}
+        {/* Content panels for each tab */}
+        <div className="mt-2 max-h-60 overflow-y-auto border-t border-white/10 pt-2 sm:max-h-none sm:border-0 sm:pt-0">
+          {bottomTab === "orders" && (
+            <div className="space-y-2 px-2">
+              {openTrades.length ? openTrades.map(trade => (
+                <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-white">{trade.pair}</span>
+                    <StatusPill value={trade.status} />
+                  </div>
+                  <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
+                    <span>{trade.direction} • {trade.timer || trade.timer_seconds}s</span>
+                    <span>{formatAmount(trade.amount)} USDT</span>
+                    <span className="text-amber-300">{formatCountdown(trade.end_time)}</span>
                   </div>
                 </div>
+              )) : <div className="py-4 text-center text-sm text-slate-400">No open orders.</div>}
+            </div>
+          )}
 
-                {/* Amount */}
-                <div>
-                  <label className="mb-1 block text-xs text-slate-400">Amount (USDT)</label>
-                  <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-sm text-white outline-none focus:border-cyan-500" />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {[25, 50, 75].map(p => <button key={p} type="button" onClick={() => handleQuickAmount(p)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/5">{p}%</button>)}
-                </div>
+          {bottomTab === "assets" && (
+            <div className="px-2 py-4 text-center text-sm text-slate-400">
+              <div className="text-white">{formatAmount(wallet.balance)} USDT</div>
+              <div className="text-xs text-slate-500">Available Balance</div>
+            </div>
+          )}
 
-                {/* Summary */}
-                <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-xs">
-                  <div className="grid grid-cols-3 gap-1">
-                    <div><span className="text-slate-500">Payout</span> <span className="font-semibold text-white">{formatPercent(activeRule?.payout_percent || 0)}%</span></div>
-                    <div><span className="text-slate-500">Profit</span> <span className="font-semibold text-emerald-300">+{formatAmount(estimatedProfit)}</span></div>
-                    <div><span className="text-slate-500">Return</span> <span className="font-semibold text-cyan-300">{formatAmount(estimatedPayout)}</span></div>
+          {bottomTab === "history" && (
+            <div className="space-y-2 px-2">
+              {tradeHistory.length ? tradeHistory.slice(0, 10).map(trade => (
+                <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-white">{trade.pair}</span>
+                    <StatusPill value={trade.result || trade.status} />
+                  </div>
+                  <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
+                    <span>{trade.direction}</span>
+                    <span>{formatAmount(trade.amount)} USDT</span>
+                    <span>{formatDateTime(trade.created_at)}</span>
                   </div>
                 </div>
-
-                <button type="submit" disabled={placing || showRunningTradeModal} className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2.5 text-sm font-semibold text-black transition hover:scale-[1.02] disabled:opacity-60">
-                  {placing ? "Placing..." : showRunningTradeModal ? "Trade Running..." : "Open Trade"}
-                </button>
-              </form>
+              )) : <div className="py-4 text-center text-sm text-slate-400">No history.</div>}
             </div>
-          </div>
-
-          {/* Open Trades */}
-          <div className={activeMobileTab === "open" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-white">Open Trades</h2>
-                <span className="rounded-full border border-white/10 bg-[#050812] px-2 py-0.5 text-[10px] text-slate-300">{openTrades.length}</span>
-              </div>
-              <div className="space-y-2">
-                {openTrades.length ? openTrades.slice(0, 5).map(trade => (
-                  <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-semibold text-white">{trade.pair}</span>
-                      <StatusPill value={trade.status} />
-                    </div>
-                    <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
-                      <span>{trade.direction} • {trade.timer || trade.timer_seconds}s</span>
-                      <span>{formatAmount(trade.amount)} USDT</span>
-                      <span className="text-amber-300">{formatCountdown(trade.end_time)}</span>
-                    </div>
-                  </div>
-                )) : <div className="rounded-xl border border-white/10 bg-[#050812] px-4 py-6 text-center text-sm text-slate-400">No open trades.</div>}
-              </div>
-            </div>
-          </div>
-
-          {/* History */}
-          <div className={activeMobileTab === "history" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-white">History</h2>
-                <History size={14} className="text-slate-500" />
-              </div>
-              <div className="space-y-2">
-                {tradeHistory.length ? tradeHistory.slice(0, 5).map(trade => (
-                  <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-semibold text-white">{trade.pair}</span>
-                      <StatusPill value={trade.result || trade.status} />
-                    </div>
-                    <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
-                      <span>{trade.direction}</span>
-                      <span>{formatAmount(trade.amount)} USDT</span>
-                      <span>{formatDateTime(trade.created_at)}</span>
-                    </div>
-                  </div>
-                )) : <div className="rounded-xl border border-white/10 bg-[#050812] px-4 py-6 text-center text-sm text-slate-400">No history yet.</div>}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -664,12 +708,12 @@ export default function TradePage() {
 function buildOrderBook(price = 0) {
   const base = Number(price || 0);
   if (!base) return { asks: [], bids: [] };
-  const asks = Array.from({ length: 5 }).map((_, i) => {
+  const asks = Array.from({ length: 6 }).map((_, i) => {
     const p = base + base * (0.0006 + i * 0.00035);
     const a = 8 + i * 2.15;
     return { price: p, amount: a, total: p * a };
   });
-  const bids = Array.from({ length: 5 }).map((_, i) => {
+  const bids = Array.from({ length: 6 }).map((_, i) => {
     const p = base - base * (0.0006 + i * 0.00035);
     const a = 7.5 + i * 2.05;
     return { price: p, amount: a, total: p * a };
@@ -677,16 +721,9 @@ function buildOrderBook(price = 0) {
   return { asks, bids };
 }
 
-function orderBookMax() {
-  const book = buildOrderBook(1); // dummy
-  const all = [...book.asks, ...book.bids];
-  return Math.max(...all.map(row => row.total), 1);
-}
-
-function spread() {
-  const book = buildOrderBook(1);
-  if (!book.asks.length || !book.bids.length) return 0;
-  const bestAsk = Math.min(...book.asks.map(r => r.price));
-  const bestBid = Math.max(...book.bids.map(r => r.price));
+function spread(orderBook) {
+  if (!orderBook.asks.length || !orderBook.bids.length) return 0;
+  const bestAsk = Math.min(...orderBook.asks.map(r => r.price));
+  const bestBid = Math.max(...orderBook.bids.map(r => r.price));
   return bestAsk - bestBid;
 }
