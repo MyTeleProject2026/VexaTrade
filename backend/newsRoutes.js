@@ -30,9 +30,7 @@ function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
 }
 
-// ─── Routes ─────────────────────────────────────────────────────────
-
-// GET /api/news – public active news
+// ─── GET /api/news – public active news ─────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -56,7 +54,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/news/admin/all – admin view (all news)
+// ─── GET /api/news/admin/all – admin view (all news) ───────────────
 router.get("/admin/all", authenticateAdmin, async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -79,7 +77,7 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
   }
 });
 
-// POST /api/news – create news (admin only)
+// ─── POST /api/news – create news (admin only) ─────────────────────
 router.post("/", authenticateAdmin, async (req, res) => {
   try {
     const title = String(req.body.title || "").trim();
@@ -125,7 +123,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/news/:id – update news (admin only)
+// ─── PUT /api/news/:id – update news (admin only) ──────────────────
 router.put("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -185,7 +183,7 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/news/:id – delete news (admin only)
+// ─── DELETE /api/news/:id – delete news (admin only) ──────────────
 router.delete("/:id", authenticateAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
