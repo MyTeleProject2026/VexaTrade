@@ -10,11 +10,15 @@ import {
   ArrowUpToLine,
   ArrowRightLeft,
   Users,
+  ChevronDown,
+  ChevronUp,
+  Clock,
 } from "lucide-react";
-import { userApi, marketApi, getApiErrorMessage } from "../services/api";
+import { userApi, marketApi, newsApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
-import NewsSlider from "../components/NewsSlider";
+import DOMPurify from "dompurify";
 
+// ─── Helper Functions ────────────────────────────────────────────────
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -32,13 +36,22 @@ function formatCompactNumber(value) {
   return num.toString();
 }
 
+function formatDate(dateString) {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ─── Components ──────────────────────────────────────────────────────
 function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
   const isPositive = Number(change || 0) >= 0;
-  
+
   return (
-    <div 
+    <div
       onClick={onClick}
-      className={`rounded-xl border border-white/10 bg-[#0a0e1a] p-4 transition hover:scale-[1.02] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl border border-white/10 bg-[#0a0e1a] p-4 transition hover:scale-[1.02] ${
+        onClick ? "cursor-pointer" : ""
+      }`}
     >
       <div className="flex items-center justify-between">
         <div className="text-xs text-slate-500">{title}</div>
@@ -47,12 +60,11 @@ function StatCard({ title, value, change, icon: Icon, onClick, subtext }) {
       <div className="mt-2 text-xl font-bold text-white">{value}</div>
       {change !== undefined && (
         <div className={`mt-1 text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}{change}%
+          {isPositive ? "+" : ""}
+          {change}%
         </div>
       )}
-      {subtext && (
-        <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>
-      )}
+      {subtext && <div className="mt-1 text-[10px] text-cyan-400">{subtext}</div>}
     </div>
   );
 }
@@ -71,9 +83,9 @@ function ActionButton({ icon: Icon, label, onClick }) {
 
 function MarketRow({ symbol, price, change, onClick }) {
   const isPositive = Number(change || 0) >= 0;
-  
+
   return (
-    <div 
+    <div
       onClick={onClick}
       className="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-[#0a0e1a] px-3 py-2 transition hover:border-cyan-500/30"
     >
@@ -84,38 +96,119 @@ function MarketRow({ symbol, price, change, onClick }) {
       <div className="text-right">
         <div className="text-sm font-medium text-white">{formatMoney(price)}</div>
         <div className={`text-xs ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-          {isPositive ? "+" : ""}{change}%
+          {isPositive ? "+" : ""}
+          {change}%
         </div>
       </div>
     </div>
   );
 }
 
+// ─── News Item Component ─────────────────────────────────────────────
+function NewsItem({ news }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasContent = news.content && news.content.trim().length > 0;
+  const previewLength = 150; // characters
+
+  const getPreview = (html) => {
+    // Strip HTML tags for preview
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    const text = div.textContent || div.innerText || "";
+    return text.slice(0, previewLength) + (text.length > previewLength ? "..." : "");
+  };
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#0a0e1a] p-3 transition hover:border-cyan-500/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold text-white">{news.title}</h4>
+          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+            <Clock size={12} />
+            <span>{formatDate(news.created_at)}</span>
+            {news.is_active === 1 && (
+              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300">
+                Active
+              </span>
+            )}
+          </div>
+        </div>
+        {hasContent && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="shrink-0 rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:border-cyan-500/30 hover:text-white"
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        )}
+      </div>
+
+      {hasContent && (
+        <div className="mt-2">
+          {!expanded ? (
+            <div
+              className="prose prose-invert max-w-none text-xs text-slate-300 line-clamp-3"
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(getPreview(news.content)),
+              }}
+            />
+          ) : (
+            <div
+              className="prose prose-invert max-w-none text-sm text-slate-200"
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(news.content),
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {news.image_url && (
+        <div className="mt-2">
+          <img
+            src={news.image_url}
+            alt={news.title}
+            className="max-h-32 w-full rounded-lg object-cover"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dashboard ──────────────────────────────────────────────────
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { showError } = useNotification();
-  
+
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
   const [markets, setMarkets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [combinedBalanceData, setCombinedBalanceData] = useState(null);
+  const [news, setNews] = useState([]); // ✅ NEW state for news
 
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
       else setRefreshing(true);
 
-      const [walletRes, marketRes, notifRes, combinedRes] = await Promise.allSettled([
+      const [walletRes, marketRes, notifRes, combinedRes, newsRes] = await Promise.allSettled([
         userApi.getWalletSummary(token),
         marketApi.home(),
         userApi.getNotifications(token),
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then(res => res.json())
+        fetch(
+          `${
+            import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"
+          }/api/joint-account/combined-balance`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        ).then((res) => res.json()),
+        newsApi.getNews(), // ✅ Fetch news
       ]);
 
       if (walletRes.status === "fulfilled") {
@@ -129,6 +222,13 @@ export default function DashboardPage() {
       }
       if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
         setCombinedBalanceData(combinedRes.value.data);
+      }
+      if (newsRes.status === "fulfilled") {
+        // Ensure we have an array of news items
+        const newsData = newsRes.value?.data;
+        setNews(Array.isArray(newsData) ? newsData : []);
+      } else {
+        setNews([]);
       }
     } catch (err) {
       showError(getApiErrorMessage(err));
@@ -144,13 +244,13 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
   const topMarkets = markets.slice(0, 8);
-  
+
   const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
-  const displayBalance = hasJointAccount 
-    ? combinedBalanceData.combinedBalance 
-    : (wallet.balance || 0);
+  const displayBalance = hasJointAccount
+    ? combinedBalanceData.combinedBalance
+    : wallet.balance || 0;
 
   if (loading) {
     return (
@@ -173,7 +273,7 @@ export default function DashboardPage() {
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/transactions")}
@@ -195,9 +295,31 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* News Slider Section */}
+      {/* ✅ News Section - Full Scrollable List */}
       <div className="mb-4">
-        <NewsSlider />
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white">VexaTrade News</h2>
+          {news.length > 3 && (
+            <button
+              onClick={() => navigate("/news")}
+              className="text-xs text-cyan-400 hover:text-cyan-300"
+            >
+              View All →
+            </button>
+          )}
+        </div>
+
+        {news.length === 0 ? (
+          <div className="mt-2 rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center text-sm text-slate-400">
+            No news available at the moment.
+          </div>
+        ) : (
+          <div className="mt-2 max-h-[400px] overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+            {news.map((item) => (
+              <NewsItem key={item.id} news={item} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Balance Cards */}
@@ -210,12 +332,7 @@ export default function DashboardPage() {
           onClick={() => navigate("/assets")}
           subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
         />
-        <StatCard
-          title="24h Change"
-          value="+2.95%"
-          change="2.95"
-          icon={TrendingUp}
-        />
+        <StatCard title="24h Change" value="+2.95%" change="2.95" icon={TrendingUp} />
         <StatCard
           title="24h Volume"
           value={formatCompactNumber(28456789)}
@@ -254,6 +371,24 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Custom Scrollbar Style (optional) */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #0a0e1a;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #00d4ff;
+          border-radius: 10px;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #00d4ff #0a0e1a;
+        }
+      `}</style>
     </div>
   );
 }
