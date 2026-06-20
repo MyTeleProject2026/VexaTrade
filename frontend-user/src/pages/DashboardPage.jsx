@@ -28,7 +28,6 @@ function formatMoney(value) {
   });
 }
 
-// Format large numbers compactly (e.g., 1,234,567 → 1.23M)
 function formatCompactNumber(value) {
   const num = Number(value || 0);
   if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(2)}B`;
@@ -58,7 +57,6 @@ function extractBodyContent(html) {
 function StatCard({ title, value, change, icon: Icon, onClick, subtext, compact }) {
   const isPositive = Number(change || 0) >= 0;
 
-  // If compact is true and value looks like a currency, try to compact it
   let displayValue = value;
   if (compact && typeof value === "string" && value.startsWith("$")) {
     const numeric = Number(value.replace(/[$,]/g, ""));
@@ -350,7 +348,7 @@ export default function DashboardPage() {
           icon={hasJointAccount ? Users : Wallet}
           onClick={() => navigate("/assets")}
           subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
-          compact={true}   // ✅ Enable compact formatting for large numbers
+          compact={true}
         />
         <StatCard title="24h Change" value="+2.95%" change="2.95" icon={TrendingUp} />
         <StatCard
