@@ -40,7 +40,7 @@ function resolveImage(url) {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://VexaTrade-4rhe.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
   return `${base}${url}`;
 }
@@ -61,18 +61,35 @@ export default function NewsSlider() {
     try {
       setLoading(true);
       const res = await newsApi.getNews();
-      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
+      console.log("📰 [NewsSlider] Full response:", res);
+
+      // ✅ Try multiple data paths
+      let rows = [];
+      if (res?.data?.data && Array.isArray(res.data.data)) {
+        rows = res.data.data;
+      } else if (res?.data && Array.isArray(res.data)) {
+        rows = res.data;
+      } else if (Array.isArray(res)) {
+        rows = res;
+      }
+
+      console.log(`📰 [NewsSlider] Fetched ${rows.length} raw items`);
 
       const activeRows = rows.filter(
         (item) => Number(item.is_active ?? 1) === 1
       );
 
+      console.log(`📰 [NewsSlider] ${activeRows.length} active items`);
+
       if (activeRows.length > 0) {
         setItems(activeRows);
       } else {
+        // Only fallback if we have no active rows, but log a warning
+        console.warn("📰 [NewsSlider] No active news, using fallback.");
         setItems(FALLBACK_NEWS);
       }
-    } catch {
+    } catch (error) {
+      console.error("📰 [NewsSlider] Load error:", error);
       setItems(FALLBACK_NEWS);
     } finally {
       setLoading(false);
@@ -96,6 +113,9 @@ export default function NewsSlider() {
   const activeItem = useMemo(() => {
     return items[activeIndex] || FALLBACK_NEWS[0];
   }, [items, activeIndex]);
+
+  // ✅ Show all thumbnails, not just first 3
+  const thumbnails = items.slice(0, 5); // Show up to 5, but you can increase
 
   return (
     <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[#0d0d0d] shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
@@ -143,7 +163,7 @@ export default function NewsSlider() {
             </div>
           </div>
 
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-5 flex flex-wrap items-center gap-2">
             {items.map((item, index) => (
               <button
                 key={item.id || index}
