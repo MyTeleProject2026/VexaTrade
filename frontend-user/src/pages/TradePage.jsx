@@ -1,7 +1,7 @@
+// frontend-user/src/pages/TradePage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw,
-  ChevronDown,
   Clock3,
   Wallet,
   TrendingUp,
@@ -23,139 +23,55 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 
+// ---------- constants & helpers ----------
 const DEFAULT_PAIRS = [
-  "BTCUSDT",
-  "ETHUSDT",
-  "SOLUSDT",
-  "BNBUSDT",
-  "XRPUSDT",
-  "DOGEUSDT",
-  "ADAUSDT",
-  "TRXUSDT",
-  "AVAXUSDT",
-  "LINKUSDT",
-  "TONUSDT",
-  "LTCUSDT",
+  "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
+  "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
+  "TONUSDT", "LTCUSDT",
 ];
 
-function formatAmount(value) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) return "0.00";
-  return num.toFixed(2);
-}
-
-function formatPrice(value) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) return "0.00";
-  return num.toLocaleString(undefined, {
+function formatAmount(v) { return Number(v || 0).toFixed(2); }
+function formatPrice(v) {
+  return Number(v || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 8,
   });
 }
-
-function formatPercent(value) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) return "0.00";
-  return num.toFixed(2);
+function formatPercent(v) { return Number(v || 0).toFixed(2); }
+function formatDateTime(d) {
+  if (!d) return "-";
+  try { return new Date(d).toLocaleString(); } catch { return d; }
+}
+function getCountdownSeconds(end) {
+  if (!end) return 0;
+  const diff = new Date(end).getTime() - Date.now();
+  return Math.max(0, Math.floor(diff / 1000));
+}
+function formatCountdown(end) {
+  const total = getCountdownSeconds(end);
+  const m = Math.floor(total / 60), s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function formatDateTime(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-function getCountdownSeconds(endTime) {
-  if (!endTime) return 0;
-  const end = new Date(endTime).getTime();
-  const now = Date.now();
-  return Math.max(0, Math.floor((end - now) / 1000));
-}
-
-function formatCountdown(endTime) {
-  const total = getCountdownSeconds(endTime);
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
-function formatSecondsToClock(totalSeconds) {
-  const mins = Math.floor(Number(totalSeconds || 0) / 60);
-  const secs = Number(totalSeconds || 0) % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
-function buildOrderBook(currentPrice = 0) {
-  const base = Number(currentPrice || 0);
-  if (!base) return { asks: [], bids: [] };
-  const asks = Array.from({ length: 4 }).map((_, index) => {
-    const price = base + base * (0.0006 + index * 0.00035);
-    const amount = 8 + index * 2.15;
-    const total = price * amount;
-    return { price, amount, total };
-  });
-  const bids = Array.from({ length: 4 }).map((_, index) => {
-    const price = base - base * (0.0006 + index * 0.00035);
-    const amount = 7.5 + index * 2.05;
-    const total = price * amount;
-    return { price, amount, total };
-  });
-  return { asks, bids };
-}
-
-function getPriceToneClass(change) {
-  const num = Number(change || 0);
-  if (num > 0) return "text-emerald-300";
-  if (num < 0) return "text-red-300";
-  return "text-white";
-}
-
+// ---------- subcomponents ----------
 function StatusPill({ value }) {
   const v = String(value || "").toLowerCase();
-  if (v === "open" || v === "pending")
-    return <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300">{value}</span>;
-  if (v === "win" || v === "approved" || v === "completed")
-    return <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">{value}</span>;
-  if (v === "loss" || v === "rejected" || v === "failed")
-    return <span className="rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-300">{value}</span>;
-  return <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300">{value || "-"}</span>;
-}
-
-function SmallStat({ label, value, valueClassName = "text-white", icon: Icon }) {
-  return (
-    <div className="rounded-[22px] border border-white/10 bg-[#0a0e1a] px-3 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.22)]">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">
-        {Icon ? <Icon size={12} /> : null}
-        {label}
-      </div>
-      <div className={`mt-1.5 text-sm font-semibold sm:text-[15px] ${valueClassName}`}>{value}</div>
-    </div>
-  );
-}
-
-function TopPriceCard({ label, value, valueClassName = "text-white", flash = false }) {
-  return (
-    <div className={`rounded-[24px] border border-white/10 bg-[#0a0e1a] px-4 py-3 shadow-[0_10px_34px_rgba(0,0,0,0.24)] transition ${flash ? "scale-[1.01] border-cyan-400/20" : ""}`}>
-      <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500 sm:text-[11px]">{label}</div>
-      <div className={`mt-2 text-[17px] font-bold sm:text-[18px] ${valueClassName}`}>{value}</div>
-    </div>
-  );
-}
-
-function TabButton({ active, onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} className={`rounded-2xl px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"}`}>
-      {children}
-    </button>
-  );
+  const cls = (bg, text) =>
+    `rounded-full border px-2.5 py-1 text-[11px] font-semibold ${bg} ${text}`;
+  if (["open", "pending"].includes(v))
+    return <span className={cls("border-amber-500/20 bg-amber-500/10", "text-amber-300")}>{value}</span>;
+  if (["win", "approved", "completed"].includes(v))
+    return <span className={cls("border-emerald-500/20 bg-emerald-500/10", "text-emerald-300")}>{value}</span>;
+  if (["loss", "rejected", "failed"].includes(v))
+    return <span className={cls("border-red-500/20 bg-red-500/10", "text-red-300")}>{value}</span>;
+  return <span className={cls("border-white/10 bg-white/5", "text-slate-300")}>{value || "-"}</span>;
 }
 
 function TradeSlipRow({ label, value, valueClassName = "text-white" }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-[15px] text-slate-400">{label}</span>
-      <span className={`text-right text-[15px] font-medium ${valueClassName}`}>{value}</span>
+      <span className="text-sm text-slate-400">{label}</span>
+      <span className={`text-right text-sm font-medium ${valueClassName}`}>{value}</span>
     </div>
   );
 }
@@ -175,24 +91,26 @@ function CircularTimer({ remaining, total, direction }) {
         <circle cx="100" cy="100" r={radius} stroke={ringColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: "stroke-dashoffset 1s linear" }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-[44px] font-semibold tracking-wide text-white">{formatSecondsToClock(safeRemaining)}</div>
+        <div className="text-[44px] font-semibold tracking-wide text-white">
+          {String(Math.floor(safeRemaining / 60)).padStart(2, "0")}:{String(safeRemaining % 60).padStart(2, "0")}
+        </div>
         <div className="mt-2 text-sm text-slate-400">Trade Running</div>
       </div>
     </div>
   );
 }
 
+// ---------- main component ----------
 export default function TradePage() {
-  const token = localStorage.getItem("userToken") || localStorage.getItem("token") || localStorage.getItem("accessToken") || "";
+  const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
   const { showSuccess, showError, showVoucher } = useNotification();
 
+  // state
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [, setTick] = useState(0);
   const [priceFlash, setPriceFlash] = useState(false);
-
-  const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet", user: null });
+  const [wallet, setWallet] = useState({ balance: 0 });
   const [rules, setRules] = useState([]);
   const [marketRows, setMarketRows] = useState([]);
   const [openTrades, setOpenTrades] = useState([]);
@@ -210,8 +128,7 @@ export default function TradePage() {
   const [runningTrade, setRunningTrade] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
-  const [screenWidth, setScreenWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
-
+  // target
   const [hasTarget, setHasTarget] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetChecking, setTargetChecking] = useState(true);
@@ -222,144 +139,52 @@ export default function TradePage() {
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
 
-  async function checkUserTarget() {
-    try {
-      setTargetChecking(true);
-      const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const targetData = res.data.data.target;
-        setHasTarget(true);
-        setUserTarget(targetData);
-        setTargetProgress({
-          currentProfit: Number(targetData.current_profit || 0),
-          targetAmount: Number(targetData.target_amount || 0),
-        });
-        setTargetAchievedNotified(false);
-      } else {
-        setHasTarget(false);
-        setUserTarget(null);
-      }
-    } catch (err) {
-      console.error("Failed to check target:", err);
-      setHasTarget(false);
-    } finally {
-      setTargetChecking(false);
-    }
-  }
-
-  async function refreshTargetProgress() {
-    try {
-      const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const targetData = res.data.data.target;
-        setTargetProgress({
-          currentProfit: Number(targetData.current_profit || 0),
-          targetAmount: Number(targetData.target_amount || 0),
-        });
-      }
-    } catch (err) {
-      console.error("Failed to refresh target:", err);
-    }
-  }
-
-  async function checkAndPromptNewTarget() {
-    try {
-      const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const target = res.data.data.target;
-        const isAchieved = Number(target.current_profit) >= Number(target.target_amount);
-        if (isAchieved && !targetAchievedNotified) {
-          setTargetAchievedNotified(true);
-          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
-          setShowTargetModal(true);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to check target status:", err);
-    }
-  }
-
-  const isTargetAchieved = useMemo(() => {
-    if (!hasTarget) return false;
-    return targetProgress.currentProfit >= targetProgress.targetAmount;
-  }, [hasTarget, targetProgress]);
-
+  // computed
   const marketMap = useMemo(() => {
     const map = {};
-    marketRows.forEach((item) => { if (item?.symbol) map[item.symbol] = item; });
+    marketRows.forEach(item => { if (item?.symbol) map[item.symbol] = item; });
     return map;
   }, [marketRows]);
-
   const selectedMarket = useMemo(() => marketMap[pair] || null, [marketMap, pair]);
-  const activeRule = useMemo(() => rules.find((item) => Number(item.timer_seconds) === Number(timer)) || null, [rules, timer]);
-  const pairList = useMemo(() => marketRows.length > 0 ? marketRows.map((item) => item.symbol).filter(Boolean) : DEFAULT_PAIRS, [marketRows]);
+  const activeRule = useMemo(() => rules.find(item => Number(item.timer_seconds) === Number(timer)) || null, [rules, timer]);
+  const pairList = useMemo(() => marketRows.length > 0 ? marketRows.map(item => item.symbol).filter(Boolean) : DEFAULT_PAIRS, [marketRows]);
   const priceChange = Number(selectedMarket?.priceChangePercent || 0);
   const isPositive = priceChange >= 0;
-
   const estimatedProfit = useMemo(() => {
-    const payoutPercent = Number(activeRule?.payout_percent || 0);
-    const tradeAmount = Number(amount || 0);
-    if (!tradeAmount || !payoutPercent) return 0;
-    return (tradeAmount * payoutPercent) / 100;
+    const payout = Number(activeRule?.payout_percent || 0);
+    const amt = Number(amount || 0);
+    return amt * payout / 100;
   }, [amount, activeRule]);
-
-  const estimatedPayout = useMemo(() => {
-    const tradeAmount = Number(amount || 0);
-    if (!tradeAmount) return 0;
-    return tradeAmount + estimatedProfit;
-  }, [amount, estimatedProfit]);
-
-  const orderBook = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
-  const chartHeight = useMemo(() => {
-    if (screenWidth < 640) return 220;
-    if (screenWidth < 1024) return 280;
-    return 360;
-  }, [screenWidth]);
-
+  const estimatedPayout = useMemo(() => Number(amount || 0) + estimatedProfit, [amount, estimatedProfit]);
   const targetProgressPercent = useMemo(() => {
     if (targetProgress.targetAmount <= 0) return 0;
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
+  // effects
   useEffect(() => {
     loadTradePage();
     checkUserTarget();
   }, []);
-
   useEffect(() => {
     if (hasTarget && targetProgress.targetAmount > 0) {
       checkAndPromptNewTarget();
     }
   }, [hasTarget, targetProgress]);
-
   useEffect(() => {
-    function handleResize() { setScreenWidth(window.innerWidth); }
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (!token) return;
     const interval = setInterval(() => syncTradeState(), 2500);
     return () => clearInterval(interval);
-  }, [token, tradeHistory]);
-
-  useEffect(() => {
-    const interval = setInterval(() => setTick((prev) => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
+  }, [token]);
   useEffect(() => {
     if (!showRunningTradeModal || remainingSeconds <= 0) return;
     const interval = setInterval(() => {
-      setRemainingSeconds((prev) => {
+      setRemainingSeconds(prev => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [showRunningTradeModal, remainingSeconds]);
-
   useEffect(() => {
     if (!showRunningTradeModal) return;
     if (remainingSeconds > 0) return;
@@ -367,7 +192,6 @@ export default function TradePage() {
     syncTradeState();
     refreshTargetProgress();
   }, [remainingSeconds, showRunningTradeModal]);
-
   useEffect(() => {
     if (!selectedMarket) return;
     setPriceFlash(true);
@@ -375,6 +199,7 @@ export default function TradePage() {
     return () => clearTimeout(timeout);
   }, [selectedMarket?.lastPrice, selectedMarket?.price]);
 
+  // API functions
   async function loadTradePage() {
     try {
       setLoading(true);
@@ -387,13 +212,13 @@ export default function TradePage() {
       ]);
       if (walletRes.status === "fulfilled") {
         const data = walletRes.value.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0), walletLabel: data.walletLabel || "Main Wallet", user: data.user || null });
+        setWallet({ balance: Number(data.balance || 0) });
       }
       if (rulesRes.status === "fulfilled") setRules(Array.isArray(rulesRes.value.data?.data) ? rulesRes.value.data.data : []);
       if (marketRes.status === "fulfilled") {
         const rows = Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : [];
         setMarketRows(rows);
-        if (rows.length > 0 && !rows.some((item) => item.symbol === pair)) setPair(rows[0]?.symbol || "BTCUSDT");
+        if (rows.length > 0 && !rows.some(item => item.symbol === pair)) setPair(rows[0]?.symbol || "BTCUSDT");
       }
       if (openRes.status === "fulfilled") setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
       if (historyRes.status === "fulfilled") setTradeHistory(Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : []);
@@ -421,19 +246,69 @@ export default function TradePage() {
       }
       if (walletRes.status === "fulfilled") {
         const data = walletRes.value.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0), walletLabel: data.walletLabel || "Main Wallet", user: data.user || null });
+        setWallet({ balance: Number(data.balance || 0) });
       }
       if (marketRes.status === "fulfilled") setMarketRows(Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : []);
       const latestPlacedId = lastPlacedTradeIdRef.current;
       if (latestPlacedId) {
-        const settledTrade = latestHistory.find((item) => Number(item.id) === Number(latestPlacedId) && ["win", "loss", "settled", "completed"].includes(String(item.status || item.result || "").toLowerCase()));
+        const settledTrade = latestHistory.find(item =>
+          Number(item.id) === Number(latestPlacedId) &&
+          ["win", "loss", "settled", "completed"].includes(String(item.status || item.result || "").toLowerCase())
+        );
         if (settledTrade && shownSettledTradeIdRef.current !== settledTrade.id) {
           shownSettledTradeIdRef.current = settledTrade.id;
           setResultModal(settledTrade);
           refreshTargetProgress();
         }
       }
-    } catch (_err) {} finally { setRefreshing(false); }
+    } catch (_) { } finally { setRefreshing(false); }
+  }
+
+  async function checkUserTarget() {
+    try {
+      setTargetChecking(true);
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setHasTarget(true);
+        setUserTarget(targetData);
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+        setTargetAchievedNotified(false);
+      } else {
+        setHasTarget(false);
+        setUserTarget(null);
+      }
+    } catch (err) { console.error(err); } finally { setTargetChecking(false); }
+  }
+
+  async function refreshTargetProgress() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const targetData = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(targetData.current_profit || 0),
+          targetAmount: Number(targetData.target_amount || 0),
+        });
+      }
+    } catch (err) { console.error(err); }
+  }
+
+  async function checkAndPromptNewTarget() {
+    try {
+      const res = await userApi.getUserTarget(token);
+      if (res.data?.success && res.data.data.hasTarget) {
+        const target = res.data.data.target;
+        if (Number(target.current_profit) >= Number(target.target_amount) && !targetAchievedNotified) {
+          setTargetAchievedNotified(true);
+          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
+          setShowTargetModal(true);
+        }
+      }
+    } catch (err) { console.error(err); }
   }
 
   async function handleQuickAmount(percent) {
@@ -448,10 +323,11 @@ export default function TradePage() {
   async function handlePlaceTrade(e) {
     e.preventDefault();
     if (!hasTarget) { setShowTargetModal(true); return; }
-    if (!pair) { showError("Please select a trading pair"); return; }
-    if (!["bullish", "bearish"].includes(direction)) { showError("Please select a valid direction"); return; }
-    if (![60, 180, 300].includes(Number(timer))) { showError("Please select a valid timer"); return; }
-    if (!amount || Number(amount) <= 0) { showError("Please enter a valid trade amount"); return; }
+    if (!pair || !direction || ![60, 180, 300].includes(Number(timer))) {
+      showError("Please select pair, direction and timer");
+      return;
+    }
+    if (!amount || Number(amount) <= 0) { showError("Enter a valid trade amount"); return; }
     try {
       setPlacing(true);
       const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);
@@ -462,7 +338,7 @@ export default function TradePage() {
       const payoutPercent = Number(data.payoutPercent || activeRule?.payout_percent || 0);
       const entryPrice = Number(data.entryPrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
       const expectedProfit = (placedAmount * payoutPercent) / 100;
-      showSuccess("Trade placed successfully!");
+      showSuccess("Trade placed!");
       showVoucher({
         title: "Trade Opened",
         type: "trade",
@@ -486,204 +362,193 @@ export default function TradePage() {
     setHasTarget(true);
     setTargetProgress({ currentProfit: 0, targetAmount: Number(targetAmount) });
     setTargetAchievedNotified(false);
-    showSuccess(`Target set to ${targetAmount} USDT! You can now start trading.`);
+    showSuccess(`Target set to ${targetAmount} USDT!`);
   }
 
   if (loading) {
-    return <div className="p-4 sm:p-6"><div className="rounded-3xl border border-white/10 bg-[#0a0e1a] p-6 text-slate-300">Loading trading terminal...</div></div>;
+    return <div className="p-4"><div className="rounded-3xl border border-white/10 bg-[#0a0e1a] p-6 text-slate-300">Loading terminal...</div></div>;
   }
 
+  // ---------- render ----------
   const mobileTabs = [
     { key: "trade", label: "Trade" },
     { key: "open", label: "Open" },
     { key: "history", label: "History" },
   ];
-  const slipDirectionText = runningTrade?.direction === "bullish" ? "Buy Long" : "Sell Short";
-  const slipDirectionColor = runningTrade?.direction === "bullish" ? "text-emerald-300" : "text-red-300";
 
   return (
-    <div className="space-y-4 bg-[#050812] p-3 pb-24 sm:space-y-5 sm:p-6 xl:pb-6">
+    <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5 xl:pb-5">
 
-      {/* Target Banner */}
+      {/* Target banner (compact) */}
       {hasTarget && targetProgress.targetAmount > 0 && (
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Target size={16} className="text-cyan-400" />
-              <span className="text-sm text-slate-300">Target Goal:</span>
-              <span className="text-sm font-semibold text-white">
-                {targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} />
-              </div>
-              <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
-            </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm">
+          <Target size={14} className="text-cyan-400" />
+          <span className="text-slate-300">Goal:</span>
+          <span className="font-semibold text-white">
+            {targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT
+          </span>
+          <div className="h-1.5 w-24 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} />
           </div>
-          {isTargetAchieved ? (
-            <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center">
-              <span className="text-sm text-emerald-300">🎉 Target Achieved! Set a new goal to continue trading.</span>
-            </div>
-          ) : (
-            <div className="mt-2 text-xs text-slate-400">
-              {targetProgress.currentProfit > 0 ? (
-                <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. Keep trading to reach your goal!</span>
-              ) : (
-                <span>Start trading to earn profits and track your progress toward your goal!</span>
-              )}
-            </div>
-          )}
+          <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
         </div>
       )}
 
       {/* Header */}
-      <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-4 shadow-xl sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="mb-3 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_18%),#0a0e1a] p-4 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.32em] text-cyan-300">
-              <Flame size={12} /> VexaTrade Terminal
+            <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.32em] text-cyan-300">
+              <Flame size={12} /> VexaTrade
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">{pair}</h1>
-            <p className="mt-2 text-sm text-slate-400">Live short-term trade terminal with real-time market view.</p>
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">{pair}</h1>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <SmallStat label="Wallet" value={`${formatAmount(wallet.balance)} USDT`} icon={Wallet} />
-            <SmallStat label="Status" value={refreshing ? "Refreshing..." : "Live"} valueClassName={refreshing ? "text-cyan-300" : "text-emerald-300"} icon={Activity} />
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-[#050812] px-3 py-1.5 text-sm font-medium text-white">
+              {formatAmount(wallet.balance)} USDT
+            </span>
+            <button onClick={() => syncTradeState()} className="rounded-full border border-white/10 bg-[#050812] p-2 text-white transition hover:bg-white/5">
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            </button>
           </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <span className={`text-xl font-bold ${isPositive ? "text-emerald-300" : "text-red-300"} ${priceFlash ? "scale-105 transition" : ""}`}>
+            {selectedMarket ? formatPrice(selectedMarket.lastPrice || selectedMarket.price) : "0.00"}
+          </span>
+          <span className={`text-sm font-semibold ${isPositive ? "text-emerald-300" : "text-red-300"}`}>
+            {isPositive ? "+" : ""}{formatPercent(priceChange)}%
+          </span>
+          <span className="text-xs text-slate-500">24h H: {formatPrice(selectedMarket?.highPrice || 0)}</span>
+          <span className="text-xs text-slate-500">L: {formatPrice(selectedMarket?.lowPrice || 0)}</span>
         </div>
       </section>
 
-      {/* Price Cards */}
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <TopPriceCard label="Current Price" value={selectedMarket ? formatPrice(selectedMarket.lastPrice || selectedMarket.price) : "0.00"} valueClassName={getPriceToneClass(priceChange)} flash={priceFlash} />
-        <TopPriceCard label="24H Change" value={`${isPositive ? "+" : ""}${formatPercent(priceChange)}%`} valueClassName={isPositive ? "text-emerald-300" : "text-red-300"} />
-        <TopPriceCard label="High" value={formatPrice(selectedMarket?.highPrice || 0)} />
-        <TopPriceCard label="Low" value={formatPrice(selectedMarket?.lowPrice || 0)} />
-      </section>
+      {/* Desktop 2-column grid */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
 
-      {/* Main Grid */}
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-        {/* Left Column: Chart + Order Book */}
+        {/* Left: Chart + Order Book */}
         <div className="space-y-4">
           {/* Chart */}
-          <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl sm:p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <select value={pair} onChange={(e) => setPair(e.target.value)} className="w-full appearance-none rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-2 pr-8 text-sm text-white outline-none focus:border-cyan-500 sm:w-[150px]">
-                  {pairList.map((item) => <option key={item} value={item}>{item}</option>)}
+          <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={pair} onChange={(e) => setPair(e.target.value)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-sm text-white outline-none focus:border-cyan-500">
+                  {pairList.map(item => <option key={item} value={item}>{item}</option>)}
                 </select>
-                <div className="grid grid-cols-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e1a]">
-                  {["1m", "5m", "15m", "1h"].map((item) => (
-                    <button key={item} type="button" onClick={() => setTimeframe(item)} className={`px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:text-sm ${timeframe === item ? "bg-cyan-500 text-black" : "text-slate-300 hover:bg-white/5"}`}>
+                <div className="flex overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e1a]">
+                  {["1m", "5m", "15m", "1h"].map(item => (
+                    <button key={item} type="button" onClick={() => setTimeframe(item)} className={`px-3 py-1 text-xs font-medium transition ${timeframe === item ? "bg-cyan-500 text-black" : "text-slate-300 hover:bg-white/5"}`}>
                       {item}
                     </button>
                   ))}
                 </div>
               </div>
-              <button type="button" onClick={() => syncTradeState()} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-white/5">
+              <button onClick={() => syncTradeState()} className="flex items-center gap-1 rounded-2xl border border-white/10 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/5">
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
               </button>
             </div>
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#050812]">
-              <MarketChart symbol={pair} interval={timeframe} height={chartHeight} />
+              <MarketChart symbol={pair} interval={timeframe} height={360} />
             </div>
           </div>
 
-          {/* Order Book - Compact */}
-          <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl sm:p-4">
+          {/* Order Book (desktop) - with depth bars */}
+          <div className="hidden xl:block rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-sm font-semibold text-white">Order Book</h2>
-              <span className="text-[10px] text-slate-500">Simulated Depth</span>
+              <span className="text-[10px] text-slate-500">Depth</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 border-b border-white/10 pb-1 text-[9px] uppercase tracking-[0.16em] text-slate-500">
-              <div>Price</div><div>Amount</div><div>Total</div>
-            </div>
-            <div className="mt-1 space-y-0.5">
-              {orderBook.asks.map((row, index) => (
-                <div key={`ask-${index}`} className="grid grid-cols-3 gap-2 rounded-lg px-1 py-0.5 text-[11px] sm:text-[12px]">
-                  <div className="truncate font-medium text-red-300">{formatPrice(row.price)}</div>
-                  <div className="truncate text-slate-300">{formatAmount(row.amount)}</div>
-                  <div className="truncate text-slate-400">{formatPrice(row.total)}</div>
+            <div className="space-y-1">
+              {/* Asks */}
+              {buildOrderBook(selectedMarket?.lastPrice || 0).asks.map((row, i) => (
+                <div key={`ask-${i}`} className="relative flex items-center justify-between rounded-md px-2 py-0.5 text-xs">
+                  <span className="font-medium text-red-300 w-1/3 truncate">{formatPrice(row.price)}</span>
+                  <span className="text-slate-300 w-1/3 truncate text-center">{formatAmount(row.amount)}</span>
+                  <span className="text-slate-400 w-1/3 truncate text-right">{formatPrice(row.total)}</span>
+                  <div className="absolute right-0 top-0 h-full w-1/6 rounded-r-md bg-red-500/20" style={{ width: `${Math.min(100, (row.total / orderBookMax) * 100)}%` }} />
                 </div>
               ))}
-            </div>
-            <div className="my-1.5 rounded-xl border border-white/10 bg-[#050812] px-3 py-1.5 text-center">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-500">Mark Price</div>
-              <div className="text-sm font-bold text-white">{formatPrice(selectedMarket?.lastPrice || selectedMarket?.price || 0)}</div>
-            </div>
-            <div className="space-y-0.5">
-              {orderBook.bids.map((row, index) => (
-                <div key={`bid-${index}`} className="grid grid-cols-3 gap-2 rounded-lg px-1 py-0.5 text-[11px] sm:text-[12px]">
-                  <div className="truncate font-medium text-emerald-300">{formatPrice(row.price)}</div>
-                  <div className="truncate text-slate-300">{formatAmount(row.amount)}</div>
-                  <div className="truncate text-slate-400">{formatPrice(row.total)}</div>
+              {/* Spread */}
+              <div className="my-1 rounded-xl border border-white/10 bg-[#050812] px-3 py-1 text-center text-xs text-slate-400">
+                Spread: {formatPrice(spread())}
+              </div>
+              {/* Bids */}
+              {buildOrderBook(selectedMarket?.lastPrice || 0).bids.map((row, i) => (
+                <div key={`bid-${i}`} className="relative flex items-center justify-between rounded-md px-2 py-0.5 text-xs">
+                  <span className="font-medium text-emerald-300 w-1/3 truncate">{formatPrice(row.price)}</span>
+                  <span className="text-slate-300 w-1/3 truncate text-center">{formatAmount(row.amount)}</span>
+                  <span className="text-slate-400 w-1/3 truncate text-right">{formatPrice(row.total)}</span>
+                  <div className="absolute right-0 top-0 h-full w-1/6 rounded-r-md bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / orderBookMax) * 100)}%` }} />
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Right Column: Trade Form + Open/History */}
+        {/* Right: Trade Form + Open/History */}
         <div className="space-y-4">
-          {/* Mobile Tabs */}
+          {/* Mobile tabs */}
           <div className="xl:hidden rounded-3xl border border-white/10 bg-[#0a0e1a] p-1 shadow-xl">
             <div className="grid grid-cols-3 gap-1">
-              {mobileTabs.map((tab) => <TabButton key={tab.key} active={activeMobileTab === tab.key} onClick={() => setActiveMobileTab(tab.key)}>{tab.label}</TabButton>)}
+              {mobileTabs.map(tab => (
+                <button key={tab.key} type="button" onClick={() => setActiveMobileTab(tab.key)} className={`rounded-2xl py-2 text-sm font-semibold transition ${activeMobileTab === tab.key ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300"}`}>
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Trade Form - Compact */}
+          {/* Trade Form */}
           <div className={activeMobileTab === "trade" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl sm:p-4">
-              <div className="flex items-center justify-between mb-2">
+            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-white">Place Trade</h2>
-                <span className="text-[10px] text-slate-500">AI controlled</span>
+                <span className="text-[10px] text-slate-500">AI powered</span>
               </div>
 
               <form onSubmit={handlePlaceTrade} className="space-y-3">
-                {/* Direction */}
+                {/* Direction Tabs */}
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setDirection("bullish")} className={`rounded-2xl px-3 py-2 text-xs font-semibold transition ${direction === "bullish" ? "bg-emerald-500/20 text-emerald-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
-                    <span className="inline-flex items-center gap-1"><TrendingUp size={14} /> Bullish</span>
+                  <button type="button" onClick={() => setDirection("bullish")} className={`rounded-2xl py-2 text-sm font-semibold transition ${direction === "bullish" ? "bg-emerald-500/20 text-emerald-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
+                    <TrendingUp size={14} className="inline mr-1" /> Long
                   </button>
-                  <button type="button" onClick={() => setDirection("bearish")} className={`rounded-2xl px-3 py-2 text-xs font-semibold transition ${direction === "bearish" ? "bg-red-500/20 text-red-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
-                    <span className="inline-flex items-center gap-1"><TrendingDown size={14} /> Bearish</span>
+                  <button type="button" onClick={() => setDirection("bearish")} className={`rounded-2xl py-2 text-sm font-semibold transition ${direction === "bearish" ? "bg-red-500/20 text-red-300" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
+                    <TrendingDown size={14} className="inline mr-1" /> Short
                   </button>
                 </div>
 
-                {/* Timer */}
+                {/* Timer chips */}
                 <div>
-                  <label className="mb-1 block text-[11px] text-slate-400">Timer</label>
+                  <label className="mb-1 block text-xs text-slate-400">Timer</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {[60, 180, 300].map((item) => (
-                      <button key={item} type="button" onClick={() => setTimer(item)} className={`rounded-2xl px-3 py-1.5 text-xs font-semibold transition ${Number(timer) === item ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
+                    {[60, 180, 300].map(item => (
+                      <button key={item} type="button" onClick={() => setTimer(item)} className={`rounded-2xl py-1.5 text-xs font-semibold transition ${Number(timer) === item ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>
                         {item}s
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Amount & % */}
+                {/* Amount */}
                 <div>
-                  <label className="mb-1 block text-[11px] text-slate-400">Amount (USDT)</label>
-                  <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-sm text-white outline-none transition focus:border-cyan-500" />
+                  <label className="mb-1 block text-xs text-slate-400">Amount (USDT)</label>
+                  <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-sm text-white outline-none focus:border-cyan-500" />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  {[25, 50, 75].map((p) => <button key={p} type="button" onClick={() => handleQuickAmount(p)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#0f1420]">{p}%</button>)}
+                  {[25, 50, 75].map(p => <button key={p} type="button" onClick={() => handleQuickAmount(p)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/5">{p}%</button>)}
                 </div>
 
-                {/* Summary Card */}
-                <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
-                  <div className="grid grid-cols-2 gap-1 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Payout</span><span className="font-semibold text-white">{formatPercent(activeRule?.payout_percent || 0)}%</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Profit</span><span className="font-semibold text-emerald-300">+{formatAmount(estimatedProfit)} USDT</span></div>
-                    <div className="flex justify-between col-span-2"><span className="text-slate-500">Return</span><span className="font-semibold text-cyan-300">{formatAmount(estimatedPayout)} USDT</span></div>
+                {/* Summary */}
+                <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-xs">
+                  <div className="grid grid-cols-3 gap-1">
+                    <div><span className="text-slate-500">Payout</span> <span className="font-semibold text-white">{formatPercent(activeRule?.payout_percent || 0)}%</span></div>
+                    <div><span className="text-slate-500">Profit</span> <span className="font-semibold text-emerald-300">+{formatAmount(estimatedProfit)}</span></div>
+                    <div><span className="text-slate-500">Return</span> <span className="font-semibold text-cyan-300">{formatAmount(estimatedPayout)}</span></div>
                   </div>
                 </div>
 
-                <button type="submit" disabled={placing || showRunningTradeModal} className="w-full rounded-2xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60">
+                <button type="submit" disabled={placing || showRunningTradeModal} className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2.5 text-sm font-semibold text-black transition hover:scale-[1.02] disabled:opacity-60">
                   {placing ? "Placing..." : showRunningTradeModal ? "Trade Running..." : "Open Trade"}
                 </button>
               </form>
@@ -692,21 +557,22 @@ export default function TradePage() {
 
           {/* Open Trades */}
           <div className={activeMobileTab === "open" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl sm:p-4">
+            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-white">Open Trades</h2>
-                <span className="rounded-full border border-white/10 bg-[#050812] px-2 py-0.5 text-[10px] text-slate-300">{openTrades.length} Open</span>
+                <span className="rounded-full border border-white/10 bg-[#050812] px-2 py-0.5 text-[10px] text-slate-300">{openTrades.length}</span>
               </div>
               <div className="space-y-2">
-                {openTrades.length ? openTrades.slice(0, 4).map((trade) => (
+                {openTrades.length ? openTrades.slice(0, 5).map(trade => (
                   <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div><div className="text-sm font-semibold text-white">{trade.pair}</div><div className="text-xs text-slate-500">{trade.direction} • {trade.timer || trade.timer_seconds}s</div></div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold text-white">{trade.pair}</span>
                       <StatusPill value={trade.status} />
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                      <div><span className="text-slate-500">Amount</span> <span className="text-white">{formatAmount(trade.amount)} USDT</span></div>
-                      <div><span className="text-slate-500">Remaining</span> <span className="text-amber-300">{formatCountdown(trade.end_time)}</span></div>
+                    <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
+                      <span>{trade.direction} • {trade.timer || trade.timer_seconds}s</span>
+                      <span>{formatAmount(trade.amount)} USDT</span>
+                      <span className="text-amber-300">{formatCountdown(trade.end_time)}</span>
                     </div>
                   </div>
                 )) : <div className="rounded-xl border border-white/10 bg-[#050812] px-4 py-6 text-center text-sm text-slate-400">No open trades.</div>}
@@ -716,21 +582,22 @@ export default function TradePage() {
 
           {/* History */}
           <div className={activeMobileTab === "history" ? "block" : "hidden xl:block"}>
-            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-3 shadow-xl sm:p-4">
+            <div className="rounded-[30px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-white">Trade History</h2>
+                <h2 className="text-sm font-semibold text-white">History</h2>
                 <History size={14} className="text-slate-500" />
               </div>
               <div className="space-y-2">
-                {tradeHistory.length ? tradeHistory.slice(0, 6).map((trade) => (
+                {tradeHistory.length ? tradeHistory.slice(0, 5).map(trade => (
                   <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div><div className="text-sm font-semibold text-white">{trade.pair}</div><div className="text-xs text-slate-500">{trade.direction} • {formatDateTime(trade.created_at)}</div></div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold text-white">{trade.pair}</span>
                       <StatusPill value={trade.result || trade.status} />
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                      <div><span className="text-slate-500">Amount</span> <span className="text-white">{formatAmount(trade.amount)} USDT</span></div>
-                      <div><span className="text-slate-500">Entry</span> <span className="text-white">{formatPrice(trade.entry_price)}</span></div>
+                    <div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400">
+                      <span>{trade.direction}</span>
+                      <span>{formatAmount(trade.amount)} USDT</span>
+                      <span>{formatDateTime(trade.created_at)}</span>
                     </div>
                   </div>
                 )) : <div className="rounded-xl border border-white/10 bg-[#050812] px-4 py-6 text-center text-sm text-slate-400">No history yet.</div>}
@@ -752,12 +619,11 @@ export default function TradePage() {
               <CircularTimer remaining={remainingSeconds} total={runningTrade.timer} direction={runningTrade.direction} />
               <div className="mt-4 space-y-2 text-sm">
                 <TradeSlipRow label="Current Price" value={formatPrice(runningTrade.entryPrice)} />
-                <TradeSlipRow label="Cycle" value={`${runningTrade.timer} S`} />
-                <TradeSlipRow label="Direction" value={slipDirectionText} valueClassName={slipDirectionColor} />
-                <TradeSlipRow label="Quantity" value={formatAmount(runningTrade.amount)} />
+                <TradeSlipRow label="Cycle" value={`${runningTrade.timer}s`} />
+                <TradeSlipRow label="Direction" value={runningTrade.direction === "bullish" ? "Buy Long" : "Sell Short"} valueClassName={runningTrade.direction === "bullish" ? "text-emerald-300" : "text-red-300"} />
+                <TradeSlipRow label="Quantity" value={`${formatAmount(runningTrade.amount)} USDT`} />
                 <TradeSlipRow label="Expected Profit" value={`+${formatAmount(runningTrade.expectedProfit)} USDT`} valueClassName="text-cyan-300" />
               </div>
-              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">The final price is subject to Blockchain-based ecosystem.</div>
             </div>
           </div>
         </div>
@@ -792,4 +658,35 @@ export default function TradePage() {
       <TargetModal isOpen={showTargetModal} onClose={() => setShowTargetModal(false)} onTargetSet={handleTargetSet} requiredFor="trade" />
     </div>
   );
+}
+
+// ---------- helpers (not in component) ----------
+function buildOrderBook(price = 0) {
+  const base = Number(price || 0);
+  if (!base) return { asks: [], bids: [] };
+  const asks = Array.from({ length: 5 }).map((_, i) => {
+    const p = base + base * (0.0006 + i * 0.00035);
+    const a = 8 + i * 2.15;
+    return { price: p, amount: a, total: p * a };
+  });
+  const bids = Array.from({ length: 5 }).map((_, i) => {
+    const p = base - base * (0.0006 + i * 0.00035);
+    const a = 7.5 + i * 2.05;
+    return { price: p, amount: a, total: p * a };
+  });
+  return { asks, bids };
+}
+
+function orderBookMax() {
+  const book = buildOrderBook(1); // dummy
+  const all = [...book.asks, ...book.bids];
+  return Math.max(...all.map(row => row.total), 1);
+}
+
+function spread() {
+  const book = buildOrderBook(1);
+  if (!book.asks.length || !book.bids.length) return 0;
+  const bestAsk = Math.min(...book.asks.map(r => r.price));
+  const bestBid = Math.max(...book.bids.map(r => r.price));
+  return bestAsk - bestBid;
 }
