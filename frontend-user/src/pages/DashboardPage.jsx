@@ -42,7 +42,6 @@ function formatDate(dateString) {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-// ─── Extract inner body content from a full HTML document ───────────
 function extractBodyContent(html) {
   if (!html) return html;
   const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
@@ -56,7 +55,6 @@ function extractBodyContent(html) {
 
 function StatCard({ title, value, change, icon: Icon, onClick, subtext, compact }) {
   const isPositive = Number(change || 0) >= 0;
-
   let displayValue = value;
   if (compact && typeof value === "string" && value.startsWith("$")) {
     const numeric = Number(value.replace(/[$,]/g, ""));
@@ -64,7 +62,6 @@ function StatCard({ title, value, change, icon: Icon, onClick, subtext, compact 
       displayValue = `$${formatCompactNumber(numeric)}`;
     }
   }
-
   return (
     <div
       onClick={onClick}
@@ -101,7 +98,6 @@ function ActionButton({ icon: Icon, label, onClick }) {
 
 function MarketRow({ symbol, price, change, onClick }) {
   const isPositive = Number(change || 0) >= 0;
-
   return (
     <div
       onClick={onClick}
@@ -121,7 +117,6 @@ function MarketRow({ symbol, price, change, onClick }) {
   );
 }
 
-// ─── News Item Component ─────────────────────────────────────────────
 function NewsItem({ news }) {
   const [expanded, setExpanded] = useState(false);
   const rawContent = news.html_content || news.content || "";
@@ -158,7 +153,6 @@ function NewsItem({ news }) {
           </button>
         )}
       </div>
-
       {content && (
         <div className="mt-2">
           {!expanded ? (
@@ -178,7 +172,6 @@ function NewsItem({ news }) {
           )}
         </div>
       )}
-
       {news.image_url && (
         <div className="mt-2">
           <img
@@ -225,22 +218,42 @@ export default function DashboardPage() {
         newsApi.getNews(),
       ]);
 
+      // ─── Wallet ──────────────────────────────────────────────────────
       if (walletRes.status === "fulfilled") {
         setWallet(walletRes.value?.data?.data || { balance: 0, walletLabel: "Main Wallet" });
       }
+
+      // ─── Markets ─────────────────────────────────────────────────────
       if (marketRes.status === "fulfilled") {
         setMarkets(Array.isArray(marketRes.value?.data?.data) ? marketRes.value.data.data : []);
       }
+
+      // ─── Notifications ──────────────────────────────────────────────
       if (notifRes.status === "fulfilled") {
         setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
       }
+
+      // ─── Combined Balance ──────────────────────────────────────────
       if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
         setCombinedBalanceData(combinedRes.value.data);
       }
+
+      // ─── NEWS ─── 🔥 Enhanced logging & fallback ──────────────────
       if (newsRes.status === "fulfilled") {
-        const newsData = newsRes.value?.data;
-        setNews(Array.isArray(newsData) ? newsData : []);
-        console.log(`📰 Loaded ${newsData?.length || 0} news items`);
+        const response = newsRes.value;
+        console.log("📰 Full news response:", response);
+
+        // Try two possible data structures
+        let newsData = response?.data?.data || response?.data || [];
+        if (!Array.isArray(newsData)) {
+          newsData = [];
+        }
+
+        console.log(`📰 Loaded ${newsData.length} news items`);
+        if (newsData.length > 0) {
+          console.log("📰 First news item:", newsData[0]);
+        }
+        setNews(newsData);
       } else {
         console.warn("📰 News fetch failed:", newsRes.reason);
         setNews([]);
@@ -290,7 +303,6 @@ export default function DashboardPage() {
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
-
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/transactions")}
