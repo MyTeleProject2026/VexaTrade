@@ -43,12 +43,29 @@ function formatDate(dateString) {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+// ─── Extract inner body content from a full HTML document ───────────
+function extractBodyContent(html) {
+  if (!html) return html;
+  const match = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+  return html;
+}
+
 // ─── Components ──────────────────────────────────────────────────────
+
 function StatCard({ title, value, change, icon: Icon, onClick, subtext, compact }) {
   const isPositive = Number(change || 0) >= 0;
-  const displayValue = compact && Number(value.replace(/[$,]/g, '')) > 1000000 
-    ? formatCompactNumber(Number(value.replace(/[$,]/g, ''))) 
-    : value;
+
+  // If compact is true and value looks like a currency, try to compact it
+  let displayValue = value;
+  if (compact && typeof value === "string" && value.startsWith("$")) {
+    const numeric = Number(value.replace(/[$,]/g, ""));
+    if (!Number.isNaN(numeric) && numeric > 1000000) {
+      displayValue = `$${formatCompactNumber(numeric)}`;
+    }
+  }
 
   return (
     <div
@@ -109,7 +126,8 @@ function MarketRow({ symbol, price, change, onClick }) {
 // ─── News Item Component ─────────────────────────────────────────────
 function NewsItem({ news }) {
   const [expanded, setExpanded] = useState(false);
-  const hasContent = news.html_content || news.content;
+  const rawContent = news.html_content || news.content || "";
+  const content = extractBodyContent(rawContent);
 
   const getPreview = (html) => {
     const div = document.createElement("div");
@@ -133,7 +151,7 @@ function NewsItem({ news }) {
             )}
           </div>
         </div>
-        {hasContent && (
+        {content && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="shrink-0 rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:border-cyan-500/30 hover:text-white"
@@ -143,22 +161,20 @@ function NewsItem({ news }) {
         )}
       </div>
 
-      {hasContent && (
+      {content && (
         <div className="mt-2">
           {!expanded ? (
             <div
               className="prose prose-invert max-w-none text-xs text-slate-300 line-clamp-3"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(
-                  news.html_content ? getPreview(news.html_content) : getPreview(news.content)
-                ),
+                __html: DOMPurify.sanitize(getPreview(content)),
               }}
             />
           ) : (
             <div
               className="prose prose-invert max-w-none text-sm text-slate-200"
               dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(news.html_content || news.content),
+                __html: DOMPurify.sanitize(content),
               }}
             />
           )}
@@ -261,7 +277,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Format balance as string with $ prefix for StatCard
   const balanceFormatted = `$${formatMoney(displayBalance)}`;
 
   return (
