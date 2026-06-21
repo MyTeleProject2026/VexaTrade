@@ -14,6 +14,9 @@ import {
   Trash2,
   BadgeDollarSign,
   X,
+  User,
+  Mail,
+  FileText,
 } from "lucide-react";
 import { transactionApi, userApi, getApiErrorMessage } from "../services/api";
 
@@ -155,6 +158,7 @@ function getNotificationIcon(type) {
   if (value === "verification_code") return ShieldCheck;
   if (value === "security") return ShieldCheck;
   if (value === "funds") return BadgeDollarSign;
+  if (value === "admin_message" || value === "manual") return User;
   return Bell;
 }
 
@@ -171,6 +175,7 @@ function getNotificationTone(type) {
   if (value === "verification_code") return "text-cyan-400";
   if (value === "security") return "text-cyan-300";
   if (value === "funds") return "text-emerald-300";
+  if (value === "admin_message" || value === "manual") return "text-violet-300";
   return "text-violet-300";
 }
 
@@ -193,7 +198,7 @@ function normalizeActivityRowFromTransaction(item) {
     status: item.status || "completed",
     created_at: item.created_at,
     iconType: item.type,
-    rawData: item, // full original object
+    rawData: item,
   };
 }
 
@@ -211,7 +216,7 @@ function normalizeActivityRowFromNotification(item) {
     created_at: item.created_at,
     iconType: item.type,
     is_read: Number(item.is_read || 0),
-    rawData: item, // full original object
+    rawData: item,
   };
 }
 
@@ -231,110 +236,203 @@ function EmptyState({ tab }) {
   );
 }
 
-// ---------- Detail Modal ----------
+// ---------- Detail Modal with dynamic table layout ----------
 function TransactionDetailModal({ item, onClose }) {
   if (!item) return null;
 
   const isNotification = item.source === "notification";
-  const raw = item.rawData;
+  const raw = item.rawData || {};
+
+  // Build fields dynamically
+  const fields = [];
 
   if (isNotification) {
-    // Notification detail
+    // ----- NOTIFICATION -----
     const Icon = getNotificationIcon(item.iconType);
     const tone = getNotificationTone(item.iconType);
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050812]/95 p-4">
-        <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl max-h-[90vh] flex flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
-              <Icon size={20} className={tone} />
-              <h2 className="text-lg font-bold text-white">{item.title}</h2>
-            </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-white">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto py-4 space-y-3">
-            <div className="text-sm text-slate-300 whitespace-pre-wrap break-words">
-              {item.subtitle}
-            </div>
-            <div className="text-xs text-slate-500">{formatTime(item.created_at)}</div>
-            <div>
-              <StatusBadge status={item.status} />
-            </div>
-            {raw.message && raw.message.length > 100 && (
-              <div className="rounded-lg border border-white/10 bg-[#050812] p-3 text-xs text-slate-400">
-                Full message: <span className="block whitespace-pre-wrap mt-1">{raw.message}</span>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
+
+    fields.push({ label: "Type", value: item.title, icon: <Icon size={14} className={tone} /> });
+
+    // Check for admin-specific fields
+    if (raw.sender || raw.admin_name || raw.from) {
+      fields.push({ label: "From", value: raw.sender || raw.admin_name || raw.from || "Admin" });
+    }
+    if (raw.subject) {
+      fields.push({ label: "Subject", value: raw.subject });
+    }
+
+    // Main message – full, with line breaks preserved
+    const message = raw.message || raw.body || raw.content || item.subtitle || "-";
+    if (message) {
+      fields.push({
+        label: "Message",
+        value: message,
+        fullWidth: true,
+        multiline: true,
+      });
+    }
+
+    // Fund-specific details (if present)
+    if (raw.plan_name) {
+      fields.push({ label: "Plan", value: raw.plan_name });
+    }
+    if (raw.profit !== undefined && raw.profit !== null) {
+      const profitVal = Number(raw.profit);
+      const coin = raw.coin || "USDT";
+      fields.push({
+        label: "Profit",
+        value: `${profitVal >= 0 ? "+" : ""}${formatAmount(profitVal)} ${coin}`,
+        className: profitVal >= 0 ? "text-emerald-300" : "text-red-300",
+      });
+    }
+    if (raw.amount !== undefined && raw.amount !== null) {
+      const coin = raw.coin || "USDT";
+      fields.push({ label: "Amount", value: `${formatAmount(raw.amount)} ${coin}` });
+    }
+    if (raw.fee !== undefined && raw.fee !== null) {
+      const coin = raw.coin || "USDT";
+      fields.push({ label: "Fee", value: `${formatAmount(raw.fee)} ${coin}` });
+    }
+    if (raw.status) {
+      fields.push({ label: "Status", value: <StatusBadge status={raw.status} /> });
+    }
+
+    fields.push({ label: "Time", value: formatTime(item.created_at) });
+
+    // Extra raw details (fallback for any missing fields)
+    const extraKeys = ["tx_id", "trade_id", "fund_id", "order_id", "reference"];
+    extraKeys.forEach((key) => {
+      if (raw[key] !== undefined && raw[key] !== null) {
+        const label = key.replace(/_/g, " ").toUpperCase();
+        fields.push({ label, value: String(raw[key]) });
+      }
+    });
+
+    if (fields.length === 0) {
+      fields.push({ label: "Notification", value: item.subtitle || "No details" });
+      fields.push({ label: "Time", value: formatTime(item.created_at) });
+    }
+
+  } else {
+    // ----- TRANSACTION -----
+    const Icon = getTransactionIcon(item.iconType);
+    const amountClass = getTransactionAmountClass(item.iconType);
+
+    fields.push({ label: "Type", value: getTransactionLabel(raw.type), icon: <Icon size={14} className="text-slate-300" /> });
+    fields.push({
+      label: "Amount",
+      value: `${formatAmount(raw.amount)} ${getDisplayCoin(raw)}`,
+      className: amountClass,
+    });
+    if (raw.status) {
+      fields.push({ label: "Status", value: <StatusBadge status={raw.status} /> });
+    }
+    if (raw.note) {
+      fields.push({ label: "Note", value: raw.note, fullWidth: true });
+    }
+    if (raw.fee !== undefined && raw.fee !== null) {
+      fields.push({ label: "Fee", value: `${formatAmount(raw.fee)} ${getDisplayCoin(raw)}` });
+    }
+    if (raw.trade_id) {
+      fields.push({ label: "Trade ID", value: raw.trade_id });
+    }
+    if (raw.fund_id) {
+      fields.push({ label: "Fund ID", value: raw.fund_id });
+    }
+    if (raw.entry_price) {
+      fields.push({ label: "Entry Price", value: formatAmount(raw.entry_price) });
+    }
+    if (raw.exit_price) {
+      fields.push({ label: "Exit Price", value: formatAmount(raw.exit_price) });
+    }
+    if (raw.profit !== undefined && raw.profit !== null) {
+      const profitVal = Number(raw.profit);
+      fields.push({
+        label: "Profit / Loss",
+        value: `${profitVal >= 0 ? "+" : ""}${formatAmount(profitVal)} ${getDisplayCoin(raw)}`,
+        className: profitVal >= 0 ? "text-emerald-300" : "text-red-300",
+      });
+    }
+    if (raw.from_currency && raw.to_currency) {
+      fields.push({ label: "Converted From", value: raw.from_currency });
+      fields.push({ label: "Converted To", value: raw.to_currency });
+      fields.push({ label: "Rate", value: raw.rate || "-" });
+    }
+
+    fields.push({ label: "Time", value: formatTime(item.created_at) });
   }
 
-  // Transaction detail
-  const Icon = getTransactionIcon(item.iconType);
-  const amountClass = getTransactionAmountClass(item.iconType);
-  const tx = raw;
+  // If no fields were built, add a fallback
+  if (fields.length === 0) {
+    fields.push({ label: "Details", value: JSON.stringify(raw, null, 2) });
+  }
 
-  // Build a list of fields to show
-  const fields = [
-    { label: "Type", value: getTransactionLabel(tx.type) },
-    { label: "Amount", value: `${formatAmount(tx.amount)} ${getDisplayCoin(tx)}`, className: amountClass },
-    { label: "Status", value: <StatusBadge status={tx.status} /> },
-    { label: "Time", value: formatTime(tx.created_at) },
-    { label: "Note", value: tx.note || "-" },
-  ];
-
-  // Add extra fields based on type
-  if (tx.fee !== undefined && tx.fee !== null) {
-    fields.push({ label: "Fee", value: `${formatAmount(tx.fee)} ${getDisplayCoin(tx)}` });
-  }
-  if (tx.trade_id) {
-    fields.push({ label: "Trade ID", value: tx.trade_id });
-  }
-  if (tx.fund_id) {
-    fields.push({ label: "Fund ID", value: tx.fund_id });
-  }
-  if (tx.entry_price) {
-    fields.push({ label: "Entry Price", value: formatAmount(tx.entry_price) });
-  }
-  if (tx.exit_price) {
-    fields.push({ label: "Exit Price", value: formatAmount(tx.exit_price) });
-  }
-  if (tx.profit) {
-    fields.push({ label: "Profit", value: `${formatAmount(tx.profit)} ${getDisplayCoin(tx)}`, className: "text-emerald-300" });
-  }
+  const headerIcon = isNotification
+    ? getNotificationIcon(item.iconType)
+    : getTransactionIcon(item.iconType);
+  const headerTone = isNotification
+    ? getNotificationTone(item.iconType)
+    : "text-slate-300";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050812]/95 p-4">
-      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl flex flex-col max-h-[90vh]">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
-            <Icon size={20} className="text-slate-300" />
+            {React.createElement(headerIcon, { size: 20, className: headerTone })}
             <h2 className="text-lg font-bold text-white">{item.title}</h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X size={20} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto py-4 space-y-3">
-          {fields.map((field, idx) => (
-            <div key={idx} className="flex items-center justify-between border-b border-white/5 pb-2 last:border-0">
-              <span className="text-sm text-slate-400">{field.label}</span>
-              <span className={`text-sm font-medium ${field.className || "text-white"}`}>
-                {field.value}
-              </span>
-            </div>
-          ))}
+
+        {/* Scrollable Body with Table Layout */}
+        <div className="flex-1 overflow-y-auto py-4 space-y-0.5">
+          {fields.map((field, idx) => {
+            const isMultiline = field.multiline || field.fullWidth;
+            const value =
+              typeof field.value === "string" ? field.value : field.value;
+
+            if (isMultiline) {
+              return (
+                <div
+                  key={idx}
+                  className="border-b border-white/5 pb-3 pt-2 last:border-0"
+                >
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    {field.label}
+                  </div>
+                  <div className="text-sm text-slate-200 whitespace-pre-wrap break-words">
+                    {value}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={idx}
+                className="flex items-center justify-between border-b border-white/5 py-2.5 last:border-0"
+              >
+                <div className="flex items-center gap-1.5 text-sm text-slate-400">
+                  {field.icon}
+                  <span>{field.label}</span>
+                </div>
+                <div
+                  className={`text-sm font-medium text-right ${
+                    field.className || "text-white"
+                  }`}
+                >
+                  {value}
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        {/* Close Button */}
         <button
           onClick={onClose}
           className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400"
@@ -360,7 +458,7 @@ export default function TransactionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
-  const [selectedItem, setSelectedItem] = useState(null); // for detail modal
+  const [selectedItem, setSelectedItem] = useState(null);
 
   async function load(silent = false) {
     try {
@@ -404,8 +502,8 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     return () => {
-      document.body.style.overflow = '';
-      document.body.style.pointerEvents = '';
+      document.body.style.overflow = "";
+      document.body.style.pointerEvents = "";
     };
   }, []);
 
@@ -422,7 +520,9 @@ export default function TransactionsPage() {
   const filtered = useMemo(() => {
     if (tab === "all") return activityRows;
     if (tab === "messages") {
-      return activityRows.filter((item) => item.source === "notification" && item.category === "message");
+      return activityRows.filter(
+        (item) => item.source === "notification" && item.category === "message"
+      );
     }
     if (tab === "funds") {
       return activityRows.filter((item) => item.category === "funds");
@@ -431,7 +531,6 @@ export default function TransactionsPage() {
   }, [activityRows, tab]);
 
   async function handleItemClick(item) {
-    // If notification, mark as read first
     if (item.source === "notification" && Number(item.is_read || 0) !== 1) {
       try {
         await userApi.markNotificationRead(item.rawId, token);
@@ -444,7 +543,6 @@ export default function TransactionsPage() {
         // ignore
       }
     }
-    // Then open detail modal
     setSelectedItem(item);
   }
 
@@ -565,7 +663,7 @@ export default function TransactionsPage() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-300">
+                        <div className="mt-1 line-clamp-2 text-sm text-slate-300">
                           {item.subtitle}
                         </div>
                         <div className="mt-2 text-[11px] text-slate-500 sm:text-xs">
