@@ -448,17 +448,17 @@ export default function TradePage() {
 
       {/* Two‑column: Order Book + Trade Panel */}
       <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        {/* ---------- UPDATED ORDER BOOK ---------- */}
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2 shadow-xl">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-[10px] font-semibold text-white">Order Book</h3>
-            <span className="text-[8px] text-slate-500">Depth</span>
+        {/* ---------- UPDATED ORDER BOOK (FIXED OVERFLOW) ---------- */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-1.5 shadow-xl">
+          <div className="flex items-center justify-between mb-0.5">
+            <h3 className="text-[9px] font-semibold text-white">Order Book</h3>
+            <span className="text-[7px] text-slate-500">Depth</span>
           </div>
-          <div className="flex gap-1">
-            {/* Asks - left column */}
-            <div className="flex-1 space-y-0.5">
-              {orderBookData.asks.map((row, idx) => (
-                <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[9px] px-1 py-0.5 hover:bg-white/5">
+          <div className="flex gap-0.5">
+            {/* Asks */}
+            <div className="flex-1 space-y-0">
+              {orderBookData.asks.slice(0, 5).map((row, idx) => (
+                <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[8px] px-0.5 py-0 leading-tight hover:bg-white/5">
                   <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
                   <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
                   <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
@@ -466,14 +466,14 @@ export default function TradePage() {
                 </div>
               ))}
             </div>
-            {/* Spread - middle */}
-            <div className="flex min-w-[50px] items-center justify-center border-x border-white/10 bg-[#050812] px-1 text-center text-[8px] text-slate-400">
+            {/* Spread */}
+            <div className="flex min-w-[40px] items-center justify-center border-x border-white/10 bg-[#050812] px-0.5 text-center text-[7px] text-slate-400">
               {formatPrice(spread(orderBookData))}
             </div>
-            {/* Bids - right column */}
-            <div className="flex-1 space-y-0.5">
-              {orderBookData.bids.map((row, idx) => (
-                <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[9px] px-1 py-0.5 hover:bg-white/5">
+            {/* Bids */}
+            <div className="flex-1 space-y-0">
+              {orderBookData.bids.slice(0, 5).map((row, idx) => (
+                <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[8px] px-0.5 py-0 leading-tight hover:bg-white/5">
                   <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
                   <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
                   <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
