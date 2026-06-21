@@ -23,7 +23,7 @@ import {
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 
-// ---------- constants & helpers (keep unchanged) ----------
+// ---------- constants & helpers ----------
 const DEFAULT_PAIRS = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
@@ -76,25 +76,143 @@ function TradeSlipRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-function CircularTimer({ remaining, total, direction }) {
-  const safeTotal = Math.max(1, Number(total || 1));
-  const safeRemaining = Math.max(0, Number(remaining || 0));
+// ---------- Running Trade Modal (full-screen) ----------
+function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
+  const [currentPrice, setCurrentPrice] = useState(runningTrade?.entryPrice || 0);
+  const [priceChange, setPriceChange] = useState(0);
+  const [isPositive, setIsPositive] = useState(true);
+
+  useEffect(() => {
+    if (!runningTrade) return;
+    // Simulate price updates every second (you can replace with WebSocket)
+    const interval = setInterval(() => {
+      const base = runningTrade.entryPrice || 0;
+      const delta = (Math.random() - 0.5) * 0.002 * base;
+      const newPrice = base + delta;
+      setCurrentPrice(newPrice);
+      setPriceChange(delta);
+      setIsPositive(delta >= 0);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [runningTrade]);
+
+  const safeTotal = Math.max(1, Number(runningTrade?.timer || 1));
+  const safeRemaining = Math.max(0, Number(remainingSeconds || 0));
   const progress = safeRemaining / safeTotal;
-  const radius = 84;
+  const radius = 100;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference * (1 - progress);
-  const ringColor = direction === "bullish" ? "#06b6d4" : "#ef4444";
+  const ringColor = runningTrade?.direction === "bullish" ? "#06b6d4" : "#ef4444";
+
+  const mins = Math.floor(safeRemaining / 60);
+  const secs = safeRemaining % 60;
+
   return (
-    <div className="relative mx-auto h-52 w-52">
-      <svg className="h-full w-full -rotate-90" viewBox="0 0 200 200">
-        <circle cx="100" cy="100" r={radius} stroke="rgba(255,255,255,0.14)" strokeWidth="12" fill="none" />
-        <circle cx="100" cy="100" r={radius} stroke={ringColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: "stroke-dashoffset 1s linear" }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-[44px] font-semibold tracking-wide text-white">
-          {String(Math.floor(safeRemaining / 60)).padStart(2, "0")}:{String(safeRemaining % 60).padStart(2, "0")}
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4">
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-slate-400 hover:text-white"
+      >
+        <X size={24} />
+      </button>
+
+      <div className="w-full max-w-md text-center">
+        {/* Timer ring and countdown */}
+        <div className="relative mx-auto h-56 w-56">
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 240 240">
+            <circle cx="120" cy="120" r={radius} stroke="rgba(255,255,255,0.14)" strokeWidth="12" fill="none" />
+            <circle cx="120" cy="120" r={radius} stroke={ringColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: "stroke-dashoffset 1s linear" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-6xl font-bold text-white">
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+            </div>
+            <div className="mt-1 text-sm text-slate-400">Trade Running</div>
+          </div>
         </div>
-        <div className="mt-2 text-sm text-slate-400">Trade Running</div>
+
+        {/* Current Price / Market info */}
+        <div className="mt-6">
+          <div className="text-3xl font-bold text-white">
+            {formatPrice(currentPrice)}
+          </div>
+          <div className={`text-sm font-semibold ${isPositive ? "text-emerald-300" : "text-red-300"}`}>
+            {isPositive ? "▲" : "▼"} {formatPrice(priceChange)} ({isPositive ? "+" : ""}{formatPercent((priceChange / (runningTrade?.entryPrice || 1)) * 100)}%)
+          </div>
+        </div>
+
+        {/* Trade details */}
+        <div className="mt-6 space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Pair</span>
+            <span className="text-white">{runningTrade?.pair}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Direction</span>
+            <span className={runningTrade?.direction === "bullish" ? "text-emerald-300" : "text-red-300"}>
+              {runningTrade?.direction === "bullish" ? "Buy Long" : "Sell Short"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Amount</span>
+            <span className="text-white">{formatAmount(runningTrade?.amount)} USDT</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Expected Profit</span>
+            <span className="text-cyan-300">+{formatAmount(runningTrade?.expectedProfit)} USDT</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Result Modal (full-screen) ----------
+function ResultModal({ result, onClose }) {
+  if (!result) return null;
+
+  const isWin = String(result.result || result.status || "").toLowerCase().includes("win");
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4">
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-slate-400 hover:text-white"
+      >
+        <X size={24} />
+      </button>
+
+      <div className="w-full max-w-md text-center">
+        <div className={`text-6xl font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
+          {isWin ? "WIN" : "LOSS"}
+        </div>
+        <div className="mt-1 text-sm text-slate-400">Trade Result</div>
+
+        <div className="mt-8 space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-400">Pair</span>
+            <span className="text-white">{result.pair}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Amount</span>
+            <span className="text-white">{formatAmount(result.amount)} USDT</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Entry Price</span>
+            <span className="text-white">{formatPrice(result.entry_price)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Closed</span>
+            <span className="text-white">{formatDateTime(result.updated_at || result.created_at)}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-8 w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400"
+        >
+          Close
+        </button>
       </div>
     </div>
   );
@@ -103,7 +221,7 @@ function CircularTimer({ remaining, total, direction }) {
 // ---------- main component ----------
 export default function TradePage() {
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-  const { showSuccess, showError, showVoucher } = useNotification();
+  const { showSuccess, showError } = useNotification();
 
   // state
   const [loading, setLoading] = useState(true);
@@ -125,10 +243,13 @@ export default function TradePage() {
   // bottom tab state (Orders / Assets / History)
   const [bottomTab, setBottomTab] = useState("orders");
 
-  const [resultModal, setResultModal] = useState(null);
+  // Running trade modal state
   const [showRunningTradeModal, setShowRunningTradeModal] = useState(false);
   const [runningTrade, setRunningTrade] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  // Result modal state
+  const [resultModal, setResultModal] = useState(null);
 
   // target
   const [hasTarget, setHasTarget] = useState(false);
@@ -184,6 +305,7 @@ export default function TradePage() {
     const interval = setInterval(() => syncTradeState(), 2500);
     return () => clearInterval(interval);
   }, [token]);
+  // Timer countdown for running trade modal
   useEffect(() => {
     if (!showRunningTradeModal || remainingSeconds <= 0) return;
     const interval = setInterval(() => {
@@ -194,13 +316,16 @@ export default function TradePage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [showRunningTradeModal, remainingSeconds]);
+  // When timer hits zero, close running modal and show result
   useEffect(() => {
     if (!showRunningTradeModal) return;
     if (remainingSeconds > 0) return;
     setShowRunningTradeModal(false);
+    // sync to get the settled trade
     syncTradeState();
     refreshTargetProgress();
   }, [remainingSeconds, showRunningTradeModal]);
+  // Price flash on market change
   useEffect(() => {
     if (!selectedMarket) return;
     setPriceFlash(true);
@@ -208,7 +333,7 @@ export default function TradePage() {
     return () => clearTimeout(timeout);
   }, [selectedMarket?.lastPrice, selectedMarket?.price]);
 
-  // API functions (same as before)
+  // API functions
   async function loadTradePage() {
     try {
       setLoading(true);
@@ -348,18 +473,13 @@ export default function TradePage() {
       const entryPrice = Number(data.entryPrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
       const expectedProfit = (placedAmount * payoutPercent) / 100;
       showSuccess("Trade placed!");
-      showVoucher({
-        title: "Trade Opened",
-        type: "trade",
-        transactionId: tradeId,
-        data: { tradeId, pair, direction, timer: Number(timer), amount: placedAmount, entryPrice, payoutPercent, expectedProfit },
-      });
+      // NO VOUCHER HERE – just show running modal
       setAmount("");
       setRunningTrade({ tradeId, pair, direction, timer: Number(timer), amount: placedAmount, entryPrice, payoutPercent, expectedProfit, endsAt: data.endTime || null });
       setRemainingSeconds(Number(timer));
       setShowRunningTradeModal(true);
       await syncTradeState();
-      setBottomTab("orders"); // switch to orders tab to see new trade
+      setBottomTab("orders");
     } catch (err) {
       showError(getApiErrorMessage(err));
     } finally {
@@ -448,44 +568,36 @@ export default function TradePage() {
 
       {/* Two‑column: Order Book + Trade Panel */}
       <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        {/* ---------- UPDATED ORDER BOOK (FIXED OVERFLOW) ---------- */}
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-1.5 shadow-xl">
-          <div className="flex items-center justify-between mb-0.5">
-            <h3 className="text-[9px] font-semibold text-white">Order Book</h3>
-            <span className="text-[7px] text-slate-500">Depth</span>
+        {/* Order Book – unchanged */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-white">Order Book</h3>
+            <span className="text-[10px] text-slate-500">Depth</span>
           </div>
-          <div className="flex gap-0.5">
-            {/* Asks */}
-            <div className="flex-1 space-y-0">
-              {orderBookData.asks.slice(0, 5).map((row, idx) => (
-                <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[8px] px-0.5 py-0 leading-tight hover:bg-white/5">
-                  <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
-                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                  <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-                </div>
-              ))}
+          <div className="space-y-0.5">
+            {orderBookData.asks.map((row, idx) => (
+              <div key={`ask-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+                <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
+                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+              </div>
+            ))}
+            <div className="my-1 rounded-lg border border-white/10 bg-[#050812] px-2 py-1 text-center text-[10px] text-slate-400">
+              Spread: {formatPrice(spread(orderBookData))}
             </div>
-            {/* Spread */}
-            <div className="flex min-w-[40px] items-center justify-center border-x border-white/10 bg-[#050812] px-0.5 text-center text-[7px] text-slate-400">
-              {formatPrice(spread(orderBookData))}
-            </div>
-            {/* Bids */}
-            <div className="flex-1 space-y-0">
-              {orderBookData.bids.slice(0, 5).map((row, idx) => (
-                <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[8px] px-0.5 py-0 leading-tight hover:bg-white/5">
-                  <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
-                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                  <div className="absolute left-0 top-0 h-full rounded-l-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-                </div>
-              ))}
-            </div>
+            {orderBookData.bids.map((row, idx) => (
+              <div key={`bid-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
+                <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
+                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+              </div>
+            ))}
           </div>
         </div>
-        {/* ---------- END ORDER BOOK ---------- */}
 
-        {/* Right: Trade Panel (unchanged) */}
+        {/* Trade Panel – unchanged */}
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
           <form onSubmit={handlePlaceTrade} className="space-y-3">
             {/* Direction Tabs (Buy/Sell) */}
@@ -580,7 +692,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Bottom Navigation Tabs (Orders, Assets, History) - unchanged */}
+      {/* Bottom Navigation Tabs (Orders, Assets, History) – unchanged */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0a0e1a] px-2 py-1 sm:static sm:mt-4 sm:border-t-0 sm:px-0 sm:py-0">
         <div className="flex justify-around sm:justify-start sm:gap-8">
           <button
@@ -656,52 +768,21 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Running Trade Modal */}
+      {/* Full‑screen Running Trade Modal */}
       {showRunningTradeModal && runningTrade && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-[34px]">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-xl font-bold text-white">{runningTrade.pair}</h3>
-              <button type="button" onClick={() => setShowRunningTradeModal(false)} className="text-slate-400 hover:text-white"><X size={18} /></button>
-            </div>
-            <div className="pt-3">
-              <CircularTimer remaining={remainingSeconds} total={runningTrade.timer} direction={runningTrade.direction} />
-              <div className="mt-4 space-y-2 text-sm">
-                <TradeSlipRow label="Current Price" value={formatPrice(runningTrade.entryPrice)} />
-                <TradeSlipRow label="Cycle" value={`${runningTrade.timer}s`} />
-                <TradeSlipRow label="Direction" value={runningTrade.direction === "bullish" ? "Buy Long" : "Sell Short"} valueClassName={runningTrade.direction === "bullish" ? "text-emerald-300" : "text-red-300"} />
-                <TradeSlipRow label="Quantity" value={`${formatAmount(runningTrade.amount)} USDT`} />
-                <TradeSlipRow label="Expected Profit" value={`+${formatAmount(runningTrade.expectedProfit)} USDT`} valueClassName="text-cyan-300" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <RunningTradeModal
+          runningTrade={runningTrade}
+          remainingSeconds={remainingSeconds}
+          onClose={() => setShowRunningTradeModal(false)}
+        />
       )}
 
-      {/* Result Modal */}
+      {/* Full‑screen Result Modal */}
       {resultModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-t-[34px] border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-[34px]">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-xl font-bold text-white">{resultModal.pair}</h3>
-              <button type="button" onClick={() => setResultModal(null)} className="text-slate-400 hover:text-white"><X size={18} /></button>
-            </div>
-            <div className="pt-3">
-              <div className="text-center mb-4">
-                <div className={`text-2xl font-bold ${String(resultModal.result || resultModal.status || "").toLowerCase().includes("win") ? "text-emerald-300" : "text-red-300"}`}>
-                  {String(resultModal.result || resultModal.status || "--").toUpperCase()}
-                </div>
-                <div className="text-xs text-slate-400">Trade Result</div>
-              </div>
-              <div className="space-y-2 text-sm">
-                <TradeSlipRow label="Pair" value={resultModal.pair} />
-                <TradeSlipRow label="Amount" value={`${formatAmount(resultModal.amount)} USDT`} />
-                <TradeSlipRow label="Entry Price" value={formatPrice(resultModal.entry_price)} />
-                <TradeSlipRow label="Closed" value={formatDateTime(resultModal.updated_at || resultModal.created_at)} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <ResultModal
+          result={resultModal}
+          onClose={() => setResultModal(null)}
+        />
       )}
 
       <TargetModal isOpen={showTargetModal} onClose={() => setShowTargetModal(false)} onTargetSet={handleTargetSet} requiredFor="trade" />
