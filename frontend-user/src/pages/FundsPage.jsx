@@ -11,6 +11,7 @@ import {
   Target,
   Lock,
   AlertCircle,
+  FileText,
 } from "lucide-react";
 import { getApiErrorMessage } from "../services/api";
 import api from "../services/api";
@@ -41,6 +42,7 @@ function getDaysLeft(item) {
   return Math.max(0, totalDays - currentDay);
 }
 
+// ---------- status pill (unchanged) ----------
 function StatusPill({ status }) {
   const value = String(status || "").toLowerCase();
 
@@ -75,6 +77,7 @@ function StatusPill({ status }) {
   );
 }
 
+// ---------- summary card (unchanged) ----------
 function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" }) {
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 shadow-md">
@@ -90,7 +93,8 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-function PlanCard({ plan, applying, onApply }) {
+// ---------- PlanCard (unchanged, but we'll add a "View Details" button) ----------
+function PlanCard({ plan, applying, onApply, onViewDetails }) {
   const [showFullNote, setShowFullNote] = useState(false);
   
   const maxAmount =
@@ -152,13 +156,12 @@ function PlanCard({ plan, applying, onApply }) {
         </div>
       </div>
 
-      {/* ✅ HTML CONTENT SUPPORT - PRIORITY 1 */}
+      {/* ✅ HTML CONTENT or fallback */}
       {plan.html_content ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3 prose prose-invert max-w-none">
           <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
         </div>
       ) : (
-        /* ✅ FALLBACK - Individual fields if no HTML */
         hasAnyNote && (
           <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
             {hasNote && (
@@ -198,6 +201,17 @@ function PlanCard({ plan, applying, onApply }) {
         )
       )}
 
+      {/* ➕ ADDED: View Details button for full article/news */}
+      {(plan.admin_note || plan.additional_notes || plan.disclaimer || plan.html_content) && (
+        <button
+          type="button"
+          onClick={() => onViewDetails(plan)}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition"
+        >
+          <FileText size={12} /> View Details
+        </button>
+      )}
+
       <div className="mt-2">
         <button
           type="button"
@@ -212,45 +226,54 @@ function PlanCard({ plan, applying, onApply }) {
   );
 }
 
+// ---------- 🔄 MODIFIED: ActiveFundCard – new design (third screenshot) ----------
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
   const totalReceive =
     Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
   const isPaused = String(item.status || "").toLowerCase() === "paused";
+  const fundId = item.fund_id || item.id;
+  const dailyProfit = Number(item.selected_daily_profit_percent || 0);
+  const apy = dailyProfit * (Number(item.total_days || 0) / 365) * 100; // simple annualized, or use as shown
+  // Show as percentage like 18.5% APY – we can compute
+  const apyDisplay = (dailyProfit * (Number(item.total_days || 0) / 365) * 100).toFixed(1);
+
+  // Generate a fund reference like #FP-2026-06-21-001
+  const fundRef = `#FP-${new Date(item.started_at || Date.now()).toISOString().slice(0,10)}-${String(fundId).padStart(3,"0")}`;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
       <div className="flex items-start justify-between gap-2">
         <div>
+          <div className="text-[10px] text-slate-500">{fundRef}</div>
           <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
-          <div className="text-[10px] text-slate-400">Started: {formatDateTime(item.started_at)}</div>
         </div>
-        <StatusPill status={item.status} />
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-medium text-amber-400">PRIVATE</span>
+          <StatusPill status={item.status} />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
+        <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
+        <span className="text-white font-bold">{formatMoney(item.locked_principal)} USDT</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Funded</div>
-          <div className="font-semibold text-white">{formatMoney(item.locked_principal)} USDT</div>
+          <div className="text-slate-500">Duration</div>
+          <div className="font-semibold text-white">{item.total_days} Days</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Daily Rate</div>
-          <div className="font-semibold text-emerald-300">{Number(item.selected_daily_profit_percent || 0).toFixed(2)}%</div>
+          <div className="text-slate-500">Est. Return</div>
+          <div className="font-semibold text-cyan-300">+{formatMoney(item.earned_profit)} USDT</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Day</div>
-          <div className="font-semibold text-white">{item.current_day}/{item.total_days}</div>
+          <div className="text-slate-500">Maturity</div>
+          <div className="font-semibold text-white">{formatDateTime(item.ends_at || item.expected_end_date)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Left</div>
-          <div className="font-semibold text-amber-300">{daysLeft}</div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Profit</div>
-          <div className="font-semibold text-emerald-300">+{formatMoney(item.earned_profit)} USDT</div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Total</div>
-          <div className="font-semibold text-cyan-300">{formatMoney(totalReceive)} USDT</div>
+          <div className="text-slate-500">Payout</div>
+          <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
       </div>
       {isPaused && (
@@ -263,38 +286,55 @@ function ActiveFundCard({ item }) {
   );
 }
 
+// ---------- 🔄 MODIFIED: HistoryFundCard – new design (fourth screenshot) ----------
 function HistoryFundCard({ item }) {
   const totalReceived =
     Number(item.total_received || 0) ||
     (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
+  const dailyProfit = Number(item.selected_daily_profit_percent || 0);
+  const apyDisplay = (dailyProfit * (Number(item.total_days || 0) / 365) * 100).toFixed(1);
+  const fundRef = `#FP-${new Date(item.completed_at || Date.now()).toISOString().slice(0,10)}-${String(item.id).padStart(3,"0")}`;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
+          <div className="text-[10px] text-slate-500">{fundRef}</div>
           <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
-          <div className="text-[10px] text-slate-400">Completed: {formatDateTime(item.completed_at || item.updated_at || item.created_at)}</div>
         </div>
-        <StatusPill status={item.status} />
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-medium text-amber-400">PRIVATE</span>
+          <StatusPill status={item.status} />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
+        <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
+        <span className="text-white font-bold">{formatMoney(item.locked_principal)} USDT</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Principal</div>
-          <div className="font-semibold text-white">{formatMoney(item.locked_principal)} USDT</div>
+          <div className="text-slate-500">Duration</div>
+          <div className="font-semibold text-white">{item.total_days} Days</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Profit</div>
-          <div className="font-semibold text-emerald-300">+{formatMoney(item.earned_profit)} USDT</div>
+          <div className="text-slate-500">Est. Return</div>
+          <div className="font-semibold text-cyan-300">+{formatMoney(item.earned_profit)} USDT</div>
         </div>
-        <div className="rounded-lg border border-white/10 bg-[#050812] p-2 col-span-2">
-          <div className="text-slate-500">Total Received</div>
-          <div className="font-semibold text-cyan-300">{formatMoney(totalReceived)} USDT</div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Maturity</div>
+          <div className="font-semibold text-white">{formatDateTime(item.completed_at || item.updated_at)}</div>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
+          <div className="text-slate-500">Payout</div>
+          <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
       </div>
     </div>
   );
 }
 
+// ---------- VoucherRow (unchanged) ----------
 function VoucherRow({ label, value, valueClassName = "text-white" }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -304,6 +344,97 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
+// ---------- ➕ ADDED: Fund Confirmation Voucher Modal (first screenshot style) ----------
+function FundConfirmationModal({ data, onClose }) {
+  if (!data) return null;
+  const fundRef = `#FP-${new Date().toISOString().slice(0,10)}-${String(data.fund_id || Math.floor(Math.random()*1000)).padStart(3,"0")}`;
+  const dailyProfit = Number(data.selected_daily_profit_percent || 0);
+  const totalDays = Number(data.total_days || 0);
+  const apyDisplay = (dailyProfit * (totalDays / 365) * 100).toFixed(1);
+  const estReturn = Number(data.amount || 0) * (dailyProfit / 100) * totalDays;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div>
+            <div className="text-xs text-slate-500">{fundRef}</div>
+            <div className="text-sm text-slate-400">{new Date().toISOString().slice(0,10)}</div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 transition hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="pt-4">
+          <div className="text-center">
+            <h3 className="text-lg font-bold text-white">VexaTrade Blockchain Ecosystem Fund</h3>
+            <div className="mt-1 flex items-center justify-center gap-2 text-xs">
+              <span className="font-medium text-amber-400">PRIVATE</span>
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                APPLY CONFIRMED
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-4 text-xs">
+              <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
+              <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
+            </div>
+            <div className="mt-1 text-xl font-bold text-white">{formatMoney(data.amount)} USDT</div>
+          </div>
+          <div className="mt-4 space-y-2 text-xs">
+            <VoucherRow label="DURATION" value={`${totalDays} Days`} />
+            <VoucherRow label="EST. RETURN" value={`$${formatMoney(estReturn)}`} />
+            <VoucherRow label="MATURITY" value={formatDateTime(data.ends_at || new Date(Date.now() + totalDays*24*60*60*1000).toISOString())} />
+            <VoucherRow label="PAYOUT" value="Each day profits interest" />
+          </div>
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
+            <div className="flex items-center justify-between">
+              <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
+              <span className="font-mono text-cyan-400">{data.wallet_address || '0x71C...3F2A'}</span>
+            </div>
+            <div className="mt-1 text-slate-500">Secured</div>
+          </div>
+          <button onClick={onClose} className="mt-3 w-full rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black hover:bg-cyan-400">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- ➕ ADDED: Article/News Details Modal ----------
+function ArticleDetailsModal({ plan, onClose }) {
+  if (!plan) return null;
+  const content = plan.html_content || plan.admin_note || plan.additional_notes || plan.disclaimer || 'No additional information.';
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <h3 className="text-lg font-bold text-white">{plan.name}</h3>
+          <button onClick={onClose} className="text-slate-400 transition hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="pt-4 prose prose-invert max-w-none">
+          {plan.html_content ? (
+            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
+          ) : (
+            <>
+              {plan.admin_note && <div className="mb-3"><div className="text-xs font-semibold text-cyan-400">📢 Information</div><div className="text-sm text-slate-300 whitespace-pre-wrap">{plan.admin_note}</div></div>}
+              {plan.additional_notes && <div className="mb-3"><div className="text-xs font-semibold text-slate-300">ℹ️ Additional Notes</div><div className="text-sm text-slate-400 whitespace-pre-wrap">{plan.additional_notes}</div></div>}
+              {plan.disclaimer && <div className="mb-3"><div className="text-xs font-semibold text-amber-400">⚠️ Disclaimer</div><div className="text-sm text-amber-300/70 whitespace-pre-wrap">{plan.disclaimer}</div></div>}
+            </>
+          )}
+        </div>
+        <button onClick={onClose} className="mt-4 w-full rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black hover:bg-cyan-400">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- main FundsPage component ----------
 export default function FundsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -337,6 +468,11 @@ export default function FundsPage() {
   const [applyAmount, setApplyAmount] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
+  // ➕ ADDED: state for confirmation voucher
+  const [fundConfirmation, setFundConfirmation] = useState(null);
+  // ➕ ADDED: state for article details modal
+  const [articleDetails, setArticleDetails] = useState(null);
+
   const [hasTarget, setHasTarget] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetChecking, setTargetChecking] = useState(true);
@@ -348,6 +484,7 @@ export default function FundsPage() {
   const [profitWithdrawalTarget, setProfitWithdrawalTarget] = useState(0);
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
 
+  // ---------- target functions (unchanged) ----------
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
@@ -435,6 +572,7 @@ export default function FundsPage() {
     setShowProfitWithdrawalModal(true);
   }
 
+  // ---------- load data (unchanged) ----------
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
@@ -473,7 +611,6 @@ export default function FundsPage() {
         console.log(`🔍 [FundsPage] ${nextPlans.length} plans found`);
         if (nextPlans.length > 0) {
           console.log("🔍 [FundsPage] First plan:", nextPlans[0]);
-          // Check if first plan has html_content
           if (nextPlans[0].html_content) {
             console.log("🔍 [FundsPage] ✅ First plan has HTML content");
           } else {
@@ -577,6 +714,7 @@ export default function FundsPage() {
     setApplyAmount("");
   }
 
+  // ---------- 🔄 MODIFIED: handleApplyPlan – now shows confirmation modal ----------
   async function handleApplyPlan() {
     try {
       if (!applyModal) return;
@@ -604,21 +742,19 @@ export default function FundsPage() {
 
       const responseData = res?.data?.data || {};
 
+      // show success notification (but no voucher here – we'll show the modal)
       showSuccess(res?.data?.message || "Fund applied successfully");
 
-      showVoucher({
-        title: "Fund Investment",
-        type: "funds",
-        transactionId: responseData.fund_id,
-        data: {
-          fund_id: responseData.fund_id,
-          plan_name: applyModal.name,
-          amount: amount,
-          selected_daily_profit_percent: responseData.selected_daily_profit_percent,
-          total_days: applyModal.duration_days,
-          started_at: new Date().toISOString(),
-          ends_at: responseData.ends_at,
-        },
+      // ➕ Instead of calling showVoucher, we set the confirmation data
+      setFundConfirmation({
+        fund_id: responseData.fund_id,
+        plan_name: applyModal.name,
+        amount: amount,
+        selected_daily_profit_percent: responseData.selected_daily_profit_percent || applyModal.min_daily_profit_percent,
+        total_days: applyModal.duration_days,
+        started_at: new Date().toISOString(),
+        ends_at: responseData.ends_at,
+        wallet_address: responseData.wallet_address || '0x71C...3F2A',
       });
 
       closeApplyModal();
@@ -764,9 +900,19 @@ export default function FundsPage() {
           </div>
 
           {selectedPlan && selectedPlan.is_private === 0 ? (
-            <PlanCard plan={selectedPlan} applying={applying} onApply={openApplyModal} />
+            <PlanCard 
+              plan={selectedPlan} 
+              applying={applying} 
+              onApply={openApplyModal} 
+              onViewDetails={(plan) => setArticleDetails(plan)} // ➕ pass view details handler
+            />
           ) : plans.filter(p => p.is_private === 0).length > 0 ? (
-            <PlanCard plan={plans.filter(p => p.is_private === 0)[0]} applying={applying} onApply={openApplyModal} />
+            <PlanCard 
+              plan={plans.filter(p => p.is_private === 0)[0]} 
+              applying={applying} 
+              onApply={openApplyModal}
+              onViewDetails={(plan) => setArticleDetails(plan)}
+            />
           ) : (
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
               No public plans available at the moment.
@@ -802,9 +948,19 @@ export default function FundsPage() {
           </div>
 
           {selectedPlan && selectedPlan.is_private === 1 ? (
-            <PlanCard plan={selectedPlan} applying={applying} onApply={openApplyModal} />
+            <PlanCard 
+              plan={selectedPlan} 
+              applying={applying} 
+              onApply={openApplyModal}
+              onViewDetails={(plan) => setArticleDetails(plan)}
+            />
           ) : plans.filter(p => p.is_private === 1).length > 0 ? (
-            <PlanCard plan={plans.filter(p => p.is_private === 1)[0]} applying={applying} onApply={openApplyModal} />
+            <PlanCard 
+              plan={plans.filter(p => p.is_private === 1)[0]} 
+              applying={applying} 
+              onApply={openApplyModal}
+              onViewDetails={(plan) => setArticleDetails(plan)}
+            />
           ) : null}
         </section>
       )}
@@ -937,6 +1093,16 @@ export default function FundsPage() {
         currentProfit={profitWithdrawalProfit}
         targetAmount={profitWithdrawalTarget}
       />
+
+      {/* ➕ ADDED: Fund Confirmation Voucher Modal */}
+      {fundConfirmation && (
+        <FundConfirmationModal data={fundConfirmation} onClose={() => setFundConfirmation(null)} />
+      )}
+
+      {/* ➕ ADDED: Article Details Modal */}
+      {articleDetails && (
+        <ArticleDetailsModal plan={articleDetails} onClose={() => setArticleDetails(null)} />
+      )}
     </div>
   );
 }
