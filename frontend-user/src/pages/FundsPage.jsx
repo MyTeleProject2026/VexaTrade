@@ -1,3 +1,4 @@
+// frontend-user/src/pages/FundsPage.jsx – FINAL (exact match to your screenshots)
 import { useEffect, useMemo, useState } from "react";
 import {
   RefreshCw,
@@ -12,6 +13,7 @@ import {
   Lock,
   AlertCircle,
   FileText,
+  CheckSquare,
 } from "lucide-react";
 import { getApiErrorMessage } from "../services/api";
 import api from "../services/api";
@@ -93,10 +95,8 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-// ---------- PlanCard (unchanged, but we'll add a "View Details" button) ----------
+// ---------- PlanCard – only title, grid, and two buttons ----------
 function PlanCard({ plan, applying, onApply, onViewDetails }) {
-  const [showFullNote, setShowFullNote] = useState(false);
-  
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
       ? "Unlimited"
@@ -106,17 +106,6 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
     plan.user_limit_count === null || plan.user_limit_count === undefined
       ? "No limit"
       : `${plan.user_limit_count} times`;
-
-  const hasNote = plan.admin_note && plan.admin_note.trim().length > 0;
-  const hasAdditionalNotes = plan.additional_notes && plan.additional_notes.trim().length > 0;
-  const hasDisclaimer = plan.disclaimer && plan.disclaimer.trim().length > 0;
-  const hasAnyNote = hasNote || hasAdditionalNotes || hasDisclaimer;
-  
-  const getShortPreview = (text) => {
-    if (!text) return "";
-    if (text.length <= 100) return text;
-    return text.substring(0, 100) + "...";
-  };
 
   const isPrivate = plan.is_private === 1;
 
@@ -156,68 +145,19 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
         </div>
       </div>
 
-      {/* ✅ HTML CONTENT or fallback */}
-      {plan.html_content ? (
-        <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3 prose prose-invert max-w-none">
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
-        </div>
-      ) : (
-        hasAnyNote && (
-          <div className="mt-3 rounded-xl border border-white/10 bg-[#050812] p-3">
-            {hasNote && (
-              <div className="mb-2">
-                <div className="text-[10px] font-semibold text-cyan-400 mb-1">📢 Information</div>
-                <div className="text-xs text-slate-300 leading-relaxed">
-                  {showFullNote ? plan.admin_note : getShortPreview(plan.admin_note)}
-                </div>
-              </div>
-            )}
-            {hasAdditionalNotes && (
-              <div className="mb-2">
-                <div className="text-[10px] font-semibold text-slate-300 mb-1">ℹ️ Additional Notes</div>
-                <div className="text-xs text-slate-400 leading-relaxed">
-                  {showFullNote ? plan.additional_notes : getShortPreview(plan.additional_notes)}
-                </div>
-              </div>
-            )}
-            {hasDisclaimer && (
-              <div className="mb-2">
-                <div className="text-[10px] font-semibold text-amber-400 mb-1">⚠️ Disclaimer</div>
-                <div className="text-xs text-amber-300/70 leading-relaxed">
-                  {showFullNote ? plan.disclaimer : getShortPreview(plan.disclaimer)}
-                </div>
-              </div>
-            )}
-            {(plan.admin_note?.length > 100 || plan.additional_notes?.length > 100 || plan.disclaimer?.length > 100) && (
-              <button
-                type="button"
-                onClick={() => setShowFullNote(!showFullNote)}
-                className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1"
-              >
-                {showFullNote ? "Show less ▲" : "Click to read full information ▼"}
-              </button>
-            )}
-          </div>
-        )
-      )}
-
-      {/* ➕ ADDED: View Details button for full article/news */}
-      {(plan.admin_note || plan.additional_notes || plan.disclaimer || plan.html_content) && (
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={() => onViewDetails(plan)}
-          className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition"
+          className="flex-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
         >
-          <FileText size={12} /> View Details
+          <FileText size={12} className="inline mr-1" /> View Details
         </button>
-      )}
-
-      <div className="mt-2">
         <button
           type="button"
           onClick={() => onApply(plan)}
           disabled={applying}
-          className="w-full rounded-lg bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
+          className="flex-1 rounded-lg bg-cyan-500 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
         >
           {applying ? "..." : "Apply"}
         </button>
@@ -226,56 +166,65 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
   );
 }
 
-// ---------- 🔄 MODIFIED: ActiveFundCard – new design (third screenshot) ----------
+// ---------- 🔄 UPDATED: ActiveFundCard – exact match to second screenshot ----------
 function ActiveFundCard({ item }) {
   const daysLeft = getDaysLeft(item);
   const totalReceive =
     Number(item.locked_principal || 0) + Number(item.earned_profit || 0);
   const isPaused = String(item.status || "").toLowerCase() === "paused";
   const fundId = item.fund_id || item.id;
-  const dailyProfit = Number(item.selected_daily_profit_percent || 0);
-  const apy = dailyProfit * (Number(item.total_days || 0) / 365) * 100; // simple annualized, or use as shown
-  // Show as percentage like 18.5% APY – we can compute
-  const apyDisplay = (dailyProfit * (Number(item.total_days || 0) / 365) * 100).toFixed(1);
-
-  // Generate a fund reference like #FP-2026-06-21-001
-  const fundRef = `#FP-${new Date(item.started_at || Date.now()).toISOString().slice(0,10)}-${String(fundId).padStart(3,"0")}`;
+  const dailyPercent = Number(item.selected_daily_profit_percent || 0);
+  const principal = Number(item.locked_principal || 0);
+  const dailyDollar = (principal * dailyPercent) / 100;
+  const apy = dailyPercent * 365; // Annualized percentage
+  const fundRef = `#FP-${new Date(item.started_at || Date.now()).toISOString().slice(0,10)}-${String(fundId).slice(-6).padStart(6, "0")}`;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-[10px] text-slate-500">{fundRef}</div>
-          <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] font-medium text-amber-400">PRIVATE</span>
-          <StatusPill status={item.status} />
-        </div>
+      <div className="text-[10px] text-slate-500">{fundRef}</div>
+      <div className="text-sm font-semibold text-white">VexaTrade Blockchain Ecosystem Fund</div>
+
+      <div className="mt-1 flex items-center gap-2">
+        <span className="text-xs font-medium text-amber-400">PRIVATE</span>
+        <span className="text-xs text-slate-300">-</span>
+        <span className="text-xs font-medium text-emerald-300 flex items-center gap-1">
+          <CheckSquare size={12} className="text-emerald-400" /> ACTIVE
+        </span>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
-        <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
-        <span className="text-white font-bold">{formatMoney(item.locked_principal)} USDT</span>
+
+      <div className="mt-1 text-sm">
+        <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
+        <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
+        <div className="text-slate-400 text-xs">USDT (ETH)</div>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+
+      <div className="mt-2 text-lg font-bold text-white">${formatMoney(principal)}</div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Duration</div>
+          <div className="text-slate-500">DURATION</div>
           <div className="font-semibold text-white">{item.total_days} Days</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Est. Return</div>
-          <div className="font-semibold text-cyan-300">+{formatMoney(item.earned_profit)} USDT</div>
+          <div className="text-slate-500">EST. RETURN</div>
+          <div className="font-semibold text-cyan-300">${formatMoney(item.earned_profit)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Maturity</div>
+          <div className="text-slate-500">MATURITY</div>
           <div className="font-semibold text-white">{formatDateTime(item.ends_at || item.expected_end_date)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Payout</div>
+          <div className="text-slate-500">PAYOUT</div>
           <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
       </div>
+
+      <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-xs text-slate-200 flex items-center justify-between">
+        <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
+        <span className="font-mono text-cyan-400">{item.wallet_address || '0xE7A...2D4B'}</span>
+      </div>
+      <div className="mt-0.5 text-right text-[9px] text-slate-500">Secured</div>
+
       {isPaused && (
         <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-center text-[10px] text-red-300">
           <AlertCircle size={10} className="inline mr-1" />
@@ -286,49 +235,58 @@ function ActiveFundCard({ item }) {
   );
 }
 
-// ---------- 🔄 MODIFIED: HistoryFundCard – new design (fourth screenshot) ----------
+// ---------- 🔄 UPDATED: HistoryFundCard – exact match to third screenshot ----------
 function HistoryFundCard({ item }) {
   const totalReceived =
     Number(item.total_received || 0) ||
     (Number(item.locked_principal || 0) + Number(item.earned_profit || 0));
-  const dailyProfit = Number(item.selected_daily_profit_percent || 0);
-  const apyDisplay = (dailyProfit * (Number(item.total_days || 0) / 365) * 100).toFixed(1);
-  const fundRef = `#FP-${new Date(item.completed_at || Date.now()).toISOString().slice(0,10)}-${String(item.id).padStart(3,"0")}`;
+  const dailyPercent = Number(item.selected_daily_profit_percent || 0);
+  const principal = Number(item.locked_principal || 0);
+  const dailyDollar = (principal * dailyPercent) / 100;
+  const apy = dailyPercent * 365;
+  const fundRef = `#FP-${new Date(item.completed_at || Date.now()).toISOString().slice(0,10)}-${String(item.id).slice(-6).padStart(6, "0")}`;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-[10px] text-slate-500">{fundRef}</div>
-          <div className="text-sm font-semibold text-white">{item.plan_name || "Fund Plan"}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] font-medium text-amber-400">PRIVATE</span>
-          <StatusPill status={item.status} />
-        </div>
+    <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
+      <div className="text-[10px] text-slate-500">{fundRef}</div>
+      <div className="text-sm font-semibold text-white">VexaTrade Blockchain Ecosystem Fund</div>
+
+      <div className="mt-1 flex items-center gap-2">
+        <span className="text-xs font-medium text-amber-400">PRIVATE</span>
+        <span className="text-xs text-slate-300">-</span>
+        <span className="text-xs font-medium text-emerald-300">COMPLETED FUND PROCESSED</span>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
-        <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
-        <span className="text-white font-bold">{formatMoney(item.locked_principal)} USDT</span>
+
+      <div className="mt-1 text-sm">
+        <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
+        <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
+        <div className="text-slate-400 text-xs">USDT (ETH)</div>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+
+      <div className="mt-2 text-lg font-bold text-white">${formatMoney(principal)}</div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Duration</div>
+          <div className="text-slate-500">DURATION</div>
           <div className="font-semibold text-white">{item.total_days} Days</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Est. Return</div>
-          <div className="font-semibold text-cyan-300">+{formatMoney(item.earned_profit)} USDT</div>
+          <div className="text-slate-500">EST. RETURN</div>
+          <div className="font-semibold text-cyan-300">${formatMoney(item.earned_profit)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Maturity</div>
+          <div className="text-slate-500">MATURITY</div>
           <div className="font-semibold text-white">{formatDateTime(item.completed_at || item.updated_at)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">Payout</div>
+          <div className="text-slate-500">PAYOUT</div>
           <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
+      </div>
+
+      <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-xs text-slate-200">
+        <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
+        {/* wallet address not shown in the screenshot, but we can include if available */}
       </div>
     </div>
   );
@@ -344,18 +302,20 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-// ---------- ➕ ADDED: Fund Confirmation Voucher Modal (first screenshot style) ----------
+// ---------- 🔄 UPDATED: FundConfirmationModal – exact match to first screenshot (full-screen) ----------
 function FundConfirmationModal({ data, onClose }) {
   if (!data) return null;
-  const fundRef = `#FP-${new Date().toISOString().slice(0,10)}-${String(data.fund_id || Math.floor(Math.random()*1000)).padStart(3,"0")}`;
-  const dailyProfit = Number(data.selected_daily_profit_percent || 0);
+  const fundRef = `#FP-${new Date().toISOString().slice(0,10)}-${String(data.fund_id || Math.floor(Math.random()*1000)).slice(-6).padStart(6, "0")}`;
+  const dailyPercent = Number(data.selected_daily_profit_percent || 0);
   const totalDays = Number(data.total_days || 0);
-  const apyDisplay = (dailyProfit * (totalDays / 365) * 100).toFixed(1);
-  const estReturn = Number(data.amount || 0) * (dailyProfit / 100) * totalDays;
+  const principal = Number(data.amount || 0);
+  const dailyDollar = (principal * dailyPercent) / 100;
+  const apy = dailyPercent * 365;
+  const estReturn = principal * (dailyPercent / 100) * totalDays;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
-      <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050812]/95 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div>
             <div className="text-xs text-slate-500">{fundRef}</div>
@@ -365,34 +325,40 @@ function FundConfirmationModal({ data, onClose }) {
             <X size={18} />
           </button>
         </div>
+
         <div className="pt-4">
           <div className="text-center">
             <h3 className="text-lg font-bold text-white">VexaTrade Blockchain Ecosystem Fund</h3>
             <div className="mt-1 flex items-center justify-center gap-2 text-xs">
               <span className="font-medium text-amber-400">PRIVATE</span>
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                APPLY CONFIRMED
+              <span className="text-slate-300">-</span>
+              <span className="flex items-center gap-1 text-emerald-300">
+                <CheckSquare size={14} className="text-emerald-400" /> APPLY CONFIRMED
               </span>
             </div>
-            <div className="mt-2 flex items-center justify-center gap-4 text-xs">
-              <span className="text-slate-400">+{dailyProfit.toFixed(2)}%/day</span>
-              <span className="text-emerald-300 font-semibold">{apyDisplay}% APY</span>
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
+              <div className="text-slate-400">USDT (ETH)</div>
+              <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
             </div>
-            <div className="mt-1 text-xl font-bold text-white">{formatMoney(data.amount)} USDT</div>
+            <div className="mt-2 text-xl font-bold text-white">${formatMoney(principal)}</div>
           </div>
+
           <div className="mt-4 space-y-2 text-xs">
             <VoucherRow label="DURATION" value={`${totalDays} Days`} />
             <VoucherRow label="EST. RETURN" value={`$${formatMoney(estReturn)}`} />
             <VoucherRow label="MATURITY" value={formatDateTime(data.ends_at || new Date(Date.now() + totalDays*24*60*60*1000).toISOString())} />
             <VoucherRow label="PAYOUT" value="Each day profits interest" />
           </div>
+
           <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
             <div className="flex items-center justify-between">
               <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
               <span className="font-mono text-cyan-400">{data.wallet_address || '0x71C...3F2A'}</span>
             </div>
-            <div className="mt-1 text-slate-500">Secured</div>
+            <div className="mt-1 text-right text-slate-500">Secured</div>
           </div>
+
           <button onClick={onClose} className="mt-3 w-full rounded-xl bg-cyan-500 py-2 text-xs font-semibold text-black hover:bg-cyan-400">
             Close
           </button>
@@ -402,10 +368,9 @@ function FundConfirmationModal({ data, onClose }) {
   );
 }
 
-// ---------- ➕ ADDED: Article/News Details Modal ----------
+// ---------- Article Details Modal (unchanged) ----------
 function ArticleDetailsModal({ plan, onClose }) {
   if (!plan) return null;
-  const content = plan.html_content || plan.admin_note || plan.additional_notes || plan.disclaimer || 'No additional information.';
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#050812]/70 p-0 sm:items-center sm:p-4">
       <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
@@ -434,7 +399,7 @@ function ArticleDetailsModal({ plan, onClose }) {
   );
 }
 
-// ---------- main FundsPage component ----------
+// ---------- main FundsPage component (unchanged logic, only imports and modals are new) ----------
 export default function FundsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -468,9 +433,7 @@ export default function FundsPage() {
   const [applyAmount, setApplyAmount] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
-  // ➕ ADDED: state for confirmation voucher
   const [fundConfirmation, setFundConfirmation] = useState(null);
-  // ➕ ADDED: state for article details modal
   const [articleDetails, setArticleDetails] = useState(null);
 
   const [hasTarget, setHasTarget] = useState(false);
@@ -580,9 +543,6 @@ export default function FundsPage() {
 
       setError("");
 
-      console.log("🔍 [FundsPage] Token exists:", !!token);
-      console.log("🔍 [FundsPage] Token length:", token.length);
-
       const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
         await Promise.allSettled([
           api.get("/api/funds/plans", {
@@ -602,28 +562,10 @@ export default function FundsPage() {
           }),
         ]);
 
-      console.log("🔍 [FundsPage] Plans response status:", plansRes.status);
-      
       if (plansRes.status === "fulfilled") {
-        console.log("🔍 [FundsPage] Plans response data:", plansRes.value?.data);
         const responseData = plansRes.value?.data?.data;
         const nextPlans = Array.isArray(responseData) ? responseData : [];
-        console.log(`🔍 [FundsPage] ${nextPlans.length} plans found`);
-        if (nextPlans.length > 0) {
-          console.log("🔍 [FundsPage] First plan:", nextPlans[0]);
-          if (nextPlans[0].html_content) {
-            console.log("🔍 [FundsPage] ✅ First plan has HTML content");
-          } else {
-            console.log("🔍 [FundsPage] ℹ️ First plan uses individual fields (admin_note, etc.)");
-          }
-        }
         setPlans(nextPlans);
-      } else {
-        console.error("🔍 [FundsPage] Plans request failed:", plansRes.reason);
-        if (plansRes.reason?.response) {
-          console.error("🔍 [FundsPage] Status:", plansRes.reason.response.status);
-          console.error("🔍 [FundsPage] Data:", plansRes.reason.response.data);
-        }
       }
 
       if (summaryRes.status === "fulfilled") {
@@ -642,7 +584,6 @@ export default function FundsPage() {
         setLatestCompleted(latestRes.value?.data?.data || null);
       }
     } catch (err) {
-      console.error("🔍 [FundsPage] loadData error:", err);
       showError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
@@ -714,7 +655,7 @@ export default function FundsPage() {
     setApplyAmount("");
   }
 
-  // ---------- 🔄 MODIFIED: handleApplyPlan – now shows confirmation modal ----------
+  // ---------- handleApplyPlan – shows confirmation modal ----------
   async function handleApplyPlan() {
     try {
       if (!applyModal) return;
@@ -742,10 +683,8 @@ export default function FundsPage() {
 
       const responseData = res?.data?.data || {};
 
-      // show success notification (but no voucher here – we'll show the modal)
       showSuccess(res?.data?.message || "Fund applied successfully");
 
-      // ➕ Instead of calling showVoucher, we set the confirmation data
       setFundConfirmation({
         fund_id: responseData.fund_id,
         plan_name: applyModal.name,
@@ -777,6 +716,7 @@ export default function FundsPage() {
     );
   }
 
+  // ---------- render ----------
   return (
     <div className="space-y-4 bg-[#050812] px-3 pb-24 pt-3 sm:px-5 xl:pb-8">
       {hasTarget && targetProgress.targetAmount > 0 && (
@@ -904,7 +844,7 @@ export default function FundsPage() {
               plan={selectedPlan} 
               applying={applying} 
               onApply={openApplyModal} 
-              onViewDetails={(plan) => setArticleDetails(plan)} // ➕ pass view details handler
+              onViewDetails={(plan) => setArticleDetails(plan)}
             />
           ) : plans.filter(p => p.is_private === 0).length > 0 ? (
             <PlanCard 
@@ -1094,12 +1034,12 @@ export default function FundsPage() {
         targetAmount={profitWithdrawalTarget}
       />
 
-      {/* ➕ ADDED: Fund Confirmation Voucher Modal */}
+      {/* Fund Confirmation Voucher (full‑screen) */}
       {fundConfirmation && (
         <FundConfirmationModal data={fundConfirmation} onClose={() => setFundConfirmation(null)} />
       )}
 
-      {/* ➕ ADDED: Article Details Modal */}
+      {/* Article Details Modal */}
       {articleDetails && (
         <ArticleDetailsModal plan={articleDetails} onClose={() => setArticleDetails(null)} />
       )}
