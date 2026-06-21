@@ -1,3 +1,4 @@
+// frontend-user/src/pages/TransactionsPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownCircle,
@@ -12,6 +13,7 @@ import {
   CheckCircle2,
   Trash2,
   BadgeDollarSign,
+  X,
 } from "lucide-react";
 import { transactionApi, userApi, getApiErrorMessage } from "../services/api";
 
@@ -23,28 +25,22 @@ function formatAmount(value) {
 
 function formatTime(value) {
   if (!value) return "-";
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-
   return date.toLocaleString();
 }
 
 function getStatusClass(status) {
   const value = String(status || "").toLowerCase();
-
   if (["completed", "approved", "success", "sent", "read"].includes(value)) {
     return "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
   }
-
   if (["pending", "unread"].includes(value)) {
     return "border border-amber-500/20 bg-amber-500/10 text-amber-300";
   }
-
   if (["rejected", "failed", "cancelled"].includes(value)) {
     return "border border-red-500/20 bg-red-500/10 text-red-300";
   }
-
   return "border border-white/10 bg-white/5 text-slate-300";
 }
 
@@ -62,7 +58,6 @@ function StatusBadge({ status }) {
 
 function normalizeTransactionType(type) {
   const value = String(type || "").toLowerCase();
-
   if (
     value.includes("deposit") ||
     value === "admin_credit" ||
@@ -70,33 +65,26 @@ function normalizeTransactionType(type) {
   ) {
     return "deposit";
   }
-
   if (value.includes("withdraw")) {
     return "withdraw";
   }
-
   if (value.includes("trade")) {
     return "trade";
   }
-
   if (value.includes("convert")) {
     return "convert";
   }
-
   if (value.includes("loan")) {
     return "loan";
   }
-
   if (value.includes("fund")) {
     return "funds";
   }
-
   return "other";
 }
 
 function getTransactionLabel(type) {
   const value = String(type || "").toLowerCase();
-
   const labels = {
     deposit: "Deposit",
     deposit_approved: "Deposit Approved",
@@ -117,26 +105,22 @@ function getTransactionLabel(type) {
     funds_profit: "Fund Profit",
     funds_complete: "Fund Completed",
   };
-
   return labels[value] || String(type || "Transaction").replaceAll("_", " ");
 }
 
 function getTransactionIcon(type) {
   const normalized = normalizeTransactionType(type);
-
   if (normalized === "deposit") return ArrowDownCircle;
   if (normalized === "withdraw") return ArrowUpCircle;
   if (normalized === "trade") return TrendingUp;
   if (normalized === "convert") return Repeat;
   if (normalized === "loan") return Landmark;
   if (normalized === "funds") return BadgeDollarSign;
-
   return Wallet;
 }
 
 function getTransactionAmountClass(type) {
   const value = String(type || "").toLowerCase();
-
   if (
     value.includes("deposit") ||
     value === "admin_credit" ||
@@ -149,7 +133,6 @@ function getTransactionAmountClass(type) {
   ) {
     return "text-emerald-300";
   }
-
   if (
     value.includes("withdraw") ||
     value === "admin_debit" ||
@@ -160,7 +143,6 @@ function getTransactionAmountClass(type) {
   ) {
     return "text-red-300";
   }
-
   return "text-white";
 }
 
@@ -170,11 +152,9 @@ function getDisplayCoin(item) {
 
 function getNotificationIcon(type) {
   const value = String(type || "").toLowerCase();
-
   if (value === "verification_code") return ShieldCheck;
   if (value === "security") return ShieldCheck;
   if (value === "funds") return BadgeDollarSign;
-
   return Bell;
 }
 
@@ -188,25 +168,14 @@ function getNotificationStatus(item) {
 
 function getNotificationTone(type) {
   const value = String(type || "").toLowerCase();
-
-  if (value === "verification_code") {
-    return "text-cyan-400";
-  }
-
-  if (value === "security") {
-    return "text-cyan-300";
-  }
-
-  if (value === "funds") {
-    return "text-emerald-300";
-  }
-
+  if (value === "verification_code") return "text-cyan-400";
+  if (value === "security") return "text-cyan-300";
+  if (value === "funds") return "text-emerald-300";
   return "text-violet-300";
 }
 
 function getNotificationCategory(type) {
   const value = String(type || "").toLowerCase();
-
   if (value === "funds") return "funds";
   return "message";
 }
@@ -224,6 +193,7 @@ function normalizeActivityRowFromTransaction(item) {
     status: item.status || "completed",
     created_at: item.created_at,
     iconType: item.type,
+    rawData: item, // full original object
   };
 }
 
@@ -241,6 +211,7 @@ function normalizeActivityRowFromNotification(item) {
     created_at: item.created_at,
     iconType: item.type,
     is_read: Number(item.is_read || 0),
+    rawData: item, // full original object
   };
 }
 
@@ -253,10 +224,124 @@ function EmptyState({ tab }) {
     funds: "No funds activity found.",
     messages: "No notifications found.",
   };
-
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#0a0e1a] px-4 py-10 text-center text-sm text-slate-500">
       {map[tab] || "No records found."}
+    </div>
+  );
+}
+
+// ---------- Detail Modal ----------
+function TransactionDetailModal({ item, onClose }) {
+  if (!item) return null;
+
+  const isNotification = item.source === "notification";
+  const raw = item.rawData;
+
+  if (isNotification) {
+    // Notification detail
+    const Icon = getNotificationIcon(item.iconType);
+    const tone = getNotificationTone(item.iconType);
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050812]/95 p-4">
+        <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <Icon size={20} className={tone} />
+              <h2 className="text-lg font-bold text-white">{item.title}</h2>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-white">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-4 space-y-3">
+            <div className="text-sm text-slate-300 whitespace-pre-wrap break-words">
+              {item.subtitle}
+            </div>
+            <div className="text-xs text-slate-500">{formatTime(item.created_at)}</div>
+            <div>
+              <StatusBadge status={item.status} />
+            </div>
+            {raw.message && raw.message.length > 100 && (
+              <div className="rounded-lg border border-white/10 bg-[#050812] p-3 text-xs text-slate-400">
+                Full message: <span className="block whitespace-pre-wrap mt-1">{raw.message}</span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Transaction detail
+  const Icon = getTransactionIcon(item.iconType);
+  const amountClass = getTransactionAmountClass(item.iconType);
+  const tx = raw;
+
+  // Build a list of fields to show
+  const fields = [
+    { label: "Type", value: getTransactionLabel(tx.type) },
+    { label: "Amount", value: `${formatAmount(tx.amount)} ${getDisplayCoin(tx)}`, className: amountClass },
+    { label: "Status", value: <StatusBadge status={tx.status} /> },
+    { label: "Time", value: formatTime(tx.created_at) },
+    { label: "Note", value: tx.note || "-" },
+  ];
+
+  // Add extra fields based on type
+  if (tx.fee !== undefined && tx.fee !== null) {
+    fields.push({ label: "Fee", value: `${formatAmount(tx.fee)} ${getDisplayCoin(tx)}` });
+  }
+  if (tx.trade_id) {
+    fields.push({ label: "Trade ID", value: tx.trade_id });
+  }
+  if (tx.fund_id) {
+    fields.push({ label: "Fund ID", value: tx.fund_id });
+  }
+  if (tx.entry_price) {
+    fields.push({ label: "Entry Price", value: formatAmount(tx.entry_price) });
+  }
+  if (tx.exit_price) {
+    fields.push({ label: "Exit Price", value: formatAmount(tx.exit_price) });
+  }
+  if (tx.profit) {
+    fields.push({ label: "Profit", value: `${formatAmount(tx.profit)} ${getDisplayCoin(tx)}`, className: "text-emerald-300" });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050812]/95 p-4">
+      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Icon size={20} className="text-slate-300" />
+            <h2 className="text-lg font-bold text-white">{item.title}</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto py-4 space-y-3">
+          {fields.map((field, idx) => (
+            <div key={idx} className="flex items-center justify-between border-b border-white/5 pb-2 last:border-0">
+              <span className="text-sm text-slate-400">{field.label}</span>
+              <span className={`text-sm font-medium ${field.className || "text-white"}`}>
+                {field.value}
+              </span>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={onClose}
+          className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400"
+        >
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -275,12 +360,12 @@ export default function TransactionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null); // for detail modal
 
   async function load(silent = false) {
     try {
       if (!silent) setLoading(true);
       else setRefreshing(true);
-
       setError("");
 
       const [txRes, notificationRes] = await Promise.allSettled([
@@ -313,23 +398,12 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     load();
-
-    const interval = setInterval(() => {
-      load(true);
-    }, 10000);
-
+    const interval = setInterval(() => load(true), 10000);
     return () => clearInterval(interval);
   }, []);
 
-   useEffect(() => {
-    // Cleanup function to remove any stuck modals when leaving the page
+  useEffect(() => {
     return () => {
-      const backdrops = document.querySelectorAll('.fixed.inset-0.z-\\[250\\], .fixed.inset-0.bg-\\[\\#050812\\]\\/80');
-      backdrops.forEach(backdrop => {
-        if (backdrop && backdrop.parentNode) {
-          backdrop.parentNode.removeChild(backdrop);
-        }
-      });
       document.body.style.overflow = '';
       document.body.style.pointerEvents = '';
     };
@@ -338,7 +412,6 @@ export default function TransactionsPage() {
   const activityRows = useMemo(() => {
     const txRows = transactions.map(normalizeActivityRowFromTransaction);
     const notificationRows = notifications.map(normalizeActivityRowFromNotification);
-
     return [...notificationRows, ...txRows].sort((a, b) => {
       const aTime = new Date(a.created_at || 0).getTime();
       const bTime = new Date(b.created_at || 0).getTime();
@@ -354,39 +427,32 @@ export default function TransactionsPage() {
     if (tab === "funds") {
       return activityRows.filter((item) => item.category === "funds");
     }
-
     return activityRows.filter((item) => item.category === tab);
   }, [activityRows, tab]);
 
-  async function handleNotificationClick(item) {
-    if (item.source !== "notification") return;
-    if (Number(item.is_read || 0) === 1) return;
-
-    try {
-      await userApi.markNotificationRead(item.rawId, token);
-
-      setNotifications((prev) =>
-        prev.map((row) =>
-          row.id === item.rawId
-            ? {
-                ...row,
-                is_read: 1,
-              }
-            : row
-        )
-      );
-    } catch {
-      // keep UI stable
+  async function handleItemClick(item) {
+    // If notification, mark as read first
+    if (item.source === "notification" && Number(item.is_read || 0) !== 1) {
+      try {
+        await userApi.markNotificationRead(item.rawId, token);
+        setNotifications((prev) =>
+          prev.map((row) =>
+            row.id === item.rawId ? { ...row, is_read: 1 } : row
+          )
+        );
+      } catch {
+        // ignore
+      }
     }
+    // Then open detail modal
+    setSelectedItem(item);
   }
 
   async function handleDeleteNotification(item) {
     if (item.source !== "notification") return;
-
     try {
       setDeletingId(item.rawId);
       await userApi.deleteNotification(item.rawId, token);
-
       setNotifications((prev) => prev.filter((row) => row.id !== item.rawId));
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -427,7 +493,6 @@ export default function TransactionsPage() {
             Transactions and important messages
           </p>
         </div>
-
         <button
           type="button"
           onClick={() => load(true)}
@@ -437,11 +502,11 @@ export default function TransactionsPage() {
         </button>
       </div>
 
-      {error ? (
+      {error && (
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
         </div>
-      ) : null}
+      )}
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {[
@@ -481,7 +546,7 @@ export default function TransactionsPage() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => handleNotificationClick(item)}
+                  onClick={() => handleItemClick(item)}
                   className="block w-full rounded-[22px] border border-white/10 bg-[#0a0e1a] p-4 text-left transition hover:bg-[#151515]"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -489,33 +554,27 @@ export default function TransactionsPage() {
                       <div className={`mt-0.5 shrink-0 ${tone}`}>
                         <Icon size={22} />
                       </div>
-
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="truncate text-sm font-semibold text-white sm:text-base">
                             {item.title}
                           </div>
-
-                          {Number(item.is_read || 0) !== 1 ? (
+                          {Number(item.is_read || 0) !== 1 && (
                             <span className="rounded-full bg-cyan-500 px-2 py-0.5 text-[10px] font-semibold text-black">
                               New
                             </span>
-                          ) : null}
+                          )}
                         </div>
-
                         <div className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-300">
                           {item.subtitle}
                         </div>
-
                         <div className="mt-2 text-[11px] text-slate-500 sm:text-xs">
                           {formatTime(item.created_at)}
                         </div>
                       </div>
                     </div>
-
                     <div className="shrink-0 flex items-center gap-2">
                       <StatusBadge status={item.status} />
-
                       <button
                         type="button"
                         onClick={(e) => {
@@ -538,46 +597,42 @@ export default function TransactionsPage() {
             const amountClass = getTransactionAmountClass(item.iconType);
 
             return (
-              <div
+              <button
                 key={item.id}
-                className="rounded-[22px] border border-white/10 bg-[#0a0e1a] p-4"
+                onClick={() => handleItemClick(item)}
+                className="block w-full rounded-[22px] border border-white/10 bg-[#0a0e1a] p-4 text-left transition hover:bg-[#151515]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="shrink-0 text-slate-300">
                       <Icon size={22} />
                     </div>
-
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-white sm:text-base">
                         {item.title}
                       </div>
-
                       <div className="mt-1 text-[11px] text-slate-500 sm:text-xs">
                         {formatTime(item.created_at)}
                       </div>
-
-                      {item.subtitle ? (
+                      {item.subtitle && (
                         <div className="mt-1 truncate text-[11px] text-slate-500">
                           {item.subtitle}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   </div>
-
                   <div className="shrink-0 text-right">
                     <div className={`text-sm font-semibold sm:text-base ${amountClass}`}>
                       {item.amount !== null && item.amount !== undefined
                         ? `${formatAmount(item.amount)} ${item.coin}`
                         : "-"}
                     </div>
-
                     <div className="mt-2">
                       <StatusBadge status={item.status} />
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })
         ) : (
@@ -585,14 +640,22 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      {notifications.some((item) => Number(item.is_read || 0) !== 1) ? (
+      {notifications.some((item) => Number(item.is_read || 0) !== 1) && (
         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-300">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} />
             <span>Tap a message to mark it as read.</span>
           </div>
         </div>
-      ) : null}
+      )}
+
+      {/* Detail Modal */}
+      {selectedItem && (
+        <TransactionDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </div>
   );
 }
