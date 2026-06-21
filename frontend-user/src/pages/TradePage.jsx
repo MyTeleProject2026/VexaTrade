@@ -6,11 +6,8 @@ import {
   TrendingUp,
   TrendingDown,
   History,
-  Activity,
   X,
-  Flame,
   Target,
-  Clock3,
   BarChart3,
 } from "lucide-react";
 import MarketChart from "../components/MarketChart";
@@ -82,6 +79,7 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
   const [priceChange, setPriceChange] = useState(0);
   const [isPositive, setIsPositive] = useState(true);
 
+  // Simulate price updates every second (you can replace with WebSocket)
   useEffect(() => {
     if (!runningTrade) return;
     const interval = setInterval(() => {
@@ -114,7 +112,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
       >
         <X size={24} />
       </button>
-
       <div className="w-full max-w-md text-center">
         <div className="relative mx-auto h-56 w-56">
           <svg className="h-full w-full -rotate-90" viewBox="0 0 240 240">
@@ -128,7 +125,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
             <div className="mt-1 text-sm text-slate-400">Trade Running</div>
           </div>
         </div>
-
         <div className="mt-6">
           <div className="text-3xl font-bold text-white">
             {formatPrice(currentPrice)}
@@ -137,7 +133,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
             {isPositive ? "▲" : "▼"} {formatPrice(priceChange)} ({isPositive ? "+" : ""}{formatPercent((priceChange / (runningTrade?.entryPrice || 1)) * 100)}%)
           </div>
         </div>
-
         <div className="mt-6 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-400">Pair</span>
@@ -163,14 +158,14 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
   );
 }
 
-// ---------- NEW Result Modal (combines stat card + receipt) ----------
+// ---------- Result Modal (stats + receipt) ----------
 function ResultModal({ result, tradeHistory = [], onClose }) {
   if (!result) return null;
 
   const isWin = String(result.result || result.status || "").toLowerCase().includes("win");
   const profit = isWin ? Number(result.amount || 0) * 0.025 : -Number(result.amount || 0) * 0.025;
 
-  // Calculate stats from trade history
+  // Calculate stats from tradeHistory
   const totalTrades = tradeHistory.length;
   const wins = tradeHistory.filter(t => String(t.result || t.status || "").toLowerCase().includes("win")).length;
   const losses = totalTrades - wins;
@@ -183,12 +178,9 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
 
   // Generate order ID
   const orderId = `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id || Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
-
-  // Generate exit price (entry + small change based on win/loss)
   const entryPrice = Number(result.entry_price || 0);
-  const changePercent = isWin ? 0.15 : -0.12;
+  const changePercent = isWin ? 0.15 : -0.12; // simulated exit change
   const exitPrice = entryPrice * (1 + changePercent / 100);
-
   const directionDisplay = result.direction === "bullish" ? "BUY" : "SELL";
 
   return (
@@ -199,9 +191,8 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
       >
         <X size={24} />
       </button>
-
       <div className="w-full max-w-md space-y-4">
-        {/* Header: WIN/LOSS badge */}
+        {/* Header: WIN/LOSS */}
         <div className="text-center">
           <div className={`text-5xl font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
             {isWin ? "Win" : "Loss"}
@@ -243,7 +234,6 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
               {directionDisplay}
             </span>
           </div>
-
           <div className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-400">Pair</span>
@@ -312,12 +302,12 @@ export default function TradePage() {
   // bottom tab state (Orders / Assets / History)
   const [bottomTab, setBottomTab] = useState("orders");
 
-  // Running trade modal state
+  // Running trade modal
   const [showRunningTradeModal, setShowRunningTradeModal] = useState(false);
   const [runningTrade, setRunningTrade] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
-  // Result modal state
+  // Result modal
   const [resultModal, setResultModal] = useState(null);
 
   // target
@@ -353,7 +343,7 @@ export default function TradePage() {
     return (targetProgress.currentProfit / targetProgress.targetAmount) * 100;
   }, [targetProgress]);
 
-  // build order book with depth bars
+  // Order book data
   const orderBookData = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
   const maxTotal = useMemo(() => {
     const all = [...orderBookData.asks, ...orderBookData.bids];
@@ -538,7 +528,6 @@ export default function TradePage() {
       const entryPrice = Number(data.entryPrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
       const expectedProfit = (placedAmount * payoutPercent) / 100;
       showSuccess("Trade placed!");
-      // NO VOUCHER HERE
       setAmount("");
       setRunningTrade({ tradeId, pair, direction, timer: Number(timer), amount: placedAmount, entryPrice, payoutPercent, expectedProfit, endsAt: data.endTime || null });
       setRemainingSeconds(Number(timer));
@@ -567,7 +556,7 @@ export default function TradePage() {
   return (
     <div className="min-h-screen bg-[#050812] pb-20 sm:pb-6">
 
-      {/* Target Banner (if any) */}
+      {/* Target Banner */}
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#050812]/90 px-3 py-2 text-sm backdrop-blur-sm border-b border-cyan-500/20">
           <Target size={14} className="text-cyan-400" />
@@ -631,38 +620,46 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Two‑column: Order Book + Trade Panel */}
+      {/* Two‑column: Order Book (horizontal) + Trade Panel */}
       <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        {/* Order Book – unchanged */}
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-white">Order Book</h3>
-            <span className="text-[10px] text-slate-500">Depth</span>
+        {/* ---------- HORIZONTAL ORDER BOOK (asks | spread | bids) ---------- */}
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2 shadow-xl">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[10px] font-semibold text-white">Order Book</h3>
+            <span className="text-[8px] text-slate-500">Depth</span>
           </div>
-          <div className="space-y-0.5">
-            {orderBookData.asks.map((row, idx) => (
-              <div key={`ask-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
-                <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
-                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-              </div>
-            ))}
-            <div className="my-1 rounded-lg border border-white/10 bg-[#050812] px-2 py-1 text-center text-[10px] text-slate-400">
-              Spread: {formatPrice(spread(orderBookData))}
+          <div className="flex gap-0.5">
+            {/* Asks - left column */}
+            <div className="flex-1 space-y-0">
+              {orderBookData.asks.slice(0, 5).map((row, idx) => (
+                <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[9px] px-0.5 py-0 leading-tight hover:bg-white/5">
+                  <span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span>
+                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                  <div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+                </div>
+              ))}
             </div>
-            {orderBookData.bids.map((row, idx) => (
-              <div key={`bid-${idx}`} className="relative flex items-center justify-between rounded px-1.5 py-0.5 text-xs hover:bg-white/5">
-                <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
-                <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
-                <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
-                <div className="absolute right-0 top-0 h-full rounded-r-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
-              </div>
-            ))}
+            {/* Spread - middle */}
+            <div className="flex min-w-[40px] items-center justify-center border-x border-white/10 bg-[#050812] px-0.5 text-center text-[7px] text-slate-400">
+              {formatPrice(spread(orderBookData))}
+            </div>
+            {/* Bids - right column */}
+            <div className="flex-1 space-y-0">
+              {orderBookData.bids.slice(0, 5).map((row, idx) => (
+                <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[9px] px-0.5 py-0 leading-tight hover:bg-white/5">
+                  <span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span>
+                  <span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span>
+                  <span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span>
+                  <div className="absolute left-0 top-0 h-full rounded-l-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+        {/* ---------- END ORDER BOOK ---------- */}
 
-        {/* Trade Panel – unchanged */}
+        {/* Right: Trade Panel (unchanged) */}
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
           <form onSubmit={handlePlaceTrade} className="space-y-3">
             {/* Direction Tabs (Buy/Sell) */}
@@ -757,7 +754,7 @@ export default function TradePage() {
         </div>
       </div>
 
-      {/* Bottom Navigation Tabs (Orders, Assets, History) – unchanged */}
+      {/* Bottom Navigation (Orders, Assets, History) – unchanged */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0a0e1a] px-2 py-1 sm:static sm:mt-4 sm:border-t-0 sm:px-0 sm:py-0">
         <div className="flex justify-around sm:justify-start sm:gap-8">
           <button
@@ -785,8 +782,7 @@ export default function TradePage() {
             <span>History</span>
           </button>
         </div>
-
-        {/* Content panels for each tab */}
+        {/* Content panels */}
         <div className="mt-2 max-h-60 overflow-y-auto border-t border-white/10 pt-2 sm:max-h-none sm:border-0 sm:pt-0">
           {bottomTab === "orders" && (
             <div className="space-y-2 px-2">
@@ -805,14 +801,12 @@ export default function TradePage() {
               )) : <div className="py-4 text-center text-sm text-slate-400">No open orders.</div>}
             </div>
           )}
-
           {bottomTab === "assets" && (
             <div className="px-2 py-4 text-center text-sm text-slate-400">
               <div className="text-white">{formatAmount(wallet.balance)} USDT</div>
               <div className="text-xs text-slate-500">Available Balance</div>
             </div>
           )}
-
           {bottomTab === "history" && (
             <div className="space-y-2 px-2">
               {tradeHistory.length ? tradeHistory.slice(0, 10).map(trade => (
@@ -842,7 +836,7 @@ export default function TradePage() {
         />
       )}
 
-      {/* NEW Full‑screen Result Modal (combines stats + receipt) */}
+      {/* Full‑screen Result Modal (stats + receipt) */}
       {resultModal && (
         <ResultModal
           result={resultModal}
