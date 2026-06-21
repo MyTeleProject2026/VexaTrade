@@ -84,7 +84,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
 
   useEffect(() => {
     if (!runningTrade) return;
-    // Simulate price updates every second (you can replace with WebSocket)
     const interval = setInterval(() => {
       const base = runningTrade.entryPrice || 0;
       const delta = (Math.random() - 0.5) * 0.002 * base;
@@ -117,7 +116,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
       </button>
 
       <div className="w-full max-w-md text-center">
-        {/* Timer ring and countdown */}
         <div className="relative mx-auto h-56 w-56">
           <svg className="h-full w-full -rotate-90" viewBox="0 0 240 240">
             <circle cx="120" cy="120" r={radius} stroke="rgba(255,255,255,0.14)" strokeWidth="12" fill="none" />
@@ -131,7 +129,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
           </div>
         </div>
 
-        {/* Current Price / Market info */}
         <div className="mt-6">
           <div className="text-3xl font-bold text-white">
             {formatPrice(currentPrice)}
@@ -141,7 +138,6 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
           </div>
         </div>
 
-        {/* Trade details */}
         <div className="mt-6 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-400">Pair</span>
@@ -167,14 +163,36 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
   );
 }
 
-// ---------- Result Modal (full-screen) ----------
-function ResultModal({ result, onClose }) {
+// ---------- NEW Result Modal (combines stat card + receipt) ----------
+function ResultModal({ result, tradeHistory = [], onClose }) {
   if (!result) return null;
 
   const isWin = String(result.result || result.status || "").toLowerCase().includes("win");
+  const profit = isWin ? Number(result.amount || 0) * 0.025 : -Number(result.amount || 0) * 0.025;
+
+  // Calculate stats from trade history
+  const totalTrades = tradeHistory.length;
+  const wins = tradeHistory.filter(t => String(t.result || t.status || "").toLowerCase().includes("win")).length;
+  const losses = totalTrades - wins;
+  const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+  const netPnl = tradeHistory.reduce((acc, t) => {
+    const isWinTrade = String(t.result || t.status || "").toLowerCase().includes("win");
+    const amt = Number(t.amount || 0);
+    return acc + (isWinTrade ? amt * 0.025 : -amt * 0.025);
+  }, 0);
+
+  // Generate order ID
+  const orderId = `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id || Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
+
+  // Generate exit price (entry + small change based on win/loss)
+  const entryPrice = Number(result.entry_price || 0);
+  const changePercent = isWin ? 0.15 : -0.12;
+  const exitPrice = entryPrice * (1 + changePercent / 100);
+
+  const directionDisplay = result.direction === "bullish" ? "BUY" : "SELL";
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4 overflow-y-auto">
       <button
         onClick={onClose}
         className="absolute top-4 right-4 text-slate-400 hover:text-white"
@@ -182,34 +200,85 @@ function ResultModal({ result, onClose }) {
         <X size={24} />
       </button>
 
-      <div className="w-full max-w-md text-center">
-        <div className={`text-6xl font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
-          {isWin ? "WIN" : "LOSS"}
+      <div className="w-full max-w-md space-y-4">
+        {/* Header: WIN/LOSS badge */}
+        <div className="text-center">
+          <div className={`text-5xl font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
+            {isWin ? "Win" : "Loss"}
+          </div>
+          <div className="mt-1 text-sm text-slate-400">Trade Result</div>
         </div>
-        <div className="mt-1 text-sm text-slate-400">Trade Result</div>
 
-        <div className="mt-8 space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Pair</span>
-            <span className="text-white">{result.pair}</span>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
+          <div className="text-center">
+            <div className="text-xs text-slate-400">Total Trades</div>
+            <div className="text-lg font-bold text-white">{totalTrades}</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Amount</span>
-            <span className="text-white">{formatAmount(result.amount)} USDT</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-400">Wins</div>
+            <div className="text-lg font-bold text-emerald-300">{wins}</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Entry Price</span>
-            <span className="text-white">{formatPrice(result.entry_price)}</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-400">Losses</div>
+            <div className="text-lg font-bold text-red-300">{losses}</div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Closed</span>
-            <span className="text-white">{formatDateTime(result.updated_at || result.created_at)}</span>
+          <div className="text-center">
+            <div className="text-xs text-slate-400">Win Rate</div>
+            <div className="text-lg font-bold text-cyan-300">{winRate.toFixed(1)}%</div>
+          </div>
+          <div className="text-center col-span-2">
+            <div className="text-xs text-slate-400">Net P&L</div>
+            <div className={`text-lg font-bold ${netPnl >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {netPnl >= 0 ? "+" : ""}{formatAmount(netPnl)} USDT
+            </div>
+          </div>
+        </div>
+
+        {/* Receipt Card */}
+        <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <span className="text-xs font-mono text-cyan-400">{orderId}</span>
+            <span className={`text-xs font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
+              {directionDisplay}
+            </span>
+          </div>
+
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Pair</span>
+              <span className="font-medium text-white">{result.pair}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Entry</span>
+              <span className="font-medium text-white">{formatPrice(entryPrice)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Exit</span>
+              <span className="font-medium text-white">{formatPrice(exitPrice)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Change</span>
+              <span className={`font-medium ${changePercent >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                {changePercent >= 0 ? "+" : ""}{formatPercent(changePercent)}%
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-white/10 pt-2">
+              <span className="text-slate-400">Profit / Loss</span>
+              <span className={`text-lg font-bold ${profit >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                {profit >= 0 ? "+" : ""}{formatAmount(profit)} USDT
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>{formatDateTime(result.updated_at || result.created_at)}</span>
+              <span>{result.timer || 60}s completed</span>
+            </div>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="mt-8 w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400"
+          className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400"
         >
           Close
         </button>
@@ -305,7 +374,6 @@ export default function TradePage() {
     const interval = setInterval(() => syncTradeState(), 2500);
     return () => clearInterval(interval);
   }, [token]);
-  // Timer countdown for running trade modal
   useEffect(() => {
     if (!showRunningTradeModal || remainingSeconds <= 0) return;
     const interval = setInterval(() => {
@@ -316,16 +384,13 @@ export default function TradePage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [showRunningTradeModal, remainingSeconds]);
-  // When timer hits zero, close running modal and show result
   useEffect(() => {
     if (!showRunningTradeModal) return;
     if (remainingSeconds > 0) return;
     setShowRunningTradeModal(false);
-    // sync to get the settled trade
     syncTradeState();
     refreshTargetProgress();
   }, [remainingSeconds, showRunningTradeModal]);
-  // Price flash on market change
   useEffect(() => {
     if (!selectedMarket) return;
     setPriceFlash(true);
@@ -473,7 +538,7 @@ export default function TradePage() {
       const entryPrice = Number(data.entryPrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
       const expectedProfit = (placedAmount * payoutPercent) / 100;
       showSuccess("Trade placed!");
-      // NO VOUCHER HERE – just show running modal
+      // NO VOUCHER HERE
       setAmount("");
       setRunningTrade({ tradeId, pair, direction, timer: Number(timer), amount: placedAmount, entryPrice, payoutPercent, expectedProfit, endsAt: data.endTime || null });
       setRemainingSeconds(Number(timer));
@@ -777,10 +842,11 @@ export default function TradePage() {
         />
       )}
 
-      {/* Full‑screen Result Modal */}
+      {/* NEW Full‑screen Result Modal (combines stats + receipt) */}
       {resultModal && (
         <ResultModal
           result={resultModal}
+          tradeHistory={tradeHistory}
           onClose={() => setResultModal(null)}
         />
       )}
@@ -790,7 +856,7 @@ export default function TradePage() {
   );
 }
 
-// ---------- helpers (not in component) ----------
+// ---------- helpers ----------
 function buildOrderBook(price = 0) {
   const base = Number(price || 0);
   if (!base) return { asks: [], bids: [] };
