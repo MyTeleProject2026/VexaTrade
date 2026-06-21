@@ -1,4 +1,4 @@
-// frontend-user/src/pages/FundsPage.jsx – COMPLETE (with all requested fields)
+// frontend-user/src/pages/FundsPage.jsx – COMPLETE WITH CHART
 import { useEffect, useMemo, useState } from "react";
 import {
   RefreshCw,
@@ -16,7 +16,17 @@ import {
   CheckSquare,
   Calendar,
   TrendingUp,
+  Activity,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { getApiErrorMessage } from "../services/api";
 import api from "../services/api";
 import { useNotification } from "../hooks/useNotification";
@@ -24,6 +34,7 @@ import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
 
+// ---------- helpers ----------
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -168,7 +179,7 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
   );
 }
 
-// ---------- ActiveFundCard – with all requested fields ----------
+// ---------- ActiveFundCard (with chart) ----------
 function ActiveFundCard({ item }) {
   const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
@@ -189,6 +200,25 @@ function ActiveFundCard({ item }) {
   let statusLabel = "ACTIVE";
   if (isPaused) statusLabel = "PAUSED";
   else if (String(status).toLowerCase() === "processing") statusLabel = "PROCESSING";
+
+  // Generate chart data: points from day 0 to currentDay (or at least 1 point)
+  const chartData = useMemo(() => {
+    const points = [];
+    const days = Math.max(1, currentDay || 1);
+    for (let day = 0; day <= days; day++) {
+      const profit = principal * (dailyPercent / 100) * day;
+      const total = principal + profit;
+      points.push({
+        day,
+        value: total,
+        profit,
+      });
+    }
+    return points;
+  }, [principal, dailyPercent, currentDay]);
+
+  const currentTotal = principal + earnedProfit;
+  const isProfitable = earnedProfit >= 0;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
@@ -217,6 +247,69 @@ function ActiveFundCard({ item }) {
       <div className="mt-2 flex items-center gap-2">
         <Lock size={14} className="text-amber-400" />
         <span className="text-lg font-bold text-white">${formatMoney(principal)}</span>
+      </div>
+
+      {/* Mini Chart */}
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+            <Activity size={12} className="text-cyan-400" /> Fund Performance
+          </span>
+          <div className="flex items-center gap-3 text-[9px]">
+            <span className="text-slate-400">Current: <span className="text-white font-semibold">${formatMoney(currentTotal)}</span></span>
+            <span className={isProfitable ? "text-emerald-300" : "text-red-300"}>
+              {isProfitable ? "+" : ""}{formatMoney(earnedProfit)}
+            </span>
+          </div>
+        </div>
+        <div className="h-20 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`gradient-${fundId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={isProfitable ? "#10b981" : "#ef4444"} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={isProfitable ? "#10b981" : "#ef4444"} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+              <XAxis 
+                dataKey="day" 
+                tick={{ fontSize: 8, fill: '#6b7280' }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis 
+                tick={{ fontSize: 8, fill: '#6b7280' }}
+                axisLine={false}
+                tickLine={false}
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(value) => `$${formatMoney(value)}`}
+                width={40}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#0a0e1a', 
+                  border: '1px solid #ffffff20',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  color: '#e5e7eb'
+                }}
+                formatter={(value) => [`$${formatMoney(value)}`, 'Total']}
+                labelFormatter={(label) => `Day ${label}`}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="value" 
+                stroke={isProfitable ? "#10b981" : "#ef4444"}
+                strokeWidth={1.5}
+                fill={`url(#gradient-${fundId})`}
+                dot={false}
+                activeDot={{ r: 3, fill: '#06b6d4' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Start Date & Current Day */}
@@ -268,7 +361,7 @@ function ActiveFundCard({ item }) {
   );
 }
 
-// ---------- HistoryFundCard – shows correct status and all fields ----------
+// ---------- HistoryFundCard (unchanged) ----------
 function HistoryFundCard({ item }) {
   const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
