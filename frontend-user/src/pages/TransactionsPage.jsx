@@ -1,5 +1,5 @@
 // frontend-user/src/pages/TransactionsPage.jsx
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -14,12 +14,11 @@ import {
   Trash2,
   BadgeDollarSign,
   X,
-  User,
-  Mail,
-  FileText,
+  Shield,
 } from "lucide-react";
 import { transactionApi, userApi, getApiErrorMessage } from "../services/api";
 
+// ---------- helpers ----------
 function formatAmount(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -59,6 +58,7 @@ function StatusBadge({ status }) {
   );
 }
 
+// ---------- transaction type helpers ----------
 function normalizeTransactionType(type) {
   const value = String(type || "").toLowerCase();
   if (
@@ -153,12 +153,14 @@ function getDisplayCoin(item) {
   return item?.coin || "USDT";
 }
 
+// ---------- notification helpers ----------
 function getNotificationIcon(type) {
   const value = String(type || "").toLowerCase();
   if (value === "verification_code") return ShieldCheck;
   if (value === "security") return ShieldCheck;
   if (value === "funds") return BadgeDollarSign;
-  if (value === "admin_message" || value === "manual") return User;
+  // For admin/ecosystem messages, use Shield icon
+  if (value === "admin_message" || value === "manual" || value.includes("admin")) return Shield;
   return Bell;
 }
 
@@ -175,7 +177,7 @@ function getNotificationTone(type) {
   if (value === "verification_code") return "text-cyan-400";
   if (value === "security") return "text-cyan-300";
   if (value === "funds") return "text-emerald-300";
-  if (value === "admin_message" || value === "manual") return "text-violet-300";
+  if (value === "admin_message" || value === "manual" || value.includes("admin")) return "text-amber-400";
   return "text-violet-300";
 }
 
@@ -185,6 +187,17 @@ function getNotificationCategory(type) {
   return "message";
 }
 
+// ---------- detect ecosystem (admin) items ----------
+function isEcosystemItem(item) {
+  const raw = item.rawData || {};
+  const type = String(raw.type || item.iconType || "").toLowerCase();
+  if (type.includes("admin")) return true;
+  if (raw.sender || raw.admin_name || raw.from) return true;
+  if (raw.admin_note) return true;
+  return false;
+}
+
+// ---------- normalizers ----------
 function normalizeActivityRowFromTransaction(item) {
   return {
     id: `tx-${item.id}`,
@@ -236,32 +249,34 @@ function EmptyState({ tab }) {
   );
 }
 
-// ---------- Detail Modal with dynamic table layout ----------
+// ---------- Detail Modal (with "Blockchain Ecosystem" badge) ----------
 function TransactionDetailModal({ item, onClose }) {
   if (!item) return null;
 
   const isNotification = item.source === "notification";
   const raw = item.rawData || {};
+  const ecosystem = isEcosystemItem(item);
 
-  // Build fields dynamically
   const fields = [];
 
   if (isNotification) {
-    // ----- NOTIFICATION -----
     const Icon = getNotificationIcon(item.iconType);
     const tone = getNotificationTone(item.iconType);
 
     fields.push({ label: "Type", value: item.title, icon: <Icon size={14} className={tone} /> });
 
-    // Check for admin-specific fields
-    if (raw.sender || raw.admin_name || raw.from) {
-      fields.push({ label: "From", value: raw.sender || raw.admin_name || raw.from || "Admin" });
+    // If from ecosystem, show "Blockchain Ecosystem" as sender
+    if (ecosystem) {
+      fields.push({
+        label: "From",
+        value: "Blockchain Ecosystem",
+        icon: <Shield size={14} className="text-amber-400" />,
+      });
     }
     if (raw.subject) {
       fields.push({ label: "Subject", value: raw.subject });
     }
 
-    // Main message – full, with line breaks preserved
     const message = raw.message || raw.body || raw.content || item.subtitle || "-";
     if (message) {
       fields.push({
@@ -272,7 +287,7 @@ function TransactionDetailModal({ item, onClose }) {
       });
     }
 
-    // Fund-specific details (if present)
+    // Fund-specific details
     if (raw.plan_name) {
       fields.push({ label: "Plan", value: raw.plan_name });
     }
@@ -299,7 +314,7 @@ function TransactionDetailModal({ item, onClose }) {
 
     fields.push({ label: "Time", value: formatTime(item.created_at) });
 
-    // Extra raw details (fallback for any missing fields)
+    // Extra fields
     const extraKeys = ["tx_id", "trade_id", "fund_id", "order_id", "reference"];
     extraKeys.forEach((key) => {
       if (raw[key] !== undefined && raw[key] !== null) {
@@ -314,7 +329,7 @@ function TransactionDetailModal({ item, onClose }) {
     }
 
   } else {
-    // ----- TRANSACTION -----
+    // Transaction
     const Icon = getTransactionIcon(item.iconType);
     const amountClass = getTransactionAmountClass(item.iconType);
 
@@ -359,10 +374,14 @@ function TransactionDetailModal({ item, onClose }) {
       fields.push({ label: "Rate", value: raw.rate || "-" });
     }
 
+    // Ecosystem note (admin_note)
+    if (raw.admin_note) {
+      fields.push({ label: "Ecosystem Note", value: raw.admin_note, fullWidth: true });
+    }
+
     fields.push({ label: "Time", value: formatTime(item.created_at) });
   }
 
-  // If no fields were built, add a fallback
   if (fields.length === 0) {
     fields.push({ label: "Details", value: JSON.stringify(raw, null, 2) });
   }
@@ -377,18 +396,23 @@ function TransactionDetailModal({ item, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#050812]/95 p-4">
       <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
+        {/* Header with Ecosystem badge */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <div className="flex items-center gap-2">
             {React.createElement(headerIcon, { size: 20, className: headerTone })}
             <h2 className="text-lg font-bold text-white">{item.title}</h2>
+            {ecosystem && (
+              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-semibold text-amber-300 border border-amber-500/30">
+                Blockchain Ecosystem
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X size={20} />
           </button>
         </div>
 
-        {/* Scrollable Body with Table Layout */}
+        {/* Body: table layout */}
         <div className="flex-1 overflow-y-auto py-4 space-y-0.5">
           {fields.map((field, idx) => {
             const isMultiline = field.multiline || field.fullWidth;
@@ -432,7 +456,6 @@ function TransactionDetailModal({ item, onClose }) {
           })}
         </div>
 
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400"
@@ -444,6 +467,7 @@ function TransactionDetailModal({ item, onClose }) {
   );
 }
 
+// ---------- Main TransactionsPage ----------
 export default function TransactionsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -639,6 +663,7 @@ export default function TransactionsPage() {
             if (item.source === "notification") {
               const Icon = getNotificationIcon(item.iconType);
               const tone = getNotificationTone(item.iconType);
+              const ecosystem = isEcosystemItem(item);
 
               return (
                 <button
@@ -660,6 +685,11 @@ export default function TransactionsPage() {
                           {Number(item.is_read || 0) !== 1 && (
                             <span className="rounded-full bg-cyan-500 px-2 py-0.5 text-[10px] font-semibold text-black">
                               New
+                            </span>
+                          )}
+                          {ecosystem && (
+                            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-semibold text-amber-300 border border-amber-500/30">
+                              Blockchain Ecosystem
                             </span>
                           )}
                         </div>
