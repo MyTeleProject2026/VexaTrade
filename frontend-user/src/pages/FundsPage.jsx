@@ -1,4 +1,4 @@
-// frontend-user/src/pages/FundsPage.jsx – FULLY DYNAMIC (status-aware)
+// frontend-user/src/pages/FundsPage.jsx – COMPLETE (with all requested fields)
 import { useEffect, useMemo, useState } from "react";
 import {
   RefreshCw,
@@ -14,6 +14,8 @@ import {
   AlertCircle,
   FileText,
   CheckSquare,
+  Calendar,
+  TrendingUp,
 } from "lucide-react";
 import { getApiErrorMessage } from "../services/api";
 import api from "../services/api";
@@ -44,7 +46,7 @@ function getDaysLeft(item) {
   return Math.max(0, totalDays - currentDay);
 }
 
-// ---------- status pill (unchanged) ----------
+// ---------- status pill ----------
 function StatusPill({ status }) {
   const value = String(status || "").toLowerCase();
 
@@ -79,7 +81,7 @@ function StatusPill({ status }) {
   );
 }
 
-// ---------- summary card (unchanged) ----------
+// ---------- summary card ----------
 function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" }) {
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 shadow-md">
@@ -95,7 +97,7 @@ function SummaryCard({ label, value, subtext, icon: Icon, tone = "text-white" })
   );
 }
 
-// ---------- PlanCard (unchanged) ----------
+// ---------- PlanCard ----------
 function PlanCard({ plan, applying, onApply, onViewDetails }) {
   const maxAmount =
     plan.max_amount === null || plan.max_amount === undefined
@@ -166,23 +168,23 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
   );
 }
 
-// ---------- ActiveFundCard (already dynamic) ----------
+// ---------- ActiveFundCard – with all requested fields ----------
 function ActiveFundCard({ item }) {
   const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
   const principal = Number(item.locked_principal || item.principal || 0);
   const earnedProfit = Number(item.earned_profit || item.profit_earned || 0);
   const totalDays = Number(item.total_days || item.duration_days || 0);
+  const currentDay = Number(item.current_day || 0);
+  const startedAt = item.started_at || item.created_at || new Date().toISOString();
   const endsAt = item.ends_at || item.expected_end_date || item.maturity_date;
   const status = item.status || "active";
   const isPaused = String(status).toLowerCase() === "paused";
   const isPrivate = item.is_private === 1 || item.plan?.is_private === 1 || item.plan_is_private === 1;
   const fundId = item.fund_id || item.id || Math.floor(Math.random() * 10000);
-  const startedAt = item.started_at || item.created_at || new Date().toISOString();
-
+  const fundRef = `#FP-${new Date(startedAt).toISOString().slice(0,10)}-${String(fundId).slice(-6).padStart(6, "0")}`;
   const dailyDollar = (principal * dailyPercent) / 100;
   const apy = dailyPercent * 365;
-  const fundRef = `#FP-${new Date(startedAt).toISOString().slice(0,10)}-${String(fundId).slice(-6).padStart(6, "0")}`;
 
   let statusLabel = "ACTIVE";
   if (isPaused) statusLabel = "PAUSED";
@@ -190,44 +192,72 @@ function ActiveFundCard({ item }) {
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
+      {/* Fund Reference */}
       <div className="text-[10px] text-slate-500">{fundRef}</div>
       <div className="text-sm font-semibold text-white">{planName}</div>
-      <div className="mt-1 flex items-center gap-2">
+
+      {/* Badges */}
+      <div className="mt-1 flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-amber-400">{isPrivate ? "PRIVATE" : "PUBLIC"}</span>
         <span className="text-xs text-slate-300">-</span>
         <span className="text-xs font-medium text-emerald-300 flex items-center gap-1">
           <CheckSquare size={12} className="text-emerald-400" /> {statusLabel}
         </span>
       </div>
-      <div className="mt-1 text-sm">
+
+      {/* Rates */}
+      <div className="mt-1 text-sm space-y-0.5">
+        <div className="text-slate-300">+{dailyPercent.toFixed(2)}%/day</div>
         <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
         <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
         <div className="text-slate-400 text-xs">USDT (ETH)</div>
       </div>
-      <div className="mt-2 text-lg font-bold text-white">${formatMoney(principal)}</div>
+
+      {/* Locked Principal */}
+      <div className="mt-2 flex items-center gap-2">
+        <Lock size={14} className="text-amber-400" />
+        <span className="text-lg font-bold text-white">${formatMoney(principal)}</span>
+      </div>
+
+      {/* Start Date & Current Day */}
+      <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-400">
+        <div className="flex items-center gap-1">
+          <Calendar size={12} className="text-cyan-400" />
+          <span>Start: {formatDateTime(startedAt)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <TrendingUp size={12} className="text-cyan-400" />
+          <span>Day {currentDay} / {totalDays}</span>
+        </div>
+      </div>
+
+      {/* Details Grid */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">DURATION</div>
-          <div className="font-semibold text-white">{totalDays} Days</div>
+          <div className="text-slate-500">Total Profit</div>
+          <div className="font-semibold text-emerald-300">+${formatMoney(earnedProfit)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">EST. RETURN</div>
-          <div className="font-semibold text-cyan-300">${formatMoney(earnedProfit)}</div>
+          <div className="text-slate-500">Today's Profit</div>
+          <div className="font-semibold text-cyan-300">+${formatMoney(dailyDollar)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">MATURITY</div>
+          <div className="text-slate-500">Maturity</div>
           <div className="font-semibold text-white">{formatDateTime(endsAt)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">PAYOUT</div>
+          <div className="text-slate-500">Payout</div>
           <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
       </div>
+
+      {/* Footer */}
       <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-xs text-slate-200 flex items-center justify-between">
         <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
         <span className="font-mono text-cyan-400">{item.wallet_address || '0xE7A...2D4B'}</span>
       </div>
       <div className="mt-0.5 text-right text-[9px] text-slate-500">Secured</div>
+
       {isPaused && (
         <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-center text-[10px] text-red-300">
           <AlertCircle size={10} className="inline mr-1" />
@@ -238,71 +268,80 @@ function ActiveFundCard({ item }) {
   );
 }
 
-// ---------- UPDATED HistoryFundCard – uses actual status ----------
+// ---------- HistoryFundCard – shows correct status and all fields ----------
 function HistoryFundCard({ item }) {
   const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
   const principal = Number(item.locked_principal || item.principal || 0);
   const earnedProfit = Number(item.earned_profit || item.profit_earned || 0);
   const totalDays = Number(item.total_days || item.duration_days || 0);
+  const currentDay = Number(item.current_day || 0);
+  const startedAt = item.started_at || item.created_at || new Date().toISOString();
   const completedAt = item.completed_at || item.updated_at || item.created_at;
   const status = item.status || "completed";
   const isPrivate = item.is_private === 1 || item.plan?.is_private === 1 || item.plan_is_private === 1;
   const fundId = item.id || Math.floor(Math.random() * 10000);
   const fundRef = `#FP-${new Date(completedAt || Date.now()).toISOString().slice(0,10)}-${String(fundId).slice(-6).padStart(6, "0")}`;
-
   const dailyDollar = (principal * dailyPercent) / 100;
   const apy = dailyPercent * 365;
 
-  // Determine status label based on actual status
   let statusLabel = "";
   const statusLower = String(status).toLowerCase();
-  if (statusLower === "completed") {
-    statusLabel = "COMPLETED FUND PROCESSED";
-  } else if (statusLower === "active") {
-    statusLabel = "ACTIVE";
-  } else if (statusLower === "processing") {
-    statusLabel = "PROCESSING";
-  } else if (statusLower === "paused") {
-    statusLabel = "PAUSED";
-  } else {
-    statusLabel = status.toUpperCase();
-  }
+  if (statusLower === "completed") statusLabel = "COMPLETED FUND PROCESSED";
+  else if (statusLower === "active") statusLabel = "ACTIVE";
+  else if (statusLower === "processing") statusLabel = "PROCESSING";
+  else if (statusLower === "paused") statusLabel = "PAUSED";
+  else statusLabel = status.toUpperCase();
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
       <div className="text-[10px] text-slate-500">{fundRef}</div>
       <div className="text-sm font-semibold text-white">{planName}</div>
 
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-amber-400">{isPrivate ? "PRIVATE" : "PUBLIC"}</span>
         <span className="text-xs text-slate-300">-</span>
         <span className="text-xs font-medium text-emerald-300">{statusLabel}</span>
       </div>
 
-      <div className="mt-1 text-sm">
+      <div className="mt-1 text-sm space-y-0.5">
+        <div className="text-slate-300">+{dailyPercent.toFixed(2)}%/day</div>
         <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
         <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
         <div className="text-slate-400 text-xs">USDT (ETH)</div>
       </div>
 
-      <div className="mt-2 text-lg font-bold text-white">${formatMoney(principal)}</div>
+      <div className="mt-2 flex items-center gap-2">
+        <Lock size={14} className="text-amber-400" />
+        <span className="text-lg font-bold text-white">${formatMoney(principal)}</span>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-slate-400">
+        <div className="flex items-center gap-1">
+          <Calendar size={12} className="text-cyan-400" />
+          <span>Start: {formatDateTime(startedAt)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <TrendingUp size={12} className="text-cyan-400" />
+          <span>Day {currentDay} / {totalDays}</span>
+        </div>
+      </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">DURATION</div>
-          <div className="font-semibold text-white">{totalDays} Days</div>
+          <div className="text-slate-500">Total Profit</div>
+          <div className="font-semibold text-emerald-300">+${formatMoney(earnedProfit)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">EST. RETURN</div>
-          <div className="font-semibold text-cyan-300">${formatMoney(earnedProfit)}</div>
+          <div className="text-slate-500">Today's Profit</div>
+          <div className="font-semibold text-cyan-300">+${formatMoney(dailyDollar)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">MATURITY</div>
+          <div className="text-slate-500">Maturity</div>
           <div className="font-semibold text-white">{formatDateTime(completedAt)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#050812] p-2">
-          <div className="text-slate-500">PAYOUT</div>
+          <div className="text-slate-500">Payout</div>
           <div className="font-semibold text-emerald-300">Each day profits interest</div>
         </div>
       </div>
@@ -314,7 +353,7 @@ function HistoryFundCard({ item }) {
   );
 }
 
-// ---------- VoucherRow (unchanged) ----------
+// ---------- VoucherRow ----------
 function VoucherRow({ label, value, valueClassName = "text-white" }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -324,7 +363,7 @@ function VoucherRow({ label, value, valueClassName = "text-white" }) {
   );
 }
 
-// ---------- FundConfirmationModal (unchanged) ----------
+// ---------- FundConfirmationModal ----------
 function FundConfirmationModal({ data, onClose }) {
   if (!data) return null;
   const fundRef = `#FP-${new Date().toISOString().slice(0,10)}-${String(data.fund_id || Math.floor(Math.random()*1000)).slice(-6).padStart(6, "0")}`;
@@ -359,7 +398,7 @@ function FundConfirmationModal({ data, onClose }) {
               </span>
             </div>
             <div className="mt-2 space-y-1 text-xs">
-              <div className="text-slate-300">+${formatMoney(dailyDollar)}/day</div>
+              <div className="text-slate-300">+{dailyPercent.toFixed(2)}%/day</div>
               <div className="text-slate-400">USDT (ETH)</div>
               <div className="text-emerald-300 font-semibold">{apy.toFixed(1)}% APY</div>
             </div>
@@ -390,7 +429,7 @@ function FundConfirmationModal({ data, onClose }) {
   );
 }
 
-// ---------- ArticleDetailsModal (unchanged) ----------
+// ---------- ArticleDetailsModal ----------
 function ArticleDetailsModal({ plan, onClose }) {
   if (!plan) return null;
   return (
@@ -421,7 +460,7 @@ function ArticleDetailsModal({ plan, onClose }) {
   );
 }
 
-// ---------- main FundsPage component (unchanged logic) ----------
+// ---------- main FundsPage component ----------
 export default function FundsPage() {
   const token =
     localStorage.getItem("userToken") ||
@@ -469,7 +508,7 @@ export default function FundsPage() {
   const [profitWithdrawalTarget, setProfitWithdrawalTarget] = useState(0);
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
 
-  // ---------- target functions (unchanged) ----------
+  // ---------- target functions ----------
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
@@ -557,7 +596,7 @@ export default function FundsPage() {
     setShowProfitWithdrawalModal(true);
   }
 
-  // ---------- load data (unchanged) ----------
+  // ---------- load data ----------
   async function loadData(silent = false) {
     try {
       if (!silent) setLoading(true);
@@ -677,7 +716,6 @@ export default function FundsPage() {
     setApplyAmount("");
   }
 
-  // ---------- handleApplyPlan ----------
   async function handleApplyPlan() {
     try {
       if (!applyModal) return;
