@@ -150,6 +150,11 @@ app.use("/api/admin/network-verification-settings", adminNetworkRoutes);
 const adminFundRoutes = require("./adminFundRoutes");
 app.use("/api/admin/fund-rules", adminFundRoutes);
 
+// =========================
+// EMPLOYEE ROUTES (NEW)
+// =========================
+const employeeRoutes = require("./employeeRoutes");
+app.use("/api/employee", employeeRoutes);
 // ─── Override news routes ──────────────────────────────────────────
 const newsRoutes = require("./newsRoutes");
 app.use("/api/news", newsRoutes);
