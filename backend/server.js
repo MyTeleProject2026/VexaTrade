@@ -60,6 +60,8 @@ const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
   process.env.FRONTEND_USER_URL,
   process.env.FRONTEND_ADMIN_URL,
+  process.env.FRONTEND_EMPLOYEEMONITOR_URL,
+   
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
@@ -72,7 +74,10 @@ const allowedOrigins = [
   // ✅ VexaTrade Admin URLs
   "https://vexatrade-admin.onrender.com",
   "https://admin.vexatrade-v.2bd.net",
-  
+
+  // ✅ your frontend-EmployeeMonitor URL 
+  "https://vexatrade-all-adminmonitor-user-activity.onrender.com",
+   
   // ✅ Your backend URL
   "https://vexatrade-server.onrender.com",
 ].filter(Boolean);
