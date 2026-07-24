@@ -15,7 +15,7 @@ const QRCode = require('qrcode');
 const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
-
+const maintenanceRoutes = require("./maintenanceRoutes");
 const fromName = process.env.MAIL_FROM_NAME || "CryptoPulse";
 
 const app = express();
@@ -108,6 +108,7 @@ const corsOptions = {
 // ✅ CORS middleware - MUST COME FIRST
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+app.use("/api/maintenance", maintenanceRoutes);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
