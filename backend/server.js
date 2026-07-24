@@ -1,3 +1,4 @@
+require("./initSync");
 require("dotenv").config();
 
 const { processPendingDeposits } = require("./depositVerificationService");
@@ -16,7 +17,7 @@ const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
 const maintenanceRoutes = require("./maintenanceRoutes");
-const fromName = process.env.MAIL_FROM_NAME || "CryptoPulse";
+const fromName = process.env.MAIL_FROM_NAME || "BLOCKCHAIN ECOSYSTEM";
 
 const app = express();
 
