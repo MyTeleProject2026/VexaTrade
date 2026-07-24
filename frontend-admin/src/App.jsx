@@ -16,6 +16,7 @@ import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
 import AdminSupportPage from "./pages/admin/AdminSupportPage";
 import AdminPlatformSettingsPage from "./pages/admin/AdminPlatformSettingsPage";
+import MaintenanceSettings from './pages/admin/MaintenanceSettings';
 import AdminLoanPage from "./pages/admin/AdminLoanPage";
 import AdminLoanSettingsPage from "./pages/admin/AdminLoanSettingsPage";
 import AdminLegalDocumentsPage from "./pages/admin/AdminLegalDocumentsPage";
@@ -88,6 +89,7 @@ export default function App() {
           path="platform-settings"
           element={<AdminPlatformSettingsPage />}
         />
+        <Route path="/admin/maintenance" element={<MaintenanceSettings />} />
         <Route path="loans" element={<AdminLoanPage />} />
         <Route path="loan-settings" element={<AdminLoanSettingsPage />} />
         <Route path="legal-docs" element={<AdminLegalDocumentsPage />} />
