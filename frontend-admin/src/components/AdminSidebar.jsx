@@ -1,3 +1,4 @@
+// frontend-admin/src/components/AdminSidebar.jsx
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import {
@@ -23,6 +24,7 @@ import {
   ChevronRight,
   UserCog,
   DollarSign,
+  Wrench, // ← ADD THIS FOR MAINTENANCE ICON
 } from "lucide-react";
 
 const navItems = [
@@ -37,11 +39,9 @@ const navItems = [
       { label: "Joint Accounts", to: "/admin/joint-accounts", icon: UserCog },
       { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
       { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
-      // ✅ ADDED: Deposit Verification Settings (right after Deposit Networks)
       { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
       { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
       { label: "Withdrawal Fees", to: "/admin/withdrawal-fees", icon: BadgeDollarSign },
-      // ✅ ADDED: New withdrawal settings under Users > Withdrawals group
       { label: "Withdrawal Settings", to: "/admin/withdrawal-settings", icon: Settings2 },
       { label: "Profit Withdrawal Requests", to: "/admin/profit-withdrawal-requests", icon: DollarSign },
       { label: "Loans", to: "/admin/loans", icon: Landmark },
@@ -58,6 +58,8 @@ const navItems = [
       { label: "Support", to: "/admin/support", icon: LifeBuoy },
       { label: "News Control", to: "/admin/news", icon: Newspaper },
       { label: "Legal Documents", to: "/admin/legal-docs", icon: Scale },
+      // ✅ ADDED: Maintenance Settings
+      { label: "Maintenance Settings", to: "/admin/maintenance", icon: Wrench },
     ],
   },
 ];
