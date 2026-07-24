@@ -1,3 +1,4 @@
+// frontend-user/src/pages/DepositPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Copy,
@@ -28,10 +29,8 @@ function formatTime(date) {
   return parsed.toLocaleString();
 }
 
-// ========== FIXED: Function to resolve asset URLs (handles base64 and http URLs) ==========
 function resolveAssetUrl(url) {
   if (!url) return "";
-  // If it's already a base64 data URL, return as is
   if (url && url.startsWith('data:image/')) return url;
   if (url && (url.startsWith("http://") || url.startsWith("https://"))) return url;
   return `${API_BASE}${url}`;
@@ -139,10 +138,8 @@ export default function DepositPage() {
 
       let walletRows = Array.isArray(walletRes.data?.data) ? walletRes.data.data : [];
       
-      // ========== FIXED: Normalize wallet data to ensure qr_image_url is properly set ==========
       walletRows = walletRows.map(wallet => ({
         ...wallet,
-        // Ensure qr_image_url is accessible (API might return qr_url or qr_image_url)
         qr_image_url: wallet.qr_image_url || wallet.qr_url || wallet.qrCodeUrl || null,
       }));
       
@@ -248,6 +245,7 @@ export default function DepositPage() {
       setError("");
       setSuccess("");
 
+      // ✅ FIXED: Correct syntax - address field added, extra brace removed
       const res = await depositApi.request(
         {
           coin: selectedWallet.coin,
@@ -256,7 +254,7 @@ export default function DepositPage() {
           txid: form.txid || "",
           note: form.note || "",
           proof: form.proof || "",
-          address: selectedWallet.address, // ✅ ADD THIS LINE
+          address: selectedWallet.address,
         },
         token
       );
@@ -294,7 +292,6 @@ export default function DepositPage() {
     }
   }
 
-  // Get the QR code URL from selected wallet (handles multiple field names)
   const qrCodeUrl = useMemo(() => {
     if (!selectedWallet) return null;
     return selectedWallet.qr_image_url || selectedWallet.qr_url || null;
@@ -424,7 +421,6 @@ export default function DepositPage() {
                     ) : null}
                   </div>
 
-                  {/* ========== FIXED: QR Code Display ========== */}
                   {qrCodeUrl ? (
                     <div className="mx-auto lg:mx-0">
                       <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4">
@@ -499,14 +495,14 @@ export default function DepositPage() {
             </div>
 
             <div>
-              <FieldLabel>Transaction ID (TXID)</FieldLabel>
+              <FieldLabel>Transaction ID (TXID) - Optional</FieldLabel>
               <input
                 type="text"
                 value={form.txid}
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, txid: e.target.value }))
                 }
-                placeholder="Paste transaction hash"
+                placeholder="Paste transaction hash (optional)"
                 className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
               />
             </div>
