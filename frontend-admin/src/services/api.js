@@ -306,6 +306,13 @@ export const adminApi = {
   updateSetting: (key, payload, token) =>
     api.put(`/api/admin/settings/${key}`, payload, authHeaders(token)),
 
+  /* ---------------- MAINTENANCE ---------------- */
+  getMaintenanceSettings: (token) =>
+    api.get("/api/maintenance/admin/settings", authHeaders(token)),
+
+  toggleMaintenance: (payload, token) =>
+    api.post("/api/maintenance/admin/toggle", payload, authHeaders(token)),
+
   /* ---------------- AUDIT LOGS ---------------- */
   getAuditLogs: (token) =>
     api.get("/api/admin/audit-logs", authHeaders(token)),
