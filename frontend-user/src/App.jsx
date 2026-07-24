@@ -1,3 +1,4 @@
+// frontend-user/src/App.jsx
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import SplashScreen from "./components/SplashScreen";
@@ -300,8 +301,22 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
-function AppRoutes() {
+// ✅ MAIN APP WRAPPER – Maintenance check is NOW inside NotificationProvider
+function AppContent() {
+  const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher } = useNotification();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050812] flex items-center justify-center">
+        <div className="animate-pulse text-cyan-400">Loading...</div>
+      </div>
+    );
+  }
+
+  if (maintenance) {
+    return <MaintenanceScreen message={message} onRefresh={checkMaintenance} />;
+  }
 
   return (
     <>
@@ -354,9 +369,9 @@ function AppRoutes() {
   );
 }
 
+// ✅ MAIN APP
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const { maintenance, message, loading, checkMaintenance } = useMaintenance();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -370,13 +385,9 @@ export default function App() {
     return <SplashScreen />;
   }
 
-  if (maintenance) {
-  return <MaintenanceScreen message={message} onRefresh={checkMaintenance} />;
-  }
-
   return (
     <NotificationProvider>
-      <AppRoutes />
+      <AppContent />
       <ToastContainer />
     </NotificationProvider>
   );
