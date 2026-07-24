@@ -523,7 +523,7 @@ export default function DepositPage() {
             <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4">
               <div className="mb-3 flex items-center gap-2 text-sm text-slate-400">
                 <Upload size={16} />
-                Upload Receipt
+                Upload Receipt (Required)
               </div>
 
               <input
