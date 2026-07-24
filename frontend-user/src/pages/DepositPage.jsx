@@ -257,7 +257,6 @@ export default function DepositPage() {
           note: form.note || "",
           proof: form.proof || "",
           address: selectedWallet.address, // ✅ ADD THIS LINE
-      },
         },
         token
       );
