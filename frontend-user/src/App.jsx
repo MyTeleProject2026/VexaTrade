@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import SplashScreen from "./components/SplashScreen";
+import { useMaintenance } from './hooks/useMaintenance';
+import MaintenanceScreen from './pages/MaintenanceScreen';
 import ToastContainer from "./components/ToastNotification";
 import VoucherModal from "./components/VoucherModal";
 import { NotificationProvider, useNotification } from "./hooks/useNotification.jsx";
@@ -354,6 +356,7 @@ function AppRoutes() {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const { maintenance, message, loading, checkMaintenance } = useMaintenance();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -365,6 +368,10 @@ export default function App() {
 
   if (showSplash) {
     return <SplashScreen />;
+  }
+
+  if (maintenance) {
+  return <MaintenanceScreen message={message} onRefresh={checkMaintenance} />;
   }
 
   return (
