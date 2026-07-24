@@ -1,25 +1,11 @@
-// initSync.js
-// This runs auto-sync on server start without modifying server.js
-const { syncVerificationSettingsFromWallets } = require("./depositVerificationService");
+// backend/initSync.js
+const { processPendingDeposits } = require("./depositVerificationService");
 
-async function runInitialSync() {
-  console.log("[Init] Running initial verification settings sync...");
-  try {
-    await syncVerificationSettingsFromWallets();
-    console.log("[Init] ✅ Verification settings synced from deposit wallets");
-  } catch (err) {
-    console.error("[Init] ❌ Failed to sync verification settings:", err.message);
-  }
-}
-
-// Run the sync
-runInitialSync();
-
-// Also run every hour to keep things in sync
+// Run every 5 minutes
 setInterval(() => {
-  syncVerificationSettingsFromWallets().catch(err => {
-    console.error("[Init] Hourly sync failed:", err.message);
+  processPendingDeposits().catch(err => {
+    console.error("[Cron] Deposit verification failed:", err.message);
   });
-}, 5 * 60 * 1000); // 1 hour
+}, 5 * 60 * 1000);
 
-console.log("[Init] Auto-sync service started. Will sync on startup and every hour.");
+console.log("[Cron] Deposit verification service started.");
