@@ -71,7 +71,7 @@ export default function MaintenanceScreen({ message, onRefresh }) {
         </button>
 
         <div className="mt-6 text-xs text-slate-500">
-          <p>If you continue to see this message, please contact support.</p>
+          <p>VexaTrade is currently undergoing scheduled maintenance to improve your experience and ensure system stability. Thank you for your patience!</p>
         </div>
       </div>
     </div>
