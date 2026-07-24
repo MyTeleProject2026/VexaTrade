@@ -108,7 +108,6 @@ const corsOptions = {
 // ✅ CORS middleware - MUST COME FIRST
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
-app.use("/api/maintenance", maintenanceRoutes);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -159,6 +158,8 @@ app.use("/api/employee", employeeRoutes);
 // ─── Override news routes ──────────────────────────────────────────
 const newsRoutes = require("./newsRoutes");
 app.use("/api/news", newsRoutes);
+
+app.use("/api/maintenance", maintenanceRoutes);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
