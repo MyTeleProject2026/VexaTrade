@@ -29,12 +29,8 @@
     
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
 
-     <!-- ⬇️⬇️⬇️ ADD THIS SENTRY CODE ⬇️⬇️⬇️ -->
+    <!-- ⬇️⬇️⬇️ SENTRY CODE - CORRECT PLACEMENT ⬇️⬇️⬇️ -->
     <script>
       (function() {
         var script = document.createElement('script');
@@ -49,8 +45,13 @@
         };
         document.head.appendChild(script);
       })();
-    <!-- ⬆️⬆️⬆️ ADD THIS SENTRY CODE ⬆️⬆️⬆️ -->
-    
+    </script>
+    <!-- ⬆️⬆️⬆️ SENTRY CODE - CORRECT PLACEMENT ⬆️⬆️⬆️ -->
+
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
     
     <!-- Service Worker Registration -->
     <script>
