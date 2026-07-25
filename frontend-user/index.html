@@ -33,6 +33,24 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+     <!-- ⬇️⬇️⬇️ ADD THIS SENTRY CODE ⬇️⬇️⬇️ -->
+    <script>
+      (function() {
+        var script = document.createElement('script');
+        script.src = 'https://browser.sentry-cdn.com/7.119.0/bundle.min.js';
+        script.crossOrigin = 'anonymous';
+        script.onload = function() {
+          Sentry.init({
+            dsn: 'https://4f083ff8d0623d09b52c0766fedb4118@o4511793469325312.ingest.us.sentry.io/4511793478434816',
+            tracesSampleRate: 1.0,
+          });
+          console.log('✅ Sentry monitoring active for VexaTrade');
+        };
+        document.head.appendChild(script);
+      })();
+    <!-- ⬆️⬆️⬆️ ADD THIS SENTRY CODE ⬆️⬆️⬆️ -->
+    
     
     <!-- Service Worker Registration -->
     <script>
