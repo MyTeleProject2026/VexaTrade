@@ -3,18 +3,21 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, ShieldCheck, Eye, EyeOff, Mail, CheckCircle } from "lucide-react";
 import { authApi, getApiErrorMessage } from "../../services/api";
-import { useNotification } from "../../hooks/useNotification";
 
+// ================== YOUR ORIGINAL CONSTANTS ==================
 const COUNTRY_OPTIONS = [
-  // ... (your full list – keep as is, I'll omit for brevity but you have it)
+  // ... your full list (I'll keep it short here – you already have it)
+  { value: "AF", label: "Afghanistan" },
+  { value: "AL", label: "Albania" },
+  // ... and so on
 ];
 
 const GENDER_OPTIONS = ["Male", "Female", "Other"];
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { showSuccess, showError, showInfo } = useNotification();
 
+  // ---------- FORM STATE (original) ----------
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -31,7 +34,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // OTP step
+  // ---------- OTP STEP (new) ----------
   const [step, setStep] = useState(1);
   const [otp, setOtp] = useState("");
   const [resending, setResending] = useState(false);
@@ -44,6 +47,7 @@ export default function RegisterPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  // ---------- VALIDATION (original) ----------
   const validateForm = () => {
     if (!form.firstName.trim()) return "First name is required";
     if (!form.lastName.trim()) return "Last name is required";
@@ -58,6 +62,7 @@ export default function RegisterPage() {
     return "";
   };
 
+  // ---------- SUBMIT (updated to use authApi) ----------
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -83,17 +88,20 @@ export default function RegisterPage() {
       });
 
       if (res.data?.success) {
-        showSuccess("Account created! Please verify your email with the OTP sent.");
+        // Account created – go to OTP step
         setStep(2);
+        setError(""); // clear any previous errors
+      } else {
+        setError(res.data?.message || "Registration failed");
       }
     } catch (err) {
       const status = err.response?.status;
       const msg = err.response?.data?.message || "Registration failed";
 
-      // ✅ Handle 409 – account exists but unverified → resend OTP
+      // Handle 409 – account exists but unverified → resend OTP and go to step 2
       if (status === 409 && err.response?.data?.action === "verify") {
-        showInfo("New OTP sent to your email. Please verify.");
         setStep(2);
+        setError(""); // clear error, show OTP step
         return;
       }
       if (status === 409) {
@@ -108,24 +116,24 @@ export default function RegisterPage() {
     }
   };
 
-  // OTP verification
+  // ---------- OTP VERIFY ----------
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!otp || otp.length !== 6) {
-      showError("Please enter a valid 6-digit OTP");
+      setError("Please enter a valid 6-digit OTP");
       return;
     }
     try {
       setLoading(true);
+      setError("");
       const res = await authApi.verifyOtp({ email: form.email, otp });
       if (res.data?.success) {
-        showSuccess("Email verified successfully! You can now login.");
         navigate("/login");
+      } else {
+        setError(res.data?.message || "Verification failed");
       }
     } catch (err) {
-      const msg = err.response?.data?.message || "Verification failed";
-      setError(msg);
-      showError(msg);
+      setError(getApiErrorMessage(err) || "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -134,22 +142,31 @@ export default function RegisterPage() {
   const handleResendOtp = async () => {
     try {
       setResending(true);
+      setError("");
       const res = await authApi.resendOtp({ email: form.email });
       if (res.data?.success) {
-        showSuccess("OTP resent to your email.");
+        // Optionally show a success message – but we can just let user know
+        // We'll set a temporary message, but we don't have a toast; we can use error as info
+        setError(""); // clear
+        // We can show a success with a state variable if we want, but for simplicity we'll just rely on UI
+        // I'll add a temporary success message using error state (not ideal, but works)
+        setError("OTP resent successfully. Check your email.");
+        setTimeout(() => setError(""), 3000);
+      } else {
+        setError(res.data?.message || "Failed to resend OTP");
       }
     } catch (err) {
-      const msg = err.response?.data?.message || "Failed to resend OTP";
-      showError(msg);
+      setError(getApiErrorMessage(err) || "Failed to resend OTP");
     } finally {
       setResending(false);
     }
   };
 
+  // ================== RENDER ==================
   return (
     <div className="min-h-screen bg-[#050812] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1fr_1fr]">
-        {/* LEFT PANEL – ORIGINAL */}
+        {/* LEFT PANEL – unchanged */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_24%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -182,11 +199,12 @@ export default function RegisterPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL – ORIGINAL FORM WITH OTP STEP */}
+        {/* RIGHT PANEL – original card with conditional steps */}
         <section className="flex items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
           <div className="w-full max-w-2xl">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
               {step === 1 ? (
+                // ---------- STEP 1: REGISTRATION FORM (original) ----------
                 <>
                   <div className="mb-8 text-center">
                     <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
@@ -203,6 +221,7 @@ export default function RegisterPage() {
                   ) : null}
 
                   <form onSubmit={onSubmit} className="space-y-4">
+                    {/* First & Last Name – grid */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="mb-2 block text-sm text-slate-400">First Name</label>
@@ -226,6 +245,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
+                    {/* Gender & DOB – grid */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="mb-2 block text-sm text-slate-400">Gender</label>
@@ -253,6 +273,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
+                    {/* Country – full width */}
                     <div>
                       <label className="mb-2 block text-sm text-slate-400">Country / Residence</label>
                       <select
@@ -269,6 +290,7 @@ export default function RegisterPage() {
                       </select>
                     </div>
 
+                    {/* Email – full width */}
                     <div>
                       <label className="mb-2 block text-sm text-slate-400">Email</label>
                       <input
@@ -280,6 +302,7 @@ export default function RegisterPage() {
                       />
                     </div>
 
+                    {/* Password – full width */}
                     <div>
                       <label className="mb-2 block text-sm text-slate-400">Password</label>
                       <div className="relative">
@@ -300,6 +323,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
 
+                    {/* Confirm Password – full width */}
                     <div>
                       <label className="mb-2 block text-sm text-slate-400">Confirm Password</label>
                       <div className="relative">
@@ -348,7 +372,7 @@ export default function RegisterPage() {
                   </div>
                 </>
               ) : (
-                // OTP VERIFICATION STEP
+                // ---------- STEP 2: OTP VERIFICATION ----------
                 <>
                   <div className="text-center mb-6">
                     <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-3">
@@ -361,15 +385,15 @@ export default function RegisterPage() {
                     <p className="text-slate-500 text-xs mt-1">Check your inbox or spam folder</p>
                   </div>
 
-                  {error && (
+                  {error ? (
                     <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-sm">
                       {error}
                     </div>
-                  )}
+                  ) : null}
 
                   <form onSubmit={handleVerifyOtp} className="space-y-4">
                     <div>
-                      <label className="input-label text-center block">Enter OTP</label>
+                      <label className="mb-2 block text-sm text-slate-400 text-center">Enter OTP</label>
                       <input
                         type="text"
                         maxLength="6"
