@@ -1,6 +1,7 @@
-require("./initSync");
+ require("./initSync");
 require("dotenv").config();
 
+const { authUser, authAdmin } = require('./middleware/auth');
 const { processPendingDeposits } = require("./depositVerificationService");
 const express = require("express");
 const cors = require("cors");
@@ -728,55 +729,6 @@ function getAuthToken(req) {
   return authHeader.slice(7).trim();
 }
 
-function authenticateUser(req, res, next) {
-  try {
-    const token = getAuthToken(req);
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, message: "User token missing" });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "user") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Invalid user token" });
-    }
-
-    req.user = decoded;
-    next();
-  } catch (_error) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired user token" });
-  }
-}
-
-function authenticateAdmin(req, res, next) {
-  try {
-    const token = getAuthToken(req);
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Admin token missing" });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "admin") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Invalid admin token" });
-    }
-
-    req.admin = decoded;
-    next();
-  } catch (_error) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired admin token" });
-  }
-}
 
 function toNumber(value, fallback = 0) {
   const num = Number(value);
