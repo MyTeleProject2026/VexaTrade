@@ -1,11 +1,11 @@
 // backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
-const pool = require('../db'); // Adjust path if needed
+const pool = require('../db'); // ✅ verify the path to your db.js
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key_2024_secure';
 
 // ============================================================
-// ✅ USER SYNC FUNCTION – Centralized sync logic
+// ✅ USER SYNC FUNCTION
 // ============================================================
 async function syncUserFromVexaAccount(accountId) {
   const connection = await pool.getConnection();
@@ -17,7 +17,6 @@ async function syncUserFromVexaAccount(accountId) {
     );
     
     if (localRows.length) {
-      // User exists – update last sync time (optional)
       await connection.execute(
         `UPDATE users SET updated_at = NOW() WHERE account_id = ?`,
         [accountId]
@@ -26,11 +25,9 @@ async function syncUserFromVexaAccount(accountId) {
       return localRows[0].id;
     }
     
-    // 2. Get user from store_users (VexaAccount's master table)
+    // 2. Get user from store_users (VexaAccount master)
     const [accountRows] = await connection.execute(
-      `SELECT id, email, name, avatar_url, is_verified, created_at 
-       FROM store_users 
-       WHERE id = ?`,
+      `SELECT id, email, name, avatar_url, is_verified FROM store_users WHERE id = ?`,
       [accountId]
     );
     
@@ -41,24 +38,13 @@ async function syncUserFromVexaAccount(accountId) {
     }
     
     const accountUser = accountRows[0];
-    
-    // 3. Generate UID for local user
     const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
     
-    // 4. Create user in local users table
+    // 3. Create user in local users table
     const [result] = await connection.execute(
       `INSERT INTO users (
-        account_id, 
-        uid, 
-        name, 
-        email, 
-        avatar_url, 
-        email_verified, 
-        status, 
-        kyc_status, 
-        balance, 
-        created_at, 
-        updated_at
+        account_id, uid, name, email, avatar_url, email_verified, 
+        status, kyc_status, balance, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'not_submitted', 0, NOW(), NOW())`,
       [
         accountUser.id, 
@@ -70,20 +56,19 @@ async function syncUserFromVexaAccount(accountId) {
       ]
     );
     
-    console.log(`✅ Synced user ${accountUser.email} (Local ID: ${result.insertId}) from VexaAccount`);
-    
+    console.log(`✅ Synced user ${accountUser.email} (Local ID: ${result.insertId})`);
     connection.release();
     return result.insertId;
     
   } catch (error) {
-    console.error('❌ Sync user error:', error.message);
+    console.error('❌ Sync error:', error.message);
     connection.release();
     return null;
   }
 }
 
 // ============================================================
-// ✅ AUTHENTICATE USER – Now with auto-sync
+// ✅ AUTHENTICATE USER – with auto-sync
 // ============================================================
 const authUser = async (req, res, next) => {
   try {
@@ -95,18 +80,16 @@ const authUser = async (req, res, next) => {
     const token = authHeader.slice(7).trim();
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Ensure it's a user token
     if (decoded.role !== 'user') {
       return res.status(403).json({ success: false, message: 'User access required' });
     }
     
-    // ✅ AUTO-SYNC USER FROM VEXAACCOUNT
+    // ✅ Auto-sync user from VexaAccount
     const localUserId = await syncUserFromVexaAccount(decoded.id);
     
-    // Store both IDs in the request
-    req.user = decoded;                    // VexaAccount user data (id, email, role)
-    req.userId = decoded.id;              // VexaAccount user ID (for cross-app consistency)
-    req.localUserId = localUserId;        // Local users table ID (for VexaTrade-specific queries)
+    req.user = decoded;                    // VexaAccount user data
+    req.userId = decoded.id;               // VexaAccount user ID
+    req.localUserId = localUserId;         // Local users table ID (use this for VexaTrade queries)
     
     next();
     
