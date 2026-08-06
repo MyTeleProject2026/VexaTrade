@@ -3,12 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Lock, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { authApi, getApiErrorMessage } from "../../services/api";
-import { useNotification } from "../../hooks/useNotification";
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { showSuccess, showError } = useNotification();
 
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
 
@@ -60,26 +58,21 @@ export default function ResetPasswordPage() {
       const res = await authApi.resetPassword({ token, newPassword: password });
       if (res.data?.success) {
         setSuccess("Password reset successfully. Redirecting to login...");
-        showSuccess("Password reset successfully.");
         setTimeout(() => navigate("/login"), 1800);
       } else {
-        const msg = res.data?.message || "Reset failed.";
-        setError(msg);
-        showError(msg);
+        setError(res.data?.message || "Reset failed.");
       }
     } catch (err) {
-      const msg = getApiErrorMessage(err) || "Reset failed.";
-      setError(msg);
-      showError(msg);
+      setError(getApiErrorMessage(err) || "Reset failed.");
     } finally {
       setSubmitting(false);
     }
   }
 
+  // ⬇️ JSX exactly as you had it originally
   return (
     <div className="min-h-screen bg-[#050812] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1fr_1fr]">
-        {/* LEFT PANEL – ORIGINAL */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_24%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -98,7 +91,6 @@ export default function ResetPasswordPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL – ORIGINAL FORM */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
