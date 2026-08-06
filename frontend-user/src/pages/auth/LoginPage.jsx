@@ -3,19 +3,20 @@ import { Link } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
-  // Redirect to VexaAccount login
   const handleLoginRedirect = () => {
     const redirectUri = encodeURIComponent(
       `${window.location.origin}/auth/callback`
     );
+    const vexaAccountUrl =
+      import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
     window.location.href =
-      `https://api-vexaaccount.onrender.com/auth/login?redirect_uri=${redirectUri}`;
+      `${vexaAccountUrl}/api/auth/login?redirect_uri=${redirectUri}`;
   };
 
   return (
     <div className="min-h-screen bg-[#050812] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        {/* Left decorative panel (unchanged) */}
+        {/* Left decorative panel – unchanged */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_22%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -49,7 +50,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* Right panel – Login button only */}
+        {/* Right panel – button only */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
@@ -57,7 +58,7 @@ export default function LoginPage() {
                 <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
                 <h1 className="mt-4 text-4xl font-bold">User Login</h1>
                 <p className="mt-3 text-sm text-slate-400">
-                  Click below to sign in with your Vexa Account.
+                  Sign in with your Vexa Account.
                 </p>
               </div>
 
