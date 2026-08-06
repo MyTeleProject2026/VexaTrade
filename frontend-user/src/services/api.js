@@ -1,9 +1,18 @@
 // frontend-user/src/services/api.js
 import axios from "axios";
 
+// ============================================================
+// 🔐 API BASE URLs
+// ============================================================
+const VEXA_ACCOUNT_URL =
+  import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
 
+// ============================================================
+// 🔧 Helper Functions
+// ============================================================
 export function getFullImageUrl(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -16,15 +25,6 @@ export function getAvatarLetter(user) {
   return (name[0] || email[0] || "U").toUpperCase();
 }
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 20000,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: false,
-});
-
 export function getApiErrorMessage(error) {
   return (
     error?.response?.data?.message ||
@@ -34,22 +34,22 @@ export function getApiErrorMessage(error) {
   );
 }
 
-// ✅ IMPROVED: Get token from localStorage with multiple key support
+// ============================================================
+// 🔑 Token Helper (Shared across both API instances)
+// ============================================================
 const getUserToken = (token) => {
-  // If token is passed directly, use it
   if (token) return token;
-  
-  // Check all possible token keys in order
+
   const tokenKeys = [
     "userToken",
-    "token", 
+    "token",
     "accessToken",
     "authToken",
     "jwt",
     "user_token",
-    "access_token"
+    "access_token",
   ];
-  
+
   for (const key of tokenKeys) {
     const value = localStorage.getItem(key);
     if (value) {
@@ -57,42 +57,43 @@ const getUserToken = (token) => {
       return value;
     }
   }
-  
+
   console.warn("⚠️ [API] No token found in localStorage");
-  console.log("🔍 [API] Available localStorage keys:", Object.keys(localStorage));
   return "";
 };
 
-const authHeaders = (token) => {
-  const finalToken = getUserToken(token);
-  return {
-    headers: {
-      Authorization: `Bearer ${finalToken}`,
-    },
-  };
-};
+// ============================================================
+// 🌐 AXIOS INSTANCE 1: VexaAccount (Auth Only)
+// ============================================================
+const authApiClient = axios.create({
+  baseURL: VEXA_ACCOUNT_URL,
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: false,
+});
 
-// ✅ Improved interceptor with logging
-api.interceptors.request.use(
+// Auth API Request Interceptor
+authApiClient.interceptors.request.use(
   (config) => {
-    // Add token to every request if not already present
+    // Add token if available
     if (!config.headers.Authorization) {
       const token = getUserToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log(`🔑 [API] Added token to request: ${config.url}`);
+        console.log(`🔑 [Auth API] Token added to: ${config.url}`);
       }
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-api.interceptors.response.use(
+// Auth API Response Interceptor
+authApiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ [API] ${response.config.url} – Status: ${response.status}`);
+    console.log(`✅ [Auth API] ${response.config.url} – ${response.status}`);
     return response;
   },
   (error) => {
@@ -100,7 +101,7 @@ api.interceptors.response.use(
     const url = error?.config?.url || "";
     const message = error?.response?.data?.message || error.message;
 
-    console.error(`❌ [API] ${url} – Status: ${status || 'Network Error'} – ${message}`);
+    console.error(`❌ [Auth API] ${url} – ${status || "Network Error"} – ${message}`);
 
     if (status === 401) {
       if (
@@ -108,18 +109,13 @@ api.interceptors.response.use(
         !url.includes("/api/auth/register") &&
         !url.includes("/api/auth/refresh")
       ) {
-        console.warn("⚠️ [API] 401 – Token expired or invalid. Please login again.");
-        // Clear all possible token keys
+        console.warn("⚠️ [Auth API] 401 – Token expired. Please login again.");
         const tokenKeys = ["userToken", "token", "accessToken", "authToken", "jwt", "user_token", "access_token"];
         for (const key of tokenKeys) {
           localStorage.removeItem(key);
         }
         localStorage.removeItem("user");
         localStorage.removeItem("userData");
-        // Optionally redirect to login
-        // if (window.location.pathname !== "/login") {
-        //   window.location.href = "/login";
-        // }
       }
     }
 
@@ -127,75 +123,239 @@ api.interceptors.response.use(
   }
 );
 
-/* ---------------- AUTH ---------------- */
+// ============================================================
+// 🌐 AXIOS INSTANCE 2: VexaTrade Backend (App Logic)
+// ============================================================
+const appApiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 20000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: false,
+});
 
+// App API Request Interceptor
+appApiClient.interceptors.request.use(
+  (config) => {
+    if (!config.headers.Authorization) {
+      const token = getUserToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log(`🔑 [App API] Token added to: ${config.url}`);
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// App API Response Interceptor
+appApiClient.interceptors.response.use(
+  (response) => {
+    console.log(`✅ [App API] ${response.config.url} – ${response.status}`);
+    return response;
+  },
+  (error) => {
+    const status = error?.response?.status;
+    const url = error?.config?.url || "";
+    const message = error?.response?.data?.message || error.message;
+
+    console.error(`❌ [App API] ${url} – ${status || "Network Error"} – ${message}`);
+
+    if (status === 401) {
+      if (
+        !url.includes("/api/auth/login") &&
+        !url.includes("/api/auth/register") &&
+        !url.includes("/api/auth/refresh")
+      ) {
+        console.warn("⚠️ [App API] 401 – Token expired.");
+        const tokenKeys = ["userToken", "token", "accessToken", "authToken", "jwt", "user_token", "access_token"];
+        for (const key of tokenKeys) {
+          localStorage.removeItem(key);
+        }
+        localStorage.removeItem("user");
+        localStorage.removeItem("userData");
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// ============================================================
+// 📦 AUTH API – Calls VexaAccount
+// ============================================================
 export const authApi = {
-  login: (payload) => api.post("/api/auth/login", payload),
-  register: (payload) => api.post("/api/auth/register", payload),
-  refresh: (payload) => api.post("/api/auth/refresh", payload),
-  logout: (payload) => api.post("/api/auth/logout", payload),
+  login: (payload) => authApiClient.post("/api/auth/login", payload),
+  register: (payload) => authApiClient.post("/api/auth/register", payload),
+  refresh: (payload) => authApiClient.post("/api/auth/refresh", payload),
+  logout: (payload) => authApiClient.post("/api/auth/logout", payload),
+
+  // Forgot & Reset Password
+  forgotPassword: (payload) => authApiClient.post("/api/auth/forgot-password", payload),
+  resetPassword: (payload) => authApiClient.post("/api/auth/reset-password", payload),
+
+  // Google Login
+  googleLogin: (payload) => authApiClient.post("/api/auth/google", payload),
+
+  // OTP
+  verifyOtp: (payload) => authApiClient.post("/api/auth/verify-otp", payload),
+  resendOtp: (payload) => authApiClient.post("/api/auth/resend-otp", payload),
+
+  // Profile (uses token)
+  getProfile: (token) => authApiClient.get("/api/auth/profile", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  updateProfile: (payload, token) => authApiClient.put("/api/auth/profile", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  updateProfileFull: (payload, token) => authApiClient.put("/api/auth/profile/full", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  updateProfilePicture: (avatar_url, token) => authApiClient.put("/api/auth/profile/picture", { avatar_url }, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  changePassword: (payload, token) => authApiClient.post("/api/auth/change-password", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  // 2FA
+  generate2FA: (token) => authApiClient.post("/api/auth/twofa/generate", {}, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  verifyEnable2FA: (payload, token) => authApiClient.post("/api/auth/twofa/verify-enable", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  disable2FA: (token) => authApiClient.post("/api/auth/twofa/disable", {}, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  // Data & Privacy
+  getActivityLog: (token) => authApiClient.get("/api/auth/activity-log", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  getSessions: (token) => authApiClient.get("/api/auth/sessions", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  exportData: (token) => authApiClient.get("/api/auth/export-data", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  deleteAccount: (payload, token) => authApiClient.post("/api/auth/delete-account", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  // Connected Apps
+  getConnectedApps: (token) => authApiClient.get("/api/auth/connected-apps", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  connectApp: (payload, token) => authApiClient.post("/api/auth/connect-app", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  disconnectApp: (payload, token) => authApiClient.post("/api/auth/disconnect-app", payload, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  // Token Validation
+  validateToken: (token) => authApiClient.get("/api/auth/validate", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 };
 
-/* ---------------- USER ---------------- */
-
+// ============================================================
+// 📦 USER API – Calls VexaTrade Backend
+// ============================================================
 export const userApi = {
-  getProfile: (token) => api.get("/api/user/profile", authHeaders(token)),
+  getProfile: (token) => appApiClient.get("/api/user/profile", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
   updateProfile: (payload, token) =>
-    api.put("/api/user/profile", payload, authHeaders(token)),
+    appApiClient.put("/api/user/profile", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   securityStatus: (token) =>
-    api.get("/api/user/security-status", authHeaders(token)),
+    appApiClient.get("/api/user/security-status", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   setPasscode: (data, token) =>
-    api.post("/api/user/set-passcode", data, authHeaders(token)),
+    appApiClient.post("/api/user/set-passcode", data, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   verifyPasscode: (payload, token) =>
-    api.post("/api/user/verify-passcode", payload, authHeaders(token)),
+    appApiClient.post("/api/user/verify-passcode", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   sendEmailVerificationCode: (token) =>
-    api.post("/api/user/send-email-verification-code", {}, authHeaders(token)),
+    appApiClient.post("/api/user/send-email-verification-code", {}, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   verifyEmailCode: (payload, token) =>
-    api.post("/api/user/verify-email-code", payload, authHeaders(token)),
+    appApiClient.post("/api/user/verify-email-code", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getPortfolioAssets: (token) =>
-    api.get("/api/user/portfolio-assets", authHeaders(token)),
+    appApiClient.get("/api/user/portfolio-assets", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
-  /* ---------------- TARGET SYSTEM ---------------- */
+  // Target System
   getUserTarget: (token) =>
-    api.get("/api/user/target", authHeaders(token)),
+    appApiClient.get("/api/user/target", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   setUserTarget: (payload, token) =>
-    api.post("/api/user/target/set", payload, authHeaders(token)),
+    appApiClient.post("/api/user/target/set", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   updateTargetProfit: (payload, token) =>
-    api.post("/api/user/target/update-profit", payload, authHeaders(token)),
+    appApiClient.post("/api/user/target/update-profit", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
-  /* ---------------- PROFIT WITHDRAWAL (Before Target Achieved) ---------------- */
+  // Profit Withdrawal
   getWithdrawalSettings: () =>
-    api.get("/api/withdrawal-settings"),
+    appApiClient.get("/api/withdrawal-settings"),
 
   requestProfitWithdrawal: (payload, token) =>
-    api.post("/api/withdraw/profit-request", payload, authHeaders(token)),
+    appApiClient.post("/api/withdraw/profit-request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getProfitWithdrawalHistory: (token) =>
-    api.get("/api/withdraw/profit-history", authHeaders(token)),
+    appApiClient.get("/api/withdraw/profit-history", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
+  // Notifications
   getNotifications: (token) =>
-    api.get("/api/user/notifications", authHeaders(token)),
+    appApiClient.get("/api/user/notifications", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   markNotificationRead: (id, token) =>
-    api.post(`/api/user/notifications/${id}/read`, {}, authHeaders(token)),
+    appApiClient.post(`/api/user/notifications/${id}/read`, {}, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   deleteNotification: (id, token) =>
-    api.delete(`/api/user/notifications/${id}`, authHeaders(token)),
+    appApiClient.delete(`/api/user/notifications/${id}`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   uploadProfilePicture: (file, token) => {
     const formData = new FormData();
     formData.append("profile_picture", file);
 
-    return api.post("/api/user/profile/upload-picture", formData, {
+    return appApiClient.post("/api/user/profile/upload-picture", formData, {
       headers: {
         Authorization: `Bearer ${getUserToken(token)}`,
         "Content-Type": "multipart/form-data",
@@ -216,7 +376,7 @@ export const userApi = {
       formData.append("document_number", payload.document_number);
     }
 
-    return api.post("/api/kyc/upload", formData, {
+    return appApiClient.post("/api/kyc/upload", formData, {
       headers: {
         Authorization: `Bearer ${getUserToken(token)}`,
         "Content-Type": "multipart/form-data",
@@ -224,63 +384,88 @@ export const userApi = {
     });
   },
 
-  // Joint Account APIs
+  // Joint Account
   requestJointAccount: (payload, token) =>
-    api.post("/api/joint-account/request", payload, authHeaders(token)),
+    appApiClient.post("/api/joint-account/request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getJointAccountStatus: (token) =>
-    api.get("/api/joint-account/status", authHeaders(token)),
+    appApiClient.get("/api/joint-account/status", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
-  getStatus: (token) => 
-    api.get("/api/joint-account/status", authHeaders(token)),
+  getStatus: (token) =>
+    appApiClient.get("/api/joint-account/status", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   requestJointWithdrawal: (payload, token) =>
-    api.post("/api/joint-account/withdraw-request", payload, authHeaders(token)),
+    appApiClient.post("/api/joint-account/withdraw-request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   approveJointWithdrawal: (payload, token) =>
-    api.post("/api/joint-account/approve-withdrawal", payload, authHeaders(token)),
+    appApiClient.post("/api/joint-account/approve-withdrawal", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   submitKyc: (formData, token) =>
-    api.post("/api/kyc/upload", formData, {
+    appApiClient.post("/api/kyc/upload", formData, {
       headers: {
         Authorization: `Bearer ${getUserToken(token)}`,
         "Content-Type": "multipart/form-data",
       },
     }),
-  
+
   getUserAssets: (token) => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
     return fetch(`${API_BASE_URL}/api/user/assets`, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
     }).then(res => res.json());
   },
+
   getWalletSummary: (token) =>
-    api.get("/api/wallet/summary", authHeaders(token)),
+    appApiClient.get("/api/wallet/summary", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getTransactions: (token) =>
-    api.get("/api/transactions", authHeaders(token)),
+    appApiClient.get("/api/transactions", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
-  getLegalDocuments: () => api.get("/api/legal-documents"),
+  getLegalDocuments: () => appApiClient.get("/api/legal-documents"),
 
-  getSupport: (token) => api.get("/api/support", authHeaders(token)),
+  getSupport: (token) => appApiClient.get("/api/support", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
   getPublicPlatformSettings: () => {
     const cacheBuster = Date.now();
-    return api.get(`/api/platform/public-settings?t=${cacheBuster}`);
+    return appApiClient.get(`/api/platform/public-settings?t=${cacheBuster}`);
   },
 
-  // Transfer APIs (User to User)
+  // Transfers
   getMyQrCode: (token) =>
-    api.get("/api/user/qr-code", authHeaders(token)),
+    appApiClient.get("/api/user/qr-code", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getUserByUid: (uid, token) =>
-    api.get(`/api/user/by-uid/${uid}`, authHeaders(token)),
+    appApiClient.get(`/api/user/by-uid/${uid}`, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   sendTransfer: (payload, token) =>
-    api.post("/api/user/transfer", payload, authHeaders(token)),
+    appApiClient.post("/api/user/transfer", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getTransferHistory: (token) =>
-    api.get("/api/user/transfers", authHeaders(token)),
+    appApiClient.get("/api/user/transfers", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   getMyQrCodeBase64: async (token) => {
     const response = await fetch(`${API_BASE_URL}/api/user/qr-code`, {
@@ -317,30 +502,38 @@ export const userApi = {
   },
 };
 
-/* ---------------- MARKET ---------------- */
-
+// ============================================================
+// 📦 MARKET API
+// ============================================================
 export const marketApi = {
-  home: () => api.get("/api/market/home"),
-  list: () => api.get("/api/market/list"),
+  home: () => appApiClient.get("/api/market/home"),
+  list: () => appApiClient.get("/api/market/list"),
   price: (symbol) =>
-    api.get(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
+    appApiClient.get(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
 };
 
-/* ---------------- DEPOSIT ---------------- */
-
+// ============================================================
+// 📦 DEPOSIT API
+// ============================================================
 export const depositApi = {
-  wallets: (token) => api.get("/api/deposit/wallets", authHeaders(token)),
+  wallets: (token) => appApiClient.get("/api/deposit/wallets", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
-  history: (token) => api.get("/api/deposits", authHeaders(token)),
+  history: (token) => appApiClient.get("/api/deposits", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
   request: (payload, token) =>
-    api.post("/api/deposits/request", payload, authHeaders(token)),
+    appApiClient.post("/api/deposits/request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   uploadReceipt: (file, token) => {
     const formData = new FormData();
     formData.append("receipt", file);
 
-    return api.post("/api/deposits/upload-receipt", formData, {
+    return appApiClient.post("/api/deposits/upload-receipt", formData, {
       headers: {
         Authorization: `Bearer ${getUserToken(token)}`,
         "Content-Type": "multipart/form-data",
@@ -349,79 +542,125 @@ export const depositApi = {
   },
 };
 
-/* ---------------- WITHDRAW ---------------- */
-
+// ============================================================
+// 📦 WITHDRAW API
+// ============================================================
 export const withdrawalApi = {
-  history: (token) => api.get("/api/withdrawals", authHeaders(token)),
+  history: (token) => appApiClient.get("/api/withdrawals", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
   request: (payload, token) =>
-    api.post("/api/withdrawals/request", payload, authHeaders(token)),
+    appApiClient.post("/api/withdrawals/request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 };
 
-/* ---------------- TRADE ---------------- */
-
+// ============================================================
+// 📦 TRADE API
+// ============================================================
 export const tradeApi = {
-  rules: (token) => api.get("/api/trade/rules", authHeaders(token)),
+  rules: (token) => appApiClient.get("/api/trade/rules", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
   quickAmount: (payload, token) =>
-    api.post("/api/trades/quick-amount", payload, authHeaders(token)),
+    appApiClient.post("/api/trades/quick-amount", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
   place: (payload, token) =>
-    api.post("/api/trades/place", payload, authHeaders(token)),
+    appApiClient.post("/api/trades/place", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 
-  open: (token) => api.get("/api/trades/open", authHeaders(token)),
+  open: (token) => appApiClient.get("/api/trades/open", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 
-  history: (token) => api.get("/api/trades/history", authHeaders(token)),
+  history: (token) => appApiClient.get("/api/trades/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 };
 
-/* ---------------- FUNDS ---------------- */
-
+// ============================================================
+// 📦 FUNDS API
+// ============================================================
 export const fundsApi = {
-  plans: (token) => api.get("/api/funds/plans", authHeaders(token)),
-  summary: (token) => api.get("/api/funds/summary", authHeaders(token)),
-  active: (token) => api.get("/api/funds/active", authHeaders(token)),
-  history: (token) => api.get("/api/funds/history", authHeaders(token)),
+  plans: (token) => appApiClient.get("/api/funds/plans", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  summary: (token) => appApiClient.get("/api/funds/summary", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  active: (token) => appApiClient.get("/api/funds/active", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  history: (token) => appApiClient.get("/api/funds/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
   latestCompleted: (token) =>
-    api.get("/api/funds/completed-latest", authHeaders(token)),
+    appApiClient.get("/api/funds/completed-latest", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
   apply: (payload, token) =>
-    api.post("/api/funds/apply", payload, authHeaders(token)),
+    appApiClient.post("/api/funds/apply", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 };
 
-/* ---------------- CONVERT ---------------- */
-
+// ============================================================
+// 📦 CONVERT API
+// ============================================================
 export const convertApi = {
   execute: (payload, token) =>
-    api.post(
+    appApiClient.post(
       "/api/convert/execute",
       {
         fromCoin: payload?.fromCoin,
         toCoin: payload?.toCoin,
         fromAmount: payload?.fromAmount,
       },
-      authHeaders(token)
+      {
+        headers: { Authorization: `Bearer ${getUserToken(token)}` }
+      }
     ),
 
-  history: (token) => api.get("/api/convert/history", authHeaders(token)),
+  history: (token) => appApiClient.get("/api/convert/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 };
 
-/* ---------------- LOAN ---------------- */
-
+// ============================================================
+// 📦 LOAN API
+// ============================================================
 export const loanApi = {
-  getLoans: (token) => api.get("/api/loans", authHeaders(token)),
+  getLoans: (token) => appApiClient.get("/api/loans", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
   apply: (payload, token) =>
-    api.post("/api/loans/apply", payload, authHeaders(token)),
+    appApiClient.post("/api/loans/apply", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 };
 
-/* ---------------- TRANSACTIONS ---------------- */
-
+// ============================================================
+// 📦 TRANSACTIONS API
+// ============================================================
 export const transactionApi = {
-  getAll: (token) => api.get("/api/transactions", authHeaders(token)),
+  getAll: (token) => appApiClient.get("/api/transactions", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
 };
 
-/* ---------------- NEWS ---------------- */
-
+// ============================================================
+// 📦 NEWS API
+// ============================================================
 export const newsApi = {
-  getNews: () => api.get("/api/news"),
+  getNews: () => appApiClient.get("/api/news"),
 };
 
-export default api;
+// ============================================================
+// 📦 DEFAULT EXPORT (for backward compatibility)
+// ============================================================
+export default appApiClient;
