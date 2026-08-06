@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
-import { authApi, getApiErrorMessage } from "../../services/api";
+import { auth, getApiErrorMessage } from "../../services/api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
 
-      const res = await authApi.login({
+      const res = await auth.login({
         email: form.email,
         password: form.password,
       });
