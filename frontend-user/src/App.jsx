@@ -301,6 +301,19 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* ... other routes */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        {/* ... */}
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
 // ✅ MAIN APP WRAPPER – Maintenance check is NOW inside NotificationProvider
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
@@ -327,7 +340,6 @@ function AppContent() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           path="/account-verification"
           element={
