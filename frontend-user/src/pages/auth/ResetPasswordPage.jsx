@@ -1,21 +1,81 @@
 // frontend-user/src/pages/auth/ResetPasswordPage.jsx
-import { Link, useSearchParams } from "react-router-dom";
-import { ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Lock, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { authApi, getApiErrorMessage } from "../../services/api";
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const navigate = useNavigate();
 
-  const handleRedirect = () => {
-    const redirectUri = encodeURIComponent(
-      `${window.location.origin}/auth/callback`
-    );
-    const vexaAccountUrl =
-      import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
-    // Pass the token to the account service
-    window.location.href =
-      `${vexaAccountUrl}/api/auth/reset-password?token=${encodeURIComponent(token)}&redirect_uri=${redirectUri}`;
-  };
+  const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [checking, setChecking] = useState(true);
+  const [tokenValid, setTokenValid] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function verifyToken() {
+      try {
+        setChecking(true);
+        setError("");
+
+        if (!token) {
+          setTokenValid(false);
+          setError("Reset token is missing.");
+          return;
+        }
+
+        // Optionally call a validate endpoint if available.
+        // For now, we assume the token is valid; the reset endpoint will validate it.
+        setTokenValid(true);
+      } catch (_error) {
+        setTokenValid(false);
+        setError("Could not verify reset link.");
+      } finally {
+        setChecking(false);
+      }
+    }
+
+    verifyToken();
+  }, [token]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      if (!password || password.length < 6) {
+        setError("Password must be at least 6 characters.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError("Password confirmation does not match.");
+        return;
+      }
+
+      await authApi.resetPassword({ token, password });
+
+      setSuccess("Password reset successfully. Redirecting to login...");
+      setTimeout(() => {
+        navigate("/login");
+      }, 1800);
+    } catch (err) {
+      setError(getApiErrorMessage(err) || "Reset failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#050812] text-white">
@@ -32,7 +92,7 @@ export default function ResetPasswordPage() {
                 Set a new password.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-slate-400">
-                You will be redirected to Vexa Account to securely set your new password.
+                Enter your new password below.
               </p>
             </div>
           </div>
@@ -45,16 +105,82 @@ export default function ResetPasswordPage() {
                 <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
                 <h1 className="mt-4 text-4xl font-bold">Reset Password</h1>
                 <p className="mt-3 text-sm text-slate-400">
-                  You will be redirected to Vexa Account to reset your password.
+                  Enter your new password below.
                 </p>
               </div>
 
-              <button
-                onClick={handleRedirect}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400"
-              >
-                Continue to Vexa Account
-              </button>
+              {checking ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
+                  Verifying reset link...
+                </div>
+              ) : !tokenValid ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                    {error || "Invalid or expired reset link."}
+                  </div>
+                  <div className="text-center text-sm text-slate-400">
+                    Go back to{" "}
+                    <Link
+                      to="/forgot-password"
+                      className="font-semibold text-cyan-300 hover:text-cyan-200"
+                    >
+                      Forgot Password
+                    </Link>
+                  </div>
+                </div>
+              ) : success ? (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={18} />
+                    <span>{success}</span>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <label className="mb-2 block text-sm text-slate-400">New Password</label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                      <input
+                        type="password"
+                        placeholder="Enter new password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-4 pl-12 pr-4 text-white outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-slate-400">Confirm Password</label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                      <input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-4 pl-12 pr-4 text-white outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                  >
+                    {submitting ? "Resetting..." : "Reset Password"}
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
+              )}
 
               <div className="mt-6 text-center text-sm text-slate-400">
                 Back to{" "}
