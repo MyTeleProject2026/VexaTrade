@@ -1,119 +1,200 @@
 // frontend-user/src/pages/auth/ResetPasswordPage.jsx
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useNotification } from '../../hooks/useNotification';
-import { authApi } from '../../services/api';
-import { Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Lock, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { authApi, getApiErrorMessage } from "../../services/api";
+import { useNotification } from "../../hooks/useNotification";
 
 export default function ResetPasswordPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || '';
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [validToken, setValidToken] = useState(null);
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
 
+  const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [checking, setChecking] = useState(true);
+  const [tokenValid, setTokenValid] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
   useEffect(() => {
-    if (!token) {
-      setValidToken(false);
-    } else {
-      setValidToken(true);
+    async function verifyToken() {
+      try {
+        setChecking(true);
+        setError("");
+        if (!token) {
+          setTokenValid(false);
+          setError("Reset token is missing.");
+          return;
+        }
+        setTokenValid(true);
+      } catch (_error) {
+        setTokenValid(false);
+        setError("Could not verify reset link.");
+      } finally {
+        setChecking(false);
+      }
     }
+    verifyToken();
   }, [token]);
 
-  const handleSubmit = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!newPassword || !confirmPassword) {
-      showError('Please fill all fields');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showError('Passwords do not match');
-      return;
-    }
-    if (newPassword.length < 6) {
-      showError('Password must be at least 6 characters');
-      return;
-    }
     try {
-      setLoading(true);
-      const res = await authApi.resetPassword({ token, newPassword });
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      if (!password || password.length < 6) {
+        setError("Password must be at least 6 characters.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Password confirmation does not match.");
+        return;
+      }
+
+      const res = await authApi.resetPassword({ token, newPassword: password });
       if (res.data?.success) {
-        showSuccess('Password reset successfully! Please login.');
-        navigate('/login');
+        setSuccess("Password reset successfully. Redirecting to login...");
+        showSuccess("Password reset successfully.");
+        setTimeout(() => navigate("/login"), 1800);
+      } else {
+        const msg = res.data?.message || "Reset failed.";
+        setError(msg);
+        showError(msg);
       }
     } catch (err) {
-      showError(err.response?.data?.message || 'Failed to reset password');
+      const msg = getApiErrorMessage(err) || "Reset failed.";
+      setError(msg);
+      showError(msg);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
-
-  if (validToken === false) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-dark-bg p-4">
-        <div className="glass-card max-w-md w-full p-6 text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Invalid or Missing Token</h1>
-          <p className="text-slate-400">The reset link is invalid or expired. Please request a new one.</p>
-          <Link to="/forgot-password" className="text-cyan-400 hover:underline mt-4 inline-block">Request New Link</Link>
-        </div>
-      </div>
-    );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dark-bg p-4">
-      <div className="glass-card max-w-md w-full p-6">
-        <Link to="/login" className="text-slate-400 hover:text-white transition mb-4 inline-block">
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-2xl font-bold gradient-text text-center mb-2">Reset Password</h1>
-        <p className="text-slate-400 text-center text-sm mb-6">Enter your new password below.</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="input-label">New Password</label>
-            <div className="relative">
-              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="input-field pl-10 pr-12"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+    <div className="min-h-screen bg-[#050812] text-white">
+      <div className="grid min-h-screen lg:grid-cols-[1fr_1fr]">
+        {/* LEFT PANEL – ORIGINAL */}
+        <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_24%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
+          <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-cyan-300">
+                <ShieldCheck size={16} />
+                VexaTrade Reset Password
+              </div>
+              <h1 className="mt-8 max-w-lg text-5xl font-bold leading-tight text-white xl:text-6xl">
+                Set a new password.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-400">
+                Enter your new password below.
+              </p>
             </div>
           </div>
-          <div>
-            <label className="input-label">Confirm Password</label>
-            <div className="relative">
-              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="input-field pl-10"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-              />
+        </section>
+
+        {/* RIGHT PANEL – ORIGINAL FORM */}
+        <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
+          <div className="w-full max-w-md">
+            <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
+              <div className="mb-8 text-center">
+                <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
+                <h1 className="mt-4 text-4xl font-bold">Reset Password</h1>
+                <p className="mt-3 text-sm text-slate-400">
+                  Enter your new password below.
+                </p>
+              </div>
+
+              {checking ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
+                  Verifying reset link...
+                </div>
+              ) : !tokenValid ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                    {error || "Invalid or expired reset link."}
+                  </div>
+                  <div className="text-center text-sm text-slate-400">
+                    Go back to{" "}
+                    <Link
+                      to="/forgot-password"
+                      className="font-semibold text-cyan-300 hover:text-cyan-200"
+                    >
+                      Forgot Password
+                    </Link>
+                  </div>
+                </div>
+              ) : success ? (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={18} />
+                    <span>{success}</span>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <label className="mb-2 block text-sm text-slate-400">New Password</label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                      <input
+                        type="password"
+                        placeholder="Enter new password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-4 pl-12 pr-4 text-white outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm text-slate-400">Confirm Password</label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                      <input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-4 pl-12 pr-4 text-white outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                  >
+                    {submitting ? "Resetting..." : "Reset Password"}
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
+              )}
+
+              <div className="mt-6 text-center text-sm text-slate-400">
+                Back to{" "}
+                <Link
+                  to="/login"
+                  className="font-semibold text-cyan-300 hover:text-cyan-200"
+                >
+                  Login
+                </Link>
+              </div>
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full py-3 flex justify-center"
-          >
-            {loading ? 'Resetting...' : 'Reset Password'}
-          </button>
-        </form>
+        </section>
       </div>
     </div>
   );
