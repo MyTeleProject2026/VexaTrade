@@ -31,6 +31,7 @@ import SupportPage from "./pages/SupportPage";
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
 
+// --- Helper functions (unchanged) ---
 function safeParse(value) {
   try {
     return JSON.parse(value);
@@ -104,6 +105,7 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
+// --- AccountVerificationPage (unchanged) ---
 function AccountVerificationPage() {
   const [user, setUser] = useState(() => getStoredUser());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -239,6 +241,7 @@ function AccountVerificationPage() {
   );
 }
 
+// --- PrivateRoute (unchanged) ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
 
@@ -249,6 +252,7 @@ function PrivateRoute({ children }) {
   return children;
 }
 
+// --- ApprovalGuard (unchanged) ---
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
@@ -301,20 +305,7 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* ... other routes */}
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        {/* ... */}
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-// ✅ MAIN APP WRAPPER – Maintenance check is NOW inside NotificationProvider
+// --- AppContent (contains all routes) ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher } = useNotification();
@@ -340,6 +331,8 @@ function AppContent() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+
         <Route
           path="/account-verification"
           element={
@@ -382,7 +375,7 @@ function AppContent() {
   );
 }
 
-// ✅ MAIN APP
+// --- MAIN APP (with splash and providers) ---
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
