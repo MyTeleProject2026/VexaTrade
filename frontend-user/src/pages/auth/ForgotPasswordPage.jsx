@@ -1,17 +1,29 @@
 // frontend-user/src/pages/auth/ForgotPasswordPage.jsx
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ShieldCheck } from "lucide-react";
+import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import { authApi, getApiErrorMessage } from "../../services/api";
 
 export default function ForgotPasswordPage() {
-  const handleRedirect = () => {
-    const redirectUri = encodeURIComponent(
-      `${window.location.origin}/auth/callback`
-    );
-    const vexaAccountUrl =
-      import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
-    window.location.href =
-      `${vexaAccountUrl}/api/auth/forgot-password?redirect_uri=${redirectUri}`;
-  };
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      await authApi.forgotPassword({ email });
+      setSubmitted(true);
+    } catch (err) {
+      setError(getApiErrorMessage(err) || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#050812] text-white">
@@ -28,7 +40,7 @@ export default function ForgotPasswordPage() {
                 Reset your password.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-slate-400">
-                You will be redirected to Vexa Account to securely reset your password.
+                Enter your email and we'll send you a reset link.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -51,16 +63,46 @@ export default function ForgotPasswordPage() {
                 <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
                 <h1 className="mt-4 text-4xl font-bold">Forgot Password</h1>
                 <p className="mt-3 text-sm text-slate-400">
-                  You will be redirected to Vexa Account to reset your password.
+                  Enter your email to start the reset process.
                 </p>
               </div>
 
-              <button
-                onClick={handleRedirect}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400"
-              >
-                Continue to Vexa Account
-              </button>
+              {submitted ? (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-4 text-sm text-emerald-300">
+                  If this email exists in the system, password reset instructions will be sent.
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm text-red-300">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <label className="mb-2 block text-sm text-slate-400">Email</label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                      <input
+                        type="email"
+                        placeholder="Enter your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] py-4 pl-12 pr-4 text-white outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                  >
+                    {loading ? "Sending..." : "Send Reset Link"}
+                    <ArrowRight size={18} />
+                  </button>
+                </form>
+              )}
 
               <div className="mt-6 text-center text-sm text-slate-400">
                 Back to{" "}
@@ -70,6 +112,13 @@ export default function ForgotPasswordPage() {
                 >
                   Login
                 </Link>
+              </div>
+
+              <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-xs uppercase tracking-[0.28em] text-slate-500">Recovery</div>
+                <div className="mt-3 text-sm leading-6 text-slate-300">
+                  This screen is styled and ready. When you want, I can wire it to a real backend reset-password endpoint next.
+                </div>
               </div>
             </div>
           </div>
