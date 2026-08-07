@@ -38,7 +38,6 @@ export default function Email2faVerificationPage() {
       setUserId(storedUserId);
     }
 
-    // Start countdown
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
