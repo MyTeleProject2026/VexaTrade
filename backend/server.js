@@ -17,6 +17,7 @@ const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
 const maintenanceRoutes = require("./maintenanceRoutes");
+const { authUser, authAdmin } = require('./middleware/auth');
 const fromName = process.env.MAIL_FROM_NAME || "BLOCKCHAIN ECOSYSTEM";
 
 const app = express();
@@ -728,55 +729,83 @@ function getAuthToken(req) {
   return authHeader.slice(7).trim();
 }
 
-function authUser(req, res, next) {
+// ============================================================
+// ✅ SYNC USER FROM VEXAACCOUNT
+// ============================================================
+async function syncUserFromVexaAccount(accountId) {
+  const connection = await pool.getConnection();
   try {
-    const token = getAuthToken(req);
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, message: "User token missing" });
+    // 1. Check if user already exists in local users table
+    const [localRows] = await connection.execute(
+      "SELECT id FROM users WHERE account_id = ?",
+      [accountId]
+    );
+    
+    if (localRows.length) {
+      // Update timestamp
+      await connection.execute(
+        `UPDATE users SET updated_at = NOW() WHERE account_id = ?`,
+        [accountId]
+      );
+      connection.release();
+      return localRows[0].id;
     }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "user") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Invalid user token" });
+    
+    // 2. Get user from store_users (VexaAccount master)
+    const [accountRows] = await connection.execute(
+      `SELECT id, email, name, avatar_url, is_verified 
+       FROM store_users 
+       WHERE id = ?`,
+      [accountId]
+    );
+    
+    if (!accountRows.length) {
+      connection.release();
+      console.log(`⚠️ User ${accountId} not found in store_users`);
+      return null;
     }
-
-    req.user = decoded;
-    next();
-  } catch (_error) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired user token" });
+    
+    const accountUser = accountRows[0];
+    
+    // 3. Generate UID for local user
+    const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
+    
+    // 4. Create user in local users table
+    const [result] = await connection.execute(
+      `INSERT INTO users (
+        account_id, 
+        uid, 
+        name, 
+        email, 
+        avatar_url, 
+        email_verified, 
+        status, 
+        kyc_status, 
+        balance, 
+        created_at, 
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'not_submitted', 0, NOW(), NOW())`,
+      [
+        accountUser.id, 
+        uid, 
+        accountUser.name || accountUser.email, 
+        accountUser.email, 
+        accountUser.avatar_url || null, 
+        accountUser.is_verified || 0
+      ]
+    );
+    
+    console.log(`✅ Synced user ${accountUser.email} (Local ID: ${result.insertId})`);
+    connection.release();
+    return result.insertId;
+    
+  } catch (error) {
+    console.error('❌ Sync error:', error.message);
+    connection.release();
+    return null;
   }
 }
 
-function authAdmin(req, res, next) {
-  try {
-    const token = getAuthToken(req);
-    if (!token) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Admin token missing" });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "admin") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Invalid admin token" });
-    }
-
-    req.admin = decoded;
-    next();
-  } catch (_error) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired admin token" });
-  }
-}
 
 function toNumber(value, fallback = 0) {
   const num = Number(value);
