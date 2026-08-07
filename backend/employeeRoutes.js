@@ -4,6 +4,7 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("./db");
+const { authUser } = require("./middleware/auth"); // ✅ Use imported auth
 
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
 
@@ -21,7 +22,6 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check if employee already exists
     const [existing] = await pool.execute(
       "SELECT id FROM employees WHERE email = ?",
       [email]
@@ -141,7 +141,6 @@ router.post("/add-user", async (req, res) => {
       });
     }
 
-    // Check if employee exists
     const [empRows] = await pool.execute(
       "SELECT id FROM employees WHERE id = ?",
       [employee_id]
@@ -154,7 +153,6 @@ router.post("/add-user", async (req, res) => {
       });
     }
 
-    // Check if user exists
     const [userRows] = await pool.execute(
       "SELECT id, uid FROM users WHERE uid = ?",
       [user_uid]
@@ -167,7 +165,6 @@ router.post("/add-user", async (req, res) => {
       });
     }
 
-    // Check if already assigned
     const [existing] = await pool.execute(
       "SELECT id FROM employee_assigned_users WHERE employee_id = ? AND user_uid = ?",
       [employee_id, user_uid]
@@ -333,7 +330,6 @@ router.get("/verify", async (req, res) => {
 // =========================
 router.get("/dashboard-stats", async (req, res) => {
   try {
-    // Get token from header
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       return res.status(401).json({ success: false, message: "Token required" });
@@ -346,7 +342,6 @@ router.get("/dashboard-stats", async (req, res) => {
 
     const employeeId = decoded.id;
 
-    // Get assigned user UIDs
     const [assignedRows] = await pool.execute(
       `SELECT user_uid FROM employee_assigned_users WHERE employee_id = ?`,
       [employeeId]
@@ -367,7 +362,6 @@ router.get("/dashboard-stats", async (req, res) => {
       });
     }
 
-    // Get user IDs from UIDs
     const placeholders = assignedUids.map(() => '?').join(',');
     const [userRows] = await pool.execute(
       `SELECT id FROM users WHERE uid IN (${placeholders})`,
@@ -390,7 +384,6 @@ router.get("/dashboard-stats", async (req, res) => {
 
     const userIdPlaceholders = userIds.map(() => '?').join(',');
 
-    // Get stats
     const [usersCount] = await pool.execute(
       `SELECT COUNT(*) AS total FROM users WHERE id IN (${userIdPlaceholders})`,
       userIds
@@ -732,7 +725,6 @@ router.get("/users/:userId", async (req, res) => {
     const employeeId = decoded.id;
     const userId = req.params.userId;
 
-    // Check if this user is assigned to the employee
     const [assignedRows] = await pool.execute(
       `SELECT eau.*, u.id, u.uid, u.name, u.email, u.status, u.balance, u.created_at
        FROM employee_assigned_users eau
@@ -748,7 +740,6 @@ router.get("/users/:userId", async (req, res) => {
       });
     }
 
-    // Get full user details
     const [userRows] = await pool.execute(
       `SELECT u.*
        FROM users u
@@ -788,7 +779,6 @@ router.get("/users/:userId/deposits", async (req, res) => {
     const employeeId = decoded.id;
     const userId = req.params.userId;
 
-    // Check if user is assigned
     const [assignedRows] = await pool.execute(
       `SELECT eau.* FROM employee_assigned_users eau
        LEFT JOIN users u ON u.uid = eau.user_uid
