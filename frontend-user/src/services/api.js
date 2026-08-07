@@ -35,7 +35,7 @@ export function getApiErrorMessage(error) {
 }
 
 // ============================================================
-// 🔑 Token Helper (Shared across both API instances)
+// 🔑 Token Helper
 // ============================================================
 const getUserToken = (token) => {
   if (token) return token;
@@ -77,7 +77,6 @@ const authApiClient = axios.create({
 // Auth API Request Interceptor
 authApiClient.interceptors.request.use(
   (config) => {
-    // Add token if available
     if (!config.headers.Authorization) {
       const token = getUserToken();
       if (token) {
@@ -187,6 +186,7 @@ appApiClient.interceptors.response.use(
 // 📦 AUTH API – Calls VexaAccount
 // ============================================================
 export const authApi = {
+  // Authentication
   login: (payload) => authApiClient.post("/api/auth/login", payload),
   register: (payload) => authApiClient.post("/api/auth/register", payload),
   refresh: (payload) => authApiClient.post("/api/auth/refresh", payload),
@@ -202,6 +202,17 @@ export const authApi = {
   // OTP
   verifyOtp: (payload) => authApiClient.post("/api/auth/verify-otp", payload),
   resendOtp: (payload) => authApiClient.post("/api/auth/resend-otp", payload),
+
+  // ✅ Login OTP (Email 2FA)
+  verifyLoginOtp: (payload) => authApiClient.post("/api/auth/verify-login-otp", payload),
+  resendLoginOtp: (payload) => authApiClient.post("/api/auth/resend-login-otp", payload),
+
+  // ✅ Email 2FA
+  verifyEmail2fa: (payload) => authApiClient.post("/api/auth/verify-email-2fa", payload),
+  resendEmail2fa: (payload) => authApiClient.post("/api/auth/resend-email-2fa", payload),
+  
+  // ✅ Authenticator 2FA Verification (for login)
+  verifyTwoFactor: (payload) => authApiClient.post("/api/auth/twofa/verify", payload),
 
   // Profile (uses token)
   getProfile: (token) => authApiClient.get("/api/auth/profile", {
@@ -220,7 +231,7 @@ export const authApi = {
     headers: { Authorization: `Bearer ${getUserToken(token)}` }
   }),
 
-  // 2FA
+  // 2FA Setup
   generate2FA: (token) => authApiClient.post("/api/auth/twofa/generate", {}, {
     headers: { Authorization: `Bearer ${getUserToken(token)}` }
   }),
@@ -228,6 +239,17 @@ export const authApi = {
     headers: { Authorization: `Bearer ${getUserToken(token)}` }
   }),
   disable2FA: (token) => authApiClient.post("/api/auth/twofa/disable", {}, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  // ✅ Email 2FA Management
+  enableEmail2fa: (token) => authApiClient.post("/api/auth/email-2fa/enable", {}, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  disableEmail2fa: (token) => authApiClient.post("/api/auth/email-2fa/disable", {}, {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  getEmail2faStatus: (token) => authApiClient.get("/api/auth/email-2fa/status", {
     headers: { Authorization: `Bearer ${getUserToken(token)}` }
   }),
 
@@ -525,142 +547,4 @@ export const depositApi = {
   }),
 
   request: (payload, token) =>
-    appApiClient.post("/api/deposits/request", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-
-  uploadReceipt: (file, token) => {
-    const formData = new FormData();
-    formData.append("receipt", file);
-
-    return appApiClient.post("/api/deposits/upload-receipt", formData, {
-      headers: {
-        Authorization: `Bearer ${getUserToken(token)}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
-  },
-};
-
-// ============================================================
-// 📦 WITHDRAW API
-// ============================================================
-export const withdrawalApi = {
-  history: (token) => appApiClient.get("/api/withdrawals", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-
-  request: (payload, token) =>
-    appApiClient.post("/api/withdrawals/request", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-};
-
-// ============================================================
-// 📦 TRADE API
-// ============================================================
-export const tradeApi = {
-  rules: (token) => appApiClient.get("/api/trade/rules", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-
-  quickAmount: (payload, token) =>
-    appApiClient.post("/api/trades/quick-amount", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-
-  place: (payload, token) =>
-    appApiClient.post("/api/trades/place", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-
-  open: (token) => appApiClient.get("/api/trades/open", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-
-  history: (token) => appApiClient.get("/api/trades/history", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-};
-
-// ============================================================
-// 📦 FUNDS API
-// ============================================================
-export const fundsApi = {
-  plans: (token) => appApiClient.get("/api/funds/plans", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-  summary: (token) => appApiClient.get("/api/funds/summary", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-  active: (token) => appApiClient.get("/api/funds/active", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-  history: (token) => appApiClient.get("/api/funds/history", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-  latestCompleted: (token) =>
-    appApiClient.get("/api/funds/completed-latest", {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-  apply: (payload, token) =>
-    appApiClient.post("/api/funds/apply", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-};
-
-// ============================================================
-// 📦 CONVERT API
-// ============================================================
-export const convertApi = {
-  execute: (payload, token) =>
-    appApiClient.post(
-      "/api/convert/execute",
-      {
-        fromCoin: payload?.fromCoin,
-        toCoin: payload?.toCoin,
-        fromAmount: payload?.fromAmount,
-      },
-      {
-        headers: { Authorization: `Bearer ${getUserToken(token)}` }
-      }
-    ),
-
-  history: (token) => appApiClient.get("/api/convert/history", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-};
-
-// ============================================================
-// 📦 LOAN API
-// ============================================================
-export const loanApi = {
-  getLoans: (token) => appApiClient.get("/api/loans", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-  apply: (payload, token) =>
-    appApiClient.post("/api/loans/apply", payload, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }),
-};
-
-// ============================================================
-// 📦 TRANSACTIONS API
-// ============================================================
-export const transactionApi = {
-  getAll: (token) => appApiClient.get("/api/transactions", {
-    headers: { Authorization: `Bearer ${getUserToken(token)}` }
-  }),
-};
-
-// ============================================================
-// 📦 NEWS API
-// ============================================================
-export const newsApi = {
-  getNews: () => appApiClient.get("/api/news"),
-};
-
-// ============================================================
-// 📦 DEFAULT EXPORT (for backward compatibility)
-// ============================================================
-export default appApiClient;
+    appApiClient.post("/api/deposits/
