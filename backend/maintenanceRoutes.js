@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const { authAdmin } = require("./middleware/auth");
+const { authUser, authAdmin } = require('./src/middleware/auth');
 
 // =========================
 // PUBLIC: Get Maintenance Status
