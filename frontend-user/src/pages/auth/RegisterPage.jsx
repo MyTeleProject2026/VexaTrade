@@ -5,8 +5,29 @@ import { ArrowRight, ShieldCheck, Eye, EyeOff, Mail, CheckCircle } from "lucide-
 import { authApi, getApiErrorMessage } from "../../services/api";
 import { useNotification } from "../../hooks/useNotification";
 
-const VexaAccountIcon = ({ className = "w-5 h-5" }) => (/* Same SVG as LoginPage */);
+// ✅ VexaAccount SVG Icon – Full code (not just comment)
+const VexaAccountIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className={className}>
+    <defs>
+      <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#06b6d4"/>
+        <stop offset="100%" stopColor="#10b981"/>
+      </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"/>
+    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="1"/>
+    <g transform="translate(50, 50) scale(0.8)">
+      <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" strokeWidth="6" strokeLinecap="round"/>
+      <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+      <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" strokeWidth="1.5"/>
+    </g>
+    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+  </svg>
+);
 
+// Country Options
 const COUNTRY_OPTIONS = [
   { value: "US", label: "United States" }, { value: "GB", label: "United Kingdom" },
   { value: "CA", label: "Canada" }, { value: "AU", label: "Australia" },
