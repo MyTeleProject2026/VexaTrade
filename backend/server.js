@@ -17,7 +17,7 @@ const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
 const maintenanceRoutes = require("./maintenanceRoutes");
-const { authUser, authAdmin } = require('./middleware/auth');
+const { authUser, authAdmin } = require('./src/middleware/auth');
 const fromName = process.env.MAIL_FROM_NAME || "BLOCKCHAIN ECOSYSTEM";
 
 const app = express();
