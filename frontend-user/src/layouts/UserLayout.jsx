@@ -1,8 +1,11 @@
+// frontend-user/src/layouts/UserLayout.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell, Menu, Wallet } from "lucide-react";
 import UserSidebar from "../components/UserSidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
+import PasscodeLockScreen from "../components/PasscodeLockScreen";
+import { userApi } from "../services/api";
 
 const PAGE_META = {
   "/dashboard": {
@@ -99,15 +102,70 @@ function shouldShowBackButton(pathname) {
   ].some((route) => pathname.startsWith(route));
 }
 
+// ✅ Helper to get stored token
+function getStoredToken() {
+  return (
+    localStorage.getItem("userToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    ""
+  );
+}
+
 export default function UserLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  
+  // ✅ Passcode lock states
+  const [isPasscodeLocked, setIsPasscodeLocked] = useState(false);
+  const [checkingPasscode, setCheckingPasscode] = useState(true);
 
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
   const showBackButton = shouldShowBackButton(location.pathname);
+
+  // ✅ Check if passcode is required on mount
+  useEffect(() => {
+    const checkPasscode = async () => {
+      try {
+        setCheckingPasscode(true);
+        
+        const token = getStoredToken();
+        if (!token) {
+          setIsPasscodeLocked(false);
+          setCheckingPasscode(false);
+          return;
+        }
+
+        // ✅ Check if already verified in this session
+        const isVerified = sessionStorage.getItem("VexaTrade_passcode_verified");
+        if (isVerified === "1") {
+          setIsPasscodeLocked(false);
+          setCheckingPasscode(false);
+          return;
+        }
+
+        // ✅ Check if user has passcode set
+        const res = await userApi.securityStatus(token);
+        const hasPasscode = res?.data?.data?.hasPasscode || false;
+
+        if (hasPasscode) {
+          setIsPasscodeLocked(true);
+        } else {
+          setIsPasscodeLocked(false);
+        }
+      } catch (error) {
+        console.error("❌ Passcode check error:", error);
+        setIsPasscodeLocked(false);
+      } finally {
+        setCheckingPasscode(false);
+      }
+    };
+
+    checkPasscode();
+  }, []);
 
   // Prevent body scroll when sidebar is open
   useEffect(() => {
@@ -132,11 +190,7 @@ export default function UserLayout() {
 
     async function loadUnreadStatus() {
       try {
-        const token =
-          localStorage.getItem("userToken") ||
-          localStorage.getItem("token") ||
-          localStorage.getItem("accessToken") ||
-          "";
+        const token = getStoredToken();
 
         if (!token) {
           if (!ignore) setHasUnread(false);
@@ -217,6 +271,26 @@ export default function UserLayout() {
 
   function openNotifications() {
     navigate("/transactions");
+  }
+
+  // ✅ Handle passcode unlock
+  const handlePasscodeUnlock = () => {
+    setIsPasscodeLocked(false);
+    sessionStorage.setItem("VexaTrade_passcode_verified", "1");
+  };
+
+  // ✅ Show loading while checking passcode
+  if (checkingPasscode) {
+    return (
+      <div className="min-h-screen bg-[#050812] flex items-center justify-center">
+        <div className="animate-pulse text-cyan-400">Loading...</div>
+      </div>
+    );
+  }
+
+  // ✅ Show passcode lock screen if needed
+  if (isPasscodeLocked) {
+    return <PasscodeLockScreen onUnlock={handlePasscodeUnlock} />;
   }
 
   return (
