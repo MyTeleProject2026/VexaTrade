@@ -1,9 +1,31 @@
 // frontend-user/src/pages/auth/LoginPage.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ArrowRight, ShieldCheck, LogIn } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
 import { authApi, getApiErrorMessage } from "../../services/api";
 import { useNotification } from "../../hooks/useNotification";
+
+// ✅ VexaAccount SVG Icon Component
+const VexaAccountIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className={className}>
+    <defs>
+      <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#06b6d4"/>
+        <stop offset="100%" stopColor="#10b981"/>
+      </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"/>
+    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="1"/>
+    <g transform="translate(50, 50) scale(0.8)">
+      <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" strokeWidth="6" strokeLinecap="round"/>
+      <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+      <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" strokeWidth="1.5"/>
+    </g>
+    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+  </svg>
+);
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -42,13 +64,8 @@ export default function LoginPage() {
       if (res.data?.requiresAuthenticator2fa) {
         localStorage.setItem("pending_2fa_user_id", res.data.userId);
         localStorage.setItem("pending_2fa_email", form.email);
-        localStorage.setItem("pending_2fa_type", "authenticator");
-        navigate("/two-factor-auth", { 
-          state: { 
-            userId: res.data.userId, 
-            email: form.email,
-            type: "authenticator"
-          } 
+        navigate("/two-factor-auth", {
+          state: { userId: res.data.userId, email: form.email }
         });
         return;
       }
@@ -57,11 +74,8 @@ export default function LoginPage() {
       if (res.data?.requiresEmail2fa) {
         localStorage.setItem("pending_email_2fa_user_id", res.data.userId);
         localStorage.setItem("pending_email_2fa_email", form.email);
-        navigate("/email-2fa-verify", { 
-          state: { 
-            userId: res.data.userId, 
-            email: form.email 
-          } 
+        navigate("/email-2fa-verify", {
+          state: { userId: res.data.userId, email: form.email }
         });
         return;
       }
@@ -108,7 +122,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#050812] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        {/* LEFT PANEL – Original */}
+        {/* LEFT PANEL */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_22%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -142,7 +156,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL – Login Form */}
+        {/* RIGHT PANEL */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
@@ -159,24 +173,6 @@ export default function LoginPage() {
                   {error}
                 </div>
               ) : null}
-
-              {/* ✅ Continue with VexaAccount (SSO) */}
-              <button
-                onClick={handleVexaAccountLogin}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-4 font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
-              >
-                <LogIn size={18} />
-                Continue with VexaAccount
-              </button>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10"></div>
-                </div>
-                <div className="relative flex justify-center text-xs text-slate-500">
-                  <span className="bg-[#0a0e1a] px-2">OR</span>
-                </div>
-              </div>
 
               {/* Manual Login Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -224,6 +220,17 @@ export default function LoginPage() {
                   {!loading ? <ArrowRight size={18} /> : null}
                 </button>
               </form>
+
+              {/* ✅ Continue with VexaAccount – Below Password Section */}
+              <div className="mt-4">
+                <button
+                  onClick={handleVexaAccountLogin}
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+                >
+                  <VexaAccountIcon className="w-5 h-5" />
+                  Continue with VexaAccount
+                </button>
+              </div>
 
               <div className="mt-6 space-y-2 text-center text-sm">
                 <p className="text-slate-400">
