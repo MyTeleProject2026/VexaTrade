@@ -5,7 +5,7 @@ import { ArrowRight, ShieldCheck, Eye, EyeOff, Mail, CheckCircle } from "lucide-
 import { authApi, getApiErrorMessage } from "../../services/api";
 import { useNotification } from "../../hooks/useNotification";
 
-// ✅ VexaAccount SVG Icon – Full code (not just comment)
+// ✅ VexaAccount SVG Icon
 const VexaAccountIcon = ({ className = "w-5 h-5" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className={className}>
     <defs>
@@ -84,12 +84,14 @@ export default function RegisterPage() {
     return "";
   };
 
+  // ✅ Register with VexaAccount (SSO)
   const handleVexaAccountRegister = () => {
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`);
     const vexaAccountUrl = import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
     window.location.href = `${vexaAccountUrl}/api/auth/register?redirect_uri=${redirectUri}`;
   };
 
+  // ✅ Manual Registration
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -196,7 +198,7 @@ export default function RegisterPage() {
           </div>
         </section>
 
-        {/* Right Panel */}
+        {/* Right Panel - Compact */}
         <section className="flex items-center justify-center px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-8 overflow-hidden">
           <div className="w-full max-w-2xl">
             <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 sm:p-6 lg:p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)] max-h-[98vh] overflow-y-auto hide-scrollbar">
@@ -210,6 +212,7 @@ export default function RegisterPage() {
 
                   {error && <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300 sm:px-4 sm:py-3 sm:text-sm">{error}</div>}
 
+                  {/* ✅ Register with VexaAccount (SSO) - MOVED TO TOP */}
                   <button onClick={handleVexaAccountRegister} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 sm:gap-3 sm:px-4 sm:py-3">
                     <VexaAccountIcon className="w-4 h-4 sm:w-5 sm:h-5" /> Register with VexaAccount
                   </button>
@@ -249,30 +252,9 @@ export default function RegisterPage() {
                   </div>
                 </>
               ) : (
+                // OTP Step
                 <>
                   <div className="text-center mb-4">
                     <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-2 sm:w-16 sm:h-16"><Mail size={24} className="text-cyan-400 sm:w-7 sm:h-7" /></div>
                     <h2 className="text-xl font-bold text-white sm:text-2xl">Verify Your Email</h2>
-                    <p className="text-xs text-slate-400 sm:text-sm">We sent a 6-digit code to <span className="text-white font-medium">{form.email}</span></p>
-                    <p className="text-[10px] text-slate-500 sm:text-xs">Check your inbox or spam folder</p>
-                  </div>
-
-                  {error && <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-xs sm:p-3 sm:text-sm">{error}</div>}
-
-                  <form onSubmit={handleVerifyOtp} className="space-y-3">
-                    <div><label className="mb-1 block text-center text-xs text-slate-400 sm:text-sm">Enter OTP</label><input type="text" maxLength="6" className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-center text-xl tracking-widest text-white outline-none focus:border-cyan-500 sm:py-4 sm:text-2xl" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} placeholder="000000" autoFocus /></div>
-                    <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60 sm:py-4">{loading ? "Verifying..." : "Verify"}{!loading && <CheckCircle size={16} className="sm:w-[18px] sm:h-[18px]" />}</button>
-                  </form>
-
-                  <div className="mt-3 text-center"><button onClick={handleResendOtp} disabled={resending} className="text-sm text-cyan-400 hover:underline disabled:opacity-50">{resending ? "Sending..." : "Resend OTP"}</button><span className="text-xs text-slate-500 ml-2">(expires in 10 min)</span></div>
-
-                  <p className="mt-4 text-center text-[10px] text-slate-500 sm:text-xs">Didn't receive the code? Check your spam folder.<br /><span className="text-slate-600">If you still don't see it, try resending.</span></p>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
+                    <p className="text-xs text-slate-400 sm:text-sm">We sent a 6-digit code
