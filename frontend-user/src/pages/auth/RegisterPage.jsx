@@ -27,7 +27,50 @@ const VexaAccountIcon = ({ className = "w-5 h-5" }) => (
   </svg>
 );
 
-// ... your COUNTRY_OPTIONS and GENDER_OPTIONS here (keep as-is)
+// Country Options (abbreviated for space)
+const COUNTRY_OPTIONS = [
+  { value: "US", label: "United States" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "CA", label: "Canada" },
+  { value: "AU", label: "Australia" },
+  { value: "DE", label: "Germany" },
+  { value: "FR", label: "France" },
+  { value: "IN", label: "India" },
+  { value: "JP", label: "Japan" },
+  { value: "CN", label: "China" },
+  { value: "BR", label: "Brazil" },
+  { value: "ZA", label: "South Africa" },
+  { value: "NG", label: "Nigeria" },
+  { value: "EG", label: "Egypt" },
+  { value: "AE", label: "United Arab Emirates" },
+  { value: "SA", label: "Saudi Arabia" },
+  { value: "RU", label: "Russia" },
+  { value: "MX", label: "Mexico" },
+  { value: "AR", label: "Argentina" },
+  { value: "IT", label: "Italy" },
+  { value: "ES", label: "Spain" },
+  { value: "NL", label: "Netherlands" },
+  { value: "SE", label: "Sweden" },
+  { value: "CH", label: "Switzerland" },
+  { value: "PL", label: "Poland" },
+  { value: "UA", label: "Ukraine" },
+  { value: "TR", label: "Turkey" },
+  { value: "TH", label: "Thailand" },
+  { value: "VN", label: "Vietnam" },
+  { value: "ID", label: "Indonesia" },
+  { value: "MY", label: "Malaysia" },
+  { value: "SG", label: "Singapore" },
+  { value: "PH", label: "Philippines" },
+  { value: "NZ", label: "New Zealand" },
+  { value: "IE", label: "Ireland" },
+  { value: "PT", label: "Portugal" },
+  { value: "GR", label: "Greece" },
+  { value: "NO", label: "Norway" },
+  { value: "DK", label: "Denmark" },
+  { value: "FI", label: "Finland" },
+];
+
+const GENDER_OPTIONS = ["Male", "Female", "Other"];
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -184,9 +227,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050812] text-white">
+    <div className="min-h-screen bg-[#050812] text-white overflow-hidden">
       <div className="grid min-h-screen lg:grid-cols-[1fr_1fr]">
-        {/* LEFT PANEL */}
+        {/* LEFT PANEL – Hidden on mobile */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_24%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -219,155 +262,154 @@ export default function RegisterPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL */}
-        <section className="flex items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
+        {/* RIGHT PANEL – Compact for mobile */}
+        <section className="flex items-center justify-center px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-8 overflow-hidden">
           <div className="w-full max-w-2xl">
-            <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
+            <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 sm:p-6 lg:p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)] max-h-[98vh] overflow-y-auto hide-scrollbar">
               {step === 1 ? (
                 <>
-                  <div className="mb-8 text-center">
-                    <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">VexaTrade</p>
-                    <h1 className="mt-4 text-4xl font-bold">Create Account</h1>
-                    <p className="mt-3 text-sm text-slate-400">
-                      Open your account and start your platform journey.
-                    </p>
+                  {/* Header – Compact */}
+                  <div className="mb-3 text-center sm:mb-4">
+                    <p className="text-[10px] uppercase tracking-[0.35em] text-cyan-300 sm:text-xs">VexaTrade</p>
+                    <h1 className="text-xl font-bold sm:text-2xl lg:text-3xl">Create Account</h1>
+                    <p className="text-xs text-slate-400 sm:text-sm">Open your account and start your journey</p>
                   </div>
 
                   {error ? (
-                    <div className="mb-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300 sm:px-4 sm:py-3 sm:text-sm">
                       {error}
                     </div>
                   ) : null}
 
-                  {/* ✅ Register with VexaAccount – Below error message */}
+                  {/* ✅ Register with VexaAccount – Compact */}
                   <button
                     onClick={handleVexaAccountRegister}
-                    className="flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 sm:gap-3 sm:px-4 sm:py-3"
                   >
-                    <VexaAccountIcon className="w-5 h-5" />
+                    <VexaAccountIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                     Register with VexaAccount
                   </button>
 
-                  <div className="relative my-6">
+                  <div className="relative my-3 sm:my-4">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-white/10"></div>
                     </div>
-                    <div className="relative flex justify-center text-xs text-slate-500">
+                    <div className="relative flex justify-center text-[10px] text-slate-500 sm:text-xs">
                       <span className="bg-[#0a0e1a] px-2">OR</span>
                     </div>
                   </div>
 
-                  {/* Manual Registration Form */}
-                  <form onSubmit={onSubmit} className="space-y-4">
-                    {/* ... your existing form fields ... */}
-                    {/* (Keep your existing form fields – they are unchanged) */}
-                    <div className="grid grid-cols-2 gap-3">
+                  {/* Manual Registration Form – Compact */}
+                  <form onSubmit={onSubmit} className="space-y-2 sm:space-y-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
-                        <label className="mb-2 block text-sm text-slate-400">First Name</label>
+                        <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">First Name</label>
                         <input
                           type="text"
                           placeholder="First"
                           value={form.firstName}
                           onChange={(e) => updateField("firstName", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         />
                       </div>
                       <div>
-                        <label className="mb-2 block text-sm text-slate-400">Last Name</label>
+                        <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Last Name</label>
                         <input
                           type="text"
                           placeholder="Last"
                           value={form.lastName}
                           onChange={(e) => updateField("lastName", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
-                        <label className="mb-2 block text-sm text-slate-400">Gender</label>
+                        <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Gender</label>
                         <select
                           value={form.gender}
                           onChange={(e) => updateField("gender", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         >
                           <option value="">Select</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          {GENDER_OPTIONS.map((g) => (
+                            <option key={g} value={g}>{g}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
-                        <label className="mb-2 block text-sm text-slate-400">Date of Birth</label>
+                        <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Date of Birth</label>
                         <input
                           type="date"
                           value={form.dob}
                           onChange={(e) => updateField("dob", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm text-slate-400">Country / Residence</label>
+                      <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Country</label>
                       <select
                         value={form.country}
                         onChange={(e) => updateField("country", e.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                        className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                       >
                         <option value="">Select your country</option>
-                        {/* ... your country options ... */}
+                        {COUNTRY_OPTIONS.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm text-slate-400">Email</label>
+                      <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Email</label>
                       <input
                         type="email"
                         placeholder="Enter your email"
                         value={form.email}
                         onChange={(e) => updateField("email", e.target.value)}
-                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500"
+                        className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm text-slate-400">Password</label>
+                      <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Password</label>
                       <div className="relative">
                         <input
                           type={showPassword ? "text" : "password"}
                           placeholder="Create a password"
                           value={form.password}
                           onChange={(e) => updateField("password", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 pr-12 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 pr-10 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
                         >
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm text-slate-400">Confirm Password</label>
+                      <label className="mb-1 block text-[10px] text-slate-400 sm:text-xs">Confirm Password</label>
                       <div className="relative">
                         <input
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="Confirm password"
                           value={form.confirmPassword}
                           onChange={(e) => updateField("confirmPassword", e.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 pr-12 text-white outline-none focus:border-cyan-500"
+                          className="w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 pr-10 text-sm text-white outline-none focus:border-cyan-500 sm:rounded-2xl sm:px-4 sm:py-3"
                         />
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword((prev) => !prev)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
                         >
-                          {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
                     </div>
@@ -375,57 +417,54 @@ export default function RegisterPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                      className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-3 py-2.5 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60 sm:py-3"
                     >
-                      {loading ? "Creating Account..." : "Create Account"}
-                      {!loading ? <ArrowRight size={18} /> : null}
+                      {loading ? "Creating..." : "Create Account"}
+                      {!loading ? <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" /> : null}
                     </button>
                   </form>
 
-                  <div className="mt-6 text-center text-sm text-slate-400">
+                  <div className="mt-3 text-center text-xs text-slate-400 sm:mt-4 sm:text-sm">
                     Already have an account?{" "}
-                    <Link
-                      to="/login"
-                      className="font-semibold text-cyan-300 hover:text-cyan-200"
-                    >
+                    <Link to="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
                       Login
                     </Link>
                   </div>
 
-                  <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <div className="text-xs uppercase tracking-[0.28em] text-slate-500">Account Setup</div>
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      After registration, you can continue with profile setup, KYC verification, wallet actions, and user center preferences.
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2 sm:mt-4 sm:p-3">
+                    <div className="text-[8px] uppercase tracking-[0.28em] text-slate-500 sm:text-[10px]">Account Setup</div>
+                    <div className="mt-1 text-[10px] leading-4 text-slate-300 sm:text-xs sm:leading-5">
+                      After registration, continue with profile setup, KYC verification, wallet actions, and user center preferences.
                     </div>
                   </div>
                 </>
               ) : (
-                // OTP Verification Step
+                // OTP Verification Step – Compact
                 <>
-                  <div className="text-center mb-6">
-                    <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-3">
-                      <Mail size={28} className="text-cyan-400" />
+                  <div className="text-center mb-4">
+                    <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-2 sm:w-16 sm:h-16">
+                      <Mail size={24} className="text-cyan-400 sm:w-7 sm:h-7" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white">Verify Your Email</h2>
-                    <p className="text-slate-400 text-sm mt-1">
+                    <h2 className="text-xl font-bold text-white sm:text-2xl">Verify Your Email</h2>
+                    <p className="text-xs text-slate-400 sm:text-sm">
                       We sent a 6-digit code to <span className="text-white font-medium">{form.email}</span>
                     </p>
-                    <p className="text-slate-500 text-xs mt-1">Check your inbox or spam folder</p>
+                    <p className="text-[10px] text-slate-500 sm:text-xs">Check your inbox or spam folder</p>
                   </div>
 
                   {error ? (
-                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-sm">
+                    <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-xs sm:p-3 sm:text-sm">
                       {error}
                     </div>
                   ) : null}
 
-                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                  <form onSubmit={handleVerifyOtp} className="space-y-3">
                     <div>
-                      <label className="mb-2 block text-sm text-slate-400 text-center">Enter OTP</label>
+                      <label className="mb-1 block text-center text-xs text-slate-400 sm:text-sm">Enter OTP</label>
                       <input
                         type="text"
                         maxLength="6"
-                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-4 text-center text-2xl tracking-widest text-white outline-none focus:border-cyan-500"
+                        className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-center text-xl tracking-widest text-white outline-none focus:border-cyan-500 sm:py-4 sm:text-2xl"
                         value={otp}
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                         placeholder="000000"
@@ -436,14 +475,14 @@ export default function RegisterPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60 sm:py-4"
                     >
                       {loading ? "Verifying..." : "Verify"}
-                      {!loading ? <CheckCircle size={18} /> : null}
+                      {!loading ? <CheckCircle size={16} className="sm:w-[18px] sm:h-[18px]" /> : null}
                     </button>
                   </form>
 
-                  <div className="mt-4 text-center">
+                  <div className="mt-3 text-center">
                     <button
                       onClick={handleResendOtp}
                       disabled={resending}
@@ -454,7 +493,7 @@ export default function RegisterPage() {
                     <span className="text-xs text-slate-500 ml-2">(expires in 10 min)</span>
                   </div>
 
-                  <p className="mt-6 text-center text-xs text-slate-500">
+                  <p className="mt-4 text-center text-[10px] text-slate-500 sm:text-xs">
                     Didn't receive the code? Check your spam folder.
                     <br />
                     <span className="text-slate-600">If you still don't see it, try resending.</span>
