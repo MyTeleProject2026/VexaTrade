@@ -11,10 +11,10 @@ export default function AuthCallback() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
-    const userParam = params.get("user"); // JSON string
+    const userParam = params.get("user");
 
     if (token) {
-      // Store token with all the keys the app checks
+      // Store token with all keys the app checks
       localStorage.setItem("userToken", token);
       localStorage.setItem("token", token);
       localStorage.setItem("accessToken", token);
@@ -29,11 +29,20 @@ export default function AuthCallback() {
         }
       }
 
-      showSuccess("Login successful");
+      showSuccess("Login successful!");
       navigate("/dashboard", { replace: true });
     } else {
+      // Check for error or registered parameter
       const error = params.get("error");
-      showError(error || "Authentication failed");
+      const registered = params.get("registered");
+      
+      if (registered === "true") {
+        showSuccess("Account created! Please login.");
+        navigate("/login", { replace: true });
+        return;
+      }
+      
+      showError(error || "Authentication failed. Please try again.");
       navigate("/login", { replace: true });
     }
   }, [location, navigate, showSuccess, showError]);
@@ -42,7 +51,7 @@ export default function AuthCallback() {
     <div className="min-h-screen bg-[#050812] flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin h-8 w-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto" />
-        <p className="text-white/60 mt-4">Completing login...</p>
+        <p className="text-white/60 mt-4">Completing authentication...</p>
       </div>
     </div>
   );
