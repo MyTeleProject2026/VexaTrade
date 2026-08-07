@@ -13,10 +13,12 @@ export default function AuthCallback() {
     const token = params.get("token");
     const userParam = params.get("user");
 
-    console.log('🔐 AuthCallback - Token received:', !!token);
     console.log('🔐 AuthCallback - Full URL:', window.location.href);
+    console.log('🔐 AuthCallback - Token:', token ? '✅ Received' : '❌ Not found');
+    console.log('🔐 AuthCallback - User:', userParam ? '✅ Received' : '❌ Not found');
 
     if (token) {
+      // Store token
       localStorage.setItem("userToken", token);
       localStorage.setItem("token", token);
       localStorage.setItem("accessToken", token);
