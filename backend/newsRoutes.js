@@ -2,8 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const { authAdmin } = require("./middleware/auth");
-
+const { authUser, authAdmin } = require('./src/middleware/auth');
 function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
 }
