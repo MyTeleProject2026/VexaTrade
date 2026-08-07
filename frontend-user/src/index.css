@@ -71,3 +71,13 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+/* Hide scrollbar for better UX */
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
