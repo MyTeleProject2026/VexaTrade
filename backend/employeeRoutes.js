@@ -4,8 +4,7 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("./db");
-const { authUser } = require("./middleware/auth"); // ✅ Use imported auth
-
+const { authUser, authAdmin } = require('./src/middleware/auth');
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
 
 // =========================
