@@ -1,13 +1,19 @@
 // frontend-user/src/pages/auth/LoginPage.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
 import { authApi, getApiErrorMessage } from "../../services/api";
 import { useNotification } from "../../hooks/useNotification";
 
+// ✅ VexaAccount SVG Icon
 const VexaAccountIcon = ({ className = "w-5 h-5" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className={className}>
-    <defs><linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#06b6d4"/><stop offset="100%" stopColor="#10b981"/></linearGradient></defs>
+    <defs>
+      <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#06b6d4"/>
+        <stop offset="100%" stopColor="#10b981"/>
+      </linearGradient>
+    </defs>
     <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"/>
     <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="1"/>
     <g transform="translate(50, 50) scale(0.8)">
@@ -30,11 +36,26 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  // ✅ Check if returning from SSO
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sso = params.get('sso');
+    const error = params.get('error');
+    
+    if (sso === 'vexaccount') {
+      showSuccess('Redirecting to VexaAccount...');
+    }
+    if (error) {
+      showError(error);
+    }
+  }, [showSuccess, showError]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ✅ Manual Login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -46,6 +67,7 @@ export default function LoginPage() {
         password: form.password,
       });
 
+      // ✅ Check if Authenticator 2FA is required
       if (res.data?.requiresAuthenticator2fa) {
         localStorage.setItem("pending_2fa_user_id", res.data.userId);
         localStorage.setItem("pending_2fa_email", form.email);
@@ -53,6 +75,7 @@ export default function LoginPage() {
         return;
       }
 
+      // ✅ Check if Email 2FA is required
       if (res.data?.requiresEmail2fa) {
         localStorage.setItem("pending_email_2fa_user_id", res.data.userId);
         localStorage.setItem("pending_email_2fa_email", form.email);
@@ -60,6 +83,7 @@ export default function LoginPage() {
         return;
       }
 
+      // ✅ Normal login
       if (res.data?.success) {
         const token = res.data.token;
         const user = res.data.user;
@@ -85,6 +109,7 @@ export default function LoginPage() {
     }
   };
 
+  // ✅ Continue with VexaAccount (SSO)
   const handleVexaAccountLogin = () => {
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`);
     const vexaAccountUrl = import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
@@ -125,6 +150,20 @@ export default function LoginPage() {
 
               {error && <div className="mb-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
 
+              {/* ✅ Continue with VexaAccount (SSO) - MOVED TO TOP */}
+              <button
+                onClick={handleVexaAccountLogin}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-4 font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+              >
+                <VexaAccountIcon className="w-5 h-5" /> Continue with VexaAccount
+              </button>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                <div className="relative flex justify-center text-xs text-slate-500"><span className="bg-[#0a0e1a] px-2">OR</span></div>
+              </div>
+
+              {/* Manual Login Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm text-slate-400">Email</label>
@@ -139,12 +178,6 @@ export default function LoginPage() {
                 </div>
                 <button type="submit" disabled={loading} className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-4 font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60">{loading ? "Signing In..." : "Login"}{!loading && <ArrowRight size={18} />}</button>
               </form>
-
-              <div className="mt-4">
-                <button onClick={handleVexaAccountLogin} className="flex w-full items-center justify-center gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
-                  <VexaAccountIcon className="w-5 h-5" /> Continue with VexaAccount
-                </button>
-              </div>
 
               <div className="mt-6 space-y-2 text-center text-sm">
                 <p className="text-slate-400">Don't have an account? <Link to="/register" className="font-semibold text-cyan-300 hover:text-cyan-200">Register</Link></p>
