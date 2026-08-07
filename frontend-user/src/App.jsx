@@ -13,6 +13,8 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import AuthCallback from "./pages/auth/AuthCallback";
+import TwoFactorAuthPage from "./pages/auth/TwoFactorAuthPage";
+import Email2faVerificationPage from "./pages/auth/Email2faVerificationPage";
 import DashboardPage from "./pages/DashboardPage";
 import AssetsPage from "./pages/AssetsPage";
 import TradePage from "./pages/TradePage";
@@ -31,7 +33,7 @@ import SupportPage from "./pages/SupportPage";
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
 
-// --- Helper functions (unchanged) ---
+// --- Helper functions ---
 function safeParse(value) {
   try {
     return JSON.parse(value);
@@ -105,7 +107,7 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
-// --- AccountVerificationPage (unchanged) ---
+// --- AccountVerificationPage ---
 function AccountVerificationPage() {
   const [user, setUser] = useState(() => getStoredUser());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -241,7 +243,7 @@ function AccountVerificationPage() {
   );
 }
 
-// --- PrivateRoute (unchanged) ---
+// --- PrivateRoute ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
 
@@ -252,7 +254,7 @@ function PrivateRoute({ children }) {
   return children;
 }
 
-// --- ApprovalGuard (unchanged) ---
+// --- ApprovalGuard ---
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
@@ -305,7 +307,7 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
-// --- AppContent (contains all routes) ---
+// --- AppContent ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher } = useNotification();
@@ -327,11 +329,16 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+        {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        
+        {/* 2FA Routes */}
+        <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
+        <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
 
         <Route
           path="/account-verification"
@@ -375,7 +382,7 @@ function AppContent() {
   );
 }
 
-// --- MAIN APP (with splash and providers) ---
+// --- MAIN APP ---
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
