@@ -13,8 +13,11 @@ export default function AuthCallback() {
     const token = params.get("token");
     const userParam = params.get("user");
 
+    console.log('🔐 AuthCallback - Token:', token ? 'Received' : 'Not found');
+    console.log('🔐 AuthCallback - User:', userParam ? 'Received' : 'Not found');
+    console.log('🔐 AuthCallback - Full URL:', window.location.href);
+
     if (token) {
-      // Store token with all keys the app checks
       localStorage.setItem("userToken", token);
       localStorage.setItem("token", token);
       localStorage.setItem("accessToken", token);
@@ -32,7 +35,6 @@ export default function AuthCallback() {
       showSuccess("Login successful!");
       navigate("/dashboard", { replace: true });
     } else {
-      // Check for error or registered parameter
       const error = params.get("error");
       const registered = params.get("registered");
       
