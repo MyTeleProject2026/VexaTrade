@@ -38,6 +38,35 @@ export default function LoginPage() {
         password: form.password,
       });
 
+      // ✅ Check if Authenticator 2FA is required
+      if (res.data?.requiresAuthenticator2fa) {
+        localStorage.setItem("pending_2fa_user_id", res.data.userId);
+        localStorage.setItem("pending_2fa_email", form.email);
+        localStorage.setItem("pending_2fa_type", "authenticator");
+        navigate("/two-factor-auth", { 
+          state: { 
+            userId: res.data.userId, 
+            email: form.email,
+            type: "authenticator"
+          } 
+        });
+        return;
+      }
+
+      // ✅ Check if Email 2FA is required
+      if (res.data?.requiresEmail2fa) {
+        localStorage.setItem("pending_email_2fa_user_id", res.data.userId);
+        localStorage.setItem("pending_email_2fa_email", form.email);
+        navigate("/email-2fa-verify", { 
+          state: { 
+            userId: res.data.userId, 
+            email: form.email 
+          } 
+        });
+        return;
+      }
+
+      // ✅ Normal login (no 2FA)
       if (res.data?.success) {
         const token = res.data.token;
         const user = res.data.user;
@@ -113,7 +142,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL – Login Form + VexaAccount SSO */}
+        {/* RIGHT PANEL – Login Form */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
