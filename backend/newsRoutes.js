@@ -2,28 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const jwt = require("jsonwebtoken");
-
-const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
-
-// ─── Authentication Middleware ──────────────────────────────────────
-function authenticateAdmin(req, res, next) {
-  const authHeader = req.headers.authorization || "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ success: false, message: "Admin token missing" });
-  }
-  const token = authHeader.slice(7).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "admin") {
-      return res.status(403).json({ success: false, message: "Invalid admin token" });
-    }
-    req.admin = decoded;
-    next();
-  } catch (_error) {
-    return res.status(401).json({ success: false, message: "Invalid or expired admin token" });
-  }
-}
+const { authAdmin } = require("./middleware/auth");
 
 function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
@@ -34,14 +13,8 @@ router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
-         id,
-         title,
-         content,
-         html_content,
-         image_url,
-         is_active,
-         created_at,
-         updated_at
+         id, title, content, html_content, image_url, is_active,
+         created_at, updated_at
        FROM news
        WHERE is_active = 1
        ORDER BY id DESC`
@@ -54,18 +27,12 @@ router.get("/", async (req, res) => {
 });
 
 // ─── GET /api/news/admin/all – admin view ───────────────────────────
-router.get("/admin/all", authenticateAdmin, async (req, res) => {
+router.get("/admin/all", authAdmin, async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
-         id,
-         title,
-         content,
-         html_content,
-         image_url,
-         is_active,
-         created_at,
-         updated_at
+         id, title, content, html_content, image_url, is_active,
+         created_at, updated_at
        FROM news
        ORDER BY id DESC`
     );
@@ -77,7 +44,7 @@ router.get("/admin/all", authenticateAdmin, async (req, res) => {
 });
 
 // ─── POST /api/news – create news (admin only) ─────────────────────
-router.post("/", authenticateAdmin, async (req, res) => {
+router.post("/", authAdmin, async (req, res) => {
   try {
     const title = String(req.body.title || "").trim();
     const content = String(req.body.content || "").trim();
@@ -98,14 +65,8 @@ router.post("/", authenticateAdmin, async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT
-         id,
-         title,
-         content,
-         html_content,
-         image_url,
-         is_active,
-         created_at,
-         updated_at
+         id, title, content, html_content, image_url, is_active,
+         created_at, updated_at
        FROM news
        WHERE id = ?`,
       [result.insertId]
@@ -123,7 +84,7 @@ router.post("/", authenticateAdmin, async (req, res) => {
 });
 
 // ─── PUT /api/news/:id – update news ────────────────────────────────
-router.put("/:id", authenticateAdmin, async (req, res) => {
+router.put("/:id", authAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id || id <= 0) {
@@ -142,12 +103,7 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
 
     const [result] = await pool.execute(
       `UPDATE news
-       SET title = ?,
-           content = ?,
-           html_content = ?,
-           image_url = ?,
-           is_active = ?,
-           updated_at = NOW()
+       SET title = ?, content = ?, html_content = ?, image_url = ?, is_active = ?, updated_at = NOW()
        WHERE id = ?`,
       [title, content || null, html_content || null, imageUrl || null, isActive, id]
     );
@@ -158,14 +114,8 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT
-         id,
-         title,
-         content,
-         html_content,
-         image_url,
-         is_active,
-         created_at,
-         updated_at
+         id, title, content, html_content, image_url, is_active,
+         created_at, updated_at
        FROM news
        WHERE id = ?`,
       [id]
@@ -183,7 +133,7 @@ router.put("/:id", authenticateAdmin, async (req, res) => {
 });
 
 // ─── DELETE /api/news/:id – delete news ─────────────────────────────
-router.delete("/:id", authenticateAdmin, async (req, res) => {
+router.delete("/:id", authAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id || id <= 0) {
