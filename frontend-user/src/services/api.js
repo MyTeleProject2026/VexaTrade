@@ -547,4 +547,142 @@ export const depositApi = {
   }),
 
   request: (payload, token) =>
-    appApiClient.post("/api/deposits/
+    appApiClient.post("/api/deposits/request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+
+  uploadReceipt: (file, token) => {
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    return appApiClient.post("/api/deposits/upload-receipt", formData, {
+      headers: {
+        Authorization: `Bearer ${getUserToken(token)}`,
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+};
+
+// ============================================================
+// 📦 WITHDRAW API
+// ============================================================
+export const withdrawalApi = {
+  history: (token) => appApiClient.get("/api/withdrawals", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  request: (payload, token) =>
+    appApiClient.post("/api/withdrawals/request", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+};
+
+// ============================================================
+// 📦 TRADE API
+// ============================================================
+export const tradeApi = {
+  rules: (token) => appApiClient.get("/api/trade/rules", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  quickAmount: (payload, token) =>
+    appApiClient.post("/api/trades/quick-amount", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+
+  place: (payload, token) =>
+    appApiClient.post("/api/trades/place", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+
+  open: (token) => appApiClient.get("/api/trades/open", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+
+  history: (token) => appApiClient.get("/api/trades/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+};
+
+// ============================================================
+// 📦 FUNDS API
+// ============================================================
+export const fundsApi = {
+  plans: (token) => appApiClient.get("/api/funds/plans", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  summary: (token) => appApiClient.get("/api/funds/summary", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  active: (token) => appApiClient.get("/api/funds/active", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  history: (token) => appApiClient.get("/api/funds/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  latestCompleted: (token) =>
+    appApiClient.get("/api/funds/completed-latest", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+  apply: (payload, token) =>
+    appApiClient.post("/api/funds/apply", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+};
+
+// ============================================================
+// 📦 CONVERT API
+// ============================================================
+export const convertApi = {
+  execute: (payload, token) =>
+    appApiClient.post(
+      "/api/convert/execute",
+      {
+        fromCoin: payload?.fromCoin,
+        toCoin: payload?.toCoin,
+        fromAmount: payload?.fromAmount,
+      },
+      {
+        headers: { Authorization: `Bearer ${getUserToken(token)}` }
+      }
+    ),
+
+  history: (token) => appApiClient.get("/api/convert/history", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+};
+
+// ============================================================
+// 📦 LOAN API
+// ============================================================
+export const loanApi = {
+  getLoans: (token) => appApiClient.get("/api/loans", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+  apply: (payload, token) =>
+    appApiClient.post("/api/loans/apply", payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+};
+
+// ============================================================
+// 📦 TRANSACTIONS API
+// ============================================================
+export const transactionApi = {
+  getAll: (token) => appApiClient.get("/api/transactions", {
+    headers: { Authorization: `Bearer ${getUserToken(token)}` }
+  }),
+};
+
+// ============================================================
+// 📦 NEWS API
+// ============================================================
+export const newsApi = {
+  getNews: () => appApiClient.get("/api/news"),
+};
+
+// ============================================================
+// 📦 DEFAULT EXPORT
+// ============================================================
+export default appApiClient;
