@@ -728,7 +728,7 @@ function getAuthToken(req) {
   return authHeader.slice(7).trim();
 }
 
-function authenticateUser(req, res, next) {
+function authUser(req, res, next) {
   try {
     const token = getAuthToken(req);
     if (!token) {
@@ -753,7 +753,7 @@ function authenticateUser(req, res, next) {
   }
 }
 
-function authenticateAdmin(req, res, next) {
+function authAdmin(req, res, next) {
   try {
     const token = getAuthToken(req);
     if (!token) {
@@ -1620,7 +1620,7 @@ async function settleDailyFunds() {
 ========================= */
 
 // Generate or get user's QR code (Base64 version - uses database storage)
-app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
+app.get("/api/user/qr-code", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -1705,7 +1705,7 @@ app.get("/api/user/qr-code", authenticateUser, async (req, res, next) => {
 });
 
 // Get user by UID (for scanning)
-app.get("/api/user/by-uid/:uid", authenticateUser, async (req, res, next) => {
+app.get("/api/user/by-uid/:uid", authUser, async (req, res, next) => {
   try {
     const { uid } = req.params;
     
@@ -1733,7 +1733,7 @@ app.get("/api/user/by-uid/:uid", authenticateUser, async (req, res, next) => {
 });
 
 // Transfer funds between users (direct, no admin approval)
-app.post("/api/user/transfer", authenticateUser, async (req, res, next) => {
+app.post("/api/user/transfer", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -1871,7 +1871,7 @@ app.post("/api/user/transfer", authenticateUser, async (req, res, next) => {
 });
 
 // Get transfer history
-app.get("/api/user/transfers", authenticateUser, async (req, res, next) => {
+app.get("/api/user/transfers", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -2238,7 +2238,7 @@ app.post("/api/auth/reset-password", async (req, res, next) => {
   }
 });
 
-app.get("/api/user/profile", authenticateUser, async (req, res, next) => {
+app.get("/api/user/profile", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
@@ -2275,7 +2275,7 @@ app.get("/api/user/profile", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.put("/api/user/profile", authenticateUser, async (req, res, next) => {
+app.put("/api/user/profile", authUser, async (req, res, next) => {
   try {
     const name = String(req.body.name || "").trim();
 
@@ -2324,7 +2324,7 @@ app.put("/api/user/profile", authenticateUser, async (req, res, next) => {
 
 app.post(
   "/api/user/profile/upload-picture",
-  authenticateUser,
+  authUser,
   upload.single("profile_picture"),
   async (req, res, next) => {
     try {
@@ -2369,7 +2369,7 @@ app.post(
    USER SECURITY
 ========================= */
 
-app.post("/api/user/set-passcode", authenticateUser, async (req, res, next) => {
+app.post("/api/user/set-passcode", authUser, async (req, res, next) => {
   try {
     const { passcode } = req.body;
 
@@ -2396,7 +2396,7 @@ app.post("/api/user/set-passcode", authenticateUser, async (req, res, next) => {
 
 app.get(
   "/api/user/security-status",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     try {
       const [rows] = await pool.execute(
@@ -2440,7 +2440,7 @@ app.get(
 
 app.post(
   "/api/user/send-email-verification-code",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     const connection = await pool.getConnection();
 
@@ -2527,7 +2527,7 @@ app.post(
 
 app.post(
   "/api/user/verify-email-code",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     const connection = await pool.getConnection();
 
@@ -2637,7 +2637,7 @@ app.post(
   }
 );
 
-app.get("/api/user/notifications", authenticateUser, async (req, res, next) => {
+app.get("/api/user/notifications", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT id, title, message, type, is_read, created_at
@@ -2659,7 +2659,7 @@ app.get("/api/user/notifications", authenticateUser, async (req, res, next) => {
 
 app.post(
   "/api/user/notifications/:id/read",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     try {
       const id = Number(req.params.id);
@@ -2688,7 +2688,7 @@ app.post(
 
 app.delete(
   "/api/user/notifications/:id",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     try {
       const id = Number(req.params.id);
@@ -2724,7 +2724,7 @@ app.delete(
 
 app.post(
   "/api/user/verify-passcode",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     try {
       const passcode = String(req.body.passcode || "").trim();
@@ -2769,7 +2769,7 @@ app.post(
 
 app.post(
   "/api/kyc/upload",
-  authenticateUser,
+  authUser,
   upload.fields([
     { name: "front", maxCount: 1 },
     { name: "back", maxCount: 1 },
@@ -2936,7 +2936,7 @@ app.post("/api/admin/login", async (req, res, next) => {
    ADMIN DASHBOARD STATS
 ========================= */
 
-app.get("/api/admin/dashboard-stats", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/dashboard-stats", authAdmin, async (req, res, next) => {
   try {
     const [usersRow] = await pool.execute("SELECT COUNT(*) AS total FROM users");
     const [activeUsersRow] = await pool.execute(
@@ -3081,7 +3081,7 @@ app.get("/api/market/price", async (req, res, next) => {
    WALLET
 ========================= */
 
-app.get("/api/wallet/summary", authenticateUser, async (req, res, next) => {
+app.get("/api/wallet/summary", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
@@ -3145,7 +3145,7 @@ app.get("/api/wallet/summary", authenticateUser, async (req, res, next) => {
    portfolio-assets
 ========================= */
 
-app.get("/api/user/portfolio-assets", authenticateUser, async (req, res, next) => {
+app.get("/api/user/portfolio-assets", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -3283,7 +3283,7 @@ app.get("/api/user/portfolio-assets", authenticateUser, async (req, res, next) =
 });
 
 // ✅ NEW: Get user's real assets from database
-app.get("/api/user/assets", authenticateUser, async (req, res, next) => {
+app.get("/api/user/assets", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -3387,7 +3387,7 @@ app.get("/api/user/assets", authenticateUser, async (req, res, next) => {
 ========================= */
 
 // Get or create user target
-app.get("/api/user/target", authenticateUser, async (req, res, next) => {
+app.get("/api/user/target", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -3415,7 +3415,7 @@ app.get("/api/user/target", authenticateUser, async (req, res, next) => {
 });
 
 // Set user target
-app.post("/api/user/target/set", authenticateUser, async (req, res, next) => {
+app.post("/api/user/target/set", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3461,7 +3461,7 @@ app.post("/api/user/target/set", authenticateUser, async (req, res, next) => {
 });
 
 // Update user's current profit (called when trade win or fund profit earned)
-app.post("/api/user/target/update-profit", authenticateUser, async (req, res, next) => {
+app.post("/api/user/target/update-profit", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3513,7 +3513,7 @@ app.post("/api/user/target/update-profit", authenticateUser, async (req, res, ne
 // ============================================
 
 // Get user's principal vs profit breakdown
-app.get("/api/user/balance-breakdown", authenticateUser, async (req, res, next) => {
+app.get("/api/user/balance-breakdown", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     
@@ -3568,7 +3568,7 @@ app.get("/api/user/balance-breakdown", authenticateUser, async (req, res, next) 
 });
 
 // Initialize principal breakdown when user first trades/funds
-app.post("/api/user/initialize-principal", authenticateUser, async (req, res, next) => {
+app.post("/api/user/initialize-principal", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3631,7 +3631,7 @@ app.get("/api/withdrawal-settings", async (req, res, next) => {
 });
 
 // Admin: Update withdrawal settings
-app.put("/api/admin/withdrawal-settings", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/withdrawal-settings", authAdmin, async (req, res, next) => {
   try {
     const { 
       min_withdrawal_from_profit, 
@@ -3672,7 +3672,7 @@ app.put("/api/admin/withdrawal-settings", authenticateAdmin, async (req, res, ne
 });
 
 // Request profit withdrawal (before target achieved)
-app.post("/api/withdraw/profit-request", authenticateUser, async (req, res, next) => {
+app.post("/api/withdraw/profit-request", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3772,7 +3772,7 @@ app.post("/api/withdraw/profit-request", authenticateUser, async (req, res, next
 });
 
 // Admin: Get profit withdrawal requests
-app.get("/api/admin/profit-withdrawal-requests", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/profit-withdrawal-requests", authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT pwr.*, u.name, u.email, u.uid,
@@ -3789,7 +3789,7 @@ app.get("/api/admin/profit-withdrawal-requests", authenticateAdmin, async (req, 
 });
 
 // Admin: Approve profit withdrawal
-app.post("/api/admin/profit-withdrawal-requests/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/profit-withdrawal-requests/:id/approve", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3883,7 +3883,7 @@ app.post("/api/admin/profit-withdrawal-requests/:id/approve", authenticateAdmin,
 });
 
 // Admin: Reject profit withdrawal
-app.post("/api/admin/profit-withdrawal-requests/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/profit-withdrawal-requests/:id/reject", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -3915,7 +3915,7 @@ app.post("/api/admin/profit-withdrawal-requests/:id/reject", authenticateAdmin, 
    CONVERT
 ========================= */
 
-app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
+app.post("/api/convert/execute", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -4144,7 +4144,7 @@ app.post("/api/convert/execute", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/convert/history", authenticateUser, async (req, res, next) => {
+app.get("/api/convert/history", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -4168,7 +4168,7 @@ app.get("/api/convert/history", authenticateUser, async (req, res, next) => {
    USER DEPOSIT WALLETS
 ========================= */
 
-app.get("/api/deposit/wallets", authenticateUser, async (_req, res, next) => {
+app.get("/api/deposit/wallets", authUser, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
@@ -4197,7 +4197,7 @@ app.get("/api/deposit/wallets", authenticateUser, async (_req, res, next) => {
    USER TRANSACTIONS
 ========================= */
 
-app.get("/api/transactions", authenticateUser, async (req, res, next) => {
+app.get("/api/transactions", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -4221,7 +4221,7 @@ app.get("/api/transactions", authenticateUser, async (req, res, next) => {
    USER TRADE RULES
 ========================= */
 
-app.get("/api/trade/rules", authenticateUser, async (_req, res, next) => {
+app.get("/api/trade/rules", authUser, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT id, timer_seconds, payout_percent, status, created_at
@@ -4245,7 +4245,7 @@ app.get("/api/trade/rules", authenticateUser, async (_req, res, next) => {
 
 app.post(
   "/api/deposits/upload-receipt",
-  authenticateUser,
+  authUser,
   upload.single("receipt"),
   (req, res) => {
     if (!req.file) {
@@ -4264,7 +4264,7 @@ app.post(
     });
   }
 );
-app.post("/api/deposits/request", authenticateUser, async (req, res, next) => {
+app.post("/api/deposits/request", authUser, async (req, res, next) => {
   try {
     const { coin, network, amount, txid, note, proof } = req.body;
 
@@ -4291,7 +4291,7 @@ app.post("/api/deposits/request", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/deposits", authenticateUser, async (req, res, next) => {
+app.get("/api/deposits", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -4316,7 +4316,7 @@ app.get("/api/deposits", authenticateUser, async (req, res, next) => {
 
 app.post(
   "/api/withdrawals/request",
-  authenticateUser,
+  authUser,
   async (req, res, next) => {
     const connection = await pool.getConnection();
 
@@ -4431,7 +4431,7 @@ app.post(
   }
 );
 
-app.get("/api/withdrawals", authenticateUser, async (req, res, next) => {
+app.get("/api/withdrawals", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -4454,7 +4454,7 @@ app.get("/api/withdrawals", authenticateUser, async (req, res, next) => {
    USER QUICK AMOUNT
 ========================= */
 
-app.post("/api/trades/quick-amount", authenticateUser, async (req, res, next) => {
+app.post("/api/trades/quick-amount", authUser, async (req, res, next) => {
   try {
     const percentage = Number(req.body.percentage || 0);
 
@@ -4485,7 +4485,7 @@ app.post("/api/trades/quick-amount", authenticateUser, async (req, res, next) =>
 });
 
 
-app.get("/api/funds/summary", authenticateUser, async (req, res, next) => {
+app.get("/api/funds/summary", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -4538,7 +4538,7 @@ app.get("/api/funds/summary", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/funds/active", authenticateUser, async (req, res, next) => {
+app.get("/api/funds/active", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -4593,7 +4593,7 @@ app.get("/api/funds/active", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/funds/history", authenticateUser, async (req, res, next) => {
+app.get("/api/funds/history", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -4639,7 +4639,7 @@ app.get("/api/funds/history", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.post("/api/funds/apply", authenticateUser, async (req, res, next) => {
+app.post("/api/funds/apply", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -4842,7 +4842,7 @@ app.post("/api/funds/apply", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/funds/completed-latest", authenticateUser, async (req, res, next) => {
+app.get("/api/funds/completed-latest", authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
 
@@ -4927,7 +4927,7 @@ setInterval(async () => {
    LOANS
 ========================= */
 
-app.post("/api/loans/apply", authenticateUser, async (req, res, next) => {
+app.post("/api/loans/apply", authUser, async (req, res, next) => {
   try {
     const amount = Number(req.body.amount || 0);
     const durationCount = Number(
@@ -5035,7 +5035,7 @@ app.post("/api/loans/apply", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/loans", authenticateUser, async (req, res, next) => {
+app.get("/api/loans", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -5054,7 +5054,7 @@ app.get("/api/loans", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/admin/loans", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/loans", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT l.*, u.name, u.email
@@ -5072,7 +5072,7 @@ app.get("/api/admin/loans", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.post("/api/admin/loans/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/loans/:id/approve", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -5141,7 +5141,7 @@ app.post("/api/admin/loans/:id/approve", authenticateAdmin, async (req, res, nex
   }
 });
 
-app.post("/api/admin/loans/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/loans/:id/reject", authAdmin, async (req, res, next) => {
   try {
     const loanId = Number(req.params.id);
 
@@ -5178,7 +5178,7 @@ app.post("/api/admin/loans/:id/reject", authenticateAdmin, async (req, res, next
   }
 });
 
-app.get("/api/admin/loan-settings", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/loan-settings", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT id, interest_rate, interest_type, created_at, updated_at
@@ -5249,8 +5249,8 @@ async function saveLoanSettings(req, res, next) {
   }
 }
 
-app.post("/api/admin/loan-settings", authenticateAdmin, saveLoanSettings);
-app.put("/api/admin/loan-settings", authenticateAdmin, saveLoanSettings);
+app.post("/api/admin/loan-settings", authAdmin, saveLoanSettings);
+app.put("/api/admin/loan-settings", authAdmin, saveLoanSettings);
 
 /* =========================
    LEGAL DOCUMENTS
@@ -5312,8 +5312,8 @@ async function getAdminLegalDocuments(_req, res, next) {
   }
 }
 
-app.get("/api/admin/legal-documents", authenticateAdmin, getAdminLegalDocuments);
-app.get("/api/admin/legal-docs", authenticateAdmin, getAdminLegalDocuments);
+app.get("/api/admin/legal-documents", authAdmin, getAdminLegalDocuments);
+app.get("/api/admin/legal-docs", authAdmin, getAdminLegalDocuments);
 
 async function createAdminLegalDocument(req, res, next) {
   try {
@@ -5362,14 +5362,14 @@ async function createAdminLegalDocument(req, res, next) {
 
 app.post(
   "/api/admin/legal-documents",
-  authenticateAdmin,
+  authAdmin,
   upload.single("legal_file"),
   createAdminLegalDocument
 );
 
 app.post(
   "/api/admin/legal-docs",
-  authenticateAdmin,
+  authAdmin,
   upload.single("legal_file"),
   createAdminLegalDocument
 );
@@ -5464,14 +5464,14 @@ async function updateAdminLegalDocument(req, res, next) {
 
 app.put(
   "/api/admin/legal-documents/:id",
-  authenticateAdmin,
+  authAdmin,
   upload.single("legal_file"),
   updateAdminLegalDocument
 );
 
 app.put(
   "/api/admin/legal-docs/:id",
-  authenticateAdmin,
+  authAdmin,
   upload.single("legal_file"),
   updateAdminLegalDocument
 );
@@ -5524,8 +5524,8 @@ async function deleteAdminLegalDocument(req, res, next) {
   }
 }
 
-app.delete("/api/admin/legal-documents/:id", authenticateAdmin, deleteAdminLegalDocument);
-app.delete("/api/admin/legal-docs/:id", authenticateAdmin, deleteAdminLegalDocument);
+app.delete("/api/admin/legal-documents/:id", authAdmin, deleteAdminLegalDocument);
+app.delete("/api/admin/legal-docs/:id", authAdmin, deleteAdminLegalDocument);
 
 /* =========================
    SUPPORT
@@ -5549,7 +5549,7 @@ app.get("/api/support/contact", async (_req, res, next) => {
   }
 });
 
-app.get("/api/admin/support", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/support", authAdmin, async (_req, res, next) => {
   try {
     const data = await getSupportSettings();
     res.json({ success: true, data });
@@ -5558,7 +5558,7 @@ app.get("/api/admin/support", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.get("/api/admin/support-contact", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/support-contact", authAdmin, async (_req, res, next) => {
   try {
     const data = await getSupportSettings();
     res.json({ success: true, data });
@@ -5567,7 +5567,7 @@ app.get("/api/admin/support-contact", authenticateAdmin, async (_req, res, next)
   }
 });
 
-app.put("/api/admin/support", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/support", authAdmin, async (req, res, next) => {
   try {
     const channel = String(req.body.channel || "").trim();
     const contact = String(req.body.contact || "").trim();
@@ -5609,7 +5609,7 @@ app.put("/api/admin/support", authenticateAdmin, async (req, res, next) => {
   }
 });
 
-app.put("/api/admin/support-contact", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/support-contact", authAdmin, async (req, res, next) => {
   try {
     const channel = String(req.body.channel || "").trim();
     const contact = String(req.body.contact || "").trim();
@@ -5655,7 +5655,7 @@ app.put("/api/admin/support-contact", authenticateAdmin, async (req, res, next) 
    ADMIN SETTINGS
 ========================= */
 
-app.get("/api/admin/settings", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/settings", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT setting_key, setting_value
@@ -5672,7 +5672,7 @@ app.get("/api/admin/settings", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.put("/api/admin/settings/:key", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/settings/:key", authAdmin, async (req, res, next) => {
   try {
     const key = String(req.params.key || "").trim();
     const value = String(req.body?.value ?? "").trim();
@@ -5713,7 +5713,7 @@ app.put("/api/admin/settings/:key", authenticateAdmin, async (req, res, next) =>
    ADMIN DASHBOARD
 ========================= */
 
-app.get("/api/admin/dashboard", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/dashboard", authAdmin, async (_req, res, next) => {
   try {
     const [[usersRow]] = await pool.execute("SELECT COUNT(*) AS total FROM users");
     const [[tradesRow]] = await pool.execute("SELECT COUNT(*) AS total FROM trades");
@@ -5763,7 +5763,7 @@ app.get("/api/admin/dashboard", authenticateAdmin, async (_req, res, next) => {
    ADMIN USERS
 ========================= */
 
-app.get("/api/admin/users", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/users", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
@@ -5804,7 +5804,7 @@ app.get("/api/admin/users", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.get("/api/admin/users/:id", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/users/:id", authAdmin, async (req, res, next) => {
   try {
     const userId = Number(req.params.id);
 
@@ -5854,7 +5854,7 @@ app.get("/api/admin/users/:id", authenticateAdmin, async (req, res, next) => {
   }
 });
 
-app.get("/api/admin/users/:id/security", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/users/:id/security", authAdmin, async (req, res, next) => {
   try {
     const userId = Number(req.params.id);
 
@@ -5891,7 +5891,7 @@ app.get("/api/admin/users/:id/security", authenticateAdmin, async (req, res, nex
   }
 });
 
-app.put("/api/admin/users/:id/security", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/users/:id/security", authAdmin, async (req, res, next) => {
   try {
     const userId = Number(req.params.id);
 
@@ -5940,7 +5940,7 @@ app.put("/api/admin/users/:id/security", authenticateAdmin, async (req, res, nex
   }
 });
 
-app.post("/api/admin/users/:id/add-funds", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/users/:id/add-funds", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6012,7 +6012,7 @@ app.post("/api/admin/users/:id/add-funds", authenticateAdmin, async (req, res, n
   }
 });
 
-app.post("/api/admin/users/:id/decrease-funds", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/users/:id/decrease-funds", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6088,7 +6088,7 @@ app.post("/api/admin/users/:id/decrease-funds", authenticateAdmin, async (req, r
   }
 });
 
-app.put("/api/admin/users/:id/status", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/users/:id/status", authAdmin, async (req, res, next) => {
   try {
     const userId = Number(req.params.id);
     const status = String(req.body.status || "").trim().toLowerCase();
@@ -6132,7 +6132,7 @@ app.put("/api/admin/users/:id/status", authenticateAdmin, async (req, res, next)
   }
 });
 
-app.delete("/api/admin/users/:id", authenticateAdmin, async (req, res, next) => {
+app.delete("/api/admin/users/:id", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6212,7 +6212,7 @@ app.delete("/api/admin/users/:id", authenticateAdmin, async (req, res, next) => 
    ADMIN KYC
 ========================= */
 
-app.get("/api/admin/kyc", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/kyc", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT
@@ -6246,7 +6246,7 @@ app.get("/api/admin/kyc", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.post("/api/admin/kyc/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/kyc/:id/approve", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6321,7 +6321,7 @@ app.post("/api/admin/kyc/:id/approve", authenticateAdmin, async (req, res, next)
   }
 });
 
-app.post("/api/admin/kyc/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/kyc/:id/reject", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6398,7 +6398,7 @@ app.post("/api/admin/kyc/:id/reject", authenticateAdmin, async (req, res, next) 
    ADMIN DEPOSITS
 ========================= */
 
-app.get("/api/admin/deposits", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/deposits", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -6413,7 +6413,7 @@ app.get("/api/admin/deposits", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.post("/api/admin/deposits/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/deposits/:id/approve", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6508,7 +6508,7 @@ app.post("/api/admin/deposits/:id/approve", authenticateAdmin, async (req, res, 
   }
 });
 
-app.post("/api/admin/deposits/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/deposits/:id/reject", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -6587,7 +6587,7 @@ app.post("/api/admin/deposits/:id/reject", authenticateAdmin, async (req, res, n
    ADMIN DEPOSIT NETWORKS
 ========================= */
 
-app.get("/api/admin/deposit-networks", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/deposit-networks", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -6606,7 +6606,7 @@ app.get("/api/admin/deposit-networks", authenticateAdmin, async (_req, res, next
 
 app.post(
   "/api/admin/deposit-networks/upload-qr",
-  authenticateAdmin,
+  authAdmin,
   upload.single("qr"),
   (req, res, next) => {
     try {
@@ -6622,7 +6622,7 @@ app.post(
   }
 );
 
-app.post("/api/admin/deposit-networks", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/deposit-networks", authAdmin, async (req, res, next) => {
   try {
     const coin = String(req.body.coin || "").trim().toUpperCase();
     const network = String(req.body.network || "").trim().toUpperCase();
@@ -6700,7 +6700,7 @@ app.post("/api/admin/deposit-networks", authenticateAdmin, async (req, res, next
   }
 });
 
-app.put("/api/admin/deposit-networks/:id", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/deposit-networks/:id", authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const coin = String(req.body.coin || "").trim().toUpperCase();
@@ -6778,7 +6778,7 @@ app.put("/api/admin/deposit-networks/:id", authenticateAdmin, async (req, res, n
   }
 });
 
-app.delete("/api/admin/deposit-networks/:id", authenticateAdmin, async (req, res, next) => {
+app.delete("/api/admin/deposit-networks/:id", authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
 
@@ -6810,7 +6810,7 @@ app.delete("/api/admin/deposit-networks/:id", authenticateAdmin, async (req, res
 });
 
 // Admin: Generate QR code from any text (wallet address, etc.)
-app.post("/api/admin/generate-wallet-qr", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/generate-wallet-qr", authAdmin, async (req, res, next) => {
   try {
     const { text } = req.body;
     
@@ -6847,7 +6847,7 @@ app.post("/api/admin/generate-wallet-qr", authenticateAdmin, async (req, res, ne
    ADMIN WITHDRAWAL FEES
 ========================= */
 
-app.get("/api/admin/withdrawal-fees", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/withdrawal-fees", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -6861,7 +6861,7 @@ app.get("/api/admin/withdrawal-fees", authenticateAdmin, async (_req, res, next)
   }
 });
 
-app.post("/api/admin/withdrawal-fees", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/withdrawal-fees", authAdmin, async (req, res, next) => {
   try {
     const coin = String(req.body.coin || "").trim().toUpperCase();
     const network = String(req.body.network || "").trim().toUpperCase();
@@ -6919,7 +6919,7 @@ app.post("/api/admin/withdrawal-fees", authenticateAdmin, async (req, res, next)
   }
 });
 
-app.delete("/api/admin/withdrawal-fees/:id", authenticateAdmin, async (req, res, next) => {
+app.delete("/api/admin/withdrawal-fees/:id", authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
 
@@ -6957,7 +6957,7 @@ app.delete("/api/admin/withdrawal-fees/:id", authenticateAdmin, async (req, res,
    ADMIN WITHDRAWALS
 ========================= */
 
-app.get("/api/admin/withdrawals", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/withdrawals", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -6972,7 +6972,7 @@ app.get("/api/admin/withdrawals", authenticateAdmin, async (_req, res, next) => 
   }
 });
 
-app.post("/api/admin/withdrawals/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/withdrawals/:id/approve", authAdmin, async (req, res, next) => {
   try {
     const withdrawalId = Number(req.params.id);
     const adminNote = String(req.body?.admin_note || "").trim();
@@ -7037,7 +7037,7 @@ app.post("/api/admin/withdrawals/:id/approve", authenticateAdmin, async (req, re
   }
 });
 
-app.post("/api/admin/withdrawals/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/withdrawals/:id/reject", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7136,7 +7136,7 @@ app.post("/api/admin/withdrawals/:id/reject", authenticateAdmin, async (req, res
    ADMIN AUDIT LOGS
 ========================= */
 
-app.get("/api/admin/audit-logs", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/audit-logs", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -7151,7 +7151,7 @@ app.get("/api/admin/audit-logs", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.delete("/api/admin/audit-logs", authenticateAdmin, async (_req, res, next) => {
+app.delete("/api/admin/audit-logs", authAdmin, async (_req, res, next) => {
   try {
     await pool.execute(`DELETE FROM admin_audit_logs`);
 
@@ -7168,7 +7168,7 @@ app.delete("/api/admin/audit-logs", authenticateAdmin, async (_req, res, next) =
    ADMIN TRADE RULES
 ========================= */
 
-app.get("/api/admin/trade-rules", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/trade-rules", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT id, timer_seconds, payout_percent, status, created_at
@@ -7182,7 +7182,7 @@ app.get("/api/admin/trade-rules", authenticateAdmin, async (_req, res, next) => 
   }
 });
 
-app.put("/api/admin/trade-rules/:id", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/trade-rules/:id", authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const payoutPercent = Number(req.body.payout_percent);
@@ -7231,7 +7231,7 @@ app.put("/api/admin/trade-rules/:id", authenticateAdmin, async (req, res, next) 
    ADMIN TRADE OUTCOME QUEUE
 ========================= */
 
-app.get("/api/admin/trade-outcome-queue", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/trade-outcome-queue", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -7247,7 +7247,7 @@ app.get("/api/admin/trade-outcome-queue", authenticateAdmin, async (_req, res, n
   }
 });
 
-app.post("/api/admin/trade-outcome-queue", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/trade-outcome-queue", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7299,7 +7299,7 @@ app.post("/api/admin/trade-outcome-queue", authenticateAdmin, async (req, res, n
   }
 });
 
-app.delete("/api/admin/trade-outcome-queue/:id", authenticateAdmin, async (req, res, next) => {
+app.delete("/api/admin/trade-outcome-queue/:id", authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
 
@@ -7336,7 +7336,7 @@ app.delete("/api/admin/trade-outcome-queue/:id", authenticateAdmin, async (req, 
    USER TRADES
 ========================= */
 
-app.post("/api/trades/place", authenticateUser, async (req, res, next) => {
+app.post("/api/trades/place", authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7467,7 +7467,7 @@ app.post("/api/trades/place", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/trades/open", authenticateUser, async (req, res, next) => {
+app.get("/api/trades/open", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -7484,7 +7484,7 @@ app.get("/api/trades/open", authenticateUser, async (req, res, next) => {
   }
 });
 
-app.get("/api/trades/history", authenticateUser, async (req, res, next) => {
+app.get("/api/trades/history", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -7505,7 +7505,7 @@ app.get("/api/trades/history", authenticateUser, async (req, res, next) => {
    USER SUPPORT
 ========================= */
 
-app.get("/api/support", authenticateUser, async (_req, res, next) => {
+app.get("/api/support", authUser, async (_req, res, next) => {
   try {
     const support = await getSupportSettings();
 
@@ -7528,7 +7528,7 @@ app.get("/api/support", authenticateUser, async (_req, res, next) => {
    ADMIN TRADE MONITORING
 ========================= */
 
-app.get("/api/admin/trades", authenticateAdmin, async (_req, res, next) => {
+app.get("/api/admin/trades", authAdmin, async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT *
@@ -7543,7 +7543,7 @@ app.get("/api/admin/trades", authenticateAdmin, async (_req, res, next) => {
   }
 });
 
-app.post("/api/admin/trades/:id/override", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/trades/:id/override", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7681,7 +7681,7 @@ app.post("/api/admin/trades/:id/override", authenticateAdmin, async (req, res, n
 
 /* ---------------- ADMIN FUNDS ---------------- */
 
-app.get("/api/admin/funds/summary", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/funds/summary", authAdmin, async (req, res, next) => {
   try {
     const [summaryRows] = await pool.execute(
       `
@@ -7710,7 +7710,7 @@ app.get("/api/admin/funds/summary", authenticateAdmin, async (req, res, next) =>
   }
 });
 
-app.get("/api/admin/funds", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/funds", authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `
@@ -7749,7 +7749,7 @@ app.get("/api/admin/funds", authenticateAdmin, async (req, res, next) => {
   }
 });
 
-app.post("/api/admin/funds/:id/complete", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/funds/:id/complete", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7870,7 +7870,7 @@ app.post("/api/admin/funds/:id/complete", authenticateAdmin, async (req, res, ne
   }
 });
 
-app.post("/api/admin/funds/:id/cancel", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/funds/:id/cancel", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -7988,7 +7988,7 @@ app.post("/api/admin/funds/:id/cancel", authenticateAdmin, async (req, res, next
   }
 });
 
-app.delete("/api/admin/funds/:id", authenticateAdmin, async (req, res, next) => {
+app.delete("/api/admin/funds/:id", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
 
   try {
@@ -8058,7 +8058,7 @@ app.delete("/api/admin/funds/:id", authenticateAdmin, async (req, res, next) => 
 // FUNDS - PAUSE/RESUME (ADMIN)
 // =========================
 
-app.post("/api/admin/funds/:id/pause", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/funds/:id/pause", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const fundId = Number(req.params.id);
@@ -8075,7 +8075,7 @@ app.post("/api/admin/funds/:id/pause", authenticateAdmin, async (req, res, next)
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
-app.post("/api/admin/funds/:id/resume", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/funds/:id/resume", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const fundId = Number(req.params.id);
@@ -8092,7 +8092,7 @@ app.post("/api/admin/funds/:id/resume", authenticateAdmin, async (req, res, next
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
-app.post("/api/admin/funds/:id/modify-profit-rate", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/funds/:id/modify-profit-rate", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const fundId = Number(req.params.id);
@@ -8119,7 +8119,7 @@ app.post("/api/admin/funds/:id/modify-profit-rate", authenticateAdmin, async (re
 ========================= */
 
 // Get admin notifications (aggregated from various sources)
-app.get("/api/admin/notifications", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/notifications", authAdmin, async (req, res, next) => {
   try {
     const notifications = [];
 
@@ -8211,7 +8211,7 @@ app.get("/api/admin/notifications", authenticateAdmin, async (req, res, next) =>
 });
 
 // Mark notification as read (store in memory or session)
-app.put("/api/admin/notifications/:id/read", authenticateAdmin, async (req, res, next) => {
+app.put("/api/admin/notifications/:id/read", authAdmin, async (req, res, next) => {
   try {
     // For now, just return success
     // In production, you would store read status in a database table
@@ -8228,7 +8228,7 @@ app.put("/api/admin/notifications/:id/read", authenticateAdmin, async (req, res,
 ========================= */
 
 // ✅ FIX: Add missing notifications send endpoint
-app.post("/api/admin/notifications/send", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/notifications/send", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -8298,7 +8298,7 @@ app.post("/api/admin/notifications/send", authenticateAdmin, async (req, res, ne
    JOINT ACCOUNT
 ========================= */
 
-app.get("/api/joint-account/status", authenticateUser, async (req, res, next) => {
+app.get("/api/joint-account/status", authUser, async (req, res, next) => {
   try {
     // First get the user's UID from the database using their ID
     const [userRows] = await pool.execute(
@@ -8364,7 +8364,7 @@ app.get("/api/joint-account/status", authenticateUser, async (req, res, next) =>
    JOINT ACCOUNT REQUEST
 ========================= */
 
-app.post("/api/joint-account/request", authenticateUser, async (req, res, next) => {
+app.post("/api/joint-account/request", authUser, async (req, res, next) => {
   try {
     const { partnerEmail, partnerKycNumber } = req.body;
     
@@ -8473,7 +8473,7 @@ app.post("/api/joint-account/request", authenticateUser, async (req, res, next) 
    JOINT ACCOUNT COMBINED BALANCE
 ========================= */
 
-app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res, next) => {
+app.get("/api/joint-account/combined-balance", authUser, async (req, res, next) => {
   try {
     // Get current user's UID from database
     const [userRows] = await pool.execute(
@@ -8566,7 +8566,7 @@ app.get("/api/joint-account/combined-balance", authenticateUser, async (req, res
    aDMIN JOINT ACCOUNT REQUESTS
 ========================= */
 
-app.get("/api/admin/joint-account-requests", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/joint-account-requests", authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT * FROM joint_account_requests WHERE status = 'pending' ORDER BY created_at DESC`
@@ -8581,7 +8581,7 @@ app.get("/api/admin/joint-account-requests", authenticateAdmin, async (req, res,
   }
 });
 
-app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/joint-account-requests/:id/approve", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -8657,7 +8657,7 @@ app.post("/api/admin/joint-account-requests/:id/approve", authenticateAdmin, asy
   }
 });
 
-app.post("/api/admin/joint-account-requests/:id/reject", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/joint-account-requests/:id/reject", authAdmin, async (req, res, next) => {
   try {
     const requestId = req.params.id;
     const { admin_note } = req.body;
@@ -8692,7 +8692,7 @@ app.post("/api/admin/joint-account-requests/:id/reject", authenticateAdmin, asyn
    ADMIN DISCONNECT JOINT ACCOUNT
 ========================= */
 
-app.post("/api/admin/joint-accounts/:id/disconnect", authenticateAdmin, async (req, res, next) => {
+app.post("/api/admin/joint-accounts/:id/disconnect", authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   
   try {
@@ -8773,7 +8773,7 @@ app.post("/api/admin/joint-accounts/:id/disconnect", authenticateAdmin, async (r
 });
 
 // Get all joint accounts (for admin)
-app.get("/api/admin/joint-accounts", authenticateAdmin, async (req, res, next) => {
+app.get("/api/admin/joint-accounts", authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT ja.*, 
@@ -8865,4 +8865,4 @@ setInterval(() => {
   });
 }, 5 * 60 * 1000);
 
-module.exports = { authenticateAdmin, authenticateUser }; // or just authenticateAdmin
+module.exports = { authAdmin, authUser }; // or just authAdmin
