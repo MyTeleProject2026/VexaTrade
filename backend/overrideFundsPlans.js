@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const { authUser } = require("./middleware/auth");
+const { authUser, authAdmin } = require('./src/middleware/auth');
 
 console.log("[overrideFundsPlans] ✅ File loaded.");
 
