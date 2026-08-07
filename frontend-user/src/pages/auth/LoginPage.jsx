@@ -1,11 +1,13 @@
 // frontend-user/src/pages/auth/LoginPage.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, ShieldCheck, LogIn } from "lucide-react";
 import { authApi, getApiErrorMessage } from "../../services/api";
+import { useNotification } from "../../hooks/useNotification";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { showError, showSuccess } = useNotification();
 
   const [form, setForm] = useState({
     email: "",
@@ -24,19 +26,18 @@ export default function LoginPage() {
     }));
   }
 
+  // ✅ Manual Login (email + password)
   async function handleSubmit(e) {
     e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
-      setLoading(true);
-      setError("");
-
       const res = await authApi.login({
         email: form.email,
         password: form.password,
       });
 
-      // ✅ Check success flag from VexaAccount
       if (res.data?.success) {
         const token = res.data.token;
         const user = res.data.user;
@@ -49,23 +50,36 @@ export default function LoginPage() {
           localStorage.setItem("user", JSON.stringify(user));
         }
 
+        showSuccess("Login successful");
         navigate("/dashboard");
       } else {
-        // Show server message (e.g., "Please verify your email")
         setError(res.data?.message || "Login failed");
+        showError(res.data?.message || "Login failed");
       }
     } catch (err) {
-      setError(getApiErrorMessage(err) || "Something went wrong");
+      const msg = getApiErrorMessage(err) || "Something went wrong";
+      setError(msg);
+      showError(msg);
     } finally {
       setLoading(false);
     }
   }
 
-  // ⬇️ THE JSX IS EXACTLY AS YOU HAD IT ORIGINALLY
+  // ✅ Continue with VexaAccount (SSO)
+  const handleVexaAccountLogin = () => {
+    const redirectUri = encodeURIComponent(
+      `${window.location.origin}/auth/callback`
+    );
+    const vexaAccountUrl =
+      import.meta.env.VITE_VEXA_ACCOUNT_URL || "https://api-vexaaccount.onrender.com";
+    window.location.href =
+      `${vexaAccountUrl}/api/auth/login?redirect_uri=${redirectUri}`;
+  };
+
   return (
     <div className="min-h-screen bg-[#050812] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        {/* LEFT PANEL – unchanged */}
+        {/* LEFT PANEL – Original */}
         <section className="relative hidden overflow-hidden border-r border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_20%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.10),transparent_22%),linear-gradient(180deg,#050812_0%,#0a0e1a_100%)] lg:flex">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.02)_100%)]" />
           <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14">
@@ -99,7 +113,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* RIGHT PANEL – unchanged form */}
+        {/* RIGHT PANEL – Login Form + VexaAccount SSO */}
         <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="rounded-[34px] border border-white/10 bg-[#0a0e1a] p-8 shadow-[0_25px_90px_rgba(0,0,0,0.5)]">
@@ -117,6 +131,25 @@ export default function LoginPage() {
                 </div>
               ) : null}
 
+              {/* ✅ Continue with VexaAccount (SSO) */}
+              <button
+                onClick={handleVexaAccountLogin}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-4 font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+              >
+                <LogIn size={18} />
+                Continue with VexaAccount
+              </button>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10"></div>
+                </div>
+                <div className="relative flex justify-center text-xs text-slate-500">
+                  <span className="bg-[#0a0e1a] px-2">OR</span>
+                </div>
+              </div>
+
+              {/* Manual Login Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="mb-2 block text-sm text-slate-400">Email</label>
