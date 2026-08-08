@@ -36,11 +36,13 @@ export default function AuthCallback() {
         }
       }
 
-      // ════════════════════════════════════════════════════════════
+      // ──────────────────────────────────────────────────────────
       // ✅ FIX: Check if user exists in VexaTrade database
-      // ════════════════════════════════════════════════════════════
+      // ──────────────────────────────────────────────────────────
       const checkUserInVexaTrade = async () => {
         try {
+          const email = userData?.email || '';
+          
           const response = await fetch('/api/auth/check-user', {
             method: 'POST',
             headers: { 
@@ -48,7 +50,7 @@ export default function AuthCallback() {
               'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({ 
-              email: userData?.email || '',
+              email: email,
               vexaToken: token 
             })
           });
@@ -56,16 +58,26 @@ export default function AuthCallback() {
           const data = await response.json();
           console.log('[AuthCallback] User check response:', data);
 
-          if (data.exists) {
-            // User exists in VexaTrade – go to dashboard
+          if (data.success && data.user) {
+            // Store user data with VexaTrade fields
+            const userWithTradeData = {
+              ...userData,
+              id: data.user.id,
+              email_verified: data.user.email_verified || 0,
+              kyc_status: data.user.kyc_status || 'not_submitted',
+              status: data.user.status || 'pending'
+            };
+            localStorage.setItem("user", JSON.stringify(userWithTradeData));
+            localStorage.setItem("userData", JSON.stringify(userWithTradeData));
+          }
+
+          if (data.exists && !data.needsVerification) {
+            // User exists and is fully verified – go to dashboard
             showSuccess("Login successful!");
             navigate("/dashboard", { replace: true });
-          } else if (data.needsVerification) {
-            // New user – redirect to Account Verification page
-            showSuccess("Account created! Please complete verification.");
-            navigate("/account-verification", { replace: true });
           } else {
-            // Fallback – go to verification anyway
+            // New user or needs verification – go to Account Verification page
+            showSuccess("Account created! Please complete verification.");
             navigate("/account-verification", { replace: true });
           }
         } catch (error) {
