@@ -102,21 +102,21 @@ export default function AccountVerificationPage() {
   }, [isFullyApproved, navigate]);
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ FIX: Navigate to User Center → Security for email verification
+  // ✅ FIX: Navigate to the new verify-email page
   // ──────────────────────────────────────────────────────────────
   const handleEmailVerification = () => {
-    navigate("/profile/user-center", { state: { tab: "security" } });
+    navigate("/verify-email");
   };
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ FIX: Navigate to KYC page
+  // ✅ Navigate to KYC page
   // ──────────────────────────────────────────────────────────────
   const handleKYC = () => {
     navigate("/kyc");
   };
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ FIX: Refresh status without full page reload
+  // ✅ Refresh status without full page reload
   // ──────────────────────────────────────────────────────────────
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
