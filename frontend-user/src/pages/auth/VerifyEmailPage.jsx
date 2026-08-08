@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../hooks/useNotification";
+import { userApi } from "../../services/api";
 
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
@@ -32,17 +33,10 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("userToken");
-      const response = await fetch("/api/user/send-email-verification-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email }),
-      });
+      // ✅ Use userApi instead of raw fetch
+      const response = await userApi.sendEmailVerificationCode();
+      const data = response.data; // axios returns data in .data
 
-      const data = await response.json();
       if (data.success) {
         showSuccess("Verification code sent to your email!");
         setStep("verify");
@@ -61,7 +55,13 @@ export default function VerifyEmailPage() {
         showError(data.message || "Failed to send code.");
       }
     } catch (error) {
-      showError("Network error. Please try again.");
+      console.error("Send code error:", error);
+      // Extract error message from axios error
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Network error. Please try again.";
+      showError(message);
     } finally {
       setLoading(false);
     }
@@ -75,18 +75,10 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token") || localStorage.getItem("userToken");
-      // Verify OTP
-      const verifyResponse = await fetch("/api/user/verify-email-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ code: otp }),
-      });
+      // ✅ Use userApi to verify OTP
+      const response = await userApi.verifyEmailCode({ code: otp });
+      const verifyData = response.data;
 
-      const verifyData = await verifyResponse.json();
       if (!verifyData.success) {
         showError(verifyData.message || "Invalid code.");
         setLoading(false);
@@ -98,6 +90,7 @@ export default function VerifyEmailPage() {
       // ─── Sync user data from VexaAccount ────────────────────
       try {
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        const token = localStorage.getItem("token") || localStorage.getItem("userToken");
         const syncResponse = await fetch("/api/auth/sync-user", {
           method: "POST",
           headers: {
@@ -129,9 +122,13 @@ export default function VerifyEmailPage() {
       setTimeout(() => {
         navigate("/account-verification", { replace: true });
       }, 1000);
-
     } catch (error) {
-      showError("Verification failed. Please try again.");
+      console.error("Verify error:", error);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Verification failed. Please try again.";
+      showError(message);
     } finally {
       setLoading(false);
     }
