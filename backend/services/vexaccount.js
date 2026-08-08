@@ -1,117 +1,59 @@
-// backend/services/vexaccount.js
+// backend/src/services/vexaccount.js
 const axios = require('axios');
 
-const ACCOUNT_URL = process.env.VEXA_ACCOUNT_URL || 'https://api-vexaaccount.onrender.com';
+const VEXACCOUNT_URL = process.env.VEXACCOUNT_URL || 'https://api-vexaaccount.onrender.com';
 
-const register = async (userData) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/register`, userData);
-  return res.data;
-};
-
-const login = async (credentials) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/login`, credentials);
-  return res.data;
-};
-
-const verifyOtp = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/verify-otp`, data);
-  return res.data;
-};
-
-const resendOtp = async (email) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/resend-otp`, { email });
-  return res.data;
-};
-
-const verifyEmail2fa = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/verify-email-2fa`, data);
-  return res.data;
-};
-
-const resendEmail2fa = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/resend-email-2fa`, data);
-  return res.data;
-};
-
-const verifyTwoFactor = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/twofa/verify`, data);
-  return res.data;
-};
-
-const getProfile = async (token) => {
-  const res = await axios.get(`${ACCOUNT_URL}/api/auth/profile`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const updateProfile = async (token, data) => {
-  const res = await axios.put(`${ACCOUNT_URL}/api/auth/profile/full`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const changePassword = async (token, data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/change-password`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const deleteAccount = async (token, data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/delete-account`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const forgotPassword = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/forgot-password`, data);
-  return res.data;
-};
-
-const resetPassword = async (data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/reset-password`, data);
-  return res.data;
-};
-
-const getConnectedApps = async (token) => {
-  const res = await axios.get(`${ACCOUNT_URL}/api/auth/connected-apps`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const connectApp = async (token, data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/connect-app`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
-
-const disconnectApp = async (token, data) => {
-  const res = await axios.post(`${ACCOUNT_URL}/api/auth/disconnect-app`, data, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.data;
-};
+// ──────────────────────────────────────────────────────────────
+// ✅ NEW: Get user profile from VexaAccount
+// ──────────────────────────────────────────────────────────────
+async function getUserProfile(email) {
+  try {
+    const response = await axios.get(`${VEXACCOUNT_URL}/api/auth/profile-by-email`, {
+      params: { email }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('❌ [getUserProfile] Error:', error.message);
+    throw error;
+  }
+}
 
 module.exports = {
-  register,
-  login,
-  verifyOtp,
-  resendOtp,
-  verifyEmail2fa,
-  resendEmail2fa,
-  verifyTwoFactor,
-  getProfile,
-  updateProfile,
-  changePassword,
-  deleteAccount,
-  forgotPassword,
-  resetPassword,
-  getConnectedApps,
-  connectApp,
-  disconnectApp,
+  register: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/register`, data);
+    return response.data;
+  },
+  login: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/login`, data);
+    return response.data;
+  },
+  verifyOtp: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/verify-otp`, data);
+    return response.data;
+  },
+  resendOtp: async (email) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/resend-otp`, { email });
+    return response.data;
+  },
+  verifyEmail2fa: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/verify-email-2fa`, data);
+    return response.data;
+  },
+  resendEmail2fa: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/resend-email-2fa`, data);
+    return response.data;
+  },
+  verifyTwoFactor: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/twofa/verify`, data);
+    return response.data;
+  },
+  forgotPassword: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/forgot-password`, data);
+    return response.data;
+  },
+  resetPassword: async (data) => {
+    const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/reset-password`, data);
+    return response.data;
+  },
+  getUserProfile, // ⬅️ NEW
 };
