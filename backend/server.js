@@ -2474,30 +2474,32 @@ app.post(
   "/api/user/send-email-verification-code",
   authUser,
   async (req, res, next) => {
+    console.log('📧 [send-email-verification] Request received for:', req.body.email);
     const connection = await pool.getConnection();
-
     try {
       await connection.beginTransaction();
 
       const [rows] = await connection.execute(
         `SELECT id, email, email_verified
-       FROM users
-       WHERE id = ?
-       LIMIT 1
-       FOR UPDATE`,
+         FROM users
+         WHERE id = ?
+         LIMIT 1
+         FOR UPDATE`,
         [req.user.id]
       );
 
-      if (!rows.length) throw createError(404, "User not found");
+      if (!rows.length) {
+        await connection.rollback();
+        console.log('❌ User not found');
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
 
       const user = rows[0];
 
       if (Number(user.email_verified || 0) === 1) {
         await connection.commit();
-        return res.json({
-          success: true,
-          message: "Email is already verified",
-        });
+        console.log('ℹ️ Email already verified');
+        return res.json({ success: true, message: 'Email is already verified' });
       }
 
       const code = generateSixDigitOtp();
@@ -2505,44 +2507,30 @@ app.post(
 
       await connection.execute(
         `UPDATE user_email_otps
-       SET is_used = 1, updated_at = NOW()
-       WHERE user_id = ?
-         AND purpose = 'email_verification'
-         AND is_used = 0`,
+         SET is_used = 1, updated_at = NOW()
+         WHERE user_id = ?
+           AND purpose = 'email_verification'
+           AND is_used = 0`,
         [req.user.id]
       );
 
       await connection.execute(
         `INSERT INTO user_email_otps (user_id, email, otp_code, purpose, is_used, expires_at, created_at, updated_at)
-        VALUES (?, ?, ?, 'email_verification', 0, ?, NOW(), NOW())`,
+         VALUES (?, ?, ?, 'email_verification', 0, ?, NOW(), NOW())`,
         [req.user.id, user.email, code, expiresAt]
       );
 
-      await createUserNotification(connection, {
-        userId: req.user.id,
-        title: "Email verification code",
-        message: `Your VexaTrade verification code is ${code}. It expires in 10 minutes.`,
-        type: "verification_code",
-      });
-
-      await createAuditLog(connection, {
-        adminId: null,
-        action: "user_requested_email_verification_code",
-        targetUserId: req.user.id,
-        referenceId: req.user.id,
-        note: `User ${req.user.id} requested email verification code`,
-      });
+      // Send email (non-blocking)
+      sendOtpEmail({ to: user.email, code })
+        .then(success => {
+          console.log(`✅ Email sent to ${user.email}: ${success}`);
+        })
+        .catch(err => console.error('❌ Email send error:', err));
 
       await connection.commit();
 
-      // Send email via Keplers
-      sendOtpEmail({ to: user.email, code })
-        .then(success => {
-          console.log(`Email sending result for ${user.email}: ${success}`);
-        })
-        .catch(err => console.error("Background email error:", err));
-
-      res.json({
+      console.log('✅ OTP generated and stored, returning success');
+      return res.json({
         success: true,
         message: `Your verification code is: ${code}`,
         code: code,
@@ -2550,7 +2538,8 @@ app.post(
       });
     } catch (error) {
       await connection.rollback();
-      next(error);
+      console.error('❌ Error in send-email-verification:', error.message);
+      return res.status(500).json({ success: false, message: 'Internal server error' });
     } finally {
       connection.release();
     }
