@@ -2546,6 +2546,8 @@ app.post(
   }
 );
 
+
+// POST /api/user/verify-email-code
 app.post(
   "/api/user/verify-email-code",
   authUser,
@@ -2555,25 +2557,37 @@ app.post(
     try {
       const code = String(req.body.code || "").trim();
 
+      // Validate OTP format
       if (!/^\d{6}$/.test(code)) {
-        throw createError(400, "Valid 6-digit code is required");
+        return res.status(400).json({
+          success: false,
+          message: "Valid 6-digit code is required",
+        });
       }
 
       await connection.beginTransaction();
 
+      // 1. Get user details
       const [userRows] = await connection.execute(
         `SELECT id, email, email_verified, kyc_status
-       FROM users
-       WHERE id = ?
-       LIMIT 1
-       FOR UPDATE`,
+         FROM users
+         WHERE id = ?
+         LIMIT 1
+         FOR UPDATE`,
         [req.user.id]
       );
 
-      if (!userRows.length) throw createError(404, "User not found");
+      if (!userRows.length) {
+        await connection.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
 
       const user = userRows[0];
 
+      // 2. Check if already verified
       if (Number(user.email_verified || 0) === 1) {
         await connection.commit();
         return res.json({
@@ -2582,40 +2596,56 @@ app.post(
         });
       }
 
+      // 3. Find the active OTP for this user
       const [otpRows] = await connection.execute(
         `SELECT id, otp_code, expires_at, is_used
-       FROM user_email_otps
-       WHERE user_id = ?
-         AND email = ?
-         AND purpose = 'email_verification'
-         AND is_used = 0
-       ORDER BY id DESC
-       LIMIT 1
-       FOR UPDATE`,
+         FROM user_email_otps
+         WHERE user_id = ?
+           AND email = ?
+           AND purpose = 'email_verification'
+           AND is_used = 0
+         ORDER BY id DESC
+         LIMIT 1
+         FOR UPDATE`,
         [req.user.id, user.email]
       );
 
       if (!otpRows.length) {
-        throw createError(400, "No active verification code found");
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "No active verification code found. Please request a new one.",
+        });
       }
 
       const otp = otpRows[0];
 
+      // 4. Verify OTP
       if (String(otp.otp_code) !== code) {
-        throw createError(400, "Invalid verification code");
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid verification code",
+        });
       }
 
       if (isOtpExpired(otp.expires_at)) {
-        throw createError(400, "Verification code has expired");
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Verification code has expired. Please request a new one.",
+        });
       }
 
+      // 5. Mark OTP as used
       await connection.execute(
         `UPDATE user_email_otps
-       SET is_used = 1, updated_at = NOW()
-       WHERE id = ?`,
+         SET is_used = 1, updated_at = NOW()
+         WHERE id = ?`,
         [otp.id]
       );
 
+      // 6. Update user's email_verified and status
       const nextStatus =
         String(user.kyc_status || "").toLowerCase() === "pending"
           ? "under_review"
@@ -2623,11 +2653,12 @@ app.post(
 
       await connection.execute(
         `UPDATE users
-       SET email_verified = 1, status = ?, updated_at = NOW()
-       WHERE id = ?`,
+         SET email_verified = 1, status = ?, updated_at = NOW()
+         WHERE id = ?`,
         [nextStatus, req.user.id]
       );
 
+      // 7. Create notification and audit log
       await createUserNotification(connection, {
         userId: req.user.id,
         title: "Email verified",
@@ -2645,19 +2676,24 @@ app.post(
 
       await connection.commit();
 
-      res.json({
+      // 8. Return success
+      return res.json({
         success: true,
         message: "Email verified successfully",
       });
     } catch (error) {
       await connection.rollback();
-      next(error);
+      console.error("❌ Email verification error:", error.message);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
     } finally {
       connection.release();
     }
   }
 );
-
+      
 app.get("/api/user/notifications", authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
