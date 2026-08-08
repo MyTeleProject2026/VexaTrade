@@ -6,38 +6,34 @@ const AuthCallback = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Parse URL parameters
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
     const userParam = params.get('user');
     const error = params.get('error');
 
-    // Handle error from VexaAccount
     if (error) {
-      console.error('❌ Auth error from VexaAccount:', error);
+      console.error('❌ Auth error:', error);
       navigate('/login?error=auth_failed', { replace: true });
       return;
     }
 
     if (token) {
-      // Save token to multiple keys for compatibility
+      // ✅ Save token to ALL keys used by api.js
       localStorage.setItem('token', token);
-      localStorage.setItem('userToken', token); // extra key for api.js interceptor
+      localStorage.setItem('userToken', token);
       localStorage.setItem('accessToken', token);
 
-      // Save user info if provided (usually JSON string)
       if (userParam) {
         localStorage.setItem('user', userParam);
         localStorage.setItem('userData', userParam);
-        console.log('👤 User info saved');
       }
 
-      console.log('✅ Token saved successfully');
+      console.log('✅ Token saved to localStorage');
 
-      // Clean URL (remove token from address bar)
+      // Remove token from URL for security
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // Redirect to account verification (or dashboard if already verified)
+      // ✅ Navigate to verification page
       navigate('/account-verification', { replace: true });
     } else {
       console.error('❌ No token in callback URL');
@@ -45,7 +41,6 @@ const AuthCallback = () => {
     }
   }, [location, navigate]);
 
-  // Show loading indicator
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#050812]">
       <div className="text-center">
