@@ -18,7 +18,7 @@ const AuthCallback = () => {
     }
 
     if (token) {
-      // ✅ Save token to ALL keys used by api.js
+      // Save token to all keys used by api.js
       localStorage.setItem('token', token);
       localStorage.setItem('userToken', token);
       localStorage.setItem('accessToken', token);
@@ -33,7 +33,6 @@ const AuthCallback = () => {
       // Remove token from URL for security
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // ✅ Navigate to verification page
       navigate('/account-verification', { replace: true });
     } else {
       console.error('❌ No token in callback URL');
