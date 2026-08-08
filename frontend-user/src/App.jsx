@@ -29,6 +29,7 @@ import LegalDocumentsPage from "./pages/LegalDocumentsPage";
 import UserCenterPage from "./pages/UserCenterPage";
 import KycVerificationPage from "./pages/user/KycVerificationPage";
 import SupportPage from "./pages/SupportPage";
+import AccountVerificationPage from "./pages/AccountVerificationPage"; // ✅ NEW
 
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
@@ -107,141 +108,7 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
-// --- AccountVerificationPage ---
-function AccountVerificationPage() {
-  const [user, setUser] = useState(() => getStoredUser());
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const { showSuccess, showInfo } = useNotification();
-
-  const emailVerified = Number(user?.email_verified || 0) === 1;
-  const kycStatus = String(user?.kyc_status || "not_submitted").replaceAll(
-    "_",
-    " "
-  );
-  const accountStatus = String(user?.status || "pending");
-
-  async function handleRefreshStatus() {
-    setIsRefreshing(true);
-    const freshUser = await refreshUserDataFromServer();
-    if (freshUser) {
-      setUser(freshUser);
-      if (isUserFullyApproved(freshUser)) {
-        showSuccess("Account verified! Redirecting to dashboard...");
-        setTimeout(() => {
-          window.location.href = "/dashboard";
-        }, 1500);
-      } else {
-        showInfo("Status refreshed");
-        window.location.reload();
-      }
-    }
-    setIsRefreshing(false);
-  }
-
-  function logout() {
-    localStorage.removeItem("userToken");
-    localStorage.removeItem("token");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    localStorage.removeItem("userData");
-    showSuccess("Logged out successfully");
-    setTimeout(() => {
-      window.location.href = "/login";
-    }, 500);
-  }
-
-  return (
-    <div className="min-h-screen bg-[#050812] px-4 py-8 text-white">
-      <div className="mx-auto max-w-md rounded-[30px] border border-white/10 bg-[#0a0e1a] p-6 shadow-2xl">
-        <div className="text-center">
-          <div className="text-[11px] uppercase tracking-[0.32em] text-cyan-300">
-            Account Verification
-          </div>
-          <h1 className="mt-3 text-3xl font-bold">Under Review</h1>
-          <p className="mt-3 text-sm text-slate-400">
-            New Users: "Welcome! To get started, please complete your verification steps.
-            Our team will approve your account shortly."
-            Existing Users: "If you are a returning user, please click 
-            'Refresh Account Status' to check for updates or resume trading."
-          </p>
-        </div>
-
-        <div className="mt-6 space-y-3 rounded-[24px] border border-white/10 bg-[#050812]/30 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-slate-400">Email verification</span>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                emailVerified
-                  ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "border border-amber-500/30 bg-amber-500/10 text-amber-300"
-              }`}
-            >
-              {emailVerified ? "Completed" : "Required"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-slate-400">Account status</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-              {accountStatus}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-slate-400">KYC status</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-              {kycStatus || "not submitted"}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-slate-400">Platform access</span>
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
-              Locked until approval
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-3">
-          {!emailVerified ? (
-            <button
-              type="button"
-              onClick={() => (window.location.href = "/profile/user-center")}
-              className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black"
-            >
-              Complete Email Verification
-            </button>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={handleRefreshStatus}
-            disabled={isRefreshing}
-            className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
-          >
-            {isRefreshing ? "Refreshing..." : "Refresh Account Status"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => (window.location.href = "/kyc")}
-            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white"
-          >
-            Open KYC Page
-          </button>
-
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ─── REMOVED: AccountVerificationPage (now in separate file) ───
 
 // --- PrivateRoute ---
 function PrivateRoute({ children }) {
@@ -340,6 +207,7 @@ function AppContent() {
         <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
         <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
 
+        {/* ✅ Account Verification Route */}
         <Route
           path="/account-verification"
           element={
