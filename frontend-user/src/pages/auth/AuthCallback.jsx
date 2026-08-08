@@ -8,7 +8,6 @@ export default function AuthCallback() {
   const location = useLocation();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -26,14 +25,14 @@ export default function AuthCallback() {
         showSuccess("Account created! Please login.");
         navigate("/login", { replace: true });
       } else {
-        showError(error || "Authentication failed. Please try again.");
+        showError(error || "Authentication failed.");
         navigate("/login", { replace: true });
       }
       setLoading(false);
       return;
     }
 
-    // Store token
+    // ✅ Store token immediately
     localStorage.setItem("userToken", token);
     localStorage.setItem("token", token);
     localStorage.setItem("accessToken", token);
@@ -52,51 +51,60 @@ export default function AuthCallback() {
 
     const email = userData?.email || '';
     if (!email) {
-      showError("No email received. Please try again.");
+      showError("No email received.");
       navigate("/login", { replace: true });
       setLoading(false);
       return;
     }
 
-    // ─── SYNC USER ──────────────────────────────────────────────
-    const syncUser = async () => {
+    // ─── STEP 1: Check if user exists in VexaTrade ──────────
+    const handleAuth = async () => {
       try {
-        console.log('[AuthCallback] Calling /api/auth/sync-user for:', email);
-        const response = await fetch('/api/auth/sync-user', {
+        console.log('[AuthCallback] Checking user existence:', email);
+        const checkRes = await fetch('/api/auth/check-user', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ email })
+        });
+        const checkData = await checkRes.json();
+        console.log('[AuthCallback] Check response:', checkData);
+
+        if (checkData.success && checkData.exists) {
+          // User exists – update stored data
+          const merged = { ...userData, ...checkData.user };
+          localStorage.setItem("user", JSON.stringify(merged));
+          localStorage.setItem("userData", JSON.stringify(merged));
+          if (checkData.needsVerification) {
+            showSuccess("Please complete verification.");
+            navigate("/account-verification", { replace: true });
+          } else {
+            showSuccess("Login successful!");
+            navigate("/dashboard", { replace: true });
+          }
+          setLoading(false);
+          return;
+        }
+
+        // ─── STEP 2: User does not exist – sync/create ──────
+        console.log('[AuthCallback] User not found, syncing...');
+        const syncRes = await fetch('/api/auth/sync-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ email, vexaToken: token })
         });
+        const syncData = await syncRes.json();
+        console.log('[AuthCallback] Sync response:', syncData);
 
-        const data = await response.json();
-        console.log('[AuthCallback] Sync response:', data);
-
-        if (!data.success) {
-          throw new Error(data.message || 'Sync failed');
+        if (!syncData.success) {
+          throw new Error(syncData.message || 'Sync failed');
         }
 
-        // Store updated user data with VexaTrade fields
-        if (data.user) {
-          const mergedUser = {
-            ...userData,
-            id: data.user.id,
-            email_verified: data.user.email_verified || 0,
-            kyc_status: data.user.kyc_status || 'not_submitted',
-            status: data.user.status || 'pending',
-            first_name: data.user.first_name,
-            last_name: data.user.last_name,
-            gender: data.user.gender,
-            dob: data.user.dob,
-            country: data.user.country
-          };
-          localStorage.setItem("user", JSON.stringify(mergedUser));
-          localStorage.setItem("userData", JSON.stringify(mergedUser));
-        }
+        // Store synced user data
+        const merged = { ...userData, ...syncData.user };
+        localStorage.setItem("user", JSON.stringify(merged));
+        localStorage.setItem("userData", JSON.stringify(merged));
 
-        if (data.needsVerification) {
+        if (syncData.needsVerification) {
           showSuccess("Account created! Please complete verification.");
           navigate("/account-verification", { replace: true });
         } else {
@@ -104,17 +112,15 @@ export default function AuthCallback() {
           navigate("/dashboard", { replace: true });
         }
       } catch (error) {
-        console.error('[AuthCallback] Sync error:', error);
-        setErrorMsg(error.message);
-        showError("Failed to sync account. Please try again.");
-        // Fallback: go to verification anyway (maybe user exists but needs verification)
-        navigate("/account-verification", { replace: true });
+        console.error('[AuthCallback] Error:', error);
+        showError("Authentication error. Please try again.");
+        navigate("/login", { replace: true });
       } finally {
         setLoading(false);
       }
     };
 
-    syncUser();
+    handleAuth();
   }, [location, navigate, showSuccess, showError]);
 
   if (loading) {
@@ -123,7 +129,6 @@ export default function AuthCallback() {
         <div className="text-center">
           <div className="spinner border-4 border-cyan-500 border-t-transparent rounded-full w-12 h-12 animate-spin mx-auto"></div>
           <p className="text-white mt-4">Setting up your account...</p>
-          {errorMsg && <p className="text-red-400 mt-2 text-sm">{errorMsg}</p>}
         </div>
       </div>
     );
