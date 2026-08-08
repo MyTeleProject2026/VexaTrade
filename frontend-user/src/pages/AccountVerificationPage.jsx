@@ -53,24 +53,40 @@ async function refreshUserDataFromServer() {
   if (!token) return null;
 
   try {
-    const response = await userApi.getProfile(token);
-    if (response?.data?.success) {
-      const freshUser = response.data.data;
+    // Call VexaTrade's verification status endpoint
+    const response = await fetch('/api/auth/verification-status', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const data = await response.json();
+    console.log('[Refresh] Status response:', data);
+    
+    if (data.success && data.status) {
+      // Get current user data and update with fresh status
+      const currentUser = getStoredUser();
+      const freshUser = {
+        ...currentUser,
+        email_verified: data.status.emailVerified ? 1 : 0,
+        kyc_status: data.status.kycStatus || 'not_submitted',
+        status: data.status.accountStatus || 'pending',
+      };
       localStorage.setItem("user", JSON.stringify(freshUser));
       localStorage.setItem("userData", JSON.stringify(freshUser));
       return freshUser;
     }
+    return null;
   } catch (error) {
     console.error("Failed to refresh user data:", error);
+    return null;
   }
-  return null;
 }
 
 export default function AccountVerificationPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const { showSuccess, showInfo, showError } = useNotification();
 
   const emailVerified = Number(user?.email_verified || 0) === 1;
@@ -120,7 +136,7 @@ export default function AccountVerificationPage() {
         showError("Failed to refresh status. Please try again.");
       }
     } catch (error) {
-      showError("Error refreshing status");
+      showError("Failed to refresh status. Please try again.");
     } finally {
       setIsRefreshing(false);
     }
