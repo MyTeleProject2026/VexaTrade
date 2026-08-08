@@ -37,13 +37,15 @@ export default function AuthCallback() {
       }
 
       // ──────────────────────────────────────────────────────────
-      // ✅ FIX: Check if user exists in VexaTrade database
+      // ✅ FIX: Sync user from VexaAccount to VexaTrade
       // ──────────────────────────────────────────────────────────
-      const checkUserInVexaTrade = async () => {
+      const syncUser = async () => {
         try {
           const email = userData?.email || '';
           
-          const response = await fetch('/api/auth/check-user', {
+          console.log('[AuthCallback] Syncing user:', email);
+          
+          const response = await fetch('/api/auth/sync-user', {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -56,41 +58,50 @@ export default function AuthCallback() {
           });
 
           const data = await response.json();
-          console.log('[AuthCallback] User check response:', data);
+          console.log('[AuthCallback] Sync response:', data);
 
           if (data.success && data.user) {
-            // Store user data with VexaTrade fields
+            // Store complete user data
             const userWithTradeData = {
               ...userData,
               id: data.user.id,
               email_verified: data.user.email_verified || 0,
               kyc_status: data.user.kyc_status || 'not_submitted',
-              status: data.user.status || 'pending'
+              status: data.user.status || 'pending',
+              first_name: data.user.first_name,
+              last_name: data.user.last_name,
+              gender: data.user.gender,
+              dob: data.user.dob,
+              country: data.user.country
             };
             localStorage.setItem("user", JSON.stringify(userWithTradeData));
             localStorage.setItem("userData", JSON.stringify(userWithTradeData));
-          }
-
-          if (data.exists && !data.needsVerification) {
-            // User exists and is fully verified – go to dashboard
-            showSuccess("Login successful!");
-            navigate("/dashboard", { replace: true });
+            
+            if (data.needsVerification) {
+              // Needs verification – go to Account Verification page
+              showSuccess("Account created! Please complete verification.");
+              navigate("/account-verification", { replace: true });
+            } else {
+              // Fully approved – go to dashboard
+              showSuccess("Login successful!");
+              navigate("/dashboard", { replace: true });
+            }
           } else {
-            // New user or needs verification – go to Account Verification page
+            // Fallback – go to verification
             showSuccess("Account created! Please complete verification.");
             navigate("/account-verification", { replace: true });
           }
         } catch (error) {
-          console.error('[AuthCallback] Error checking user:', error);
-          // On error, go to verification as safe fallback
-          navigate("/account-verification", { replace: true });
+          console.error('[AuthCallback] Sync error:', error);
+          showError("Failed to sync account. Please try again.");
+          navigate("/login", { replace: true });
         } finally {
           setLoading(false);
         }
       };
 
       if (userData?.email) {
-        checkUserInVexaTrade();
+        syncUser();
       } else {
         // No user data – redirect to login
         showError("No user data received. Please try again.");
@@ -119,7 +130,7 @@ export default function AuthCallback() {
       <div className="min-h-screen flex items-center justify-center bg-[#050812]">
         <div className="text-center">
           <div className="spinner border-4 border-cyan-500 border-t-transparent rounded-full w-12 h-12 animate-spin mx-auto"></div>
-          <p className="text-white mt-4">Completing authentication...</p>
+          <p className="text-white mt-4">Setting up your account...</p>
         </div>
       </div>
     );
