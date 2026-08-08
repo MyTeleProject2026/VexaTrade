@@ -6,7 +6,7 @@ const VEXACCOUNT_URL = process.env.VEXACCOUNT_URL || 'https://api-vexaaccount.on
 
 /**
  * Get user profile from VexaAccount by email
- * Used by /sync-user to fetch full profile data
+ * Used by /sync-user (fallback if userData is missing)
  */
 async function getUserProfile(email) {
   try {
@@ -22,7 +22,6 @@ async function getUserProfile(email) {
 }
 
 module.exports = {
-  // ─── Registration ────────────────────────────────────────────
   register: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/register`, data, {
@@ -33,8 +32,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Login ──────────────────────────────────────────────────
   login: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/login`, data, {
@@ -45,8 +42,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Verify OTP (email verification) ──────────────────────
   verifyOtp: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/verify-otp`, data, {
@@ -57,8 +52,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Resend OTP ─────────────────────────────────────────────
   resendOtp: async (email) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/resend-otp`, { email }, {
@@ -69,8 +62,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Verify Email 2FA ──────────────────────────────────────
   verifyEmail2fa: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/verify-email-2fa`, data, {
@@ -81,8 +72,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Resend Email 2FA ──────────────────────────────────────
   resendEmail2fa: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/resend-email-2fa`, data, {
@@ -93,8 +82,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Verify Authenticator 2FA ──────────────────────────────
   verifyTwoFactor: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/twofa/verify`, data, {
@@ -105,8 +92,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Forgot Password ────────────────────────────────────────
   forgotPassword: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/forgot-password`, data, {
@@ -117,8 +102,6 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Reset Password ─────────────────────────────────────────
   resetPassword: async (data) => {
     try {
       const response = await axios.post(`${VEXACCOUNT_URL}/api/auth/reset-password`, data, {
@@ -129,7 +112,5 @@ module.exports = {
       throw error.response?.data || error;
     }
   },
-
-  // ─── Get user profile by email (for sync) ──────────────────
   getUserProfile,
 };
