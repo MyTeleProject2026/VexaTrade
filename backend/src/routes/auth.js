@@ -1,5 +1,6 @@
 // backend/src/routes/auth.js
 const router = require('express').Router();
+const jwt = require('jsonwebtoken');
 const {
   register,
   login,
@@ -10,7 +11,7 @@ const {
   verifyTwoFactor,
   forgotPassword,
   resetPassword,
-  getUserProfile, // ⬅️ NEW: fetch user profile from VexaAccount
+  getUserProfile,
 } = require('../../services/vexaccount');
 
 const { pool } = require('../../config/database');
@@ -143,7 +144,8 @@ router.post('/sync-user', async (req, res) => {
         status: user.status,
         gender: user.gender,
         dob: user.dob,
-        country: user.country
+        country: user.country,
+        avatar_url: user.avatar_url
       }
     });
 
@@ -167,8 +169,13 @@ router.get('/verification-status', async (req, res) => {
     }
 
     // Decode token to get email
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vexatrade_jwt_secret');
+    const JWT_SECRET = process.env.JWT_SECRET || 'vexatrade_jwt_secret_key';
+    const decoded = jwt.verify(token, JWT_SECRET);
     const email = decoded.email;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email not found in token' });
+    }
 
     const [rows] = await pool.query(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
@@ -183,6 +190,7 @@ router.get('/verification-status', async (req, res) => {
     const emailVerified = Number(user.email_verified || 0) === 1;
     const kycStatus = user.kyc_status || 'not_submitted';
     const accountStatus = user.status || 'pending';
+    const platformAccess = (emailVerified && kycStatus === 'approved' && accountStatus === 'active') ? 'active' : 'locked';
 
     return res.json({
       success: true,
@@ -190,13 +198,16 @@ router.get('/verification-status', async (req, res) => {
         emailVerified,
         kycStatus,
         accountStatus,
-        platformAccess: (emailVerified && kycStatus === 'approved' && accountStatus === 'active') ? 'active' : 'locked'
+        platformAccess
       }
     });
 
   } catch (error) {
     console.error('❌ [verification-status] Error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
   }
 });
 
