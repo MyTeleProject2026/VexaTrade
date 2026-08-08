@@ -1,7 +1,7 @@
 // frontend-user/src/services/maintenanceApi.js
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 
 export const maintenanceApi = {
   getStatus: async () => {
