@@ -17,31 +17,50 @@ const {
 const { pool } = require('../../db');
 
 // ──────────────────────────────────────────────────────────────
-// ✅ SYNC USER – Creates user in VexaTrade if not exists
+// ✅ CHECK USER – Simple existence check (used by AuthCallback)
+// ──────────────────────────────────────────────────────────────
+router.post('/check-user', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, exists: false, message: 'Email required' });
+    }
+    const [rows] = await pool.execute(
+      `SELECT id, email, name, email_verified, kyc_status, status FROM users WHERE email = ?`,
+      [email.toLowerCase().trim()]
+    );
+    if (rows.length) {
+      const user = rows[0];
+      const needsVerification = (
+        Number(user.email_verified || 0) === 0 ||
+        String(user.kyc_status || 'not_submitted').toLowerCase() !== 'approved' ||
+        String(user.status || 'pending').toLowerCase() !== 'active'
+      );
+      return res.json({ success: true, exists: true, needsVerification, user });
+    }
+    return res.json({ success: true, exists: false, needsVerification: true, user: null });
+  } catch (error) {
+    console.error('❌ [check-user] Error:', error);
+    res.status(500).json({ success: false, exists: false, message: error.message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// ✅ SYNC USER – Creates or updates user in VexaTrade
 // ──────────────────────────────────────────────────────────────
 router.post('/sync-user', async (req, res) => {
   try {
-    const { email, vexaToken } = req.body;
+    const { email, vexaToken, userData } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email required' });
     }
 
     console.log('🔄 [sync-user] Syncing user:', email);
+    console.log('🔄 [sync-user] Received userData:', userData);
 
-    // ─── 1. Fetch profile from VexaAccount ───
-    let vexaUser = null;
-    try {
-      const response = await axios.get(
-        `${process.env.VEXACCOUNT_URL || 'https://api-vexaaccount.onrender.com'}/api/auth/profile-by-email`,
-        { params: { email } }
-      );
-      if (response.data.success) {
-        vexaUser = response.data.user || response.data.data;
-      }
-    } catch (err) {
-      console.log('⚠️ [sync-user] Could not fetch profile:', err.message);
-      vexaUser = { email };
-    }
+    // ─── Use provided userData (from VexaAccount) ───
+    // If userData is missing, fallback to minimal data
+    const profile = userData || {};
 
     // ─── 2. Check if user exists in VexaTrade ───
     const [existing] = await pool.execute(
@@ -68,13 +87,13 @@ router.post('/sync-user', async (req, res) => {
           updated_at = NOW()
         WHERE id = ?`,
         [
-          vexaUser?.name || vexaUser?.full_name || null,
-          vexaUser?.first_name || vexaUser?.firstName || null,
-          vexaUser?.last_name || vexaUser?.lastName || null,
-          vexaUser?.gender || null,
-          vexaUser?.dob || vexaUser?.date_of_birth || null,
-          vexaUser?.country || null,
-          vexaUser?.avatar_url || null,
+          profile?.name || profile?.full_name || null,
+          profile?.first_name || profile?.firstName || null,
+          profile?.last_name || profile?.lastName || null,
+          profile?.gender || null,
+          profile?.dob || profile?.date_of_birth || null,
+          profile?.country || null,
+          profile?.avatar_url || null,
           user.id
         ]
       );
@@ -85,7 +104,7 @@ router.post('/sync-user', async (req, res) => {
       const nextId = lastUser.length ? lastUser[0].id + 1 : 1;
       const uid = `CP${String(nextId).padStart(8, '0')}`;
 
-      // ─── Create user ───
+      // ─── Create user using profile data ───
       const [result] = await pool.execute(
         `INSERT INTO users (
           uid, email, name, first_name, last_name, gender, date_of_birth, country,
@@ -94,13 +113,13 @@ router.post('/sync-user', async (req, res) => {
         [
           uid,
           email.toLowerCase().trim(),
-          vexaUser?.name || vexaUser?.full_name || email.split('@')[0],
-          vexaUser?.first_name || vexaUser?.firstName || null,
-          vexaUser?.last_name || vexaUser?.lastName || null,
-          vexaUser?.gender || null,
-          vexaUser?.dob || vexaUser?.date_of_birth || null,
-          vexaUser?.country || null,
-          vexaUser?.avatar_url || null
+          profile?.name || profile?.full_name || email.split('@')[0],
+          profile?.first_name || profile?.firstName || null,
+          profile?.last_name || profile?.lastName || null,
+          profile?.gender || null,
+          profile?.dob || profile?.date_of_birth || null,
+          profile?.country || null,
+          profile?.avatar_url || null
         ]
       );
       const [newUser] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
@@ -142,36 +161,7 @@ router.post('/sync-user', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ CHECK USER – Simple existence check
-// ──────────────────────────────────────────────────────────────
-router.post('/check-user', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, exists: false, message: 'Email required' });
-    }
-    const [rows] = await pool.execute(
-      `SELECT id, email, name, email_verified, kyc_status, status FROM users WHERE email = ?`,
-      [email.toLowerCase().trim()]
-    );
-    if (rows.length) {
-      const user = rows[0];
-      const needsVerification = (
-        Number(user.email_verified || 0) === 0 ||
-        String(user.kyc_status || 'not_submitted').toLowerCase() !== 'approved' ||
-        String(user.status || 'pending').toLowerCase() !== 'active'
-      );
-      return res.json({ success: true, exists: true, needsVerification, user });
-    }
-    return res.json({ success: true, exists: false, needsVerification: true, user: null });
-  } catch (error) {
-    console.error('❌ [check-user] Error:', error);
-    res.status(500).json({ success: false, exists: false, message: error.message });
-  }
-});
-
-// ──────────────────────────────────────────────────────────────
-// ✅ VERIFICATION STATUS
+// ✅ VERIFICATION STATUS (for the Account Verification page)
 // ──────────────────────────────────────────────────────────────
 router.get('/verification-status', async (req, res) => {
   try {
@@ -201,7 +191,7 @@ router.get('/verification-status', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// PROXY ROUTES TO VEXAACCOUNT
+// PROXY ROUTES TO VEXAACCOUNT (unchanged)
 // ──────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
