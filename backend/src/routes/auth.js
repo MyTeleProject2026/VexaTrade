@@ -10,99 +10,198 @@ const {
   verifyTwoFactor,
   forgotPassword,
   resetPassword,
+  getUserProfile, // ⬅️ NEW: fetch user profile from VexaAccount
 } = require('../../services/vexaccount');
 
-// ──────────────────────────────────────────────────────────────
-// ✅ NEW: Check if user exists in VexaTrade database
-// ──────────────────────────────────────────────────────────────
 const { pool } = require('../../config/database');
 
-router.post('/check-user', async (req, res) => {
+// ──────────────────────────────────────────────────────────────
+// ✅ NEW: Sync user from VexaAccount to VexaTrade
+// ──────────────────────────────────────────────────────────────
+router.post('/sync-user', async (req, res) => {
   try {
     const { email, vexaToken } = req.body;
     
     if (!email) {
       return res.status(400).json({ 
         success: false, 
-        exists: false, 
-        needsVerification: false,
         message: 'Email required' 
       });
     }
 
-    // Check if user exists in VexaTrade's database
-    const [rows] = await pool.query(
-      `SELECT id, email, name, email_verified, kyc_status, status 
-       FROM users 
-       WHERE email = ?`,
+    console.log('🔄 [sync-user] Syncing user:', email);
+
+    // ─── 1. Fetch user profile from VexaAccount ───
+    let vexaUser = null;
+    try {
+      const profileResult = await getUserProfile(email);
+      vexaUser = profileResult.data || profileResult.user || profileResult;
+      console.log('🔄 [sync-user] VexaAccount profile:', vexaUser);
+    } catch (err) {
+      console.log('🔄 [sync-user] Could not fetch profile from VexaAccount, using basic data');
+      vexaUser = { email };
+    }
+
+    // ─── 2. Check if user exists in VexaTrade ───
+    const [existing] = await pool.query(
+      'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     );
 
-    if (rows.length > 0) {
-      // User exists – check verification status
-      const user = rows[0];
-      const needsVerification = (
-        Number(user.email_verified || 0) === 0 || 
-        String(user.kyc_status || 'not_submitted').toLowerCase() !== 'approved' || 
-        String(user.status || 'pending').toLowerCase() !== 'active'
-      );
+    let user = null;
+    let isNewUser = false;
+
+    if (existing.length > 0) {
+      user = existing[0];
+      console.log('🔄 [sync-user] User already exists in VexaTrade:', user.id);
       
-      return res.json({ 
-        success: true,
-        exists: true, 
-        needsVerification,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          email_verified: user.email_verified,
-          kyc_status: user.kyc_status,
-          status: user.status
-        }
-      });
+      // Update user with latest data from VexaAccount
+      await pool.query(
+        `UPDATE users SET 
+          name = COALESCE(?, name),
+          first_name = COALESCE(?, first_name),
+          last_name = COALESCE(?, last_name),
+          gender = COALESCE(?, gender),
+          dob = COALESCE(?, dob),
+          country = COALESCE(?, country),
+          avatar_url = COALESCE(?, avatar_url),
+          updated_at = NOW()
+        WHERE id = ?`,
+        [
+          vexaUser.name || vexaUser.full_name || null,
+          vexaUser.first_name || vexaUser.firstName || null,
+          vexaUser.last_name || vexaUser.lastName || null,
+          vexaUser.gender || null,
+          vexaUser.dob || vexaUser.date_of_birth || null,
+          vexaUser.country || null,
+          vexaUser.avatar_url || null,
+          user.id
+        ]
+      );
+
+    } else {
+      isNewUser = true;
+      // ─── Create new user in VexaTrade ───
+      const [result] = await pool.query(
+        `INSERT INTO users (
+          email,
+          name,
+          first_name,
+          last_name,
+          gender,
+          dob,
+          country,
+          avatar_url,
+          email_verified,
+          kyc_status,
+          status,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          email.toLowerCase().trim(),
+          vexaUser.name || vexaUser.full_name || email.split('@')[0],
+          vexaUser.first_name || vexaUser.firstName || null,
+          vexaUser.last_name || vexaUser.lastName || null,
+          vexaUser.gender || null,
+          vexaUser.dob || vexaUser.date_of_birth || null,
+          vexaUser.country || null,
+          vexaUser.avatar_url || null,
+          0, // email_verified
+          'not_submitted',
+          'pending'
+        ]
+      );
+
+      const [newUser] = await pool.query(
+        'SELECT * FROM users WHERE id = ?',
+        [result.insertId]
+      );
+      user = newUser;
+      console.log('🔄 [sync-user] Created new user in VexaTrade:', user.id);
     }
 
-    // User doesn't exist – create a pending account
-    const [result] = await pool.query(
-      `INSERT INTO users (
-        email, 
-        name, 
-        email_verified, 
-        kyc_status, 
-        status, 
-        created_at,
-        updated_at
-      ) VALUES (?, ?, 0, 'not_submitted', 'pending', NOW(), NOW())`,
-      [email.toLowerCase().trim(), email.split('@')[0]]
+    // ─── 3. Return user data ───
+    const needsVerification = (
+      Number(user.email_verified || 0) === 0 ||
+      String(user.kyc_status || 'not_submitted').toLowerCase() !== 'approved' ||
+      String(user.status || 'pending').toLowerCase() !== 'active'
     );
 
-    const [newUser] = await pool.query(
-      `SELECT id, email, name, email_verified, kyc_status, status 
-       FROM users 
-       WHERE id = ?`,
-      [result.insertId]
-    );
-
-    return res.json({ 
+    return res.json({
       success: true,
-      exists: false, 
-      needsVerification: true,
-      user: newUser[0]
+      isNewUser,
+      needsVerification,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email_verified: user.email_verified,
+        kyc_status: user.kyc_status,
+        status: user.status,
+        gender: user.gender,
+        dob: user.dob,
+        country: user.country
+      }
     });
 
   } catch (error) {
-    console.error('Error checking user:', error);
+    console.error('❌ [sync-user] Error:', error);
     res.status(500).json({ 
       success: false, 
-      exists: false, 
-      needsVerification: false, 
-      error: error.message 
+      message: error.message 
     });
   }
 });
 
 // ──────────────────────────────────────────────────────────────
-// Existing proxy routes
+// ✅ NEW: Get user verification status
+// ──────────────────────────────────────────────────────────────
+router.get('/verification-status', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Decode token to get email
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vexatrade_jwt_secret');
+    const email = decoded.email;
+
+    const [rows] = await pool.query(
+      `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
+      [email.toLowerCase().trim()]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = rows[0];
+    const emailVerified = Number(user.email_verified || 0) === 1;
+    const kycStatus = user.kyc_status || 'not_submitted';
+    const accountStatus = user.status || 'pending';
+
+    return res.json({
+      success: true,
+      status: {
+        emailVerified,
+        kycStatus,
+        accountStatus,
+        platformAccess: (emailVerified && kycStatus === 'approved' && accountStatus === 'active') ? 'active' : 'locked'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [verification-status] Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// ✅ Proxy routes to VexaAccount
 // ──────────────────────────────────────────────────────────────
 
 router.post('/register', async (req, res) => {
