@@ -2,7 +2,6 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Connect to the VexaAccount database (separate cluster)
 const vexaccountPool = mysql.createPool({
   host: process.env.VEXA_DB_HOST,
   user: process.env.VEXA_DB_USER,
