@@ -15,6 +15,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import AuthCallback from "./pages/auth/AuthCallback";
 import TwoFactorAuthPage from "./pages/auth/TwoFactorAuthPage";
 import Email2faVerificationPage from "./pages/auth/Email2faVerificationPage";
+import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
 import DashboardPage from "./pages/DashboardPage";
 import AssetsPage from "./pages/AssetsPage";
 import TradePage from "./pages/TradePage";
@@ -206,6 +207,9 @@ function AppContent() {
         {/* 2FA Routes */}
         <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
         <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
+
+        {/* ✅ NEW: Email verification route */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* ✅ Account Verification Route */}
         <Route
