@@ -6,56 +6,52 @@ const AuthCallback = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // 1. Parse the URL parameters
+    // Parse URL parameters
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
     const userParam = params.get('user');
     const error = params.get('error');
 
-    // 2. Handle errors from VexaAccount (e.g., user cancelled)
+    // Handle error from VexaAccount
     if (error) {
       console.error('❌ Auth error from VexaAccount:', error);
       navigate('/login?error=auth_failed', { replace: true });
       return;
     }
 
-    // 3. Check if token exists
     if (token) {
-      // 4. Save token to localStorage
+      // Save token to multiple keys for compatibility
       localStorage.setItem('token', token);
+      localStorage.setItem('userToken', token); // extra key for api.js interceptor
+      localStorage.setItem('accessToken', token);
 
-      // 5. Save user info if provided (usually a JSON string)
+      // Save user info if provided (usually JSON string)
       if (userParam) {
         localStorage.setItem('user', userParam);
+        localStorage.setItem('userData', userParam);
         console.log('👤 User info saved');
       }
 
       console.log('✅ Token saved successfully');
 
-      // 6. (Security) Remove the token from the URL to prevent exposure
-      //    This replaces the URL with the clean path (no ?token=...)
+      // Clean URL (remove token from address bar)
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // 7. Redirect to the account verification page (or dashboard)
+      // Redirect to account verification (or dashboard if already verified)
       navigate('/account-verification', { replace: true });
     } else {
-      // 8. No token – authentication failed
       console.error('❌ No token in callback URL');
       navigate('/login?error=missing_token', { replace: true });
     }
   }, [location, navigate]);
 
-  // Show a loading message while processing
+  // Show loading indicator
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-      }}
-    >
-      <p>Completing login... Please wait.</p>
+    <div className="flex min-h-screen items-center justify-center bg-[#050812]">
+      <div className="text-center">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+        <p className="mt-4 text-sm text-slate-400">Completing login…</p>
+      </div>
     </div>
   );
 };
