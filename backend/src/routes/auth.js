@@ -11,13 +11,12 @@ const {
   verifyTwoFactor,
   forgotPassword,
   resetPassword,
-  getUserProfile,
 } = require('../../services/vexaccount');
 
-const { pool } = require('../../config/database');
+const { pool } = require('../../db');
 
 // ──────────────────────────────────────────────────────────────
-// ✅ NEW: Sync user from VexaAccount to VexaTrade
+// ✅ SYNC USER FROM VEXAACCOUNT TO VEXATRADE
 // ──────────────────────────────────────────────────────────────
 router.post('/sync-user', async (req, res) => {
   try {
@@ -32,19 +31,24 @@ router.post('/sync-user', async (req, res) => {
 
     console.log('🔄 [sync-user] Syncing user:', email);
 
-    // ─── 1. Fetch user profile from VexaAccount ───
+    // ─── 1. Get user from VexaAccount via the proxy ───
     let vexaUser = null;
     try {
-      const profileResult = await getUserProfile(email);
-      vexaUser = profileResult.data || profileResult.user || profileResult;
-      console.log('🔄 [sync-user] VexaAccount profile:', vexaUser);
+      // Use the existing register service to get user info
+      // Or call VexaAccount directly
+      const response = await axios.get(`${process.env.VEXACCOUNT_URL || 'https://api-vexaaccount.onrender.com'}/api/auth/profile-by-email`, {
+        params: { email }
+      });
+      if (response.data.success) {
+        vexaUser = response.data.user || response.data.data;
+      }
     } catch (err) {
-      console.log('🔄 [sync-user] Could not fetch profile from VexaAccount, using basic data');
+      console.log('⚠️ [sync-user] Could not fetch profile from VexaAccount:', err.message);
       vexaUser = { email };
     }
 
     // ─── 2. Check if user exists in VexaTrade ───
-    const [existing] = await pool.query(
+    const [existing] = await pool.execute(
       'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     );
@@ -57,64 +61,73 @@ router.post('/sync-user', async (req, res) => {
       console.log('🔄 [sync-user] User already exists in VexaTrade:', user.id);
       
       // Update user with latest data from VexaAccount
-      await pool.query(
+      await pool.execute(
         `UPDATE users SET 
           name = COALESCE(?, name),
           first_name = COALESCE(?, first_name),
           last_name = COALESCE(?, last_name),
           gender = COALESCE(?, gender),
-          dob = COALESCE(?, dob),
+          date_of_birth = COALESCE(?, date_of_birth),
           country = COALESCE(?, country),
           avatar_url = COALESCE(?, avatar_url),
           updated_at = NOW()
         WHERE id = ?`,
         [
-          vexaUser.name || vexaUser.full_name || null,
-          vexaUser.first_name || vexaUser.firstName || null,
-          vexaUser.last_name || vexaUser.lastName || null,
-          vexaUser.gender || null,
-          vexaUser.dob || vexaUser.date_of_birth || null,
-          vexaUser.country || null,
-          vexaUser.avatar_url || null,
+          vexaUser?.name || vexaUser?.full_name || null,
+          vexaUser?.first_name || vexaUser?.firstName || null,
+          vexaUser?.last_name || vexaUser?.lastName || null,
+          vexaUser?.gender || null,
+          vexaUser?.dob || vexaUser?.date_of_birth || null,
+          vexaUser?.country || null,
+          vexaUser?.avatar_url || null,
           user.id
         ]
       );
 
     } else {
       isNewUser = true;
+      
+      // Generate UID
+      const [lastUser] = await pool.execute('SELECT id FROM users ORDER BY id DESC LIMIT 1');
+      const nextId = lastUser.length ? lastUser[0].id + 1 : 1;
+      const uid = `CP${String(nextId).padStart(8, '0')}`;
+
       // ─── Create new user in VexaTrade ───
-      const [result] = await pool.query(
+      const [result] = await pool.execute(
         `INSERT INTO users (
+          uid,
           email,
           name,
           first_name,
           last_name,
           gender,
-          dob,
+          date_of_birth,
           country,
           avatar_url,
           email_verified,
           kyc_status,
           status,
+          balance,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`,
         [
+          uid,
           email.toLowerCase().trim(),
-          vexaUser.name || vexaUser.full_name || email.split('@')[0],
-          vexaUser.first_name || vexaUser.firstName || null,
-          vexaUser.last_name || vexaUser.lastName || null,
-          vexaUser.gender || null,
-          vexaUser.dob || vexaUser.date_of_birth || null,
-          vexaUser.country || null,
-          vexaUser.avatar_url || null,
+          vexaUser?.name || vexaUser?.full_name || email.split('@')[0],
+          vexaUser?.first_name || vexaUser?.firstName || null,
+          vexaUser?.last_name || vexaUser?.lastName || null,
+          vexaUser?.gender || null,
+          vexaUser?.dob || vexaUser?.date_of_birth || null,
+          vexaUser?.country || null,
+          vexaUser?.avatar_url || null,
           0, // email_verified
           'not_submitted',
           'pending'
         ]
       );
 
-      const [newUser] = await pool.query(
+      const [newUser] = await pool.execute(
         'SELECT * FROM users WHERE id = ?',
         [result.insertId]
       );
@@ -135,6 +148,7 @@ router.post('/sync-user', async (req, res) => {
       needsVerification,
       user: {
         id: user.id,
+        uid: user.uid,
         email: user.email,
         name: user.name,
         first_name: user.first_name,
@@ -143,9 +157,10 @@ router.post('/sync-user', async (req, res) => {
         kyc_status: user.kyc_status,
         status: user.status,
         gender: user.gender,
-        dob: user.dob,
+        date_of_birth: user.date_of_birth,
         country: user.country,
-        avatar_url: user.avatar_url
+        avatar_url: user.avatar_url,
+        balance: Number(user.balance || 0)
       }
     });
 
@@ -159,7 +174,7 @@ router.post('/sync-user', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ NEW: Get user verification status
+// ✅ GET: VERIFICATION STATUS
 // ──────────────────────────────────────────────────────────────
 router.get('/verification-status', async (req, res) => {
   try {
@@ -168,7 +183,6 @@ router.get('/verification-status', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    // Decode token to get email
     const JWT_SECRET = process.env.JWT_SECRET || 'vexatrade_jwt_secret_key';
     const decoded = jwt.verify(token, JWT_SECRET);
     const email = decoded.email;
@@ -177,7 +191,7 @@ router.get('/verification-status', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email not found in token' });
     }
 
-    const [rows] = await pool.query(
+    const [rows] = await pool.execute(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
     );
@@ -212,7 +226,7 @@ router.get('/verification-status', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ Proxy routes to VexaAccount
+// ✅ PROXY ROUTES TO VEXAACCOUNT
 // ──────────────────────────────────────────────────────────────
 
 router.post('/register', async (req, res) => {
@@ -311,6 +325,70 @@ router.post('/reset-password', async (req, res) => {
     res.status(error.response?.status || 500).json(
       error.response?.data || { success: false, message: error.message }
     );
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// ✅ ADD THIS: Check user for AuthCallback
+// ──────────────────────────────────────────────────────────────
+router.post('/check-user', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        exists: false, 
+        needsVerification: false,
+        message: 'Email required' 
+      });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT id, email, name, email_verified, kyc_status, status 
+       FROM users 
+       WHERE email = ?`,
+      [email.toLowerCase().trim()]
+    );
+
+    if (rows.length > 0) {
+      const user = rows[0];
+      const needsVerification = (
+        Number(user.email_verified || 0) === 0 || 
+        String(user.kyc_status || 'not_submitted').toLowerCase() !== 'approved' || 
+        String(user.status || 'pending').toLowerCase() !== 'active'
+      );
+      
+      return res.json({ 
+        success: true,
+        exists: true, 
+        needsVerification,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          email_verified: user.email_verified,
+          kyc_status: user.kyc_status,
+          status: user.status
+        }
+      });
+    }
+
+    return res.json({ 
+      success: true,
+      exists: false, 
+      needsVerification: true,
+      user: null
+    });
+
+  } catch (error) {
+    console.error('❌ [check-user] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      exists: false, 
+      needsVerification: false, 
+      error: error.message 
+    });
   }
 });
 
