@@ -69,19 +69,20 @@ const allowedOrigins = [
   "http://localhost:3000",
   
   // ✅ VexaTrade Frontend URLs
-  "https://vexatrade.onrender.com",
+  "https://vexatrade-6nhs.onrender.com",
   "https://www.vexatrade-v.2bd.net",  // ✅ THIS IS ALREADY HERE
   "https://vexatrade-v.2bd.net",
   
   // ✅ VexaTrade Admin URLs
-  "https://vexatrade-admin.onrender.com",
+  "https://vexatrade-admin-n36m.onrender.com",
   "https://admin.vexatrade-v.2bd.net",
 
   // ✅ your frontend-EmployeeMonitor URL 
   "https://vexatrade-all-adminmonitor-user-activity.onrender.com",
+  "https://employee-admin-monitor-vexatrade.onrender.com",
    
   // ✅ Your backend URL
-  "https://vexatrade-server.onrender.com",
+  "https://vexatrade-5ycu.onrender.com",
 ].filter(Boolean);
 
 
