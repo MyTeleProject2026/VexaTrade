@@ -8,24 +8,23 @@ const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key_2024_secu
 async function syncUserFromVexaAccount(accountId) {
   const connection = await vexaccountPool.getConnection();
   try {
-    // 1. Check local users table for account_id
-    const localConnection = await pool.getConnection();
+    // 1. Check local users table for this account_id
+    const localConn = await pool.getConnection();
     try {
-      const [localRows] = await localConnection.execute(
+      const [localRows] = await localConn.execute(
         "SELECT id FROM users WHERE account_id = ?",
         [accountId]
       );
       if (localRows.length) {
-        // Update timestamp and return local ID
-        await localConnection.execute(
+        await localConn.execute(
           `UPDATE users SET updated_at = NOW() WHERE account_id = ?`,
           [accountId]
         );
-        localConnection.release();
-        return localRows[0].id;
+        localConn.release();
+        return localRows[0].id; // local ID
       }
     } finally {
-      localConnection.release();
+      localConn.release();
     }
 
     // 2. Fetch from VexaAccount store_users
@@ -43,9 +42,9 @@ async function syncUserFromVexaAccount(accountId) {
     const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
 
     // 3. Insert into local users (with account_id)
-    const localConnection2 = await pool.getConnection();
+    const localConn2 = await pool.getConnection();
     try {
-      const [result] = await localConnection2.execute(
+      const [result] = await localConn2.execute(
         `INSERT INTO users (
           account_id, uid, name, email, avatar_url, email_verified, 
           status, kyc_status, balance, created_at, updated_at
@@ -62,7 +61,7 @@ async function syncUserFromVexaAccount(accountId) {
       console.log(`✅ Synced user ${accountUser.email} (Local ID: ${result.insertId})`);
       return result.insertId;
     } finally {
-      localConnection2.release();
+      localConn2.release();
     }
   } catch (error) {
     console.error('❌ Sync error:', error.message);
@@ -84,13 +83,13 @@ const authUser = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'User access required' });
     }
 
-    // Sync the user from VexaAccount into local DB
+    // Sync user from VexaAccount into local DB
     const localUserId = await syncUserFromVexaAccount(decoded.id);
     if (!localUserId) {
       return res.status(404).json({ success: false, message: 'User not found in local database' });
     }
 
-    // ✅ Fetch the full local user row to replace `req.user`
+    // Fetch the full local user row and attach to req.user
     const [userRows] = await pool.execute(
       `SELECT id, uid, name, email, avatar_url, email_verified, kyc_status, status, balance
        FROM users WHERE id = ?`,
@@ -100,9 +99,8 @@ const authUser = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // ✅ Attach the local user to `req.user`
-    req.user = userRows[0];
-    req.accountId = decoded.id; // keep original if needed
+    req.user = userRows[0];      // now req.user.id is the local ID
+    req.accountId = decoded.id;  // keep the original VexaAccount ID if needed
 
     next();
   } catch (error) {
@@ -129,4 +127,4 @@ const authAdmin = (req, res, next) => {
   }
 };
 
-module.exports = { authUser, authAdmin, syncUserFromVexaAccount };
+module.exports = { authUser, authAdmin };
