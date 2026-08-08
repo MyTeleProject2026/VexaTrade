@@ -1,13 +1,14 @@
-// // backend/config/vexaccountDb.js
+// backend/config/vexaccountDb.js
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
+// Connect to the VexaAccount database (separate cluster)
 const vexaccountPool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.VEXA_ACCOUNT_DB_NAME || 'vexastore', // ← ensure this is correct
-  port: 4000,
+  host: process.env.VEXA_DB_HOST,
+  user: process.env.VEXA_DB_USER,
+  password: process.env.VEXA_DB_PASSWORD,
+  database: process.env.VEXA_DB_NAME || 'vexastore',
+  port: Number(process.env.VEXA_DB_PORT || 4000),
   waitForConnections: true,
   connectionLimit: 5,
   queueLimit: 0,
