@@ -17,6 +17,7 @@ const crypto = require('crypto');
 const http = require('http');
 const socketIo = require('socket.io');
 const maintenanceRoutes = require("./maintenanceRoutes");
+const authRoutes = require('./src/routes/auth');
 const { authUser, authAdmin } = require('./src/middleware/auth');
 const fromName = process.env.MAIL_FROM_NAME || "BLOCKCHAIN ECOSYSTEM";
 
@@ -163,6 +164,7 @@ const newsRoutes = require("./newsRoutes");
 app.use("/api/news", newsRoutes);
 
 app.use("/api/maintenance", maintenanceRoutes);
+app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
