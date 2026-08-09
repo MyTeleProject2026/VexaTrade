@@ -9,7 +9,6 @@ const fs = require("fs");
 const http = require("http");
 const socketIo = require("socket.io");
 const pool = require("./db");
-const { authAdmin, authUser } = require('./src/middleware/auth');
 
 // ─── Import all route files ─────────────────────────────────────────
 const authRoutes = require('./src/routes/auth');
@@ -43,6 +42,7 @@ const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
   process.env.FRONTEND_USER_URL,
   process.env.FRONTEND_ADMIN_URL,
+  process.env.FRONTEND_EMPLOYEEMONITOR_URL,
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
@@ -74,6 +74,21 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Static Files ──────────────────────────────────────────────────
+const uploadDirs = [
+  "uploads",
+  "uploads/deposits",
+  "uploads/qrcodes",
+  "uploads/kyc",
+  "uploads/profiles",
+  "uploads/legal",
+  "uploads/qr_codes",
+];
+for (const dir of uploadDirs) {
+  const fullPath = path.join(__dirname, dir);
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true });
+  }
+}
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ─── Socket.io ─────────────────────────────────────────────────────
