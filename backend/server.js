@@ -2466,17 +2466,17 @@ app.get(
   }
 );
 
-/* =========================
-   EMAIL VERIFICATION
-========================= */
-
+// ============================================================
+// SEND EMAIL VERIFICATION CODE
+// ============================================================
 app.post(
   "/api/user/send-email-verification-code",
   authUser,
   async (req, res, next) => {
-    console.log('📧 [send-email-verification] Request received for:', req.body.email);
     const connection = await pool.getConnection();
     try {
+      console.log('📧 [send-email-verification] Request for:', req.body.email);
+
       await connection.beginTransaction();
 
       const [rows] = await connection.execute(
@@ -2499,12 +2499,13 @@ app.post(
       if (Number(user.email_verified || 0) === 1) {
         await connection.commit();
         console.log('ℹ️ Email already verified');
-        return res.json({ success: true, message: 'Email is already verified' });
+        return res.json({ success: true, message: 'Email already verified' });
       }
 
       const code = generateSixDigitOtp();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+      // Invalidate old OTPs
       await connection.execute(
         `UPDATE user_email_otps
          SET is_used = 1, updated_at = NOW()
@@ -2514,38 +2515,41 @@ app.post(
         [req.user.id]
       );
 
+      // Insert new OTP
       await connection.execute(
         `INSERT INTO user_email_otps (user_id, email, otp_code, purpose, is_used, expires_at, created_at, updated_at)
          VALUES (?, ?, ?, 'email_verification', 0, ?, NOW(), NOW())`,
         [req.user.id, user.email, code, expiresAt]
       );
 
-      // Send email (non-blocking)
+      // Send email (non-blocking – we don't wait for it)
       sendOtpEmail({ to: user.email, code })
-        .then(success => {
+        .then((success) => {
           console.log(`✅ Email sent to ${user.email}: ${success}`);
         })
-        .catch(err => console.error('❌ Email send error:', err));
+        .catch((err) => console.error('❌ Email send error:', err));
 
       await connection.commit();
 
-      console.log('✅ OTP generated and stored, returning success');
+      // ✅ ALWAYS send JSON response
+      console.log('✅ OTP generated, returning response');
       return res.json({
         success: true,
         message: `Your verification code is: ${code}`,
         code: code,
         emailSent: false
       });
+
     } catch (error) {
       await connection.rollback();
       console.error('❌ Error in send-email-verification:', error.message);
+      // ✅ ALWAYS send JSON on error
       return res.status(500).json({ success: false, message: 'Internal server error' });
     } finally {
       connection.release();
     }
   }
 );
-
 
 // POST /api/user/verify-email-code
 app.post(
