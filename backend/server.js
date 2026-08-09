@@ -175,6 +175,7 @@ server.listen(PORT, async () => {
     console.log(`✅ VexaTrade backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
+    console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
   } catch (error) {
     console.error("❌ MySQL connection failed:", error.message);
   }
