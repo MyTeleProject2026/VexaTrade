@@ -241,4 +241,370 @@ router.post('/admin/deposits/:id/reject', authAdmin, async (req, res, next) => {
     const adminNote = String(req.body?.admin_note || "").trim();
     await connection.beginTransaction();
     const [rows] = await connection.execute(`SELECT * FROM deposits WHERE id = ? FOR UPDATE`, [depositId]);
-    if (!rows.length) throw createError(404
+    if (!rows.length) throw createError(404, "Deposit not found");
+    const deposit = rows[0];
+    if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
+    await connection.execute(`UPDATE deposits SET status = 'rejected', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Rejected by admin", depositId]);
+    await createAuditLog(connection, { adminId: req.admin.id, action: "reject_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Rejected deposit #${deposit.id}` });
+    await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit rejected", message: adminNote || "Your deposit request has been rejected.", type: "security" });
+    await connection.commit();
+    res.json({ success: true, message: "Deposit rejected" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+// ─── Admin Deposit Networks ────────────────────────────────────────
+router.get('/admin/deposit-networks', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM deposit_wallets ORDER BY sort_order ASC, id DESC`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/deposit-networks', authAdmin, async (req, res, next) => {
+  try {
+    const coin = String(req.body.coin || "").trim().toUpperCase();
+    const network = String(req.body.network || "").trim().toUpperCase();
+    const displayLabel = String(req.body.display_label || "").trim();
+    const address = String(req.body.address || "").trim();
+    const minimumDeposit = Number(req.body.minimum_deposit || 0);
+    const sortOrder = Number(req.body.sort_order || 0);
+    const qrImageUrl = String(req.body.qr_image_url || "").trim();
+    const instructions = String(req.body.instructions || "").trim();
+    const status = String(req.body.status || "active").trim().toLowerCase();
+    if (!coin || !network || !address) throw createError(400, "Coin, network and address required");
+    if (!["active", "inactive"].includes(status)) throw createError(400, "Invalid status");
+    const [result] = await pool.execute(
+      `INSERT INTO deposit_wallets (coin, network, display_label, address, minimum_deposit, sort_order, qr_image_url, instructions, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [coin, network, displayLabel || `${coin} ${network}`, address, minimumDeposit, sortOrder, qrImageUrl || null, instructions || null, status]
+    );
+    await createAuditLog(pool, { adminId: req.admin.id, action: "create_deposit_network", referenceId: result.insertId, note: `Created deposit network ${coin} ${network}` });
+    res.json({ success: true, message: "Deposit network created" });
+  } catch (error) { next(error); }
+});
+
+router.put('/admin/deposit-networks/:id', authAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const coin = String(req.body.coin || "").trim().toUpperCase();
+    const network = String(req.body.network || "").trim().toUpperCase();
+    const displayLabel = String(req.body.display_label || "").trim();
+    const address = String(req.body.address || "").trim();
+    const minimumDeposit = Number(req.body.minimum_deposit || 0);
+    const sortOrder = Number(req.body.sort_order || 0);
+    const qrImageUrl = String(req.body.qr_image_url || "").trim();
+    const instructions = String(req.body.instructions || "").trim();
+    const status = String(req.body.status || "active").trim().toLowerCase();
+    if (!coin || !network || !address) throw createError(400, "Coin, network and address required");
+    await pool.execute(
+      `UPDATE deposit_wallets SET coin = ?, network = ?, display_label = ?, address = ?, minimum_deposit = ?, sort_order = ?, qr_image_url = ?, instructions = ?, status = ?, updated_at = NOW() WHERE id = ?`,
+      [coin, network, displayLabel || `${coin} ${network}`, address, minimumDeposit, sortOrder, qrImageUrl || null, instructions || null, status, id]
+    );
+    await createAuditLog(pool, { adminId: req.admin.id, action: "update_deposit_network", referenceId: id, note: `Updated deposit network #${id}` });
+    res.json({ success: true, message: "Deposit network updated" });
+  } catch (error) { next(error); }
+});
+
+router.delete('/admin/deposit-networks/:id', authAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await pool.execute(`DELETE FROM deposit_wallets WHERE id = ?`, [id]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "delete_deposit_network", referenceId: id, note: `Deleted deposit network #${id}` });
+    res.json({ success: true, message: "Deposit network deleted" });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Withdrawal Fees ─────────────────────────────────────────
+router.get('/admin/withdrawal-fees', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM withdrawal_fees ORDER BY coin ASC, network ASC, id DESC`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/withdrawal-fees', authAdmin, async (req, res, next) => {
+  try {
+    const coin = String(req.body.coin || "").trim().toUpperCase();
+    const network = String(req.body.network || "").trim().toUpperCase();
+    const feeAmount = Number(req.body.fee_amount || 0);
+    const feeType = String(req.body.fee_type || "fixed").trim().toLowerCase();
+    const status = String(req.body.status || "active").trim().toLowerCase();
+    if (!coin || !network) throw createError(400, "Coin and network required");
+    if (!["fixed", "percent"].includes(feeType)) throw createError(400, "Invalid fee type");
+    const [rows] = await pool.execute(`SELECT id FROM withdrawal_fees WHERE coin = ? AND network = ?`, [coin, network]);
+    if (rows.length) {
+      await pool.execute(`UPDATE withdrawal_fees SET fee_amount = ?, fee_type = ?, status = ?, updated_at = NOW() WHERE id = ?`, [feeAmount, feeType, status, rows[0].id]);
+    } else {
+      await pool.execute(`INSERT INTO withdrawal_fees (coin, network, fee_amount, fee_type, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`, [coin, network, feeAmount, feeType, status]);
+    }
+    await createAuditLog(pool, { adminId: req.admin.id, action: "update_withdrawal_fee", note: `Updated withdrawal fee for ${coin} ${network}` });
+    res.json({ success: true, message: "Withdrawal fee saved" });
+  } catch (error) { next(error); }
+});
+
+router.delete('/admin/withdrawal-fees/:id', authAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await pool.execute(`DELETE FROM withdrawal_fees WHERE id = ?`, [id]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "delete_withdrawal_fee", referenceId: id, note: `Deleted withdrawal fee #${id}` });
+    res.json({ success: true, message: "Withdrawal fee deleted" });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Withdrawals ──────────────────────────────────────────────
+router.get('/admin/withdrawals', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM withdrawals ORDER BY id DESC LIMIT 500`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) => {
+  try {
+    const withdrawalId = Number(req.params.id);
+    const adminNote = String(req.body?.admin_note || "").trim();
+    const [rows] = await pool.execute(`SELECT * FROM withdrawals WHERE id = ?`, [withdrawalId]);
+    if (!rows.length) throw createError(404, "Withdrawal not found");
+    const withdrawal = rows[0];
+    if (withdrawal.status !== "pending") throw createError(400, "Already processed");
+    await pool.execute(`UPDATE withdrawals SET status = 'approved', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", withdrawalId]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "approve_withdrawal", targetUserId: withdrawal.user_id, referenceId: withdrawal.id, note: adminNote || `Approved withdrawal #${withdrawal.id}` });
+    await createUserNotification(pool, { userId: withdrawal.user_id, title: "Withdrawal approved", message: "Your withdrawal request has been approved.", type: "general" });
+    res.json({ success: true, message: "Withdrawal approved" });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/withdrawals/:id/reject', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const withdrawalId = Number(req.params.id);
+    const adminNote = String(req.body?.admin_note || "").trim();
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(`SELECT * FROM withdrawals WHERE id = ? FOR UPDATE`, [withdrawalId]);
+    if (!rows.length) throw createError(404, "Withdrawal not found");
+    const withdrawal = rows[0];
+    if (withdrawal.status !== "pending") throw createError(400, "Already processed");
+    const amount = Number(withdrawal.amount || 0);
+    const feeAmount = Number(withdrawal.fee_amount || 0);
+    const refundAmount = Number((amount + feeAmount).toFixed(8));
+    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [refundAmount, withdrawal.user_id]);
+    await connection.execute(`UPDATE withdrawals SET status = 'rejected', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Rejected by admin", withdrawalId]);
+    await createTransactionLog(connection, { userId: withdrawal.user_id, type: "withdrawal_rejected_refund", amount: refundAmount, status: "completed", referenceId: withdrawal.id, note: adminNote || `Withdrawal #${withdrawal.id} rejected and refunded` });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "reject_withdrawal", targetUserId: withdrawal.user_id, referenceId: withdrawal.id, note: adminNote || `Rejected withdrawal #${withdrawal.id}` });
+    await createUserNotification(connection, { userId: withdrawal.user_id, title: "Withdrawal rejected", message: `Your withdrawal request has been rejected and ${refundAmount} refunded.`, type: "security" });
+    await connection.commit();
+    res.json({ success: true, message: "Withdrawal rejected and refunded" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+// ─── Admin Audit Logs ──────────────────────────────────────────────
+router.get('/admin/audit-logs', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM admin_audit_logs ORDER BY id DESC LIMIT 500`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.delete('/admin/audit-logs', authAdmin, async (req, res, next) => {
+  try {
+    await pool.execute(`DELETE FROM admin_audit_logs`);
+    res.json({ success: true, message: "Audit logs cleared" });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Trade Rules ──────────────────────────────────────────────
+router.get('/admin/trade-rules', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT id, timer_seconds, payout_percent, status, created_at FROM trade_rules ORDER BY timer_seconds ASC`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.put('/admin/trade-rules/:id', authAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const payoutPercent = Number(req.body.payout_percent);
+    const status = String(req.body.status || "active").toLowerCase();
+    if (payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
+    await pool.execute(`UPDATE trade_rules SET payout_percent = ?, status = ? WHERE id = ?`, [payoutPercent, status, id]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "update_trade_rule", referenceId: id, note: `Updated trade rule #${id}` });
+    res.json({ success: true, message: "Trade rule updated" });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Trade Outcome Queue ────────────────────────────────────
+router.get('/admin/trade-outcome-queue', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM trade_outcome_queue WHERE is_active = 1 AND is_used = 0 ORDER BY id DESC LIMIT 500`);
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/trade-outcome-queue', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const pair = String(req.body.pair || "").trim().toUpperCase();
+    const direction = String(req.body.direction || "").trim().toLowerCase();
+    const timerSeconds = Number(req.body.timer_seconds || 0);
+    const result = String(req.body.result || "").trim().toLowerCase();
+    const quantity = Number(req.body.quantity || 1);
+    if (!pair || !direction || !timerSeconds || !result) throw createError(400, "All fields required");
+    if (![60, 180, 300].includes(timerSeconds)) throw createError(400, "Invalid timer");
+    if (!["win", "loss"].includes(result)) throw createError(400, "Invalid result");
+    await connection.beginTransaction();
+    for (let i = 0; i < quantity; i++) {
+      await connection.execute(
+        `INSERT INTO trade_outcome_queue (pair, direction, timer_seconds, result, is_active, is_used, created_by, created_at)
+         VALUES (?, ?, ?, ?, 1, 0, ?, NOW())`,
+        [pair, direction, timerSeconds, result, req.admin.id]
+      );
+    }
+    await createAuditLog(connection, { adminId: req.admin.id, action: "create_trade_outcome_queue", note: `Created ${quantity} queue items for ${pair} ${direction} ${timerSeconds}s ${result}` });
+    await connection.commit();
+    res.json({ success: true, message: "Trade outcome queue added" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+router.delete('/admin/trade-outcome-queue/:id', authAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await pool.execute(`UPDATE trade_outcome_queue SET is_active = 0 WHERE id = ?`, [id]);
+    await createAuditLog(pool, { adminId: req.admin.id, action: "remove_trade_outcome_queue", referenceId: id, note: `Removed queue item #${id}` });
+    res.json({ success: true, message: "Queue item removed" });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Funds ────────────────────────────────────────────────────
+router.get('/admin/funds/summary', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) AS total_funds,
+              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_funds,
+              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_funds,
+              COALESCE(SUM(locked_principal), 0) AS total_funded_amount,
+              COALESCE(SUM(earned_profit), 0) AS total_earned_profit
+       FROM user_funds`
+    );
+    res.json({ success: true, data: rows[0] || { total_funds: 0, active_funds: 0, completed_funds: 0, total_funded_amount: 0, total_earned_profit: 0 } });
+  } catch (error) { next(error); }
+});
+
+router.get('/admin/funds', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT uf.*, fp.name AS plan_name, u.name AS user_name, u.email AS user_email
+       FROM user_funds uf
+       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
+       LEFT JOIN users u ON u.id = uf.user_id
+       ORDER BY uf.created_at DESC`
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/funds/:id/complete', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT * FROM user_funds WHERE id = ?`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const fund = fundRows[0];
+    if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already completed" }); }
+    const principal = toNumber(fund.locked_principal || fund.amount);
+    const profit = toNumber(fund.earned_profit);
+    const totalReturn = principal + profit;
+    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [totalReturn, fund.user_id]);
+    await connection.execute(`UPDATE user_funds SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Completed", message: `${fund.plan_name} completed. Total return: ${totalReturn.toFixed(2)} USDT`, type: "funds" });
+    await connection.commit();
+    res.json({ success: true, message: "Fund completed", data: { id: fundId, total_return: totalReturn } });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+router.post('/admin/funds/:id/cancel', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT * FROM user_funds WHERE id = ?`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const fund = fundRows[0];
+    if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Completed fund cannot be cancelled" }); }
+    if (fund.status === "cancelled") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already cancelled" }); }
+    const principal = toNumber(fund.locked_principal || fund.amount);
+    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [principal, fund.user_id]);
+    await connection.execute(`UPDATE user_funds SET status = 'cancelled', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Cancelled", message: `Your fund has been cancelled. ${principal.toFixed(2)} USDT returned.`, type: "funds" });
+    await connection.commit();
+    res.json({ success: true, message: "Fund cancelled", data: { id: fundId, principal_returned: principal } });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const fundId = Number(req.params.id);
+    await connection.beginTransaction();
+    const [fundRows] = await connection.execute(`SELECT id, user_id, status FROM user_funds WHERE id = ?`, [fundId]);
+    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    await connection.execute(`DELETE FROM fund_profit_logs WHERE user_fund_id = ?`, [fundId]);
+    await connection.execute(`DELETE FROM user_funds WHERE id = ?`, [fundId]);
+    await connection.commit();
+    res.json({ success: true, message: "Fund deleted" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+// ─── Admin Notifications ───────────────────────────────────────────
+router.get('/admin/notifications', authAdmin, async (req, res, next) => {
+  try {
+    const notifications = [];
+    const [pendingKyc] = await pool.execute("SELECT COUNT(*) as count FROM user_kyc WHERE verification_status = 'pending'");
+    if (pendingKyc[0]?.count > 0) {
+      notifications.push({ id: `kyc-pending-${Date.now()}`, type: "kyc", title: "Pending KYC Submissions", message: `${pendingKyc[0].count} user(s) have pending KYC verification.`, is_read: false, created_at: new Date().toISOString() });
+    }
+    const [pendingDeposits] = await pool.execute("SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'");
+    if (pendingDeposits[0]?.count > 0) {
+      notifications.push({ id: `deposits-pending-${Date.now()}`, type: "deposit", title: "Pending Deposits", message: `${pendingDeposits[0].count} deposit request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
+    }
+    const [pendingWithdrawals] = await pool.execute("SELECT COUNT(*) as count FROM withdrawals WHERE status = 'pending'");
+    if (pendingWithdrawals[0]?.count > 0) {
+      notifications.push({ id: `withdrawals-pending-${Date.now()}`, type: "withdraw", title: "Pending Withdrawals", message: `${pendingWithdrawals[0].count} withdrawal request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
+    }
+    const [pendingLoans] = await pool.execute("SELECT COUNT(*) as count FROM loans WHERE status = 'pending'");
+    if (pendingLoans[0]?.count > 0) {
+      notifications.push({ id: `loans-pending-${Date.now()}`, type: "loan", title: "Pending Loan Requests", message: `${pendingLoans[0].count} loan request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
+    }
+    const [pendingJoint] = await pool.execute("SELECT COUNT(*) as count FROM joint_account_requests WHERE status = 'pending'");
+    if (pendingJoint[0]?.count > 0) {
+      notifications.push({ id: `joint-pending-${Date.now()}`, type: "joint_account", title: "Pending Joint Account Requests", message: `${pendingJoint[0].count} joint account request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
+    }
+    notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json({ success: true, data: notifications });
+  } catch (error) { next(error); }
+});
+
+router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
+  res.json({ success: true, message: "Notification marked as read" });
+});
+
+router.post('/admin/notifications/send', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const { user_id, title, message, type } = req.body;
+    if (!user_id || !title || !message) throw createError(400, "User ID, title and message required");
+    await connection.beginTransaction();
+    const [userRows] = await connection.execute(`SELECT id, email FROM users WHERE id = ?`, [user_id]);
+    if (!userRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "User not found" }); }
+    await connection.execute(
+      `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, NOW(), NOW())`,
+      [user_id, title, message, type || "admin"]
+    );
+    await createAuditLog(connection, { adminId: req.admin.id, action: "send_user_notification", targetUserId: user_id, note: `Sent notification: ${title}` });
+    await connection.commit();
+    res.json({ success: true, message: "Notification sent" });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+});
+
+module.exports = router;
