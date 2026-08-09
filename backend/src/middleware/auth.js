@@ -53,26 +53,42 @@ async function syncUserFromVexaAccount(accountId, email) {
   }
 
   // ─── Step 3: Fetch user profile from VexaAccount API ────────
+  let accountUser = null;
+  let profileFetchFailed = false;
   console.log(`🔍 [sync] Fetching profile from VexaAccount for: ${email}`);
-  let accountUser;
   try {
     const response = await getUserProfile(email);
     if (response.success && response.user) {
       accountUser = response.user;
       console.log(`✅ [sync] Found in VexaAccount: ${accountUser.email}`);
     } else {
-      console.log(`❌ [sync] User ${email} not found in VexaAccount`);
-      return null;
+      console.log(`⚠️ [sync] VexaAccount returned success=false or missing user`);
+      profileFetchFailed = true;
     }
   } catch (err) {
     console.error(`❌ [sync] Error fetching from VexaAccount API:`, err.message);
-    return null;
+    profileFetchFailed = true;
   }
 
   // ─── Step 4: Create local user ──────────────────────────────
-  const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
+  // If profile fetch failed, create a minimal user with just email and account_id
   const localConn3 = await pool.getConnection();
   try {
+    if (profileFetchFailed || !accountUser) {
+      console.log(`⚠️ [sync] Creating minimal user with email: ${email}`);
+      const uid = `VX-${String(accountId).padStart(6, '0')}`;
+      const [result] = await localConn3.execute(
+        `INSERT INTO users (
+          account_id, uid, email, name, avatar_url, email_verified, 
+          status, kyc_status, balance, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, NOW(), NOW())`,
+        [accountId, uid, email, email.split('@')[0], null]
+      );
+      console.log(`✅ [sync] Created minimal local user (ID: ${result.insertId})`);
+      return result.insertId;
+    }
+
+    const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
     const [result] = await localConn3.execute(
       `INSERT INTO users (
         account_id, uid, name, email, avatar_url, email_verified, 
