@@ -4,7 +4,7 @@ const router = express.Router();
 const multer = require('multer');
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
-const { storage } = require('../../cloudinaryStorage');
+const storage = require('../../cloudinaryStorage');
 const { 
   createError, generateSixDigitOtp, isOtpExpired,
   createTransactionLog, createUserNotification, createAuditLog,
