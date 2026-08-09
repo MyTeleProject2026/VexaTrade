@@ -76,11 +76,12 @@ async function syncUserFromVexaAccount(accountId, email) {
     if (profileFetchFailed || !accountUser) {
       console.log(`⚠️ [sync] Creating minimal user with email: ${email}`);
       const uid = `VX-${String(accountId).padStart(6, '0')}`;
+      // ✅ FIX: Add password field with empty string
       const [result] = await localConn3.execute(
         `INSERT INTO users (
           account_id, uid, email, name, avatar_url, email_verified, 
-          status, kyc_status, balance, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, NOW(), NOW())`,
+          status, kyc_status, balance, password, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
         [accountId, uid, email, email.split('@')[0], null]
       );
       console.log(`✅ [sync] Created minimal local user (ID: ${result.insertId})`);
@@ -88,11 +89,12 @@ async function syncUserFromVexaAccount(accountId, email) {
     }
 
     const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
+    // ✅ FIX: Add password field with empty string
     const [result] = await localConn3.execute(
       `INSERT INTO users (
         account_id, uid, name, email, avatar_url, email_verified, 
-        status, kyc_status, balance, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'not_submitted', 0, NOW(), NOW())`,
+        status, kyc_status, balance, password, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
       [
         accountUser.id,
         uid,
