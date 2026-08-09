@@ -1,8 +1,7 @@
-// src/utils/helpers.js
+// backend/src/utils/helpers.js
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
-const { pool } = require('../../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
 
@@ -14,12 +13,7 @@ function createError(status, message) {
 
 function generateUserToken(user) {
   return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      uid: user.uid,
-      role: "user",
-    },
+    { id: user.id, email: user.email, uid: user.uid, role: "user" },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -27,11 +21,7 @@ function generateUserToken(user) {
 
 function generateAdminToken(admin) {
   return jwt.sign(
-    {
-      id: admin.id,
-      email: admin.email,
-      role: "admin",
-    },
+    { id: admin.id, email: admin.email, role: "admin" },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -51,22 +41,6 @@ function splitSymbol(symbol) {
     }
   }
   return { base: upper, quote: "" };
-}
-
-function formatMarketRow(row) {
-  return {
-    symbol: String(row.symbol || "").toUpperCase(),
-    price: toNumber(row.lastPrice || row.price || 0),
-    lastPrice: toNumber(row.lastPrice || row.price || 0),
-    highPrice: toNumber(row.highPrice || 0),
-    lowPrice: toNumber(row.lowPrice || 0),
-    volume: toNumber(row.volume || 0),
-    priceChangePercent: toNumber(row.priceChangePercent || 0),
-  };
-}
-
-function buildEmptyMarketRow(symbol) {
-  return { symbol, price: 0, lastPrice: 0, highPrice: 0, lowPrice: 0, volume: 0, priceChangePercent: 0 };
 }
 
 function normalizeLegalStatus(status) {
@@ -94,7 +68,7 @@ function removeUploadedFile(fileUrl) {
     if (!fileUrl) return;
     if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) return;
     const cleanPath = String(fileUrl).replace(/^\/+/, "");
-    const fullPath = path.join(__dirname, "../..", cleanPath);
+    const fullPath = path.join(__dirname, "../../", cleanPath);
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
   } catch (error) {
     console.error("Failed to remove uploaded file:", error.message);
@@ -179,8 +153,6 @@ module.exports = {
   generateAdminToken,
   toNumber,
   splitSymbol,
-  formatMarketRow,
-  buildEmptyMarketRow,
   normalizeLegalStatus,
   normalizeNewsActive,
   getLegalFileUrl,
