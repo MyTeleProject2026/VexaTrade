@@ -1,4 +1,4 @@
-// server.js
+// backend/server.js
 require("./initSync");
 require("dotenv").config();
 
@@ -76,6 +76,46 @@ app.use(express.urlencoded({ extended: true }));
 // ─── Static Files ──────────────────────────────────────────────────
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// ─── Socket.io ─────────────────────────────────────────────────────
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST"]
+  }
+});
+
+// Store connected users
+const connectedUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+  
+  socket.on('authenticate', (data) => {
+    const { userId, role, name } = data;
+    if (!userId) return;
+    connectedUsers.set(userId, {
+      socketId: socket.id,
+      role: role || 'user',
+      name: name || 'User'
+    });
+    socket.userId = userId;
+    socket.role = role || 'user';
+    console.log(`Authenticated: ${role || 'user'} ${userId} (${name})`);
+    if (role === 'admin') {
+      socket.join('admin_room');
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.userId) {
+      connectedUsers.delete(socket.userId);
+      console.log(`User ${socket.userId} disconnected`);
+    }
+  });
+});
+
 // ─── Mount Routes ──────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
@@ -126,20 +166,18 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ success: false, message: err.message || "Internal server error" });
 });
 
-// ─── Socket.io ─────────────────────────────────────────────────────
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST"]
-  }
-});
-
-// ... socket.io logic (same as original, moved to separate file if needed)
-
+// ─── Start Server ──────────────────────────────────────────────────
 server.listen(PORT, async () => {
-  console.log(`✅ VexaTrade backend running on port ${PORT}`);
+  try {
+    const connection = await pool.getConnection();
+    await connection.ping();
+    connection.release();
+    console.log(`✅ VexaTrade backend running on port ${PORT}`);
+    console.log(`✅ MySQL connected successfully`);
+    console.log(`✅ Database: ${DB_NAME}`);
+  } catch (error) {
+    console.error("❌ MySQL connection failed:", error.message);
+  }
 });
 
 module.exports = { app, server, io };
