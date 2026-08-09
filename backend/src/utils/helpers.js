@@ -1,86 +1,199 @@
-/**
- * backend/src/utils/helpers.js
- * General-purpose helper utilities for the backend.
- * Moved from utils/helpers.js by GitHub Copilot Chat Assistant on user request.
- */
+// src/utils/helpers.js
+const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
+const { pool } = require('../../db');
 
-/** Safely parse a JSON string, returning defaultValue on failure */
-function tryParseJSON(str, defaultValue = null) {
-  try {
-    return JSON.parse(str);
-  } catch (e) {
-    return defaultValue;
+const JWT_SECRET = process.env.JWT_SECRET || "cryptopulse_secret_key";
+
+function createError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function generateUserToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      uid: user.uid,
+      role: "user",
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+function generateAdminToken(admin) {
+  return jwt.sign(
+    {
+      id: admin.id,
+      email: admin.email,
+      role: "admin",
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function splitSymbol(symbol) {
+  const upper = String(symbol || "").toUpperCase().trim();
+  const knownQuotes = ["USDT", "USDC", "BTC", "ETH", "BNB", "BUSD", "EUR", "TRY", "FDUSD"];
+  for (const quote of knownQuotes) {
+    if (upper.endsWith(quote) && upper.length > quote.length) {
+      return { base: upper.slice(0, upper.length - quote.length), quote };
+    }
   }
+  return { base: upper, quote: "" };
 }
 
-/** Simple delay/timeout helper (returns a promise) */
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Pick selected keys from an object */
-function pick(obj, keys = []) {
-  if (!obj || typeof obj !== 'object') return {};
-  return keys.reduce((acc, k) => {
-    if (k in obj) acc[k] = obj[k];
-    return acc;
-  }, {});
-}
-
-/** Check whether a value is empty (null/undefined/empty string/empty array/object) */
-function isEmpty(value) {
-  if (value == null) return true;
-  if (typeof value === 'string' && value.trim() === '') return true;
-  if (Array.isArray(value) && value.length === 0) return true;
-  if (typeof value === 'object' && Object.keys(value).length === 0) return true;
-  return false;
-}
-
-/** Parse integer from env or string with fallback */
-function parseIntOrDefault(value, defaultValue = 0) {
-  const n = Number.parseInt(value, 10);
-  return Number.isNaN(n) ? defaultValue : n;
-}
-
-/** Basic email validation (safe, not exhaustive) */
-function isValidEmail(email) {
-  if (!email || typeof email !== 'string') return false;
-  // simple regex for common emails
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/** Wrap async Express handlers to catch errors */
-function asyncHandler(fn) {
-  return function asyncUtilWrap(req, res, next) {
-    Promise.resolve(fn(req, res, next)).catch(next);
+function formatMarketRow(row) {
+  return {
+    symbol: String(row.symbol || "").toUpperCase(),
+    price: toNumber(row.lastPrice || row.price || 0),
+    lastPrice: toNumber(row.lastPrice || row.price || 0),
+    highPrice: toNumber(row.highPrice || 0),
+    lowPrice: toNumber(row.lowPrice || 0),
+    volume: toNumber(row.volume || 0),
+    priceChangePercent: toNumber(row.priceChangePercent || 0),
   };
 }
 
-/** Format a consistent API response */
-function formatResponse({ success = true, data = null, message = '', meta = null } = {}) {
-  const payload = { success };
-  if (data !== null) payload.data = data;
-  if (message) payload.message = message;
-  if (meta !== null) payload.meta = meta;
-  return payload;
+function buildEmptyMarketRow(symbol) {
+  return { symbol, price: 0, lastPrice: 0, highPrice: 0, lowPrice: 0, volume: 0, priceChangePercent: 0 };
 }
 
-/** Create a small Error object with status (for HTTP handlers) */
-function createHttpError(message = 'Error', status = 500, details = null) {
-  const err = new Error(message);
-  err.status = status;
-  if (details !== null) err.details = details;
-  return err;
+function normalizeLegalStatus(status) {
+  return String(status || "active").trim().toLowerCase() === "inactive" ? "inactive" : "active";
+}
+
+function normalizeNewsActive(value) {
+  return Number(value) === 0 ? 0 : 1;
+}
+
+function getLegalFileUrl(file) {
+  if (!file) return null;
+  if (file.path && (file.path.startsWith("http://") || file.path.startsWith("https://"))) {
+    return file.path;
+  }
+  return `/uploads/legal/${file.filename}`;
+}
+
+function getSupportedConvertCoins() {
+  return ["USDT", "BTC", "ETH", "BNB", "SOL", "XRP"];
+}
+
+function removeUploadedFile(fileUrl) {
+  try {
+    if (!fileUrl) return;
+    if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) return;
+    const cleanPath = String(fileUrl).replace(/^\/+/, "");
+    const fullPath = path.join(__dirname, "../..", cleanPath);
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+  } catch (error) {
+    console.error("Failed to remove uploaded file:", error.message);
+  }
+}
+
+function generateSixDigitOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function isOtpExpired(expiresAt) {
+  if (!expiresAt) return true;
+  const date = new Date(expiresAt);
+  return Number.isNaN(date.getTime()) || date.getTime() < Date.now();
+}
+
+function randomRate(min, max) {
+  const minNum = toNumber(min);
+  const maxNum = toNumber(max);
+  if (maxNum <= minNum) return Number(minNum.toFixed(4));
+  return Number((Math.random() * (maxNum - minNum) + minNum).toFixed(4));
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + Number(days || 0));
+  return d;
+}
+
+function normalizeTradingFeeTier(value) {
+  const allowed = ["Regular user", "VIP 1", "VIP 2", "VIP 3", "Market Maker", "Institutional"];
+  const input = String(value || "").trim();
+  return allowed.includes(input) ? input : "Regular user";
+}
+
+function normalizeUserStatus(value) {
+  const allowed = ["pending", "under_review", "active", "disabled", "frozen"];
+  const input = String(value || "").trim().toLowerCase();
+  return allowed.includes(input) ? input : "pending";
+}
+
+function getAuthToken(req) {
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) return "";
+  return authHeader.slice(7).trim();
+}
+
+async function createTransactionLog(connection, payload) {
+  const { userId, type, amount, status = "completed", note = null, referenceId = null } = payload;
+  try {
+    await connection.execute(
+      `INSERT INTO transactions (user_id, type, amount, status, reference_id, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [userId, type, amount, status, referenceId, note]
+    );
+  } catch (_) {}
+}
+
+async function createUserNotification(connection, payload) {
+  const { userId, title, message, type = "general" } = payload;
+  await connection.execute(
+    `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
+     VALUES (?, ?, ?, ?, 0, NOW())`,
+    [userId, title, message, type]
+  );
+}
+
+async function createAuditLog(connection, payload) {
+  const { adminId, action, targetUserId = null, referenceId = null, note = null } = payload;
+  try {
+    await connection.execute(
+      `INSERT INTO admin_audit_logs (admin_id, action, target_user_id, reference_id, note, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [adminId, action, targetUserId, referenceId, note]
+    );
+  } catch (_) {}
 }
 
 module.exports = {
-  tryParseJSON,
-  delay,
-  pick,
-  isEmpty,
-  parseIntOrDefault,
-  isValidEmail,
-  asyncHandler,
-  formatResponse,
-  createHttpError,
+  createError,
+  generateUserToken,
+  generateAdminToken,
+  toNumber,
+  splitSymbol,
+  formatMarketRow,
+  buildEmptyMarketRow,
+  normalizeLegalStatus,
+  normalizeNewsActive,
+  getLegalFileUrl,
+  getSupportedConvertCoins,
+  removeUploadedFile,
+  generateSixDigitOtp,
+  isOtpExpired,
+  randomRate,
+  addDays,
+  normalizeTradingFeeTier,
+  normalizeUserStatus,
+  getAuthToken,
+  createTransactionLog,
+  createUserNotification,
+  createAuditLog,
 };
