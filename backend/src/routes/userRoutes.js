@@ -8,9 +8,10 @@ const storage = require('../../cloudinaryStorage');
 const { 
   createError, generateSixDigitOtp, isOtpExpired,
   createTransactionLog, createUserNotification, createAuditLog,
-  removeUploadedFile
+  removeUploadedFile, toNumber
 } = require('../utils/helpers');
 const { sendOtpEmail } = require('../../services/emailService');
+const { getBinanceHomeMarkets } = require('../../services/tradeService');
 
 const upload = multer({ storage });
 
@@ -28,6 +29,7 @@ router.get('/user/profile', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── PUT /api/user/profile ──────────────────────────────────────────
 router.put('/user/profile', authUser, async (req, res, next) => {
   try {
     const name = String(req.body.name || "").trim();
@@ -38,6 +40,7 @@ router.put('/user/profile', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── POST /api/user/profile/upload-picture ─────────────────────────
 router.post('/user/profile/upload-picture', authUser, upload.single('profile_picture'), async (req, res, next) => {
   try {
     if (!req.file) throw createError(400, "Profile picture required");
@@ -50,7 +53,7 @@ router.post('/user/profile/upload-picture', authUser, upload.single('profile_pic
   } catch (error) { next(error); }
 });
 
-// ─── SECURITY ───────────────────────────────────────────────────────
+// ─── POST /api/user/set-passcode ───────────────────────────────────
 router.post('/user/set-passcode', authUser, async (req, res, next) => {
   try {
     const { passcode } = req.body;
@@ -60,6 +63,7 @@ router.post('/user/set-passcode', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── GET /api/user/security-status ─────────────────────────────────
 router.get('/user/security-status', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
@@ -82,48 +86,65 @@ router.get('/user/security-status', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// ─── EMAIL VERIFICATION OTP (FIXED) ───────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// ✅ EMAIL VERIFICATION OTP (FIXED – ALWAYS RETURNS JSON)
+// ════════════════════════════════════════════════════════════════════
 router.post('/user/send-email-verification-code', authUser, async (req, res, next) => {
+  console.log('📧 [send-email-verification] Request received for:', req.body.email);
+  
   const connection = await pool.getConnection();
   try {
-    console.log('📧 [send-email-verification] Request for:', req.body.email);
     await connection.beginTransaction();
 
+    console.log('📧 [send-email-verification] Checking user:', req.user.id);
     const [rows] = await connection.execute(
       `SELECT id, email, email_verified FROM users WHERE id = ? FOR UPDATE`,
       [req.user.id]
     );
+    
     if (!rows.length) {
       await connection.rollback();
+      console.log('❌ User not found');
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+    
     const user = rows[0];
+    console.log('📧 [send-email-verification] User found:', user.email);
+
     if (Number(user.email_verified || 0) === 1) {
       await connection.commit();
+      console.log('ℹ️ Email already verified');
       return res.json({ success: true, message: 'Email already verified' });
     }
 
     const code = generateSixDigitOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    console.log('📧 [send-email-verification] OTP generated:', code);
 
+    // Invalidate old OTPs
     await connection.execute(
       `UPDATE user_email_otps SET is_used = 1, updated_at = NOW()
        WHERE user_id = ? AND purpose = 'email_verification' AND is_used = 0`,
       [req.user.id]
     );
+
+    // Insert new OTP
     await connection.execute(
       `INSERT INTO user_email_otps (user_id, email, otp_code, purpose, is_used, expires_at, created_at, updated_at)
        VALUES (?, ?, ?, 'email_verification', 0, ?, NOW(), NOW())`,
       [req.user.id, user.email, code, expiresAt]
     );
+    console.log('📧 [send-email-verification] OTP saved to DB');
 
-    // Send email (fire-and-forget)
+    // Send email (fire-and-forget – don't wait for it)
     sendOtpEmail({ to: user.email, code })
       .then(success => console.log(`✅ Email sent to ${user.email}: ${success}`))
       .catch(err => console.error('❌ Email send error:', err));
 
     await connection.commit();
     console.log('✅ OTP generated, returning response');
+
+    // ✅ ALWAYS return JSON
     return res.json({
       success: true,
       message: `Your verification code is: ${code}`,
@@ -133,12 +154,16 @@ router.post('/user/send-email-verification-code', authUser, async (req, res, nex
   } catch (error) {
     await connection.rollback();
     console.error('❌ Error in send-email-verification:', error.message);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('❌ Stack:', error.stack);
+    // ✅ ALWAYS return JSON on error
+    return res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
   } finally {
     connection.release();
+    console.log('📧 [send-email-verification] DB connection released');
   }
 });
 
+// ─── POST /api/user/verify-email-code ──────────────────────────────
 router.post('/user/verify-email-code', authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
@@ -202,7 +227,7 @@ router.post('/user/verify-email-code', authUser, async (req, res, next) => {
   }
 });
 
-// ─── NOTIFICATIONS ──────────────────────────────────────────────────
+// ─── GET /api/user/notifications ───────────────────────────────────
 router.get('/user/notifications', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
@@ -213,6 +238,7 @@ router.get('/user/notifications', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── POST /api/user/notifications/:id/read ─────────────────────────
 router.post('/user/notifications/:id/read', authUser, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -221,6 +247,7 @@ router.post('/user/notifications/:id/read', authUser, async (req, res, next) => 
   } catch (error) { next(error); }
 });
 
+// ─── DELETE /api/user/notifications/:id ────────────────────────────
 router.delete('/user/notifications/:id', authUser, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -230,7 +257,7 @@ router.delete('/user/notifications/:id', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// ─── PASSCODE VERIFY ────────────────────────────────────────────────
+// ─── POST /api/user/verify-passcode ─────────────────────────────────
 router.post('/user/verify-passcode', authUser, async (req, res, next) => {
   try {
     const passcode = String(req.body.passcode || "").trim();
@@ -242,7 +269,7 @@ router.post('/user/verify-passcode', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// ─── KYC ────────────────────────────────────────────────────────────
+// ─── POST /api/kyc/upload ──────────────────────────────────────────
 router.post('/kyc/upload', authUser, upload.fields([{ name: "front", maxCount: 1 }, { name: "back", maxCount: 1 }]), async (req, res, next) => {
   try {
     const country = String(req.body.country || "").trim();
