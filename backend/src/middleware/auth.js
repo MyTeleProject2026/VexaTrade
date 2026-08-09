@@ -71,7 +71,6 @@ async function syncUserFromVexaAccount(accountId, email) {
   }
 
   // ─── Step 4: Create local user ──────────────────────────────
-  // If profile fetch failed, create a minimal user with just email and account_id
   const localConn3 = await pool.getConnection();
   try {
     if (profileFetchFailed || !accountUser) {
