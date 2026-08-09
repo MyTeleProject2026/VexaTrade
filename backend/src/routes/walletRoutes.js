@@ -1,111 +1,50 @@
-// backend/src/routes/walletRoutes.js
+// backend/src/routes/withdrawalRoutes.js
 const express = require('express');
 const router = express.Router();
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
-const { createError, toNumber } = require('../utils/helpers');
-const { getBinanceHomeMarkets } = require('../../services/tradeService');
+const { createError, createTransactionLog, createUserNotification, createAuditLog } = require('../utils/helpers');
+const { getWithdrawalFeeConfig, calculateWithdrawalFee } = require('../../services/tradeService');
 
-// ─── GET /api/wallet/summary ────────────────────────────────────────
-router.get('/wallet/summary', authUser, async (req, res, next) => {
+// ─── POST /api/withdrawals/request ─────────────────────────────────
+router.post('/withdrawals/request', authUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
   try {
-    const [rows] = await pool.execute(
-      `SELECT id, uid, name, first_name, last_name, email, balance, status, kyc_status, email_verified
-       FROM users WHERE id = ?`,
-      [req.user.id]
+    const coin = String(req.body.coin || "").trim().toUpperCase();
+    const network = String(req.body.network || "").trim().toUpperCase();
+    const address = String(req.body.wallet_address || req.body.address || "").trim();
+    const amount = Number(req.body.amount || 0);
+    if (!coin) throw createError(400, "Coin required");
+    if (!network) throw createError(400, "Network required");
+    if (!address) throw createError(400, "Address required");
+    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid amount");
+    await connection.beginTransaction();
+    const [userRows] = await connection.execute(`SELECT id, balance, status FROM users WHERE id = ? FOR UPDATE`, [req.user.id]);
+    if (!userRows.length) throw createError(404, "User not found");
+    const user = userRows[0];
+    const balance = Number(user.balance || 0);
+    if (["disabled", "frozen"].includes(String(user.status || "").toLowerCase())) throw createError(403, "User account not active");
+    const feeConfig = await getWithdrawalFeeConfig(connection, coin, network);
+    const feeAmount = calculateWithdrawalFee(amount, feeConfig);
+    const totalDeduction = Number((amount + feeAmount).toFixed(8));
+    if (balance < totalDeduction) throw createError(400, `Insufficient balance. Required ${totalDeduction} including fee ${feeAmount}`);
+    await connection.execute(`UPDATE users SET balance = balance - ? WHERE id = ?`, [totalDeduction, req.user.id]);
+    const [result] = await connection.execute(
+      `INSERT INTO withdrawals (user_id, coin, network, address, amount, fee_amount, fee_type, net_amount, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+      [req.user.id, coin, network, address, amount, feeAmount, feeType, Number((amount - feeAmount).toFixed(8))]
     );
-    if (!rows.length) throw createError(404, "User not found");
-    const user = rows[0];
-    const [settingRows] = await pool.execute(
-      `SELECT setting_value FROM platform_settings WHERE setting_key = 'wallet_label' LIMIT 1`
-    );
-    const walletLabel = settingRows[0]?.setting_value || "Main Wallet";
-    res.json({
-      success: true,
-      data: {
-        balance: Number(user.balance || 0),
-        walletLabel,
-        user: {
-          id: user.id,
-          uid: user.uid,
-          name: user.name,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          email: user.email,
-          status: user.status,
-          kyc_status: user.kyc_status || "not_submitted",
-          email_verified: Number(user.email_verified || 0),
-        },
-      },
-    });
-  } catch (error) { next(error); }
+    await createTransactionLog(connection, { userId: req.user.id, type: "withdrawal_request", amount: totalDeduction, status: "pending", referenceId: result.insertId, note: `${coin} ${network} withdrawal request` });
+    await connection.commit();
+    res.json({ success: true, message: "Withdrawal request submitted", data: { id: result.insertId, status: "pending", amount, feeAmount, totalDeduction } });
+  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
-// ─── GET /api/user/portfolio-assets ────────────────────────────────
-router.get('/user/portfolio-assets', authUser, async (req, res, next) => {
+// ─── GET /api/withdrawals ───────────────────────────────────────────
+router.get('/withdrawals', authUser, async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const priceMap = new Map();
-    priceMap.set("USDTUSDT", 1);
-    try {
-      const marketSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"];
-      const marketRows = await getBinanceHomeMarkets(marketSymbols);
-      for (const row of marketRows) {
-        const symbol = String(row.symbol || "").toUpperCase();
-        const price = Number(row.lastPrice || row.price || 0);
-        if (symbol && price > 0) priceMap.set(symbol, price);
-      }
-    } catch (_) {}
-    const [userRows] = await pool.execute(`SELECT balance FROM users WHERE id = ?`, [userId]);
-    const userBalance = Number(userRows?.[0]?.balance || 0);
-    const holdingsMap = new Map();
-    holdingsMap.set("USDT", { symbol: "USDT", amount: userBalance, avg_price: 1 });
-    // ... full portfolio logic from original (moved here)
-    res.json({ success: true, data: { assets: [] } });
-  } catch (error) { next(error); }
-});
-
-// ─── GET /api/user/assets ───────────────────────────────────────────
-router.get('/user/assets', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const priceMap = new Map();
-    priceMap.set("USDTUSDT", 1);
-    try {
-      const marketSymbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"];
-      const marketRows = await getBinanceHomeMarkets(marketSymbols);
-      for (const row of marketRows) {
-        const symbol = String(row.symbol || "").toUpperCase();
-        const price = Number(row.lastPrice || row.price || 0);
-        if (symbol && price > 0) priceMap.set(symbol, price);
-      }
-    } catch (_) {}
-    const [assetRows] = await pool.execute(
-      `SELECT coin, balance, avg_price FROM user_assets WHERE user_id = ? AND balance > 0.00000001
-       ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END, balance DESC`,
-      [userId]
-    );
-    const [userRows] = await pool.execute(`SELECT balance FROM users WHERE id = ?`, [userId]);
-    const mainUsdtBalance = Number(userRows[0]?.balance || 0);
-    const assets = [];
-    for (const asset of assetRows) {
-      const coin = asset.coin;
-      let amount = Number(asset.balance);
-      const avgPrice = Number(asset.avg_price || 0);
-      if (coin === "USDT") amount = mainUsdtBalance;
-      if (amount <= 0) continue;
-      const currentPrice = coin === "USDT" ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
-      const usdtValue = amount * currentPrice;
-      const spotPnl = (currentPrice - avgPrice) * amount;
-      const invested = avgPrice * amount;
-      const spotPnlPercent = invested > 0 ? (spotPnl / invested) * 100 : 0;
-      assets.push({ symbol: coin, amount, current_price: currentPrice, avg_price: avgPrice || currentPrice, usdt_value: usdtValue, spot_pnl: spotPnl, spot_pnl_percent: spotPnlPercent });
-    }
-    if (mainUsdtBalance > 0 && !assets.find(a => a.symbol === "USDT")) {
-      assets.unshift({ symbol: "USDT", amount: mainUsdtBalance, current_price: 1, avg_price: 1, usdt_value: mainUsdtBalance, spot_pnl: 0, spot_pnl_percent: 0 });
-    }
-    assets.sort((a, b) => b.usdt_value - a.usdt_value);
-    res.json({ success: true, data: { assets } });
+    const [rows] = await pool.execute(`SELECT * FROM withdrawals WHERE user_id = ? ORDER BY id DESC`, [req.user.id]);
+    res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 });
 
