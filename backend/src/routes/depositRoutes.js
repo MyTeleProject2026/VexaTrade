@@ -1,12 +1,15 @@
-// src/routes/depositRoutes.js
+// backend/src/routes/depositRoutes.js
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
-const { upload } = require('../../cloudinaryStorage');
+const { storage } = require('../../cloudinaryStorage');
 
+const upload = multer({ storage });
+
+// ─── GET /api/deposit/wallets ──────────────────────────────────────
 router.get('/deposit/wallets', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
@@ -18,11 +21,13 @@ router.get('/deposit/wallets', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── POST /api/deposits/upload-receipt ─────────────────────────────
 router.post('/deposits/upload-receipt', authUser, upload.single('receipt'), (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
   res.json({ success: true, url: req.file.path });
 });
 
+// ─── POST /api/deposits/request ────────────────────────────────────
 router.post('/deposits/request', authUser, async (req, res, next) => {
   try {
     const { coin, network, amount, txid, note, proof } = req.body;
@@ -37,6 +42,7 @@ router.post('/deposits/request', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── GET /api/deposits ──────────────────────────────────────────────
 router.get('/deposits', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(`SELECT * FROM deposits WHERE user_id = ? ORDER BY id DESC`, [req.user.id]);
