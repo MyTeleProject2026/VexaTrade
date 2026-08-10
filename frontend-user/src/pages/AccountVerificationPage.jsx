@@ -1,4 +1,3 @@
-// frontend-user/src/pages/AccountVerificationPage.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../hooks/useNotification";
@@ -54,7 +53,7 @@ async function refreshUserDataFromServer() {
   if (!token) return null;
 
   try {
-    // Use the userApi method that we added to api.js
+    // ✅ CORRECT: Using the userApi method
     const response = await userApi.getVerificationStatus();
     const data = response.data; // axios returns data in .data
     console.log('[Refresh] Status response:', data);
