@@ -302,6 +302,11 @@ export const userApi = {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
     }),
 
+  getVerificationStatus: (token) =>
+    appApiClient.get("/api/auth/verification-status", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
+
   setPasscode: (data, token) =>
     appApiClient.post("/api/user/set-passcode", data, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
