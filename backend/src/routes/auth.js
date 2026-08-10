@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
-const { pool } = require('../../db');
+const  pool  = require('../../db');
 const {
   register,
   login,
