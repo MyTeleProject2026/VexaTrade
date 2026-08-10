@@ -28,7 +28,8 @@ router.post('/check-user', async (req, res) => {
     if (!email) {
       return res.status(400).json({ success: false, exists: false, message: 'Email required' });
     }
-    const [rows] = await pool.execute(
+    // ✅ Use pool.query instead of pool.execute
+    const [rows] = await pool.query(
       `SELECT id, email, name, email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
     );
@@ -63,7 +64,8 @@ router.post('/sync-user', async (req, res) => {
     const profile = userData || {};
     console.log('🔄 [sync-user] Profile data:', profile);
 
-    const [existing] = await pool.execute(
+    // ✅ Use pool.query
+    const [existing] = await pool.query(
       'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     );
@@ -74,7 +76,7 @@ router.post('/sync-user', async (req, res) => {
     if (existing.length > 0) {
       user = existing[0];
       console.log('✅ [sync-user] User already exists (ID:', user.id, ')');
-      await pool.execute(
+      await pool.query(
         `UPDATE users SET
           name = COALESCE(?, name),
           first_name = COALESCE(?, first_name),
@@ -98,11 +100,11 @@ router.post('/sync-user', async (req, res) => {
       );
     } else {
       isNewUser = true;
-      const [lastUser] = await pool.execute('SELECT id FROM users ORDER BY id DESC LIMIT 1');
+      const [lastUser] = await pool.query('SELECT id FROM users ORDER BY id DESC LIMIT 1');
       const nextId = lastUser.length ? lastUser[0].id + 1 : 1;
       const uid = `CP${String(nextId).padStart(8, '0')}`;
 
-      const [result] = await pool.execute(
+      const [result] = await pool.query(
         `INSERT INTO users (
           uid, email, name, first_name, last_name, gender, date_of_birth, country,
           avatar_url, email_verified, kyc_status, status, balance, password, created_at, updated_at
@@ -119,7 +121,7 @@ router.post('/sync-user', async (req, res) => {
           profile?.avatar_url || null
         ]
       );
-      const [newUser] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId]);
+      const [newUser] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
       user = newUser;
       console.log('🔄 [sync-user] Created new user (ID:', user.id, ')');
     }
@@ -162,7 +164,6 @@ router.post('/sync-user', async (req, res) => {
 router.get('/verification-status', async (req, res) => {
   console.log('🔍 [verification-status] Request received');
   try {
-    // 1. Get token
     const authHeader = req.headers.authorization;
     console.log('🔍 [verification-status] Authorization header:', authHeader);
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -172,7 +173,6 @@ router.get('/verification-status', async (req, res) => {
     const token = authHeader.slice(7).trim();
     console.log('🔍 [verification-status] Token received:', token.substring(0, 20) + '...');
 
-    // 2. Verify token
     const JWT_SECRET = process.env.JWT_SECRET || 'vexatrade_jwt_secret_key';
     console.log('🔍 [verification-status] Using JWT_SECRET:', JWT_SECRET.substring(0, 10) + '...');
     let decoded;
@@ -190,14 +190,14 @@ router.get('/verification-status', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email not found' });
     }
 
-    // 3. Query database
     console.log('🔍 [verification-status] Checking for:', email);
-    const [rows] = await pool.execute(
+    // ✅ Use pool.query – returns [rows, fields]
+    const [rows] = await pool.query(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
     );
 
-    if (!rows.length) {
+    if (!rows || rows.length === 0) {
       console.error('❌ [verification-status] User not found');
       return res.status(404).json({ success: false, message: 'User not found' });
     }
