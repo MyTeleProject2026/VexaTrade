@@ -48,23 +48,18 @@ function isUserFullyApproved(user) {
   return emailVerified && kycApproved && statusActive;
 }
 
+// ─── ✅ FIXED: Use userApi.getVerificationStatus() ────────────
 async function refreshUserDataFromServer() {
   const token = getStoredToken();
   if (!token) return null;
 
   try {
-    // Call VexaTrade's verification status endpoint
-    const response = await fetch('/api/auth/verification-status', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    const data = await response.json();
+    // Use the userApi method that we added to api.js
+    const response = await userApi.getVerificationStatus();
+    const data = response.data; // axios returns data in .data
     console.log('[Refresh] Status response:', data);
     
     if (data.success && data.status) {
-      // Get current user data and update with fresh status
       const currentUser = getStoredUser();
       const freshUser = {
         ...currentUser,
@@ -102,21 +97,21 @@ export default function AccountVerificationPage() {
   }, [isFullyApproved, navigate]);
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ FIX: Navigate to the new verify-email page
+  // Navigate to the verify-email page
   // ──────────────────────────────────────────────────────────────
   const handleEmailVerification = () => {
     navigate("/verify-email");
   };
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ Navigate to KYC page
+  // Navigate to KYC page
   // ──────────────────────────────────────────────────────────────
   const handleKYC = () => {
     navigate("/kyc");
   };
 
   // ──────────────────────────────────────────────────────────────
-  // ✅ Refresh status without full page reload
+  // Refresh status without full page reload
   // ──────────────────────────────────────────────────────────────
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
