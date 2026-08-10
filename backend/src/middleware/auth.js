@@ -76,7 +76,7 @@ async function syncUserFromVexaAccount(accountId, email) {
     if (profileFetchFailed || !accountUser) {
       console.log(`⚠️ [sync] Creating minimal user with email: ${email}`);
       const uid = `VX-${String(accountId).padStart(6, '0')}`;
-      // ✅ FIX: Add password field with empty string
+      // ✅ Set email_verified = 0 to force OTP verification in VexaTrade
       const [result] = await localConn3.execute(
         `INSERT INTO users (
           account_id, uid, email, name, avatar_url, email_verified, 
@@ -89,19 +89,19 @@ async function syncUserFromVexaAccount(accountId, email) {
     }
 
     const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
-    // ✅ FIX: Add password field with empty string
+    // ✅ Set email_verified = 0 to force OTP verification in VexaTrade
     const [result] = await localConn3.execute(
       `INSERT INTO users (
         account_id, uid, name, email, avatar_url, email_verified, 
         status, kyc_status, balance, password, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
       [
         accountUser.id,
         uid,
         accountUser.name || accountUser.email,
         accountUser.email,
         accountUser.avatar_url || null,
-        accountUser.is_verified || 0
+        // ✅ 0 instead of accountUser.is_verified – forces OTP
       ]
     );
     console.log(`✅ [sync] Created local user (ID: ${result.insertId})`);
