@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0d1424"/>
+      <stop offset="60%" stop-color="#050811"/>
+      <stop offset="100%" stop-color="#020307"/>
+    </radialGradient>
+    <!-- Outer Ring Glow/Gradients -->
+    <linearGradient id="ringGradFar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14213d" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#0d1527" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#14213d" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="ringGradNear" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a5f" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0a192f" stop-opacity="0.3"/>
+    </linearGradient>
+    <!-- Main Cyan/Teal Neon Gradient -->
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="50%" stop-color="#4facfe"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+    <!-- Gold Accent Gradient for Admin Badge Elements -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe066"/>
+      <stop offset="50%" stop-color="#f5a623"/>
+      <stop offset="100%" stop-color="#e67e22"/>
+    </linearGradient>
+    <!-- Shield Plate Dark Metallic Gradient -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#121c2e" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#080d17" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="shieldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#1e3a5f" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#f5a623" stop-opacity="0.8"/>
+    </linearGradient>
+    <!-- Neon Glow Filters -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur1"/>
+      <feGaussianBlur stdDeviation="15" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComponentTransfer in="blur" result="glow">
+        <feFuncA type="linear" slope="0.6"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="ambientGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+    </filter>
+  </defs>
+  <!-- Base App Icon Container (Rounded Superellipse Square) -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="106" fill="none" stroke="#1f2d40" stroke-width="2" opacity="0.5"/>
+  <!-- Background Ambient Glow behind logo -->
+  <circle cx="256" cy="230" r="130" fill="#00f2fe" opacity="0.12" filter="url(#ambientGlow)"/>
+  <circle cx="256" cy="120" r="70" fill="#f5a623" opacity="0.1" filter="url(#ambientGlow)"/>
+  <!-- Background Concentric Rings (VexaStore Signature) -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#ringGradFar)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#ringGradNear)" stroke-width="2" stroke-dasharray="8 6"/>
+  <!-- Admin Shield Backplate -->
+  <path d="M 256,70 &#xA;           L 360,110 &#xA;           C 360,250 320,330 256,380 &#xA;           C 192,330 152,250 152,110 &#xA;           Z" fill="url(#shieldGrad)" stroke="url(#shieldBorder)" stroke-width="3" filter="drop-shadow(0px 12px 24px rgba(0,0,0,0.7))"/>
+  <!-- Subtle Inner Shield Accent Lines -->
+  <path d="M 256,85 &#xA;           L 345,120 &#xA;           C 345,240 310,312 256,358 &#xA;           C 202,312 167,240 167,120 &#xA;           Z" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.06"/>
+  <!-- Main VexaStore "V" Symbol with Integrated Keyhole Base -->
+  <g filter="url(#neonGlow)">
+    <!-- Main V-Arms Path -->
+    <path d="M 182,165 &#xA;             L 230,280 &#xA;             C 234,289 243,295 256,295 &#xA;             C 269,295 278,289 282,280 &#xA;             L 330,165 &#xA;             C 335,153 325,142 312,142 &#xA;             C 305,142 298,146 294,155 &#xA;             L 256,248 &#xA;             L 218,155 &#xA;             C 214,146 207,142 200,142 &#xA;             C 187,142 177,153 182,165 Z" fill="url(#vGrad)"/>
+    <!-- Bottom Chevron / Arrow Component (From Original Logo) -->
+    <path d="M 210,305 &#xA;             L 250,335 &#xA;             C 254,338 258,338 262,335 &#xA;             L 302,305 &#xA;             C 309,300 307,290 298,290 &#xA;             C 294,290 290,292 286,295 &#xA;             L 256,317 &#xA;             L 226,295 &#xA;             C 222,292 218,290 214,290 &#xA;             C 205,290 203,300 210,305 Z" fill="url(#vGrad)"/>
+  </g>
+  <!-- Admin Crown / Authority Element (Replaces/Enhances Top Dot) -->
+  <g filter="url(#goldGlow)">
+    <!-- Crown Base / Crest -->
+    <path d="M 226,118 &#xA;             L 234,130 &#xA;             L 256,120 &#xA;             L 278,130 &#xA;             L 286,118 &#xA;             L 274,102 &#xA;             L 256,112 &#xA;             L 238,102 &#xA;             Z" fill="url(#goldGrad)"/>
+    <!-- Central Admin Orb / Power Node -->
+    <circle cx="256" cy="88" r="10" fill="url(#goldGrad)"/>
+    <!-- Flanking Crown Jewels/Peaks -->
+    <circle cx="226" cy="98" r="5" fill="url(#goldGrad)"/>
+    <circle cx="286" cy="98" r="5" fill="url(#goldGrad)"/>
+    <!-- Halo Ring around Center Orb -->
+    <circle cx="256" cy="88" r="17" fill="none" stroke="url(#goldGrad)" stroke-width="2" opacity="0.6" stroke-dasharray="4 3"/>
+  </g>
+  <!-- High-Tech Keyhole Overlay (Admin Security Detail) -->
+  <g opacity="0.95">
+    <circle cx="256" cy="200" r="12" fill="#060a12"/>
+    <path d="M 252,200 L 260,200 L 263,222 L 249,222 Z" fill="#060a12"/>
+    <!-- Keyhole Core Glow -->
+    <circle cx="256" cy="200" r="4" fill="url(#vGrad)"/>
+    <path d="M 255,200 L 257,200 L 258,216 L 254,216 Z" fill="url(#vGrad)"/>
+  </g>
+  <!-- Top Lighting Highlight Flare -->
+  <path d="M 120,30 C 200,10 310,10 392,30 C 280,22 200,35 120,30 Z" fill="#ffffff" opacity="0.12"/>
+</svg>
