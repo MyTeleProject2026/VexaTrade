@@ -1,7 +1,12 @@
-// backend/services/tradeService.js
 const axios = require('axios');
 const pool = require('../db');
-const { toNumber, createError, createTransactionLog, createUserNotification } = require('../src/utils/helpers');
+const {
+  toNumber,
+  createError,
+  createTransactionLog,
+  createUserNotification,
+  splitSymbol, // ✅ Imported from helpers instead of redefining
+} = require('../src/utils/helpers');
 
 const BINANCE_PRICE_API = "https://api.binance.com/api/v3/ticker/price";
 const BINANCE_24H_API = "https://api.binance.com/api/v3/ticker/24hr";
@@ -12,9 +17,9 @@ const KUCOIN_ALL_TICKERS_API = "https://api.kucoin.com/api/v1/market/allTickers"
 async function getBinancePrice(symbol) {
   const upperSymbol = String(symbol || "").toUpperCase().trim();
   const endpoints = [
+    "https://api.binance.com/api/v3/ticker/price", // ✅ Primary
     "https://api.binance.us/api/v3/ticker/price",
     "https://data.binance.com/api/v3/ticker/price",
-    BINANCE_PRICE_API
   ];
   for (const endpoint of endpoints) {
     try {
@@ -50,17 +55,6 @@ async function getKucoinPrice(symbol) {
   return toNumber(row?.last || 0);
 }
 
-function splitSymbol(symbol) {
-  const upper = String(symbol || "").toUpperCase().trim();
-  const knownQuotes = ["USDT", "USDC", "BTC", "ETH", "BNB", "BUSD", "EUR", "TRY", "FDUSD"];
-  for (const quote of knownQuotes) {
-    if (upper.endsWith(quote) && upper.length > quote.length) {
-      return { base: upper.slice(0, upper.length - quote.length), quote };
-    }
-  }
-  return { base: upper, quote: "" };
-}
-
 function formatMarketRow(row) {
   return {
     symbol: String(row.symbol || "").toUpperCase(),
@@ -83,9 +77,9 @@ async function getBinanceHomeMarkets(symbols) {
     : [];
 
   const binanceEndpoints = [
+    "https://api.binance.com/api/v3/ticker/24hr", // ✅ Primary
     "https://api.binance.us/api/v3/ticker/24hr",
     "https://data.binance.com/api/v3/ticker/24hr",
-    BINANCE_24H_API
   ];
   
   let response = null;
@@ -151,7 +145,7 @@ async function getBinanceHomeMarkets(symbols) {
     if (result.some((item) => item.lastPrice > 0)) return result;
   } catch (error) {}
 
-  // Final fallback
+  // Final fallback – individual price fetches
   const result = [];
   for (const symbol of safeSymbols) {
     try {
@@ -364,7 +358,7 @@ module.exports = {
   getBybitPrice,
   getKucoinPrice,
   getBinanceHomeMarkets,
-  splitSymbol,
+  // splitSymbol is now imported from helpers, no need to export
   formatMarketRow,
   buildEmptyMarketRow,
   ensureUserExists,
