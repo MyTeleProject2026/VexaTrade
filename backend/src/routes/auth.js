@@ -61,7 +61,6 @@ router.post('/sync-user', async (req, res) => {
     const profile = userData || {};
     console.log('🔄 [sync-user] Profile data:', profile);
 
-    // Check if user exists in local DB
     const [existing] = await pool.execute(
       'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
@@ -73,7 +72,6 @@ router.post('/sync-user', async (req, res) => {
     if (existing.length > 0) {
       user = existing[0];
       console.log('🔄 [sync-user] User already exists (ID:', user.id, ')');
-      // Update profile
       await pool.execute(
         `UPDATE users SET
           name = COALESCE(?, name),
@@ -154,16 +152,16 @@ router.post('/sync-user', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [sync-user] Error:', error);
-    // Always return JSON
     return res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ VERIFICATION STATUS – Always returns JSON
+// ✅ VERIFICATION STATUS – Always returns JSON, with extra logging
 // ──────────────────────────────────────────────────────────────
 router.get('/verification-status', async (req, res) => {
   try {
+    console.log('🔍 [verification-status] Request received');
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
       console.error('❌ [verification-status] No token provided');
