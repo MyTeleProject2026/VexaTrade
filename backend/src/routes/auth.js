@@ -14,15 +14,13 @@ const {
   resetPassword,
 } = require('../../services/vexaccount');
 
-// ─── TEST ROUTE – verify that auth routes are loaded ──────
+// ─── TEST ROUTE ────────────────────────────────────────────────
 router.get('/test', (req, res) => {
   console.log('✅ [test] Auth routes are loaded');
   res.json({ success: true, message: 'Auth routes loaded successfully' });
 });
 
-// ============================================================
-// CHECK USER – Used by AuthCallback
-// ============================================================
+// ─── CHECK USER ──────────────────────────────────────────────
 router.post('/check-user', async (req, res) => {
   console.log('🔍 [check-user] Request received for:', req.body.email);
   try {
@@ -52,9 +50,7 @@ router.post('/check-user', async (req, res) => {
   }
 });
 
-// ============================================================
-// SYNC USER – Creates or updates user in VexaTrade
-// ============================================================
+// ─── SYNC USER ──────────────────────────────────────────────
 router.post('/sync-user', async (req, res) => {
   console.log('🔄 [sync-user] Request received for:', req.body.email);
   try {
@@ -162,25 +158,39 @@ router.post('/sync-user', async (req, res) => {
   }
 });
 
-// ============================================================
-// VERIFICATION STATUS – For the Account Verification page
-// ============================================================
+// ─── VERIFICATION STATUS ────────────────────────────────────
 router.get('/verification-status', async (req, res) => {
   console.log('🔍 [verification-status] Request received');
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
+    // 1. Get token
+    const authHeader = req.headers.authorization;
+    console.log('🔍 [verification-status] Authorization header:', authHeader);
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('❌ [verification-status] No token provided');
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+    const token = authHeader.slice(7).trim();
+    console.log('🔍 [verification-status] Token received:', token.substring(0, 20) + '...');
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vexatrade_jwt_secret_key');
+    // 2. Verify token
+    const JWT_SECRET = process.env.JWT_SECRET || 'vexatrade_jwt_secret_key';
+    console.log('🔍 [verification-status] Using JWT_SECRET:', JWT_SECRET.substring(0, 10) + '...');
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      console.error('❌ [verification-status] JWT verification failed:', err.message);
+      return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    }
+    console.log('🔍 [verification-status] Decoded token:', decoded);
+
     const email = decoded.email;
     if (!email) {
       console.error('❌ [verification-status] No email in token');
       return res.status(400).json({ success: false, message: 'Email not found' });
     }
 
+    // 3. Query database
     console.log('🔍 [verification-status] Checking for:', email);
     const [rows] = await pool.execute(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
@@ -207,13 +217,12 @@ router.get('/verification-status', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [verification-status] Error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    console.error('❌ [verification-status] Stack:', error.stack);
+    return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
   }
 });
 
-// ============================================================
-// PROXY ROUTES TO VEXAACCOUNT
-// ============================================================
+// ─── PROXY ROUTES ──────────────────────────────────────────
 router.post('/register', async (req, res) => {
   console.log('📝 [proxy] /register called');
   try {
