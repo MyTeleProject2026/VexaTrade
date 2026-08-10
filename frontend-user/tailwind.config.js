@@ -8,7 +8,7 @@ export default {
     extend: {
       colors: {
         brand: {
-          bg: "#0a0e1a",  
+          bg: "#0a0e1a",      // ✅ Changed from #0b0f17 to #0a0e1a
           panel: "#111827",
           soft: "#1f2937",
           violet: "#7c3aed",
