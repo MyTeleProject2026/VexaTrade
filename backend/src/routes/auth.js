@@ -46,7 +46,7 @@ router.post('/check-user', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ SYNC USER – Always returns JSON
+// ✅ SYNC USER
 // ──────────────────────────────────────────────────────────────
 router.post('/sync-user', async (req, res) => {
   try {
@@ -54,12 +54,10 @@ router.post('/sync-user', async (req, res) => {
     console.log('🔄 [sync-user] Request received for:', email);
 
     if (!email) {
-      console.error('❌ [sync-user] Email missing');
       return res.status(400).json({ success: false, message: 'Email required' });
     }
 
     const profile = userData || {};
-    console.log('🔄 [sync-user] Profile data:', profile);
 
     const [existing] = await pool.execute(
       'SELECT * FROM users WHERE email = ?',
@@ -128,7 +126,6 @@ router.post('/sync-user', async (req, res) => {
       String(user.status || 'pending').toLowerCase() !== 'active'
     );
 
-    console.log('🔄 [sync-user] Returning user data');
     return res.json({
       success: true,
       isNewUser,
@@ -157,21 +154,19 @@ router.post('/sync-user', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// ✅ VERIFICATION STATUS – Always returns JSON, with extra logging
+// ✅ VERIFICATION STATUS
 // ──────────────────────────────────────────────────────────────
 router.get('/verification-status', async (req, res) => {
   try {
     console.log('🔍 [verification-status] Request received');
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      console.error('❌ [verification-status] No token provided');
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'vexatrade_jwt_secret_key');
     const email = decoded.email;
     if (!email) {
-      console.error('❌ [verification-status] No email in token');
       return res.status(400).json({ success: false, message: 'Email not found' });
     }
 
@@ -182,7 +177,6 @@ router.get('/verification-status', async (req, res) => {
     );
 
     if (!rows.length) {
-      console.error('❌ [verification-status] User not found');
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
@@ -194,7 +188,6 @@ router.get('/verification-status', async (req, res) => {
       ? 'active' 
       : 'locked';
 
-    console.log('✅ [verification-status] Returning status');
     return res.json({
       success: true,
       status: { emailVerified, kycStatus, accountStatus, platformAccess }
