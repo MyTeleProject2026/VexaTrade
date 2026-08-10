@@ -6,7 +6,7 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/offline.html',
-  '/favicon.svg'
+  '/vexatrade-admin-icon.svg'
 ];
 
 self.addEventListener('install', event => {
