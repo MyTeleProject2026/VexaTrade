@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 export default function ImageCropper({ imageFile, onCropComplete, onCancel }) {
   const [zoom, setZoom] = useState(1);
@@ -24,6 +24,16 @@ export default function ImageCropper({ imageFile, onCropComplete, onCancel }) {
     }
   }, [imageFile]);
 
+  // Helper to clamp crop position within image bounds
+  const getClampedPosition = useCallback((x, y) => {
+    const maxX = Math.max(0, imageDimensions.width - cropSize);
+    const maxY = Math.max(0, imageDimensions.height - cropSize);
+    return {
+      x: Math.min(Math.max(0, x), maxX),
+      y: Math.min(Math.max(0, y), maxY),
+    };
+  }, [imageDimensions, cropSize]);
+
   // Calculate crop position when image loads
   useEffect(() => {
     if (imageRef.current && imageLoaded) {
@@ -37,19 +47,19 @@ export default function ImageCropper({ imageFile, onCropComplete, onCancel }) {
       });
       
       // Center the crop area
-      setCropPosition({
-        x: Math.max(0, (naturalWidth - cropSize) / 2),
-        y: Math.max(0, (naturalHeight - cropSize) / 2)
-      });
+      const initialX = Math.max(0, (naturalWidth - cropSize) / 2);
+      const initialY = Math.max(0, (naturalHeight - cropSize) / 2);
+      setCropPosition(getClampedPosition(initialX, initialY));
     }
-  }, [imageLoaded, cropSize]);
+  }, [imageLoaded, cropSize, getClampedPosition]);
 
+  // ─── DRAG HANDLERS ──────────────────────────────────────────────
   const handleMouseDown = (e) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!isDragging || !imageRef.current || !imageDimensions.width) return;
     
     const dx = e.clientX - dragStart.x;
@@ -60,26 +70,22 @@ export default function ImageCropper({ imageFile, onCropComplete, onCancel }) {
     const moveX = dx / scale;
     const moveY = dy / scale;
     
-    const newX = Math.min(
-      Math.max(0, cropPosition.x - moveX),
-      imageDimensions.width - cropSize
-    );
-    const newY = Math.min(
-      Math.max(0, cropPosition.y - moveY),
-      imageDimensions.height - cropSize
-    );
+    const newX = cropPosition.x - moveX;
+    const newY = cropPosition.y - moveY;
     
-    setCropPosition({ x: newX, y: newY });
+    setCropPosition(getClampedPosition(newX, newY));
     setDragStart({ x: e.clientX, y: e.clientY });
-  };
+  }, [isDragging, dragStart, zoom, cropPosition, imageDimensions, getClampedPosition]);
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
+  // ─── CROP EXECUTION ─────────────────────────────────────────────
   const handleCrop = () => {
     if (!imageLoaded || !imageRef.current) {
-      alert("Please wait for image to load");
+      // ✅ Use console.error instead of alert
+      console.error("Image not loaded yet");
       return;
     }
     
