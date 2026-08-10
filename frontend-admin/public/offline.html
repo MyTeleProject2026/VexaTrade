@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VexaTrade Admin – Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #050812;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      max-width: 420px;
+      width: 100%;
+      background: #0a0e1a;
+      border-radius: 36px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+      padding: 48px 32px 40px;
+      text-align: center;
+      backdrop-filter: blur(2px);
+    }
+    .logo { margin-bottom: 20px; }
+    .offline-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.15);
+      margin-bottom: 20px;
+    }
+    .offline-icon svg { width: 36px; height: 36px; stroke: #ef4444; stroke-width: 1.5; fill: none; }
+    h2 { font-size: 24px; font-weight: 700; color: #f9fafb; margin-bottom: 6px; }
+    .subhead { font-size: 14px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
+    .subhead strong { color: #22d3ee; font-weight: 600; }
+    .retry-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+      color: #000;
+      border: none;
+      border-radius: 60px;
+      padding: 14px 40px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 24px rgba(6,182,212,0.25);
+      margin-top: 8px;
+    }
+    .retry-btn:hover { transform: scale(1.02); box-shadow: 0 12px 32px rgba(6,182,212,0.35); }
+    .retry-btn:active { transform: scale(0.97); }
+    .retry-btn svg { width: 20px; height: 20px; stroke: currentColor; stroke-width: 2; fill: none; }
+    .footer { margin-top: 28px; font-size: 12px; color: #475569; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 20px; letter-spacing: 0.3px; }
+    .footer span { color: #22d3ee; font-weight: 500; }
+    @media (max-width: 480px) {
+      .card { padding: 32px 20px 28px; border-radius: 28px; }
+      h2 { font-size: 20px; }
+      .subhead { font-size: 13px; }
+      .retry-btn { padding: 12px 32px; font-size: 15px; width: 100%; justify-content: center; }
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.7; }
+    }
+    .offline-icon { animation: pulse-ring 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <!-- VexaTrade Admin logo (replace with your own SVG) -->
+    <svg viewBox="0 0 120 96" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:64px;">
+      <path d="M118.275 87.9562L7.27647 0.958312C6.45147 0.313687 5.47272 0 4.50522 0C3.17022 0 1.84459 0.592125 0.959779 1.72294C-0.575284 3.68062 -0.234596 6.51 1.72253 8.04187L112.554 94.8731C114.523 96.4112 117.348 96.0596 118.871 94.1085C120.581 92.325 120.225 89.4937 118.275 87.9562Z" fill="#22d3ee"/>
+    </svg>
+  </div>
+  <div class="offline-icon">
+    <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  </div>
+  <h2>You're offline</h2>
+  <p class="subhead">
+    Oops! Looks like you lost your connection.<br />
+    <strong>VexaTrade Admin</strong> is ready – just reconnect and refresh.
+  </p>
+  <button class="retry-btn" onclick="window.location.reload()">
+    <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    Try again
+  </button>
+  <div class="footer"><span>VexaTrade Admin</span> · Manage your platform</div>
+</div>
+</body>
+</html>
