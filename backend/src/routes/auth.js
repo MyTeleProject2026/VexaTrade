@@ -1,4 +1,3 @@
-// backend/src/routes/auth.js
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const { pool } = require('../../db');
@@ -28,7 +27,7 @@ router.post('/check-user', async (req, res) => {
     if (!email) {
       return res.status(400).json({ success: false, exists: false, message: 'Email required' });
     }
-    // ✅ Use pool.execute (works with promises in your setup)
+    // ✅ CORRECT: Using pool.execute
     const [rows] = await pool.execute(
       `SELECT id, email, name, email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
@@ -64,6 +63,7 @@ router.post('/sync-user', async (req, res) => {
     const profile = userData || {};
     console.log('🔄 [sync-user] Profile data:', profile);
 
+    // ✅ CORRECT: Using pool.execute
     const [existing] = await pool.execute(
       'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
@@ -190,7 +190,7 @@ router.get('/verification-status', async (req, res) => {
     }
 
     console.log('🔍 [verification-status] Checking for:', email);
-    // ✅ Use pool.execute instead of pool.query
+    // ✅ CORRECT: Using pool.execute
     const [rows] = await pool.execute(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
