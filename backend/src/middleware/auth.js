@@ -1,116 +1,89 @@
-// backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const pool = require('../../db');
 const { getUserProfile } = require('../../services/vexaccount');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key_2024_secure';
 
+/**
+ * Sync a user from VexaAccount into the local database.
+ * Returns the local user ID.
+ */
 async function syncUserFromVexaAccount(accountId, email) {
-  console.log(`🔄 [sync] Syncing user: accountId=${accountId}, email=${email}`);
-  
-  // ─── Step 1: Check if user already exists in local DB by account_id ───
-  const localConn = await pool.getConnection();
-  try {
-    const [localRows] = await localConn.execute(
-      "SELECT id FROM users WHERE account_id = ?",
-      [accountId]
-    );
-    if (localRows.length) {
-      console.log(`✅ [sync] User already exists locally (ID: ${localRows[0].id})`);
-      await localConn.execute(
-        `UPDATE users SET updated_at = NOW() WHERE account_id = ?`,
-        [accountId]
-      );
-      localConn.release();
-      return localRows[0].id;
-    }
-    localConn.release();
-  } catch (err) {
-    console.error('❌ [sync] Error checking local user by account_id:', err.message);
-    localConn.release();
-  }
+  const cleanEmail = email.toLowerCase().trim();
+  console.log(`🔄 [sync] Syncing user: accountId=${accountId}, email=${cleanEmail}`);
 
-  // ─── Step 2: Check by email (in case account_id not set) ───
-  const localConn2 = await pool.getConnection();
-  try {
-    const [emailRows] = await localConn2.execute(
-      "SELECT id FROM users WHERE email = ?",
-      [email]
-    );
-    if (emailRows.length) {
-      console.log(`✅ [sync] User exists by email, updating account_id`);
-      await localConn2.execute(
-        `UPDATE users SET account_id = ?, updated_at = NOW() WHERE id = ?`,
-        [accountId, emailRows[0].id]
-      );
-      localConn2.release();
-      return emailRows[0].id;
-    }
-    localConn2.release();
-  } catch (err) {
-    console.error('❌ [sync] Error checking local user by email:', err.message);
-    localConn2.release();
-  }
+  // Use a single connection for all operations
+  const connection = await pool.getConnection();
 
-  // ─── Step 3: Fetch user profile from VexaAccount API ────────
-  let accountUser = null;
-  let profileFetchFailed = false;
-  console.log(`🔍 [sync] Fetching profile from VexaAccount for: ${email}`);
   try {
-    const response = await getUserProfile(email);
-    if (response.success && response.user) {
-      accountUser = response.user;
-      console.log(`✅ [sync] Found in VexaAccount: ${accountUser.email}`);
-    } else {
-      console.log(`⚠️ [sync] VexaAccount returned success=false or missing user`);
+    // ─── Step 1: Check if user exists by account_id OR email ───
+    const [existing] = await connection.execute(
+      `SELECT id FROM users WHERE account_id = ? OR email = ?`,
+      [accountId, cleanEmail]
+    );
+
+    if (existing.length > 0) {
+      const userId = existing[0].id;
+      console.log(`✅ [sync] User already exists (ID: ${userId}), updating account_id & timestamp`);
+      await connection.execute(
+        `UPDATE users 
+         SET account_id = ?, email = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [accountId, cleanEmail, userId]
+      );
+      return userId;
+    }
+
+    // ─── Step 2: No local user – fetch profile from VexaAccount ──
+    console.log(`🔍 [sync] Fetching profile from VexaAccount for: ${cleanEmail}`);
+    let accountUser = null;
+    let profileFetchFailed = false;
+
+    try {
+      const response = await getUserProfile(cleanEmail);
+      if (response?.success && response?.user) {
+        accountUser = response.user;
+        console.log(`✅ [sync] Found in VexaAccount: ${accountUser.email}`);
+      } else {
+        console.log(`⚠️ [sync] VexaAccount returned success=false or missing user`);
+        profileFetchFailed = true;
+      }
+    } catch (err) {
+      console.error(`❌ [sync] Error calling VexaAccount API:`, err.message);
       profileFetchFailed = true;
     }
-  } catch (err) {
-    console.error(`❌ [sync] Error fetching from VexaAccount API:`, err.message);
-    profileFetchFailed = true;
-  }
 
-  // ─── Step 4: Create local user ──────────────────────────────
-  const localConn3 = await pool.getConnection();
-  try {
+    // ─── Step 3: Create local user ──────────────────────────────
+    let uid, name, avatarUrl;
     if (profileFetchFailed || !accountUser) {
-      console.log(`⚠️ [sync] Creating minimal user with email: ${email}`);
-      const uid = `VX-${String(accountId).padStart(6, '0')}`;
-      // ✅ Set email_verified = 0 to force OTP verification in VexaTrade
-      const [result] = await localConn3.execute(
-        `INSERT INTO users (
-          account_id, uid, email, name, avatar_url, email_verified, 
-          status, kyc_status, balance, password, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
-        [accountId, uid, email, email.split('@')[0], null]
-      );
-      console.log(`✅ [sync] Created minimal local user (ID: ${result.insertId})`);
-      return result.insertId;
+      // Fallback: minimal user with only email and account_id
+      console.log(`⚠️ [sync] Creating minimal user with email: ${cleanEmail}`);
+      uid = `VX-${String(accountId).padStart(6, '0')}`;
+      name = cleanEmail.split('@')[0];
+      avatarUrl = null;
+    } else {
+      uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
+      name = accountUser.name || accountUser.email;
+      avatarUrl = accountUser.avatar_url || null;
     }
 
-    const uid = `VX-${String(accountUser.id).padStart(6, '0')}`;
-    // ✅ Set email_verified = 0 to force OTP verification in VexaTrade
-    const [result] = await localConn3.execute(
+    // Set email_verified = 0 to force OTP verification in VexaTrade
+    const [result] = await connection.execute(
       `INSERT INTO users (
-        account_id, uid, name, email, avatar_url, email_verified, 
+        account_id, uid, name, email, avatar_url, email_verified,
         status, kyc_status, balance, password, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 0, 'active', 'not_submitted', 0, '', NOW(), NOW())`,
-      [
-        accountUser.id,
-        uid,
-        accountUser.name || accountUser.email,
-        accountUser.email,
-        accountUser.avatar_url || null,
-        // ✅ 0 instead of accountUser.is_verified – forces OTP
-      ]
+      [accountId, uid, name, cleanEmail, avatarUrl]
     );
+
     console.log(`✅ [sync] Created local user (ID: ${result.insertId})`);
     return result.insertId;
-  } catch (err) {
-    console.error('❌ [sync] Error creating local user:', err.message);
-    return null;
+
+  } catch (error) {
+    console.error(`❌ [sync] Unhandled error:`, error.message);
+    throw error; // Re-throw so the caller can handle it
   } finally {
-    localConn3.release();
+    connection.release();
   }
 }
 
@@ -121,10 +94,10 @@ const authUser = async (req, res, next) => {
       console.log('❌ [auth] No token provided');
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
-    
+
     const token = authHeader.slice(7).trim();
     console.log(`🔑 [auth] Token received, verifying...`);
-    
+
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
@@ -132,9 +105,9 @@ const authUser = async (req, res, next) => {
       console.error(`❌ [auth] JWT verification failed:`, err.message);
       return res.status(401).json({ success: false, message: 'Invalid or expired token' });
     }
-    
+
     console.log(`🔑 [auth] Token decoded for: ${decoded.email} (role: ${decoded.role})`);
-    
+
     if (decoded.role !== 'user') {
       console.error(`❌ [auth] Invalid role: ${decoded.role}`);
       return res.status(403).json({ success: false, message: 'User access required' });
@@ -143,7 +116,7 @@ const authUser = async (req, res, next) => {
     // ─── Sync user from VexaAccount ─────────────────────────────
     console.log(`🔄 [auth] Syncing user ${decoded.email} from VexaAccount...`);
     const localUserId = await syncUserFromVexaAccount(decoded.id, decoded.email);
-    
+
     if (!localUserId) {
       console.error(`❌ [auth] User ${decoded.email} could not be synced`);
       return res.status(404).json({ success: false, message: 'User not found in local database' });
@@ -156,7 +129,7 @@ const authUser = async (req, res, next) => {
        FROM users WHERE id = ?`,
       [localUserId]
     );
-    
+
     if (!userRows.length) {
       console.error(`❌ [auth] User ${localUserId} not found after sync`);
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -166,6 +139,7 @@ const authUser = async (req, res, next) => {
     req.accountId = decoded.id;
     console.log(`✅ [auth] User authenticated: ${req.user.email} (Local ID: ${req.user.id})`);
     next();
+
   } catch (error) {
     console.error('❌ [auth] Unhandled error:', error.message);
     console.error('❌ [auth] Stack:', error.stack);
