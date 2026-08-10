@@ -133,7 +133,7 @@ io.on('connection', (socket) => {
 
 // ─── Mount Routes ──────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api', userRoutes);        // ⬅️ THIS IS CRITICAL
+app.use('/api', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', transferRoutes);
 app.use('/api', depositRoutes);
