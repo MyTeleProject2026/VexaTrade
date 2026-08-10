@@ -87,10 +87,10 @@ router.get('/user/security-status', authUser, async (req, res, next) => {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// ✅ EMAIL VERIFICATION OTP (FIXED – ALWAYS RETURNS JSON)
+// ✅ EMAIL VERIFICATION OTP – ALWAYS SEND OTP (even if email_verified=1)
 // ════════════════════════════════════════════════════════════════════
 router.post('/user/send-email-verification-code', authUser, async (req, res, next) => {
-  console.log('📧 [send-email-verification] Request received for:', req.body.email);
+  console.log('📧 [send-email-verification] Request received for:', req.user.email);
   
   const connection = await pool.getConnection();
   try {
@@ -111,11 +111,8 @@ router.post('/user/send-email-verification-code', authUser, async (req, res, nex
     const user = rows[0];
     console.log('📧 [send-email-verification] User found:', user.email);
 
-    if (Number(user.email_verified || 0) === 1) {
-      await connection.commit();
-      console.log('ℹ️ Email already verified');
-      return res.json({ success: true, message: 'Email already verified' });
-    }
+    // ✅ ALWAYS generate and send OTP, regardless of email_verified status
+    // This ensures first-time VexaTrade users always verify their email
 
     const code = generateSixDigitOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -155,7 +152,6 @@ router.post('/user/send-email-verification-code', authUser, async (req, res, nex
     await connection.rollback();
     console.error('❌ Error in send-email-verification:', error.message);
     console.error('❌ Stack:', error.stack);
-    // ✅ ALWAYS return JSON on error
     return res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
   } finally {
     connection.release();
@@ -181,10 +177,8 @@ router.post('/user/verify-email-code', authUser, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     const user = userRows[0];
-    if (Number(user.email_verified || 0) === 1) {
-      await connection.commit();
-      return res.json({ success: true, message: 'Email already verified' });
-    }
+    
+    // ✅ Always verify the OTP, even if already verified
     const [otpRows] = await connection.execute(
       `SELECT id, otp_code, expires_at, is_used FROM user_email_otps
        WHERE user_id = ? AND email = ? AND purpose = 'email_verification' AND is_used = 0
@@ -205,11 +199,14 @@ router.post('/user/verify-email-code', authUser, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Verification code expired' });
     }
     await connection.execute(`UPDATE user_email_otps SET is_used = 1 WHERE id = ?`, [otp.id]);
+    
+    // ✅ Always set email_verified = 1 on successful verification
     const nextStatus = String(user.kyc_status || "").toLowerCase() === "pending" ? "under_review" : "pending";
     await connection.execute(
       `UPDATE users SET email_verified = 1, status = ?, updated_at = NOW() WHERE id = ?`,
       [nextStatus, req.user.id]
     );
+    
     await createUserNotification(connection, {
       userId: req.user.id,
       title: 'Email verified',
