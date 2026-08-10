@@ -14,6 +14,12 @@ const {
   resetPassword,
 } = require('../../services/vexaccount');
 
+// ─── TEST ROUTE – verify that auth routes are loaded ──────
+router.get('/test', (req, res) => {
+  console.log('✅ [test] Auth routes are loaded');
+  res.json({ success: true, message: 'Auth routes loaded successfully' });
+});
+
 // ============================================================
 // CHECK USER – Used by AuthCallback
 // ============================================================
@@ -42,7 +48,7 @@ router.post('/check-user', async (req, res) => {
     return res.json({ success: true, exists: false, needsVerification: true, user: null });
   } catch (error) {
     console.error('❌ [check-user] Error:', error);
-    res.status(500).json({ success: false, exists: false, message: error.message });
+    return res.status(500).json({ success: false, exists: false, message: error.message });
   }
 });
 
@@ -72,7 +78,6 @@ router.post('/sync-user', async (req, res) => {
     if (existing.length > 0) {
       user = existing[0];
       console.log('✅ [sync-user] User already exists (ID:', user.id, ')');
-      // Update profile
       await pool.execute(
         `UPDATE users SET
           name = COALESCE(?, name),
