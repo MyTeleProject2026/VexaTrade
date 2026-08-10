@@ -28,8 +28,8 @@ router.post('/check-user', async (req, res) => {
     if (!email) {
       return res.status(400).json({ success: false, exists: false, message: 'Email required' });
     }
-    // ✅ Use pool.query instead of pool.execute
-    const [rows] = await pool.query(
+    // ✅ Use pool.promise().query() to get a promise
+    const [rows] = await pool.promise().query(
       `SELECT id, email, name, email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
     );
@@ -64,8 +64,8 @@ router.post('/sync-user', async (req, res) => {
     const profile = userData || {};
     console.log('🔄 [sync-user] Profile data:', profile);
 
-    // ✅ Use pool.query
-    const [existing] = await pool.query(
+    // ✅ Use pool.promise().query()
+    const [existing] = await pool.promise().query(
       'SELECT * FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     );
@@ -76,7 +76,7 @@ router.post('/sync-user', async (req, res) => {
     if (existing.length > 0) {
       user = existing[0];
       console.log('✅ [sync-user] User already exists (ID:', user.id, ')');
-      await pool.query(
+      await pool.promise().query(
         `UPDATE users SET
           name = COALESCE(?, name),
           first_name = COALESCE(?, first_name),
@@ -100,11 +100,11 @@ router.post('/sync-user', async (req, res) => {
       );
     } else {
       isNewUser = true;
-      const [lastUser] = await pool.query('SELECT id FROM users ORDER BY id DESC LIMIT 1');
+      const [lastUser] = await pool.promise().query('SELECT id FROM users ORDER BY id DESC LIMIT 1');
       const nextId = lastUser.length ? lastUser[0].id + 1 : 1;
       const uid = `CP${String(nextId).padStart(8, '0')}`;
 
-      const [result] = await pool.query(
+      const [result] = await pool.promise().query(
         `INSERT INTO users (
           uid, email, name, first_name, last_name, gender, date_of_birth, country,
           avatar_url, email_verified, kyc_status, status, balance, password, created_at, updated_at
@@ -121,7 +121,7 @@ router.post('/sync-user', async (req, res) => {
           profile?.avatar_url || null
         ]
       );
-      const [newUser] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+      const [newUser] = await pool.promise().query('SELECT * FROM users WHERE id = ?', [result.insertId]);
       user = newUser;
       console.log('🔄 [sync-user] Created new user (ID:', user.id, ')');
     }
@@ -191,8 +191,8 @@ router.get('/verification-status', async (req, res) => {
     }
 
     console.log('🔍 [verification-status] Checking for:', email);
-    // ✅ Use pool.query – returns [rows, fields]
-    const [rows] = await pool.query(
+    // ✅ Use pool.promise().query()
+    const [rows] = await pool.promise().query(
       `SELECT email_verified, kyc_status, status FROM users WHERE email = ?`,
       [email.toLowerCase().trim()]
     );
