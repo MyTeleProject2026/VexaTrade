@@ -7,6 +7,107 @@ const { sendEmail } = require('../../services/emailService');
 const { generateNotificationEmail } = require('../../services/emailTemplates');
 
 // ──────────────────────────────────────────────────────────────
+// GET: System notifications for admin dashboard
+// ──────────────────────────────────────────────────────────────
+router.get('/admin/notifications', authAdmin, async (req, res, next) => {
+  try {
+    const notifications = [];
+
+    // ─── Pending KYC ──────────────────────────────────────
+    const [pendingKyc] = await pool.execute(
+      "SELECT COUNT(*) as count FROM user_kyc WHERE verification_status = 'pending'"
+    );
+    if (pendingKyc[0]?.count > 0) {
+      notifications.push({
+        id: `kyc-pending-${Date.now()}`,
+        type: "kyc",
+        title: "Pending KYC Submissions",
+        message: `${pendingKyc[0].count} user(s) have pending KYC verification.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // ─── Pending Deposits ──────────────────────────────────
+    const [pendingDeposits] = await pool.execute(
+      "SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'"
+    );
+    if (pendingDeposits[0]?.count > 0) {
+      notifications.push({
+        id: `deposits-pending-${Date.now()}`,
+        type: "deposit",
+        title: "Pending Deposits",
+        message: `${pendingDeposits[0].count} deposit request(s) awaiting approval.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // ─── Pending Withdrawals ──────────────────────────────
+    const [pendingWithdrawals] = await pool.execute(
+      "SELECT COUNT(*) as count FROM withdrawals WHERE status = 'pending'"
+    );
+    if (pendingWithdrawals[0]?.count > 0) {
+      notifications.push({
+        id: `withdrawals-pending-${Date.now()}`,
+        type: "withdraw",
+        title: "Pending Withdrawals",
+        message: `${pendingWithdrawals[0].count} withdrawal request(s) awaiting approval.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // ─── Pending Loans ────────────────────────────────────
+    const [pendingLoans] = await pool.execute(
+      "SELECT COUNT(*) as count FROM loans WHERE status = 'pending'"
+    );
+    if (pendingLoans[0]?.count > 0) {
+      notifications.push({
+        id: `loans-pending-${Date.now()}`,
+        type: "loan",
+        title: "Pending Loan Requests",
+        message: `${pendingLoans[0].count} loan request(s) awaiting approval.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // ─── Pending Joint Accounts ────────────────────────────
+    const [pendingJoint] = await pool.execute(
+      "SELECT COUNT(*) as count FROM joint_account_requests WHERE status = 'pending'"
+    );
+    if (pendingJoint[0]?.count > 0) {
+      notifications.push({
+        id: `joint-pending-${Date.now()}`,
+        type: "joint_account",
+        title: "Pending Joint Account Requests",
+        message: `${pendingJoint[0].count} joint account request(s) awaiting approval.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    // ─── Sort by date (newest first) ──────────────────────
+    notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    res.json({ success: true, data: notifications });
+  } catch (error) {
+    console.error('❌ [Admin Notifications] Error:', error);
+    next(error);
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// PUT: Mark system notification as read
+// ──────────────────────────────────────────────────────────────
+router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
+  // System notifications are dynamic (read state is not stored)
+  // Just return success
+  res.json({ success: true, message: "Notification marked as read" });
+});
+
+// ──────────────────────────────────────────────────────────────
 // POST: Send notification to user (with email ALWAYS)
 // ──────────────────────────────────────────────────────────────
 router.post('/notifications/send', authAdmin, async (req, res, next) => {
