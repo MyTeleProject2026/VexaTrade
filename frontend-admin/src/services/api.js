@@ -1,3 +1,4 @@
+// frontend-admin/src/services/api.js
 import axios from "axios";
 
 // ─── Base URLs ────────────────────────────────────────────────
@@ -66,10 +67,12 @@ export const adminApi = {
   sendNotification: (payload, token) =>
     api.post("/api/admin/notifications/send", payload, authHeaders(token)),
 
+  // ✅ FIXED: Added missing closing brace and comma
   sendNotificationWithEmail: (data, token) => {
-    return adminApi.post('/api/admin/notifications/send', data, {
+    return api.post('/api/admin/notifications/send', data, {
       headers: { Authorization: `Bearer ${token}` }
     });
+  },
 
   // ===================== USERS =====================
   getUsers: (token) => api.get("/api/admin/users", authHeaders(token)),
@@ -92,7 +95,7 @@ export const adminApi = {
   getJointAccountRequests: (token) =>
     api.get("/api/admin/joint-account-requests", authHeaders(token)),
   approveJointAccountRequest: (id, payload, token) =>
-    api.post(`/api/admin/joint-account-requests/${id}/approve`, payload || {}, authHeaders(oken)),
+    api.post(`/api/admin/joint-account-requests/${id}/approve`, payload || {}, authHeaders(token)),
   rejectJointAccountRequest: (id, payload, token) =>
     api.post(`/api/admin/joint-account-requests/${id}/reject`, payload || {}, authHeaders(token)),
   getJointAccounts: (token) =>
