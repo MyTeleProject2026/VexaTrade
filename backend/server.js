@@ -6,10 +6,12 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
-const pool = require("./db");
 const http = require('http');
 const socketIO = require('socket.io');
+
+const pool = require("./db");
 const { setupChatHandlers } = require('./src/utils/ChatHandlers.js');
+
 // ─── Import all route files ─────────────────────────────────────────
 const authRoutes = require('./src/routes/auth');
 const userRoutes = require('./src/routes/userRoutes');
@@ -33,23 +35,13 @@ const adminFundRoutes = require("./adminFundRoutes");
 const adminNetworkRoutes = require("./adminNetworkRoutes");
 const overrideFundsPlans = require("./overrideFundsPlans");
 const adminNotificationRoutes = require('./src/routes/adminNotifications');
+const chatRoutes = require('./src/routes/chatRoutes'); // ⭐ NEW: Chat routes
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DB_NAME = process.env.DB_NAME;
-const server = http.createServer(app);
-const io = socketIO(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
 
-// ⭐ SETUP CHAT HANDLERS
-setupChatHandlers(io);
-
-// ─── CORS & Middleware ──────────────────────────────────────────────
+// ─── CORS Configuration ─────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN,
   process.env.FRONTEND_USER_URL,
@@ -109,16 +101,22 @@ for (const dir of uploadDirs) {
 }
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ─── Socket.io ─────────────────────────────────────────────────────
+// ─── Create HTTP Server & Socket.IO ──────────────────────────────
+// ⭐ SINGLE server instance - FIXED
 const server = http.createServer(app);
-const io = socketIo(server, {
+const io = socketIO(server, {
   cors: {
     origin: allowedOrigins,
     credentials: true,
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  },
+  transports: ['websocket', 'polling']
 });
 
+// ⭐ SETUP CHAT HANDLERS
+setupChatHandlers(io);
+
+// ─── Socket.IO Connection Tracking ──────────────────────────────
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -148,8 +146,17 @@ io.on('connection', (socket) => {
   });
 });
 
+// ⭐ Make io available to routes
+app.set('io', io);
+
 // ─── Mount Routes ──────────────────────────────────────────────────
+// Authentication routes (no auth middleware needed)
 app.use('/api/auth', authRoutes);
+
+// Chat routes (requires authentication)
+app.use('/api/chat', require('./src/middleware/auth').authUser, chatRoutes);
+
+// User & Trading routes
 app.use('/api', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', transferRoutes);
@@ -159,11 +166,11 @@ app.use('/api', tradeRoutes);
 app.use('/api', fundsRoutes);
 app.use('/api', loanRoutes);
 
-// ✅ MOUNT adminNotificationRoutes BEFORE adminRoutes
+// Admin routes - Mount adminNotificationRoutes BEFORE adminRoutes
 app.use('/api/admin', adminNotificationRoutes);
-
-// Then mount the rest
 app.use('/api', adminRoutes);
+
+// Other routes
 app.use('/api', legalRoutes);
 app.use('/api', supportRoutes);
 app.use('/api', jointAccountRoutes);
@@ -176,31 +183,58 @@ app.use("/api/employee", employeeRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 
-// ─── Health ────────────────────────────────────────────────────────
+// ─── Health Check ──────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     await connection.ping();
     connection.release();
-    res.json({ success: true, message: "VexaTrade backend running", database: DB_NAME });
+    res.json({ 
+      success: true, 
+      message: "VexaTrade backend running",
+      database: DB_NAME,
+      socketConnected: io.engine.clientsCount > 0
+    });
   } catch (_) {
-    res.status(500).json({ success: false, message: "Database connection failed" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Database connection failed" 
+    });
   }
 });
 
-app.get('/', (req, res) => res.json({ success: true, message: "VexaTrade backend running" }));
+app.get('/', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: "VexaTrade backend running",
+    version: "1.0.0",
+    endpoints: {
+      api: "/api",
+      health: "/api/health",
+      chat: "/api/chat",
+      auth: "/api/auth"
+    }
+  });
+});
 
 // ─── 404 & Error Handler ──────────────────────────────────────────
 app.use((req, res) => {
   if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ success: false, message: "API route not found" });
+    return res.status(404).json({ 
+      success: false, 
+      message: "API route not found",
+      path: req.path 
+    });
   }
   res.status(404).send("Not found");
 });
 
 app.use((err, req, res, next) => {
   console.error("Server error:", err);
-  res.status(err.status || 500).json({ success: false, message: err.message || "Internal server error" });
+  res.status(err.status || 500).json({ 
+    success: false, 
+    message: err.message || "Internal server error" 
+  });
 });
 
 // ─── Start Server ──────────────────────────────────────────────────
@@ -212,7 +246,8 @@ server.listen(PORT, async () => {
     console.log(`✅ VexaTrade backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
-    console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
+    console.log(`✅ WebSocket: ws://localhost:${PORT}`);
+    console.log(`✅ Allowed origins: ${allowedOrigins.length} domains`);
   } catch (error) {
     console.error("❌ MySQL connection failed:", error.message);
   }
