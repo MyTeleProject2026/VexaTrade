@@ -554,10 +554,4 @@ router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
-// ─── ❌ REMOVED: Admin Notifications section ───────────────────────
-// The GET /admin/notifications, PUT /admin/notifications/:id/read,
-// and POST /admin/notifications/send endpoints have been removed.
-// Please use the new adminNotifications.js file for notification features.
-// ────────────────────────────────────────────────────────────────────
-
 module.exports = router;
