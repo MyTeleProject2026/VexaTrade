@@ -95,24 +95,19 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
     }
   }, []);
 
-  // Delete message function
   const handleDeleteMessage = useCallback((messageId) => {
     if (!selectedConversation) return;
-    
     setMessages(prev => {
       const updated = prev.filter(msg => msg.id !== messageId);
       saveLocalMessages(selectedConversation.id, updated);
       return updated;
     });
-    
     if (adminChatApi && adminChatApi.deleteMessage) {
       adminChatApi.deleteMessage(selectedConversation.id, messageId);
     }
-    
     setShowDeleteMenu(null);
   }, [selectedConversation, saveLocalMessages]);
 
-  // Create demo conversations when none exist
   const createDemoConversations = useCallback(() => {
     const demoConversations = [
       {
@@ -161,6 +156,7 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
       setIsConnected(true);
 
       adminChatApi.onNewMessage((data) => {
+        // Update conversation list
         setConversations(prev => {
           const updated = prev.map(conv => 
             conv.id === data.conversationId 
@@ -177,9 +173,10 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
           return updated;
         });
 
+        // If this is the selected conversation, add message to chat
         if (selectedConversation?.id === data.conversationId) {
           setMessages(prev => {
-            const newMsgs = [...prev, {
+            const newMsg = {
               id: data.id || Date.now(),
               message: data.message,
               senderType: data.senderType || "user",
@@ -187,7 +184,8 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
               userName: data.userName || "User",
               read: false,
               isAutoReply: data.isAutoReply || false
-            }];
+            };
+            const newMsgs = [...prev, newMsg];
             saveLocalMessages(data.conversationId, newMsgs);
             return newMsgs;
           });
@@ -274,18 +272,15 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
     setShowDeleteMenu(null);
-    
     const localMsgs = loadLocalMessages(conversation.id);
     if (localMsgs.length > 0) {
       setMessages(localMsgs);
     }
-    
     if (adminChatApi && adminChatApi.getMessages) {
       setMessages([]);
       adminChatApi.getMessages(conversation.id);
       adminChatApi.markRead?.(conversation.id);
     }
-    
     setConversations(prev => {
       const updated = prev.map(conv => conv.id === conversation.id ? { ...conv, unread_admin: 0 } : conv);
       saveConversations(updated);
@@ -295,7 +290,6 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
 
   const handleSendMessage = () => {
     if (!inputMessage.trim() || !selectedConversation) return;
-    
     const newMessage = {
       id: Date.now(),
       message: inputMessage.trim(),
@@ -305,13 +299,11 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
       read: true,
       isAutoReply: false
     };
-    
     setMessages(prev => {
       const newMsgs = [...prev, newMessage];
       saveLocalMessages(selectedConversation.id, newMsgs);
       return newMsgs;
     });
-    
     setConversations(prev => {
       const updated = prev.map(conv => 
         conv.id === selectedConversation.id 
@@ -321,11 +313,9 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
       saveConversations(updated);
       return updated;
     });
-    
     if (adminChatApi && adminChatApi.sendMessage) {
       adminChatApi.sendMessage(selectedConversation.id, inputMessage.trim());
     }
-    
     setInputMessage("");
     setTimeout(scrollToBottom, 100);
   };
