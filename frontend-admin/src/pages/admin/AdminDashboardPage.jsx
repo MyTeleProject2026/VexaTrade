@@ -9,15 +9,12 @@ import {
   Handshake,
   Bell,
   CheckCircle2,
-  XCircle,
   Clock3,
   Eye,
   CandlestickChart,
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
-// ✅ ADDED: Import toast notification hook
 import useToast from "../../components/ToastNotification";
-
 import AdminChatPanel from "../../components/AdminChatPanel";
 import { MessageCircle } from "lucide-react";
 
@@ -62,8 +59,6 @@ function NotificationItem({ notification, onMarkRead, onView }) {
         return <Landmark size={16} className="text-cyan-400" />;
       case "joint_account":
         return <Handshake size={16} className="text-indigo-400" />;
-      case "email_verified":
-        return <CheckCircle2 size={16} className="text-emerald-400" />;
       default:
         return <Bell size={16} className="text-slate-400" />;
     }
@@ -134,9 +129,7 @@ export default function AdminDashboardPage() {
     localStorage.getItem("admin_token") ||
     "";
 
-  // ✅ ADDED: Toast notification hook
   const { toasts, addToast, removeToast, ToastContainer } = useToast();
-  // ✅ ADDED: Get admin info for chat
   const adminId = localStorage.getItem("adminId") || "1";
   const adminName = localStorage.getItem("adminName") || "Admin";
 
@@ -152,8 +145,8 @@ export default function AdminDashboardPage() {
     todayTrades: 0,
     totalBalance: 0,
     pendingLoans: 0,
-    emailVerifiedUsers: 0,        // ✅ ADDED
-    pendingJointAccounts: 0,      // ✅ ADDED
+    emailVerifiedUsers: 0,
+    pendingJointAccounts: 0,
   });
 
   const [notifications, setNotifications] = useState([]);
@@ -162,10 +155,9 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
-  // ✅ ADDED: State for chat unread count
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  // ✅ ADDED: Effect to check unread messages from localStorage
+  // Check unread messages from localStorage
   useEffect(() => {
     const checkUnreadMessages = () => {
       try {
@@ -173,12 +165,12 @@ export default function AdminDashboardPage() {
         const total = conversations.reduce((sum, conv) => sum + (conv.unread_admin || 0), 0);
         setChatUnreadCount(total);
       } catch (e) {
-        console.error("Error checking unread messages:", e);
+        // Silent fail
       }
     };
     
     checkUnreadMessages();
-    const interval = setInterval(checkUnreadMessages, 3000);
+    const interval = setInterval(checkUnreadMessages, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -189,7 +181,7 @@ export default function AdminDashboardPage() {
     const interval = setInterval(() => {
       loadDashboard(true);
       loadNotifications(true);
-    }, 10000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
@@ -198,6 +190,7 @@ export default function AdminDashboardPage() {
     try {
       if (!silent) setLoading(true);
       else setRefreshing(true);
+      setError("");
 
       const res = await adminApi.getDashboardStats(token);
       const dashboardData = res.data?.data || {};
@@ -219,12 +212,15 @@ export default function AdminDashboardPage() {
       });
       
       if (silent) {
-        addToast("Dashboard data refreshed successfully", "success");
+        // ✅ Silent refresh - no toast
       }
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      addToast(errorMsg, "error");
+      // ✅ Only show error toast for actual errors, not notification failures
+      if (!silent) {
+        addToast("Failed to load dashboard data", "error");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -233,21 +229,44 @@ export default function AdminDashboardPage() {
 
   async function loadNotifications(silent = false) {
     try {
-      const res = await adminApi.getNotifications?.(token) || { data: { data: [] } };
-      setNotifications(res.data?.data || []);
+      // ✅ Safely call getNotifications with proper error handling
+      let response;
+      try {
+        response = await adminApi.getNotifications(token);
+      } catch (err) {
+        // ✅ If the endpoint fails, just log and continue
+        console.warn("Notifications endpoint not available:", err.message);
+        setNotifications([]);
+        return;
+      }
+      
+      // ✅ Handle different response formats
+      let data = [];
+      if (response?.data?.success && response?.data?.data) {
+        data = response.data.data;
+      } else if (Array.isArray(response?.data)) {
+        data = response.data;
+      } else if (response?.data?.notifications) {
+        data = response.data.notifications;
+      }
+      
+      setNotifications(data);
     } catch (err) {
-      console.error("Failed to load notifications:", err);
-      addToast("Failed to load notifications", "error");
+      // ✅ Silent fail for notifications - don't show error toast
+      console.warn("Failed to load notifications:", err.message);
+      setNotifications([]);
     }
   }
 
   async function markNotificationRead(id) {
     try {
       await adminApi.markNotificationRead?.(id, token);
-      await loadNotifications(true);
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+      );
       addToast("Notification marked as read", "success");
     } catch (err) {
-      console.error("Failed to mark notification as read:", err);
+      console.warn("Failed to mark notification as read:", err.message);
       addToast("Failed to mark notification as read", "error");
     }
   }
@@ -263,17 +282,18 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">
-        Loading dashboard...
+        <div className="flex items-center gap-3">
+          <span className="spinner-small" />
+          Loading dashboard...
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-5 pb-20 xl:pb-5">
-      {/* ✅ ADDED: Toast Container */}
       <ToastContainer />
 
-      {/* ✅ FIXED: Chat Panel - Now properly controlled with isOpen and onClose */}
       <AdminChatPanel 
         adminId={adminId} 
         adminName={adminName} 
@@ -281,10 +301,9 @@ export default function AdminDashboardPage() {
         onClose={() => setShowChatPanel(false)}
       />
       
-      {/* ✅ FIXED: Chat Toggle Button with notification badge */}
       <button
         onClick={() => setShowChatPanel(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-lime-400 to-green-500 text-black shadow-lg transition hover:scale-105 hover:shadow-lime-500/25"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-lime-400 to-emerald-500 text-black shadow-lg transition hover:scale-105 hover:shadow-lime-500/25"
       >
         <MessageCircle size={24} />
         {chatUnreadCount > 0 && (
@@ -309,7 +328,6 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Pending Actions Badge */}
             {pendingCount > 0 && (
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
                 <Clock3 size={12} />
@@ -317,7 +335,6 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* Notifications Bell */}
             <button
               type="button"
               onClick={() => setShowNotifications(!showNotifications)}
@@ -333,7 +350,10 @@ export default function AdminDashboardPage() {
 
             <button
               type="button"
-              onClick={() => loadDashboard(true)}
+              onClick={() => {
+                loadDashboard(true);
+                loadNotifications(true);
+              }}
               className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
@@ -343,7 +363,6 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      {/* Notifications Panel */}
       {showNotifications && (
         <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a]/80 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
@@ -370,11 +389,15 @@ export default function AdminDashboardPage() {
                   onMarkRead={markNotificationRead}
                   onView={(n) => {
                     setShowNotifications(false);
-                    if (n.type === "kyc") window.location.href = "/admin/kyc";
-                    if (n.type === "deposit") window.location.href = "/admin/deposits";
-                    if (n.type === "withdraw") window.location.href = "/admin/withdrawals";
-                    if (n.type === "loan") window.location.href = "/admin/loans";
-                    if (n.type === "joint_account") window.location.href = "/admin/joint-account-requests";
+                    const routes = {
+                      kyc: "/admin/kyc",
+                      deposit: "/admin/deposits",
+                      withdraw: "/admin/withdrawals",
+                      loan: "/admin/loans",
+                      joint_account: "/admin/joint-account-requests",
+                    };
+                    const route = routes[n.type];
+                    if (route) window.location.href = route;
                   }}
                 />
               ))
