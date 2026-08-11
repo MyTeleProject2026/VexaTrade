@@ -6,10 +6,10 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
-const http = require("http");
-const socketIo = require("socket.io");
 const pool = require("./db");
-
+const http = require('http');
+const socketIO = require('socket.io');
+const { setupChatHandlers } = require('./src/utils/ChatHandlers.js');
 // ─── Import all route files ─────────────────────────────────────────
 const authRoutes = require('./src/routes/auth');
 const userRoutes = require('./src/routes/userRoutes');
@@ -37,6 +37,17 @@ const adminNotificationRoutes = require('./src/routes/adminNotifications');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DB_NAME = process.env.DB_NAME;
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// ⭐ SETUP CHAT HANDLERS
+setupChatHandlers(io);
 
 // ─── CORS & Middleware ──────────────────────────────────────────────
 const allowedOrigins = [
