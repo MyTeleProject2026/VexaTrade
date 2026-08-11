@@ -33,11 +33,7 @@ const maintenanceRoutes = require("./maintenanceRoutes");
 const adminFundRoutes = require("./adminFundRoutes");
 const adminNetworkRoutes = require("./adminNetworkRoutes");
 const overrideFundsPlans = require("./overrideFundsPlans");
-
-// ✅ NEW: Admin Notification Routes
 const adminNotificationRoutes = require('./src/routes/adminNotifications');
-
-// ⭐ CHAT ROUTES
 const chatRoutes = require('./src/routes/chatRoutes');
 
 const app = express();
@@ -115,48 +111,16 @@ const io = socketIo(server, {
   transports: ['websocket', 'polling']
 });
 
-// ⭐ SETUP CHAT HANDLERS
+// ⭐ ONLY ONE HANDLER - Remove the duplicate io.on('connection')
+// The setupChatHandlers function handles everything
 setupChatHandlers(io);
-
-// Store connected users
-const connectedUsers = new Map();
-
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
-  
-  socket.on('authenticate', (data) => {
-    const { userId, role, name } = data;
-    if (!userId) return;
-    connectedUsers.set(userId, {
-      socketId: socket.id,
-      role: role || 'user',
-      name: name || 'User'
-    });
-    socket.userId = userId;
-    socket.role = role || 'user';
-    console.log(`Authenticated: ${role || 'user'} ${userId} (${name})`);
-    if (role === 'admin') {
-      socket.join('admin_room');
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (socket.userId) {
-      connectedUsers.delete(socket.userId);
-      console.log(`User ${socket.userId} disconnected`);
-    }
-  });
-});
 
 // Make io available to routes
 app.set('io', io);
 
 // ─── Mount Routes ──────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-
-// ⭐ CHAT ROUTES (requires authentication)
 app.use('/api/chat', require('./src/middleware/auth').authUser, chatRoutes);
-
 app.use('/api', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', transferRoutes);
@@ -177,8 +141,6 @@ app.use("/api/admin/fund-rules", adminFundRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
-
-// ✅ Admin Notification Routes
 app.use('/api/admin', adminNotificationRoutes);
 
 // ─── Health ────────────────────────────────────────────────────────
@@ -217,7 +179,8 @@ server.listen(PORT, async () => {
     console.log(`✅ VexaTrade backend running on port ${PORT}`);
     console.log(`✅ MySQL connected successfully`);
     console.log(`✅ Database: ${DB_NAME}`);
-    console.log(`✅ Allowed origins: ${allowedOrigins.join(", ")}`);
+    console.log(`✅ WebSocket: ws://localhost:${PORT}`);
+    console.log(`✅ Allowed origins: ${allowedOrigins.length} domains`);
   } catch (error) {
     console.error("❌ MySQL connection failed:", error.message);
   }
