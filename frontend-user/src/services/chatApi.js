@@ -1,9 +1,11 @@
+// frontend-user/src/services/chatApi.js
 import io from "socket.io-client";
 
 let socket = null;
 let isConnected = false;
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
+
 // Local storage helpers for fallback
 const getLocalConversations = (userId) => {
   const stored = localStorage.getItem(`chat_user_${userId}_conversations`);
@@ -36,25 +38,45 @@ export const chatApi = {
     if (socket && isConnected) return socket;
     
     try {
+      console.log(`🔌 User chat connecting to: ${API_BASE_URL}`);
+      
       socket = io(API_BASE_URL, { 
         transports: ["websocket", "polling"], 
         withCredentials: true,
-        timeout: 10000
+        timeout: 10000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
       });
       
       socket.on("connect", () => { 
         isConnected = true; 
+        console.log("✅ User chat socket connected");
         socket.emit("authenticate", { userId, role: "user", name, token }); 
       });
       
       socket.on("disconnect", () => { 
-        isConnected = false; 
+        isConnected = false;
+        console.log("❌ User chat socket disconnected");
       });
       
       socket.on("connect_error", (err) => {
-        console.error("Socket connection error:", err);
+        console.error("❌ Socket connection error:", err.message);
         isConnected = false;
       });
+
+      socket.on("authenticated", (data) => {
+        console.log("✅ User chat authenticated:", data);
+      });
+
+      socket.on("auth_error", (data) => {
+        console.error("❌ User chat auth error:", data);
+      });
+      
+      socket.on("error", (data) => {
+        console.error("❌ Socket error:", data);
+      });
+      
     } catch (err) {
       console.error("Failed to connect socket:", err);
       isConnected = false;
@@ -74,12 +96,22 @@ export const chatApi = {
   getSocket: () => socket,
   isConnected: () => isConnected,
   
-  sendMessage: (conversationId, message) => { 
+  // ✅ FIXED: Send message with userId for new conversations
+  sendMessage: (conversationId, message, userId = null) => { 
+    console.log(`📤 Sending message: conversationId=${conversationId}, userId=${userId}, message=${message}`);
+    
     if (socket && isConnected) {
-      socket.emit("send_message", { conversationId, message });
+      socket.emit("send_message", { 
+        conversationId, 
+        message,
+        userId: userId // ✅ Include userId for new conversations
+      });
+    } else {
+      console.warn("⚠️ Socket not connected, message stored locally only");
     }
+    
     // Store in localStorage as fallback
-    const convKey = `chat_messages_${conversationId}`;
+    const convKey = `chat_messages_${conversationId || 'temp'}`;
     const existing = localStorage.getItem(convKey);
     const messages = existing ? JSON.parse(existing) : [];
     messages.push({
@@ -92,11 +124,23 @@ export const chatApi = {
     localStorage.setItem(convKey, JSON.stringify(messages));
   },
   
+  deleteMessage: (conversationId, messageId) => { 
+    if (socket && isConnected) {
+      socket.emit("delete_message", { conversationId, messageId });
+    }
+    const convKey = `chat_messages_${conversationId}`;
+    const stored = localStorage.getItem(convKey);
+    if (stored) {
+      const messages = JSON.parse(stored);
+      const updated = messages.filter(msg => msg.id !== messageId);
+      localStorage.setItem(convKey, JSON.stringify(updated));
+    }
+  },
+  
   getMessages: (conversationId) => { 
     if (socket && isConnected) {
       socket.emit("get_messages", { conversationId });
     } else {
-      // Load from localStorage
       const convKey = `chat_messages_${conversationId}`;
       const stored = localStorage.getItem(convKey);
       const messages = stored ? JSON.parse(stored) : [];
@@ -110,7 +154,6 @@ export const chatApi = {
     if (socket && isConnected) {
       socket.emit("mark_read", { conversationId });
     }
-    // Mark messages as read in localStorage
     const convKey = `chat_messages_${conversationId}`;
     const stored = localStorage.getItem(convKey);
     if (stored) {
@@ -128,28 +171,23 @@ export const chatApi = {
     }
   },
   
-  // ✅ DELETE METHOD - Properly placed inside the object
-  deleteMessage: (conversationId, messageId) => { 
-    if (socket && isConnected) {
-      socket.emit("delete_message", { conversationId, messageId });
-    }
-    // Also delete from localStorage
-    const convKey = `chat_messages_${conversationId}`;
-    const stored = localStorage.getItem(convKey);
-    if (stored) {
-      const messages = JSON.parse(stored);
-      const updated = messages.filter(msg => msg.id !== messageId);
-      localStorage.setItem(convKey, JSON.stringify(updated));
-    }
-  },
-  
   onNewMessage: (callback) => { 
-    if (socket) socket.on("new_message", callback);
+    if (socket) {
+      socket.on("new_message", (data) => {
+        console.log("📩 User received new message:", data);
+        callback(data);
+      });
+    }
     chatApi._newMessageCallback = callback;
   },
   
   onMessagesLoaded: (callback) => { 
-    if (socket) socket.on("messages_loaded", callback);
+    if (socket) {
+      socket.on("messages_loaded", (data) => {
+        console.log("📚 User messages loaded:", data);
+        callback(data);
+      });
+    }
     chatApi._messagesCallback = callback;
   },
   
@@ -158,12 +196,21 @@ export const chatApi = {
   },
 
   onConversationCreated: (callback) => { 
-    if (socket) socket.on("conversation_created", callback);
+    if (socket) {
+      socket.on("conversation_created", (data) => {
+        console.log("🆕 User conversation created:", data);
+        callback(data);
+      });
+    }
   },
   
-  // ✅ ON MESSAGE DELETED - Properly placed inside the object
   onMessageDeleted: (callback) => { 
-    if (socket) socket.on("message_deleted", callback);
+    if (socket) {
+      socket.on("message_deleted", (data) => {
+        console.log("🗑️ User message deleted:", data);
+        callback(data);
+      });
+    }
   },
   
   off: (event) => { 
