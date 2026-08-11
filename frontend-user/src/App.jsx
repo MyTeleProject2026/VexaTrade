@@ -180,6 +180,36 @@ function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher } = useNotification();
 
+  // ============================================================
+  // ✅ BREVO CONVERSATIONS - Identify logged-in users
+  // ============================================================
+  useEffect(() => {
+    // Check if user is logged in and Brevo is available
+    const token = localStorage.getItem("userToken") || localStorage.getItem("token");
+    const userData = localStorage.getItem("user");
+    
+    if (token && userData && window.BrevoConversations) {
+      try {
+        const user = JSON.parse(userData);
+        window.BrevoConversations('identify', {
+          email: user.email || '',
+          name: user.name || user.email || 'User',
+          // ✅ Custom data for support agents
+          custom_data: {
+            user_id: user.id || user.uid || '',
+            uid: user.uid || '',
+            kyc_status: user.kyc_status || 'not_submitted',
+            status: user.status || 'pending',
+            email_verified: user.email_verified ? 'Yes' : 'No',
+          }
+        });
+        console.log('✅ Brevo user identified:', user.email);
+      } catch (e) {
+        console.warn('⚠️ Could not identify user to Brevo:', e);
+      }
+    }
+  }, []); // Run once on mount
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#050812] flex items-center justify-center">
