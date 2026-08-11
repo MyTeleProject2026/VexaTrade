@@ -1,5 +1,6 @@
 // backend/src/utils/ChatHandlers.js
 const pool = require('../../db');
+const { generateAutoResponse } = require('./autoResponses');
 
 // Store connected users
 const connectedUsers = new Map();
@@ -233,7 +234,7 @@ function setupChatHandlers(io) {
       }
     });
 
-    // ─── send_message ─── ✅ FIXED
+    // ─── send_message ─── ✅ WITH AI AUTO-RESPONSE
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, message, userId } = data;
@@ -252,8 +253,9 @@ function setupChatHandlers(io) {
 
         let convId = conversationId;
         const trimmedMessage = message.trim();
+        const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
 
-        // ✅ FIXED: Handle new conversation properly
+        // Handle new conversation properly
         if (!convId || convId === 'new' || convId === 'null' || convId === 'undefined') {
           if (!userId) {
             console.error('❌ No userId provided for new conversation');
@@ -265,7 +267,6 @@ function setupChatHandlers(io) {
           const conv = await getOrCreateConversation(userId, currentUser.id);
           convId = conv.id;
           
-          // ✅ Emit conversation_created event to user
           socket.emit('conversation_created', { 
             conversationId: convId,
             userId: userId 
@@ -285,10 +286,9 @@ function setupChatHandlers(io) {
         }
 
         const conversation = conv[0];
-        const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
         const recipientId = senderType === 'admin' ? conversation.user_id : conversation.admin_id;
 
-        // Insert message
+        // ─── SAVE USER MESSAGE ───
         const [result] = await pool.query(
           `INSERT INTO chat_messages 
            (conversation_id, sender_id, sender_type, message)
@@ -340,6 +340,72 @@ function setupChatHandlers(io) {
         // Emit to sender (for confirmation)
         socket.emit('new_message', messageData);
 
+        // ─── ✅ AI AUTO-RESPONSE (Only if sender is NOT admin) ───
+        if (senderType !== 'admin') {
+          try {
+            // Generate AI response based on user message
+            const autoReply = generateAutoResponse(trimmedMessage);
+            
+            console.log(`🤖 Generating auto-reply for user ${currentUser.id}: ${autoReply.substring(0, 50)}...`);
+
+            // Save auto-reply to database as admin message
+            const [autoResult] = await pool.query(
+              `INSERT INTO chat_messages 
+               (conversation_id, sender_id, sender_type, message)
+               VALUES (?, ?, 'admin', ?)`,
+              [convId, conversation.admin_id, autoReply]
+            );
+
+            // Update conversation with auto-reply
+            await pool.query(
+              `UPDATE conversations 
+               SET last_message = ?,
+                   last_message_id = ?,
+                   last_message_time = NOW(),
+                   updated_at = NOW(),
+                   unread_user = unread_user + 1
+               WHERE id = ?`,
+              [autoReply, autoResult.insertId, convId]
+            );
+
+            // Get the auto-reply message
+            const [autoMessage] = await pool.query(
+              `SELECT 
+                m.id,
+                m.conversation_id,
+                m.sender_id,
+                m.sender_type,
+                m.message,
+                m.is_read,
+                m.read_at,
+                m.created_at,
+                'Blockchain Ecosystem AI' as sender_name
+              FROM chat_messages m
+              WHERE m.id = ?`,
+              [autoResult.insertId]
+            );
+
+            const autoData = {
+              conversationId: convId,
+              ...autoMessage[0],
+              senderType: 'admin',
+              isAutoReply: true  // Flag to identify auto-reply
+            };
+
+            // ─── EMIT AUTO-REPLY TO USER ───
+            io.to(`user_${conversation.user_id}`).emit('new_message', autoData);
+            
+            // ─── EMIT AUTO-REPLY TO ADMIN PANEL ───
+            io.to(`user_${conversation.admin_id}`).emit('new_message', autoData);
+            io.to('admins').emit('new_message', autoData);
+
+            console.log(`✅ Auto-reply sent to user ${conversation.user_id}`);
+          } catch (autoError) {
+            console.error('❌ Error generating auto-response:', autoError);
+            // Don't fail the whole operation if auto-response fails
+          }
+        }
+
         // Update admin's conversation list if admin sent
         if (senderType === 'admin') {
           await loadAdminConversations(socket, currentUser.id);
@@ -347,7 +413,7 @@ function setupChatHandlers(io) {
 
       } catch (error) {
         console.error('Error sending message:', error);
-        socket.emit('error', { message: 'Failed to send message' });
+        socket.emit('error', { message: 'Failed to send message: ' + error.message });
       }
     });
 
@@ -468,7 +534,7 @@ function setupChatHandlers(io) {
 
   });
 
-  console.log('✅ Chat handlers initialized');
+  console.log('✅ Chat handlers initialized with AI auto-response');
 }
 
 module.exports = { 
