@@ -138,9 +138,6 @@ io.on('connection', (socket) => {
 });
 
 // ─── Mount Routes ──────────────────────────────────────────────────
-// ✅ IMPORTANT: adminNotificationRoutes MUST be mounted BEFORE adminRoutes
-// to avoid route conflict with the old /admin/notifications/send endpoint
-
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', walletRoutes);
@@ -151,7 +148,7 @@ app.use('/api', tradeRoutes);
 app.use('/api', fundsRoutes);
 app.use('/api', loanRoutes);
 
-// ✅ Mount adminNotificationRoutes FIRST (so it takes precedence)
+// ✅ MOUNT adminNotificationRoutes BEFORE adminRoutes
 app.use('/api/admin', adminNotificationRoutes);
 
 // Then mount the rest
