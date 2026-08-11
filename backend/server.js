@@ -111,8 +111,7 @@ const io = socketIo(server, {
   transports: ['websocket', 'polling']
 });
 
-// ⭐ ONLY ONE HANDLER - Remove the duplicate io.on('connection')
-// The setupChatHandlers function handles everything
+// ⭐ ONLY ONE HANDLER - setupChatHandlers handles everything
 setupChatHandlers(io);
 
 // Make io available to routes
