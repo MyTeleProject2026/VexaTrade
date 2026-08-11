@@ -7,7 +7,6 @@ import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
-// ✅ ADDED: New admin page for deposit verification settings
 import AdminDepositVerificationSettings from "./pages/admin/AdminDepositVerificationSettings";
 import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
 import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
@@ -26,10 +25,11 @@ import AdminJointAccountRequests from "./pages/admin/AdminJointAccountRequests";
 import AdminJointAccountsPage from "./pages/admin/AdminJointAccountsPage";
 import AdminLayout from "./layouts/AdminLayout";
 
-// ✅ ADDED: New admin pages for withdrawal settings and profit withdrawal requests
+// ✅ Admin pages for withdrawal settings and profit withdrawal requests
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 
+// ─── Private Route Guard ──────────────────────────────────────────────
 function PrivateRoute({ children }) {
   const token =
     localStorage.getItem("adminToken") ||
@@ -38,12 +38,17 @@ function PrivateRoute({ children }) {
   return token ? children : <Navigate to="/admin/login" replace />;
 }
 
+// ─── Main App ──────────────────────────────────────────────────────────
 export default function App() {
   return (
     <Routes>
+      {/* ─── Redirect root to admin login ────────────────────────── */}
       <Route path="/" element={<Navigate to="/admin/login" replace />} />
+
+      {/* ─── Public: Admin Login ──────────────────────────────────── */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
 
+      {/* ─── Protected: Admin Panel ───────────────────────────────── */}
       <Route
         path="/admin"
         element={
@@ -53,49 +58,67 @@ export default function App() {
         }
       >
         <Route index element={<Navigate to="dashboard" replace />} />
+
+        {/* ─── Dashboard ──────────────────────────────────────────── */}
         <Route path="dashboard" element={<AdminDashboardPage />} />
+
+        {/* ─── Users ───────────────────────────────────────────────── */}
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="users/:id" element={<AdminUserDetailsPage />} />
+
+        {/* ─── KYC ─────────────────────────────────────────────────── */}
         <Route path="kyc" element={<AdminKycPage />} />
+
+        {/* ─── Deposits ────────────────────────────────────────────── */}
         <Route path="deposits" element={<AdminDepositsPage />} />
         <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
-        <Route
-          path="deposit-networks"
-          element={<AdminDepositNetworksPage />}
-        />
+        <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
+
+        {/* ─── Withdrawals ─────────────────────────────────────────── */}
         <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
-        <Route
-          path="withdrawal-fees"
-          element={<AdminWithdrawalFeesPage />}
-        />
-        
-        {/* ✅ ADDED: New admin routes for profit withdrawal management */}
+        <Route path="withdrawal-fees" element={<AdminWithdrawalFeesPage />} />
         <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
         <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
-        
+
+        {/* ─── Trades ───────────────────────────────────────────────── */}
         <Route path="trades" element={<AdminTradesPage />} />
         <Route path="trade-rules" element={<AdminTradeRulesPage />} />
 
-        <Route
-          path="trading-funds-control"
-          element={<AdminTradingFundsControlPage />}
-        />
+        {/* ─── Trading Funds Control ────────────────────────────────── */}
+        <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
+
+        {/* ─── Joint Accounts ──────────────────────────────────────── */}
         <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
         <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
 
+        {/* ─── Audit Logs ───────────────────────────────────────────── */}
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+
+        {/* ─── Support ───────────────────────────────────────────────── */}
         <Route path="support" element={<AdminSupportPage />} />
-        <Route
-          path="platform-settings"
-          element={<AdminPlatformSettingsPage />}
-        />
-        <Route path="/admin/maintenance" element={<MaintenanceSettings />} />
+
+        {/* ─── Platform Settings ────────────────────────────────────── */}
+        <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
+
+        {/* ─── Maintenance ──────────────────────────────────────────── */}
+        <Route path="maintenance" element={<MaintenanceSettings />} />
+
+        {/* ─── Loans ────────────────────────────────────────────────── */}
         <Route path="loans" element={<AdminLoanPage />} />
         <Route path="loan-settings" element={<AdminLoanSettingsPage />} />
+
+        {/* ─── Legal Documents ──────────────────────────────────────── */}
         <Route path="legal-docs" element={<AdminLegalDocumentsPage />} />
+
+        {/* ─── News ──────────────────────────────────────────────────── */}
         <Route path="news" element={<AdminNewsPage />} />
+
+        {/* ─── ✅ FUTURE: Notifications History ────────────────────── */}
+        {/* Uncomment when ready: <Route path="notifications" element={<AdminNotificationsPage />} /> */}
+
       </Route>
 
+      {/* ─── Fallback ────────────────────────────────────────────────── */}
       <Route path="*" element={<Navigate to="/admin/login" replace />} />
     </Routes>
   );
