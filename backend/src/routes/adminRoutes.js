@@ -493,8 +493,7 @@ router.get('/admin/funds', authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT uf.*, fp.name AS plan_name, u.name AS user_name, u.email AS user_email
-       FROM user_funds uf
-       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
+       FROM user_funds uf       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
        LEFT JOIN users u ON u.id = uf.user_id
        ORDER BY uf.created_at DESC`
     );
@@ -555,56 +554,10 @@ router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
-// ─── Admin Notifications ───────────────────────────────────────────
-router.get('/admin/notifications', authAdmin, async (req, res, next) => {
-  try {
-    const notifications = [];
-    const [pendingKyc] = await pool.execute("SELECT COUNT(*) as count FROM user_kyc WHERE verification_status = 'pending'");
-    if (pendingKyc[0]?.count > 0) {
-      notifications.push({ id: `kyc-pending-${Date.now()}`, type: "kyc", title: "Pending KYC Submissions", message: `${pendingKyc[0].count} user(s) have pending KYC verification.`, is_read: false, created_at: new Date().toISOString() });
-    }
-    const [pendingDeposits] = await pool.execute("SELECT COUNT(*) as count FROM deposits WHERE status = 'pending'");
-    if (pendingDeposits[0]?.count > 0) {
-      notifications.push({ id: `deposits-pending-${Date.now()}`, type: "deposit", title: "Pending Deposits", message: `${pendingDeposits[0].count} deposit request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
-    }
-    const [pendingWithdrawals] = await pool.execute("SELECT COUNT(*) as count FROM withdrawals WHERE status = 'pending'");
-    if (pendingWithdrawals[0]?.count > 0) {
-      notifications.push({ id: `withdrawals-pending-${Date.now()}`, type: "withdraw", title: "Pending Withdrawals", message: `${pendingWithdrawals[0].count} withdrawal request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
-    }
-    const [pendingLoans] = await pool.execute("SELECT COUNT(*) as count FROM loans WHERE status = 'pending'");
-    if (pendingLoans[0]?.count > 0) {
-      notifications.push({ id: `loans-pending-${Date.now()}`, type: "loan", title: "Pending Loan Requests", message: `${pendingLoans[0].count} loan request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
-    }
-    const [pendingJoint] = await pool.execute("SELECT COUNT(*) as count FROM joint_account_requests WHERE status = 'pending'");
-    if (pendingJoint[0]?.count > 0) {
-      notifications.push({ id: `joint-pending-${Date.now()}`, type: "joint_account", title: "Pending Joint Account Requests", message: `${pendingJoint[0].count} joint account request(s) awaiting approval.`, is_read: false, created_at: new Date().toISOString() });
-    }
-    notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    res.json({ success: true, data: notifications });
-  } catch (error) { next(error); }
-});
-
-router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
-  res.json({ success: true, message: "Notification marked as read" });
-});
-
-router.post('/admin/notifications/send', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const { user_id, title, message, type } = req.body;
-    if (!user_id || !title || !message) throw createError(400, "User ID, title and message required");
-    await connection.beginTransaction();
-    const [userRows] = await connection.execute(`SELECT id, email FROM users WHERE id = ?`, [user_id]);
-    if (!userRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "User not found" }); }
-    await connection.execute(
-      `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, NOW(), NOW())`,
-      [user_id, title, message, type || "admin"]
-    );
-    await createAuditLog(connection, { adminId: req.admin.id, action: "send_user_notification", targetUserId: user_id, note: `Sent notification: ${title}` });
-    await connection.commit();
-    res.json({ success: true, message: "Notification sent" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
+// ─── ❌ REMOVED: Admin Notifications section ───────────────────────
+// The GET /admin/notifications, PUT /admin/notifications/:id/read,
+// and POST /admin/notifications/send endpoints have been removed.
+// Please use the new adminNotifications.js file for notification features.
+// ────────────────────────────────────────────────────────────────────
 
 module.exports = router;
