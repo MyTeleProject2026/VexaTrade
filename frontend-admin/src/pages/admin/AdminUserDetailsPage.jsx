@@ -110,12 +110,11 @@ export default function AdminUserDetailsPage() {
     email_verified: 0,
   });
 
-  // ✅ Updated: Added send_email flag
   const [notificationForm, setNotificationForm] = useState({
     title: "",
     message: "",
     type: "general",
-    send_email: true, // ✅ NEW
+    send_email: true,
   });
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -274,7 +273,6 @@ export default function AdminUserDetailsPage() {
     }));
   }
 
-  // ✅ UPDATED: Send notification with email option
   async function handleSendNotification() {
     try {
       setSendingNotification(true);
@@ -302,17 +300,18 @@ export default function AdminUserDetailsPage() {
         return;
       }
 
-      // ✅ NEW: Use the updated API method with send_email flag
-      const response = await adminApi.sendNotificationWithEmail(
-        {
-          user_id: Number(user.id),
-          title: String(notificationForm.title || "").trim(),
-          message: String(notificationForm.message || "").trim(),
-          type: String(notificationForm.type || "general").trim(),
-          send_email: notificationForm.send_email, // ✅ NEW
-        },
-        token
-      );
+      // ✅ Ensure send_email is explicitly boolean
+      const payload = {
+        user_id: Number(user.id),
+        title: String(notificationForm.title || "").trim(),
+        message: String(notificationForm.message || "").trim(),
+        type: String(notificationForm.type || "general").trim(),
+        send_email: notificationForm.send_email === true,
+      };
+
+      console.log("📤 Sending notification payload:", payload);
+
+      const response = await adminApi.sendNotificationWithEmail(payload, token);
 
       if (response?.data?.success) {
         const emailStatus = response.data.data?.email_sent ? ' (with email)' : ' (in-app only)';
@@ -800,7 +799,6 @@ export default function AdminUserDetailsPage() {
                 />
               </div>
 
-              {/* ✅ NEW: Send email checkbox */}
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
