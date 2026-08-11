@@ -1,9 +1,8 @@
 // backend/src/routes/adminNotifications.js
 const express = require('express');
 const router = express.Router();
-const pool = require('../../db');
+const pool = require('../../db'); // Adjust path to your db.js
 const { authAdmin } = require('../middleware/auth');
-// ✅ CORRECT
 const { sendEmail } = require('../../services/emailService');
 const { generateNotificationEmail } = require('../../services/emailTemplates');
 
@@ -13,6 +12,15 @@ const { generateNotificationEmail } = require('../../services/emailTemplates');
 router.post('/notifications/send', authAdmin, async (req, res, next) => {
   try {
     const { user_id, title, message, type, send_email } = req.body;
+
+    // ✅ Debug log
+    console.log('📩 Received notification request:', {
+      user_id,
+      title,
+      type,
+      send_email,
+      raw_body: req.body,
+    });
 
     // ─── Validate input ──────────────────────────────────────
     if (!user_id || !title || !message) {
@@ -50,7 +58,10 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     let emailSent = false;
     let emailError = null;
 
-    if (send_email === true || send_email === 'true') {
+    // ✅ Ensure send_email is treated as boolean
+    const shouldSendEmail = send_email === true || send_email === 'true' || send_email === 1;
+
+    if (shouldSendEmail) {
       try {
         const emailHtml = generateNotificationEmail({
           title,
@@ -88,6 +99,8 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
           [notificationId, user_id, user.email, err.message]
         );
       }
+    } else {
+      console.log('ℹ️ Email not requested (send_email = false)');
     }
 
     // ─── Response ─────────────────────────────────────────────
@@ -95,7 +108,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       success: true,
       message: emailSent
         ? 'Notification sent successfully (with email)'
-        : send_email
+        : shouldSendEmail
         ? 'Notification saved, but email failed'
         : 'Notification sent successfully (in-app only)',
       data: {
