@@ -36,6 +36,7 @@ const adminNetworkRoutes = require("./adminNetworkRoutes");
 const overrideFundsPlans = require("./overrideFundsPlans");
 const adminNotificationRoutes = require('./src/routes/adminNotifications');
 const chatRoutes = require('./src/routes/chatRoutes'); // ⭐ NEW: Chat routes
+const transactionRoutes = require('./src/routes/transactionRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -152,6 +153,8 @@ app.set('io', io);
 // ─── Mount Routes ──────────────────────────────────────────────────
 // Authentication routes (no auth middleware needed)
 app.use('/api/auth', authRoutes);
+
+app.use('/api', transactionRoutes);
 
 // Chat routes (requires authentication)
 app.use('/api/chat', require('./src/middleware/auth').authUser, chatRoutes);
