@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../../db');
 
-// GET /api/chat/conversations
+// ─── GET /api/chat/conversations ──────────────────────────────────
 router.get('/conversations', async (req, res) => {
   try {
     const adminId = req.user.id;
@@ -28,7 +28,7 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-// GET /api/chat/messages/:conversationId
+// ─── GET /api/chat/messages/:conversationId ──────────────────────
 router.get('/messages/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -62,7 +62,7 @@ router.get('/messages/:conversationId', async (req, res) => {
   }
 });
 
-// POST /api/chat/messages
+// ─── POST /api/chat/messages ──────────────────────────────────────
 router.post('/messages', async (req, res) => {
   try {
     const { conversationId, message, userId } = req.body;
@@ -159,7 +159,6 @@ router.post('/messages', async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       const convData = conversation[0];
-      // Emit to user
       io.to(`user_${convData.user_id}`).emit('new_message', {
         conversationId: convId,
         ...newMessage[0],
@@ -178,7 +177,7 @@ router.post('/messages', async (req, res) => {
   }
 });
 
-// PUT /api/chat/read/:conversationId
+// ─── PUT /api/chat/read/:conversationId ──────────────────────────
 router.put('/read/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -198,7 +197,7 @@ router.put('/read/:conversationId', async (req, res) => {
   }
 });
 
-// DELETE /api/chat/messages/:conversationId/:messageId
+// ─── DELETE /api/chat/messages/:conversationId/:messageId ────────
 router.delete('/messages/:conversationId/:messageId', async (req, res) => {
   try {
     const { conversationId, messageId } = req.params;
