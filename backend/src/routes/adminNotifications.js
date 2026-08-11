@@ -222,8 +222,30 @@ router.get('/admin/notifications', authAdmin, async (req, res, next) => {
 router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
   // System notifications are dynamic (read state is not stored)
   // Just return success
-  res.json({ success: true, message: "Notification marked as read" });
+  try {
+    const { id } = req.params;
+
+    const [result] = await pool.query(
+      'UPDATE user_notifications SET is_read = 1 WHERE id = ?',
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Notification marked as read'
+    });
+  } catch (error) {
+    next(error);
+  }
 });
+
 
 // ──────────────────────────────────────────────────────────────
 
