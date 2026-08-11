@@ -1,3 +1,4 @@
+// frontend-user/src/components/ChatWidget.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MessageCircle, X, Send } from "lucide-react";
 import { chatApi } from "../services/chatApi";
@@ -22,13 +23,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
   // Use external open state if provided, otherwise use internal
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
   const handleClose = externalOnClose || (() => setInternalIsOpen(false));
-  const handleOpen = () => {
-    if (externalOnClose) {
-      // If external control, we need to communicate up
-      // For now, just set internal
-    }
-    setInternalIsOpen(true);
-  };
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,22 +82,18 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
       setIsConnected(true);
 
       chatApi.onNewMessage((data) => {
+        console.log("📩 New message received in ChatWidget:", data);
         if (data.conversationId === conversationId) {
           setMessages(prev => {
             const newMsg = {
-              id: data.id,
+              id: data.id || Date.now(),
               message: data.message,
-              senderType: data.senderType,
+              senderType: data.senderType || "admin",
               createdAt: data.createdAt || new Date().toISOString(),
               read: false
             };
             const updated = [...prev, newMsg];
             saveMessages(updated);
-            
-            if (data.senderType === "admin" && !isOpen) {
-              setUnreadCount(prevCount => prevCount + 1);
-            }
-            
             return updated;
           });
           scrollToBottom();
@@ -123,6 +113,7 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
       });
 
       chatApi.onMessagesLoaded((data) => {
+        console.log("📚 Messages loaded:", data);
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
           saveMessages(data.messages);
@@ -130,12 +121,22 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
         setIsLoading(false);
       });
       
-      // Also listen for conversation ID from server
+      // ✅ FIXED: Listen for conversation created event
       chatApi.onConversationCreated?.((data) => {
+        console.log("🆕 Conversation created:", data);
         if (data.conversationId && !conversationId) {
           setConversationId(data.conversationId);
           const storedKey = `chat_user_${userId}_conversation`;
           localStorage.setItem(storedKey, data.conversationId);
+          
+          // ✅ Migrate temp messages to new conversation ID
+          const oldKey = `chat_messages_temp`;
+          const tempMessages = localStorage.getItem(oldKey);
+          if (tempMessages) {
+            const newKey = `chat_messages_${data.conversationId}`;
+            localStorage.setItem(newKey, tempMessages);
+            localStorage.removeItem(oldKey);
+          }
         }
       });
     }
@@ -150,6 +151,7 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
     };
   }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
 
+  // ✅ FIXED: Send message with userId for new conversations
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
     
@@ -167,9 +169,15 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
       return updated;
     });
     
-    // ✅ FIX: Send null instead of undefined for conversationId
+    // ✅ If no conversationId, send 'new' with userId
     if (chatApi && chatApi.sendMessage) {
-      chatApi.sendMessage(conversationId || null, inputMessage.trim());
+      if (!conversationId) {
+        console.log(`📤 Sending new message with userId: ${userId}`);
+        chatApi.sendMessage('new', inputMessage.trim(), userId);
+      } else {
+        console.log(`📤 Sending message to conversation: ${conversationId}`);
+        chatApi.sendMessage(conversationId, inputMessage.trim());
+      }
     }
     
     setInputMessage("");
@@ -184,10 +192,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
   };
 
   const onOpen = () => {
-    if (externalOnClose) {
-      // If we have external control, we need to notify parent
-      // For now, use internal
-    }
     setInternalIsOpen(true);
     setMessages(prev => {
       const updated = prev.map(msg => 
