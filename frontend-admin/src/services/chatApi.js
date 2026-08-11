@@ -4,7 +4,6 @@ import io from "socket.io-client";
 let socket = null;
 let isConnected = false;
 
-// ✅ FIXED: Use the correct API URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 
 // Local storage helpers for fallback
@@ -39,8 +38,7 @@ export const adminChatApi = {
     if (socket && isConnected) return socket;
     
     try {
-      console.log(`🔌 Connecting to chat server: ${API_BASE_URL}`);
-      
+      console.log(`🔌 Admin chat connecting to: ${API_BASE_URL}`);
       socket = io(API_BASE_URL, { 
         transports: ["websocket", "polling"], 
         withCredentials: true,
@@ -52,18 +50,13 @@ export const adminChatApi = {
       
       socket.on("connect", () => { 
         isConnected = true; 
-        console.log("✅ Chat socket connected");
-        socket.emit("authenticate", { 
-          userId: adminId, 
-          role: "admin", 
-          name, 
-          token 
-        });
+        console.log("✅ Admin chat socket connected");
+        socket.emit("authenticate", { userId: adminId, role: "admin", name, token }); 
       });
       
       socket.on("disconnect", () => { 
         isConnected = false;
-        console.log("❌ Chat socket disconnected");
+        console.log("❌ Admin chat socket disconnected");
       });
       
       socket.on("connect_error", (err) => {
@@ -71,13 +64,12 @@ export const adminChatApi = {
         isConnected = false;
       });
 
-      // ✅ Log authentication result
       socket.on("authenticated", (data) => {
-        console.log("✅ Chat authenticated:", data);
+        console.log("✅ Admin chat authenticated:", data);
       });
 
       socket.on("auth_error", (data) => {
-        console.error("❌ Chat auth error:", data);
+        console.error("❌ Admin chat auth error:", data);
       });
       
       socket.on("error", (data) => {
@@ -104,14 +96,12 @@ export const adminChatApi = {
   isConnected: () => isConnected,
   
   sendMessage: (conversationId, message) => { 
-    console.log(`📤 Sending message to ${conversationId}:`, message);
-    
+    console.log(`📤 Admin sending message to ${conversationId}:`, message);
     if (socket && isConnected) {
       socket.emit("send_message", { conversationId, message });
     } else {
       console.warn("⚠️ Socket not connected, message stored locally only");
     }
-    
     // Store in localStorage as fallback
     const convKey = `chat_messages_${conversationId}`;
     const existing = localStorage.getItem(convKey);
@@ -121,7 +111,8 @@ export const adminChatApi = {
       message: message,
       senderType: "admin",
       createdAt: new Date().toISOString(),
-      read: true
+      read: true,
+      isAutoReply: false
     });
     localStorage.setItem(convKey, JSON.stringify(messages));
   },
@@ -176,7 +167,7 @@ export const adminChatApi = {
   onNewMessage: (callback) => { 
     if (socket) {
       socket.on("new_message", (data) => {
-        console.log("📩 New message received:", data);
+        console.log("📩 Admin new message received:", data);
         callback(data);
       });
     }
@@ -186,7 +177,7 @@ export const adminChatApi = {
   onMessagesLoaded: (callback) => { 
     if (socket) {
       socket.on("messages_loaded", (data) => {
-        console.log("📚 Messages loaded:", data);
+        console.log("📚 Admin messages loaded:", data);
         callback(data);
       });
     }
@@ -196,7 +187,7 @@ export const adminChatApi = {
   onAdminConversations: (callback) => { 
     if (socket) {
       socket.on("admin_conversations", (data) => {
-        console.log("💬 Conversations loaded:", data);
+        console.log("💬 Admin conversations loaded:", data);
         callback(data);
       });
     }
@@ -205,7 +196,7 @@ export const adminChatApi = {
   onMessageDeleted: (callback) => { 
     if (socket) {
       socket.on("message_deleted", (data) => {
-        console.log("🗑️ Message deleted:", data);
+        console.log("🗑️ Admin message deleted:", data);
         callback(data);
       });
     }
