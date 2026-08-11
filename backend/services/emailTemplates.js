@@ -127,7 +127,7 @@ function generateNotificationEmail({
 
       <!-- Button -->
       <div style="text-align: center;">
-        <a href="https://vexatrade.onrender.com/activity" class="button">
+        <a href="https://www.vexatrade-v.2bd.net/profile" class="button">
           View in App
         </a>
       </div>
@@ -137,14 +137,14 @@ function generateNotificationEmail({
       <!-- Footer -->
       <div class="footer">
         <p>
-          This is an automated notification from <a href="https://vexatrade.onrender.com">VexaTrade</a>.
+          This is an automated notification from <a href="https://www.vexatrade-v.2bd.net">VexaTrade</a>.
           <br>
           If you have any questions, please contact our 
-          <a href="https://vexatrade.onrender.com/support">support team</a>.
+          <a href="https://www.vexatrade-v.2bd.net">support team</a>.
         </p>
         <p style="margin-top: 8px;">
-          <a href="https://vexatrade.onrender.com/privacy">Privacy Policy</a> ·
-          <a href="https://vexatrade.onrender.com/terms">Terms of Service</a>
+          <a href="https://www.vexatrade-v.2bd.net/profile">Privacy Policy</a> ·
+          <a href="https://www.vexatrade-v.2bd.net">Terms of Service</a>
         </p>
         <p style="margin-top: 8px; color: #334155;">
           © ${currentYear} VexaTrade Blockchain Ecosystem
