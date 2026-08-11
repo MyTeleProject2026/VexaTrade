@@ -17,7 +17,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
-// ✅ ADDED: Import toast notification hook
 import useToast from "../../components/ToastNotification";
 
 function formatMoney(value) {
@@ -91,7 +90,6 @@ export default function AdminUserDetailsPage() {
     localStorage.getItem("admin_token") ||
     "";
 
-  // ✅ ADDED: Toast notification hook
   const { toasts, addToast, removeToast, ToastContainer } = useToast();
 
   const [user, setUser] = useState(null);
@@ -112,10 +110,12 @@ export default function AdminUserDetailsPage() {
     email_verified: 0,
   });
 
+  // ✅ Updated: Added send_email flag
   const [notificationForm, setNotificationForm] = useState({
     title: "",
     message: "",
     type: "general",
+    send_email: true, // ✅ NEW
   });
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -142,15 +142,13 @@ export default function AdminUserDetailsPage() {
         twofa_enabled: Number(nextUser?.twofa_enabled || 0),
         email_verified: Number(nextUser?.email_verified || 0),
       });
-      
-      // ✅ ADDED: Success toast for refresh
+
       if (silent) {
         addToast("User details refreshed successfully", "success");
       }
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setLoading(false);
@@ -186,14 +184,12 @@ export default function AdminUserDetailsPage() {
 
       const successMsg = `Successfully added ${amountForm.addAmount} USDT to user balance`;
       setSuccess(successMsg);
-      // ✅ ADDED: Success toast
       addToast(successMsg, "success");
       setAmountForm((prev) => ({ ...prev, addAmount: "", addNote: "" }));
       await loadUser(true);
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setActionLoading(false);
@@ -224,7 +220,6 @@ export default function AdminUserDetailsPage() {
 
       const successMsg = `Successfully decreased ${amountForm.decreaseAmount} USDT from user balance`;
       setSuccess(successMsg);
-      // ✅ ADDED: Success toast
       addToast(successMsg, "success");
       setAmountForm((prev) => ({
         ...prev,
@@ -235,7 +230,6 @@ export default function AdminUserDetailsPage() {
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setActionLoading(false);
@@ -261,13 +255,11 @@ export default function AdminUserDetailsPage() {
 
       const successMsg = "User security updated successfully.";
       setSuccess(successMsg);
-      // ✅ ADDED: Success toast
       addToast(successMsg, "success");
       await loadUser(true);
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setSecuritySaving(false);
@@ -282,52 +274,56 @@ export default function AdminUserDetailsPage() {
     }));
   }
 
+  // ✅ UPDATED: Send notification with email option
   async function handleSendNotification() {
     try {
       setSendingNotification(true);
       setError("");
       setSuccess("");
-  
+
       if (!user?.id) {
         const errorMsg = "User id is missing.";
         setError(errorMsg);
         addToast(errorMsg, "error");
         return;
       }
-  
+
       if (!String(notificationForm.title || "").trim()) {
         const errorMsg = "Notification title is required.";
         setError(errorMsg);
         addToast(errorMsg, "error");
         return;
       }
-  
+
       if (!String(notificationForm.message || "").trim()) {
         const errorMsg = "Notification message is required.";
         setError(errorMsg);
         addToast(errorMsg, "error");
         return;
       }
-  
-      const response = await adminApi.sendNotification(
+
+      // ✅ NEW: Use the updated API method with send_email flag
+      const response = await adminApi.sendNotificationWithEmail(
         {
           user_id: Number(user.id),
           title: String(notificationForm.title || "").trim(),
           message: String(notificationForm.message || "").trim(),
           type: String(notificationForm.type || "general").trim(),
+          send_email: notificationForm.send_email, // ✅ NEW
         },
         token
       );
-  
+
       if (response?.data?.success) {
-        const successMsg = `Notification sent successfully to ${user.name || user.email}`;
+        const emailStatus = response.data.data?.email_sent ? ' (with email)' : ' (in-app only)';
+        const successMsg = `Notification sent successfully to ${user.name || user.email}${emailStatus}`;
         setSuccess(successMsg);
-        // ✅ ADDED: Success toast
         addToast(successMsg, "success");
         setNotificationForm({
           title: "",
           message: "",
           type: "general",
+          send_email: true,
         });
       } else {
         const errorMsg = response?.data?.message || "Failed to send notification";
@@ -338,7 +334,6 @@ export default function AdminUserDetailsPage() {
       console.error("Send notification error:", err);
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
     } finally {
       setSendingNotification(false);
@@ -360,16 +355,14 @@ export default function AdminUserDetailsPage() {
       await adminApi.deleteUser(id, token);
 
       const successMsg = `User ${user?.email} deleted successfully`;
-      // ✅ ADDED: Success toast
       addToast(successMsg, "success");
-      
+
       setTimeout(() => {
         navigate("/admin/users");
       }, 1500);
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
       setError(errorMsg);
-      // ✅ ADDED: Error toast
       addToast(errorMsg, "error");
       setDeletingUser(false);
     }
@@ -405,7 +398,6 @@ export default function AdminUserDetailsPage() {
 
   return (
     <div className="space-y-5">
-      {/* ✅ ADDED: Toast Container */}
       <ToastContainer />
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
@@ -808,11 +800,30 @@ export default function AdminUserDetailsPage() {
                 />
               </div>
 
+              {/* ✅ NEW: Send email checkbox */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="send_email"
+                  checked={notificationForm.send_email}
+                  onChange={(e) =>
+                    setNotificationForm((prev) => ({
+                      ...prev,
+                      send_email: e.target.checked,
+                    }))
+                  }
+                  className="w-4 h-4 accent-cyan-500 rounded border border-white/10 bg-[#050812]"
+                />
+                <label htmlFor="send_email" className="text-sm text-slate-400 cursor-pointer">
+                  📧 Also send email to user
+                </label>
+              </div>
+
               <button
                 type="button"
                 onClick={handleSendNotification}
                 disabled={sendingNotification}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-60"
               >
                 {sendingNotification ? (
                   <>
