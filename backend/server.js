@@ -32,8 +32,6 @@ const maintenanceRoutes = require("./maintenanceRoutes");
 const adminFundRoutes = require("./adminFundRoutes");
 const adminNetworkRoutes = require("./adminNetworkRoutes");
 const overrideFundsPlans = require("./overrideFundsPlans");
-
-// ✅ NEW: Admin Notification Routes
 const adminNotificationRoutes = require('./src/routes/adminNotifications');
 
 const app = express();
@@ -57,7 +55,6 @@ const allowedOrigins = [
   "https://vexatrade-all-adminmonitor-user-activity.onrender.com",
   "https://employee-admin-monitor-vexatrade.onrender.com",
   "https://vexatrade-5ycu.onrender.com",
-  // ✅ Added VexaStore for cross-service compatibility
   "https://vexastore.onrender.com",
   "https://vexastore-admin.onrender.com",
   "https://www.vexastore.2bd.net",
@@ -111,7 +108,6 @@ const io = socketIo(server, {
   }
 });
 
-// Store connected users
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -142,6 +138,9 @@ io.on('connection', (socket) => {
 });
 
 // ─── Mount Routes ──────────────────────────────────────────────────
+// ✅ IMPORTANT: adminNotificationRoutes MUST be mounted BEFORE adminRoutes
+// to avoid route conflict with the old /admin/notifications/send endpoint
+
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', walletRoutes);
@@ -151,6 +150,11 @@ app.use('/api', withdrawalRoutes);
 app.use('/api', tradeRoutes);
 app.use('/api', fundsRoutes);
 app.use('/api', loanRoutes);
+
+// ✅ Mount adminNotificationRoutes FIRST (so it takes precedence)
+app.use('/api/admin', adminNotificationRoutes);
+
+// Then mount the rest
 app.use('/api', adminRoutes);
 app.use('/api', legalRoutes);
 app.use('/api', supportRoutes);
@@ -163,9 +167,6 @@ app.use("/api/admin/fund-rules", adminFundRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
-
-// ✅ NEW: Admin Notification Routes
-app.use('/api/admin', adminNotificationRoutes);
 
 // ─── Health ────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
