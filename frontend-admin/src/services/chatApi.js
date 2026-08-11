@@ -4,7 +4,6 @@ let socket = null;
 let isConnected = false;
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
-
 // Local storage helpers for fallback
 const getLocalConversations = (adminId) => {
   const stored = localStorage.getItem(`chat_admin_${adminId}_conversations`);
