@@ -1,11 +1,15 @@
 // backend/src/utils/ChatHandlers.js
 const pool = require('../../db');
 
+// Store connected users
+const connectedUsers = new Map();
+
 /**
  * Helper: Get or create a conversation between user and admin
  */
 async function getOrCreateConversation(userId, adminId) {
   try {
+    // Check if conversation exists
     const [existing] = await pool.query(
       `SELECT * FROM conversations 
        WHERE user_id = ? AND admin_id = ? AND status = 'active'`,
@@ -16,11 +20,13 @@ async function getOrCreateConversation(userId, adminId) {
       return existing[0];
     }
     
+    // Get user details
     const [user] = await pool.query(
       `SELECT id, name, email, uid FROM users WHERE id = ?`,
       [userId]
     );
     
+    // Create new conversation
     const [result] = await pool.query(
       `INSERT INTO conversations 
        (user_id, admin_id, user_name, user_email, user_uid, status) 
@@ -93,6 +99,8 @@ function setupChatHandlers(io) {
       token: null
     };
 
+    console.log('🟢 New chat connection:', socket.id);
+
     // ─── authenticate ───
     socket.on('authenticate', async (data) => {
       try {
@@ -108,13 +116,20 @@ function setupChatHandlers(io) {
         currentUser.role = role || 'user';
         currentUser.token = token;
 
+        // Store connected user
+        connectedUsers.set(userId, {
+          socketId: socket.id,
+          role: role || 'user',
+          name: name || 'User'
+        });
+
         socket.join(`user_${userId}`);
         
         if (role === 'admin') {
           socket.join('admins');
         }
 
-        console.log(`Chat authenticated: ${userId} (${role})`);
+        console.log(`✅ Chat authenticated: ${userId} (${role})`);
 
         socket.emit('authenticated', { 
           success: true, 
@@ -218,28 +233,46 @@ function setupChatHandlers(io) {
       }
     });
 
-    // ─── send_message ───
+    // ─── send_message ─── ✅ FIXED
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, message, userId } = data;
         
-        if (!currentUser.id || !message || message.trim() === '') {
-          socket.emit('error', { message: 'Invalid request' });
+        console.log(`📥 send_message: conversationId=${conversationId}, userId=${userId}, message=${message}`);
+
+        if (!currentUser.id) {
+          socket.emit('error', { message: 'Not authenticated' });
+          return;
+        }
+
+        if (!message || message.trim() === '') {
+          socket.emit('error', { message: 'Message is required' });
           return;
         }
 
         let convId = conversationId;
         const trimmedMessage = message.trim();
 
-        if (!convId || convId === 'new' || convId === 'undefined') {
+        // ✅ FIXED: Handle new conversation properly
+        if (!convId || convId === 'new' || convId === 'null' || convId === 'undefined') {
           if (!userId) {
+            console.error('❌ No userId provided for new conversation');
             socket.emit('error', { message: 'User ID required for new conversation' });
             return;
           }
+          
+          console.log(`🆕 Creating new conversation for user ${userId} with admin ${currentUser.id}`);
           const conv = await getOrCreateConversation(userId, currentUser.id);
           convId = conv.id;
+          
+          // ✅ Emit conversation_created event to user
+          socket.emit('conversation_created', { 
+            conversationId: convId,
+            userId: userId 
+          });
         }
 
+        // Verify access to conversation
         const [conv] = await pool.query(
           `SELECT * FROM conversations 
            WHERE id = ? AND (user_id = ? OR admin_id = ?) AND status = 'active'`,
@@ -247,7 +280,7 @@ function setupChatHandlers(io) {
         );
 
         if (conv.length === 0) {
-          socket.emit('error', { message: 'Conversation not found' });
+          socket.emit('error', { message: 'Conversation not found or access denied' });
           return;
         }
 
@@ -255,6 +288,7 @@ function setupChatHandlers(io) {
         const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
         const recipientId = senderType === 'admin' ? conversation.user_id : conversation.admin_id;
 
+        // Insert message
         const [result] = await pool.query(
           `INSERT INTO chat_messages 
            (conversation_id, sender_id, sender_type, message)
@@ -298,9 +332,15 @@ function setupChatHandlers(io) {
           senderType: senderType
         };
 
+        console.log(`📤 Emitting message to: user_${recipientId}`, messageData);
+
+        // Emit to recipient
         io.to(`user_${recipientId}`).emit('new_message', messageData);
+        
+        // Emit to sender (for confirmation)
         socket.emit('new_message', messageData);
 
+        // Update admin's conversation list if admin sent
         if (senderType === 'admin') {
           await loadAdminConversations(socket, currentUser.id);
         }
@@ -420,14 +460,20 @@ function setupChatHandlers(io) {
 
     // ─── disconnect ───
     socket.on('disconnect', () => {
-      console.log(`Chat disconnected: ${currentUser.id}`);
+      console.log(`🔴 Chat disconnected: ${currentUser.id}`);
+      if (currentUser.id) {
+        connectedUsers.delete(currentUser.id);
+      }
     });
 
   });
+
+  console.log('✅ Chat handlers initialized');
 }
 
 module.exports = { 
   setupChatHandlers,
   getOrCreateConversation,
-  loadAdminConversations
+  loadAdminConversations,
+  connectedUsers
 };
