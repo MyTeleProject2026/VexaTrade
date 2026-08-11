@@ -30,10 +30,14 @@ import LegalDocumentsPage from "./pages/LegalDocumentsPage";
 import UserCenterPage from "./pages/UserCenterPage";
 import KycVerificationPage from "./pages/user/KycVerificationPage";
 import SupportPage from "./pages/SupportPage";
-import AccountVerificationPage from "./pages/AccountVerificationPage"; // ✅ NEW
+import AccountVerificationPage from "./pages/AccountVerificationPage";
 
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
+
+// ─── NEW IMPORTS FOR CHAT ───
+import ChatWidget from "./components/ChatWidget";
+import DraggableChatButton from "./components/DraggableChatButton";
 
 // --- Helper functions ---
 function safeParse(value) {
@@ -109,8 +113,6 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
-// ─── REMOVED: AccountVerificationPage (now in separate file) ───
-
 // --- PrivateRoute ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
@@ -180,11 +182,34 @@ function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher } = useNotification();
 
-  // ============================================================
-  // ✅ BREVO CONVERSATIONS - Identify logged-in users
-  // ============================================================
+  // ─── CHAT STATE ───
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  // Get user info for chat
+  const userId = localStorage.getItem('userId') || '';
+  const userName = localStorage.getItem('userName') || 'User';
+  const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
+
+  // ─── Check unread messages from localStorage ───
   useEffect(() => {
-    // Check if user is logged in and Brevo is available
+    const checkUnreadMessages = () => {
+      try {
+        const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]");
+        const total = conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0);
+        setChatUnreadCount(total);
+      } catch (e) {
+        // Silent fail
+      }
+    };
+    
+    checkUnreadMessages();
+    const interval = setInterval(checkUnreadMessages, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── BREVO CONVERSATIONS - Identify logged-in users ───
+  useEffect(() => {
     const token = localStorage.getItem("userToken") || localStorage.getItem("token");
     const userData = localStorage.getItem("user");
     
@@ -194,7 +219,6 @@ function AppContent() {
         window.BrevoConversations('identify', {
           email: user.email || '',
           name: user.name || user.email || 'User',
-          // ✅ Custom data for support agents
           custom_data: {
             user_id: user.id || user.uid || '',
             uid: user.uid || '',
@@ -208,7 +232,7 @@ function AppContent() {
         console.warn('⚠️ Could not identify user to Brevo:', e);
       }
     }
-  }, []); // Run once on mount
+  }, []);
 
   if (loading) {
     return (
@@ -238,10 +262,10 @@ function AppContent() {
         <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
         <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
 
-        {/* ✅ NEW: Email verification route */}
+        {/* Email verification route */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-        {/* ✅ Account Verification Route */}
+        {/* Account Verification Route */}
         <Route
           path="/account-verification"
           element={
@@ -280,6 +304,23 @@ function AppContent() {
       </Routes>
 
       <VoucherModal voucher={voucher} onClose={closeVoucher} />
+
+      {/* ─── DRAGGABLE CHAT BUTTON ─── */}
+      {userId && token && !isChatOpen && (
+        <DraggableChatButton 
+          onClick={() => setIsChatOpen(true)}
+          unreadCount={chatUnreadCount}
+          isOpen={isChatOpen}
+        />
+      )}
+
+      {/* ─── CHAT WIDGET ─── */}
+      <ChatWidget
+        userId={userId}
+        userName={userName}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
     </>
   );
 }
