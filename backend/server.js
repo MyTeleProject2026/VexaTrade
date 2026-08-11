@@ -33,6 +33,9 @@ const adminFundRoutes = require("./adminFundRoutes");
 const adminNetworkRoutes = require("./adminNetworkRoutes");
 const overrideFundsPlans = require("./overrideFundsPlans");
 
+// ✅ NEW: Admin Notification Routes
+const adminNotificationRoutes = require('./src/routes/adminNotifications');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const DB_NAME = process.env.DB_NAME;
@@ -54,6 +57,13 @@ const allowedOrigins = [
   "https://vexatrade-all-adminmonitor-user-activity.onrender.com",
   "https://employee-admin-monitor-vexatrade.onrender.com",
   "https://vexatrade-5ycu.onrender.com",
+  // ✅ Added VexaStore for cross-service compatibility
+  "https://vexastore.onrender.com",
+  "https://vexastore-admin.onrender.com",
+  "https://www.vexastore.2bd.net",
+  "https://vexastore.2bd.net",
+  "https://api-vexastore.onrender.com",
+  "https://api-vexaaccount.onrender.com",
 ].filter(Boolean);
 
 const corsOptions = {
@@ -153,6 +163,9 @@ app.use("/api/admin/fund-rules", adminFundRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
+
+// ✅ NEW: Admin Notification Routes
+app.use('/api/admin', adminNotificationRoutes);
 
 // ─── Health ────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
