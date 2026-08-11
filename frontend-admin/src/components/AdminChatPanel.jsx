@@ -1,6 +1,6 @@
 // frontend-admin/src/components/AdminChatPanel.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, Send, Users, X, ChevronLeft, Trash2, Phone, Video, Check, CheckCheck } from "lucide-react";
+import { MessageCircle, Send, Users, X, ChevronLeft, Trash2, Phone, Video, Check, CheckCheck, Bot } from "lucide-react";
 import { adminChatApi } from "../services/chatApi";
 
 function formatTime(date) {
@@ -112,7 +112,7 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
     setShowDeleteMenu(null);
   }, [selectedConversation, saveLocalMessages]);
 
-  // ✅ FIXED: Create demo conversations when none exist
+  // Create demo conversations when none exist
   const createDemoConversations = useCallback(() => {
     const demoConversations = [
       {
@@ -185,7 +185,8 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
               senderType: data.senderType || "user",
               createdAt: data.createdAt || new Date().toISOString(),
               userName: data.userName || "User",
-              read: false
+              read: false,
+              isAutoReply: data.isAutoReply || false
             }];
             saveLocalMessages(data.conversationId, newMsgs);
             return newMsgs;
@@ -205,7 +206,6 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
           setConversations(convs);
           saveConversations(convs);
         } else {
-          // If no conversations from server, use demo data
           createDemoConversations();
         }
         setIsLoading(false);
@@ -239,15 +239,12 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
         });
       });
 
-      // Get conversations on mount
       if (adminChatApi.getConversations) {
         adminChatApi.getConversations();
       }
 
-      // Load from localStorage as fallback after timeout
       setTimeout(() => {
         loadLocalConversations();
-        // If still loading and no conversations, show demo
         setTimeout(() => {
           if (conversations.length === 0 && isLoading) {
             createDemoConversations();
@@ -256,7 +253,6 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
       }, 1000);
     } else {
       loadLocalConversations();
-      // If no conversations, show demo
       setTimeout(() => {
         if (conversations.length === 0) {
           createDemoConversations();
@@ -306,7 +302,8 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
       senderType: "admin",
       createdAt: new Date().toISOString(),
       userName: adminName || "Admin",
-      read: true
+      read: true,
+      isAutoReply: false
     };
     
     setMessages(prev => {
@@ -531,11 +528,15 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
                   ) : (
                     messages.map((msg) => {
                       const isAdmin = msg.senderType === "admin";
+                      const isAutoReply = msg.isAutoReply === true;
+                      
                       return (
                         <div key={msg.id} className={`group relative flex ${isAdmin ? "justify-end" : "justify-start"}`}>
                           <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                             isAdmin 
-                              ? "bg-gradient-to-r from-lime-400 to-emerald-400 text-black" 
+                              ? isAutoReply
+                                ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white" 
+                                : "bg-gradient-to-r from-lime-400 to-emerald-400 text-black"
                               : "bg-[#1a1e2a] text-white"
                           }`}>
                             {!isAdmin && (
@@ -543,13 +544,24 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
                                 {msg.userName || selectedConversation.user_name || "User"}
                               </p>
                             )}
+                            {isAutoReply && (
+                              <div className="flex items-center gap-1 mb-1">
+                                <Bot size={12} className="text-cyan-300" />
+                                <span className="text-[9px] font-semibold text-cyan-300 uppercase tracking-wider">Blockchain Ecosystem AI</span>
+                              </div>
+                            )}
                             <p className="text-sm break-words leading-relaxed">{msg.message}</p>
                             <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                              isAdmin ? "text-black/60" : "text-slate-400"
+                              isAdmin ? "text-white/60" : "text-slate-400"
                             }`}>
                               <span>{formatTime(msg.created_at || msg.createdAt)}</span>
-                              {isAdmin && (
+                              {isAdmin && !isAutoReply && (
                                 <span>{msg.read ? <CheckCheck size={12} /> : <Check size={12} />}</span>
+                              )}
+                              {isAutoReply && (
+                                <span className="text-[8px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded-full ml-1">
+                                  AI
+                                </span>
                               )}
                             </div>
                           </div>
@@ -600,8 +612,14 @@ export default function AdminChatPanel({ adminId, adminName, isOpen, onClose }) 
                       <Send size={18} />
                     </button>
                   </div>
-                  <div className="mt-1 text-[10px] text-slate-500 text-center">
-                    Press Enter to send, Shift+Enter for new line
+                  <div className="mt-1 flex items-center justify-between">
+                    <div className="text-[10px] text-slate-500">
+                      Press Enter to send, Shift+Enter for new line
+                    </div>
+                    <div className="flex items-center gap-1 text-[9px] text-cyan-400">
+                      <Bot size={10} />
+                      <span>AI responses are auto-generated by the Blockchain Ecosystem</span>
+                    </div>
                   </div>
                 </div>
               </>
