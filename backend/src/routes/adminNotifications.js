@@ -1,20 +1,20 @@
 // backend/src/routes/adminNotifications.js
 const express = require('express');
 const router = express.Router();
-const pool = require('../../db'); // Adjust path to your db.js
+const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { sendEmail } = require('../../services/emailService');
 const { generateNotificationEmail } = require('../../services/emailTemplates');
 
 // ──────────────────────────────────────────────────────────────
-// POST: Send notification to user (with optional email)
+// POST: Send notification to user (with email ALWAYS)
 // ──────────────────────────────────────────────────────────────
 router.post('/notifications/send', authAdmin, async (req, res, next) => {
   try {
     const { user_id, title, message, type, send_email } = req.body;
 
-    // ✅ Debug log
-    console.log('📩 Received notification request:', {
+    // 📩 Log full request
+    console.log('📩 [NOTIFICATION] Received:', {
       user_id,
       title,
       type,
@@ -54,53 +54,52 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
 
     const notificationId = result.insertId;
 
-    // ─── Send email if requested ─────────────────────────────
+    // ─── ALWAYS SEND EMAIL (for testing) ─────────────────────
     let emailSent = false;
     let emailError = null;
 
-    // ✅ Ensure send_email is treated as boolean
-    const shouldSendEmail = send_email === true || send_email === 'true' || send_email === 1;
+    try {
+      console.log(`📧 [NOTIFICATION] Attempting to send email to ${user.email}...`);
 
-    if (shouldSendEmail) {
-      try {
-        const emailHtml = generateNotificationEmail({
-          title,
-          message,
-          type: type || 'general',
-          userName: user.name || user.email,
-          userEmail: user.email,
-          userId: user.id,
-          notificationId: notificationId,
-        });
+      const emailHtml = generateNotificationEmail({
+        title,
+        message,
+        type: type || 'general',
+        userName: user.name || user.email,
+        userEmail: user.email,
+        userId: user.id,
+        notificationId: notificationId,
+      });
 
-        await sendEmail({
-          to: user.email,
-          subject: `[VexaTrade] ${title}`,
-          html: emailHtml,
-        });
+      await sendEmail({
+        to: user.email,
+        subject: `[VexaTrade] ${title}`,
+        html: emailHtml,
+      });
 
-        emailSent = true;
+      emailSent = true;
+      console.log(`✅ [NOTIFICATION] Email sent to ${user.email}`);
 
-        // ─── Log email sent ──────────────────────────────────
-        await pool.query(
-          `INSERT INTO notification_email_logs (notification_id, user_id, email, status, sent_at)
-           VALUES (?, ?, ?, 'sent', NOW())`,
-          [notificationId, user_id, user.email]
-        );
+      // ─── Log email sent ──────────────────────────────────
+      await pool.query(
+        `INSERT INTO notification_email_logs (notification_id, user_id, email, status, sent_at)
+         VALUES (?, ?, ?, 'sent', NOW())`,
+        [notificationId, user_id, user.email]
+      );
 
-      } catch (err) {
-        emailError = err.message;
-        console.error('❌ Email send failed:', err.message);
-
-        // ─── Log email failure ────────────────────────────────
-        await pool.query(
-          `INSERT INTO notification_email_logs (notification_id, user_id, email, status, error_message, sent_at)
-           VALUES (?, ?, ?, 'failed', ?, NOW())`,
-          [notificationId, user_id, user.email, err.message]
-        );
+    } catch (err) {
+      emailError = err.message;
+      console.error(`❌ [NOTIFICATION] Email failed for ${user.email}:`, err.message);
+      if (err.response?.data) {
+        console.error('   Brevo error details:', JSON.stringify(err.response.data, null, 2));
       }
-    } else {
-      console.log('ℹ️ Email not requested (send_email = false)');
+
+      // ─── Log email failure ────────────────────────────────
+      await pool.query(
+        `INSERT INTO notification_email_logs (notification_id, user_id, email, status, error_message, sent_at)
+         VALUES (?, ?, ?, 'failed', ?, NOW())`,
+        [notificationId, user_id, user.email, err.message]
+      );
     }
 
     // ─── Response ─────────────────────────────────────────────
@@ -108,9 +107,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       success: true,
       message: emailSent
         ? 'Notification sent successfully (with email)'
-        : shouldSendEmail
-        ? 'Notification saved, but email failed'
-        : 'Notification sent successfully (in-app only)',
+        : 'Notification saved, but email failed',
       data: {
         notification_id: notificationId,
         user_id: user_id,
@@ -122,7 +119,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('❌ Send notification error:', error);
+    console.error('❌ [NOTIFICATION] Unhandled error:', error);
     next(error);
   }
 });
