@@ -5,7 +5,6 @@ const multer = require('multer');
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
-const { storage } = require('../../cloudinaryStorage');
 const storage = require('../../cloudinaryStorage');
 const upload = multer({ storage });
 
