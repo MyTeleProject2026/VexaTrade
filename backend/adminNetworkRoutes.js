@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-
+const storage = require('../../cloudinaryStorage');
 // Import sync functions from depositVerificationService
 const { 
   syncVerificationSettingsFromWallets, 
