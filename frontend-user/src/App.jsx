@@ -7,6 +7,7 @@ import MaintenanceScreen from './pages/MaintenanceScreen';
 import ToastContainer from "./components/ToastNotification";
 import VoucherModal from "./components/VoucherModal";
 import { NotificationProvider, useNotification } from "./hooks/useNotification.jsx";
+import { ChatProvider, useChat } from "./layouts/ChatContext"; // ✅ new import
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -35,11 +36,11 @@ import AccountVerificationPage from "./pages/AccountVerificationPage";
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
 
-// ─── NEW IMPORTS FOR CHAT ───
+// ─── Chat imports ──────────────────────────────────────────────
 import ChatWidget from "./components/ChatWidget";
 import DraggableChatButton from "./components/DraggableChatButton";
 
-// --- Helper functions ---
+// --- Helper functions (unchanged) ---
 function safeParse(value) {
   try {
     return JSON.parse(value);
@@ -113,7 +114,7 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
-// --- PrivateRoute ---
+// --- PrivateRoute (unchanged) ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
 
@@ -124,7 +125,7 @@ function PrivateRoute({ children }) {
   return children;
 }
 
-// --- ApprovalGuard ---
+// --- ApprovalGuard (unchanged) ---
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
@@ -177,21 +178,20 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
-// --- AppContent ---
+// --- AppContent (uses ChatContext) ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher, showWarning } = useNotification();
+  const { isChatOpen, openChat, closeChat } = useChat(); // ✅ use context
 
-  // ─── CHAT STATE ───
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  // Get user info for chat (may be empty if not logged in)
+  // Get user info for chat
   const userId = localStorage.getItem('userId') || '';
   const userName = localStorage.getItem('userName') || 'User';
   const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
 
-  // ─── Check unread messages from localStorage ───
+  // Check unread messages from localStorage
   useEffect(() => {
     const checkUnreadMessages = () => {
       try {
@@ -199,16 +199,15 @@ function AppContent() {
         const total = conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0);
         setChatUnreadCount(total);
       } catch (e) {
-        // Silent fail
+        // silent
       }
     };
-    
     checkUnreadMessages();
     const interval = setInterval(checkUnreadMessages, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─── BREVO CONVERSATIONS - Identify logged-in users ───
+  // Brevo identification (keep)
   useEffect(() => {
     const token = localStorage.getItem("userToken") || localStorage.getItem("token");
     const userData = localStorage.getItem("user");
@@ -234,22 +233,18 @@ function AppContent() {
     }
   }, []);
 
-  // ─── Chat Button Click Handler ───
+  // Chat button click handler
   const handleChatButtonClick = () => {
     const token = localStorage.getItem('userToken') || localStorage.getItem('token');
     if (!token) {
-      // Show a toast: "Please login to chat"
       if (showWarning) {
         showWarning('Please login to access chat support.');
       } else {
-        alert('Please login to access chat support.'); // fallback
+        alert('Please login to access chat support.');
       }
-      // Optionally redirect to login after a short delay
-      // setTimeout(() => window.location.href = '/login', 1500);
       return;
     }
-    // If authenticated, open the chat
-    setIsChatOpen(true);
+    openChat();
   };
 
   if (loading) {
@@ -268,22 +263,14 @@ function AppContent() {
     <>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-        {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        
-        {/* 2FA Routes */}
         <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
         <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
-
-        {/* Email verification route */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
-
-        {/* Account Verification Route */}
         <Route
           path="/account-verification"
           element={
@@ -292,7 +279,6 @@ function AppContent() {
             </PrivateRoute>
           }
         />
-
         <Route
           element={
             <PrivateRoute>
@@ -317,13 +303,12 @@ function AppContent() {
           <Route path="/kyc" element={<KycVerificationPage />} />
           <Route path="/support" element={<SupportPage />} />
         </Route>
-
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
 
       <VoucherModal voucher={voucher} onClose={closeVoucher} />
 
-      {/* ─── DRAGGABLE CHAT BUTTON – ALWAYS VISIBLE ─── */}
+      {/* Draggable Chat Button – always visible */}
       {!isChatOpen && (
         <DraggableChatButton 
           onClick={handleChatButtonClick}
@@ -332,12 +317,12 @@ function AppContent() {
         />
       )}
 
-      {/* ─── CHAT WIDGET ─── */}
+      {/* Chat Widget */}
       <ChatWidget
         userId={userId}
         userName={userName}
         isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
+        onClose={closeChat}
       />
     </>
   );
@@ -361,8 +346,10 @@ export default function App() {
 
   return (
     <NotificationProvider>
-      <AppContent />
-      <ToastContainer />
+      <ChatProvider>   {/* ✅ wrap with ChatProvider */}
+        <AppContent />
+        <ToastContainer />
+      </ChatProvider>
     </NotificationProvider>
   );
 }
