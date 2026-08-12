@@ -9,8 +9,7 @@ function formatTime(date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, onClose: externalOnClose }) {
-  const [internalIsOpen, setInternalIsOpen] = useState(false);
+export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [inputMessage, setInputMessage] = useState("");
@@ -19,10 +18,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
-
-  // Use external open state if provided, otherwise use internal
-  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
-  const handleClose = externalOnClose || (() => setInternalIsOpen(false));
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -186,44 +181,18 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
     }
   };
 
-  const onOpen = () => {
-    setInternalIsOpen(true);
-    setMessages(prev => {
-      const updated = prev.map(msg => 
-        msg.senderType === "admin" ? { ...msg, read: true } : msg
-      );
-      saveMessages(updated);
-      return updated;
-    });
-    setUnreadCount(0);
-    
-    if (chatApi && chatApi.markRead && conversationId) {
-      chatApi.markRead(conversationId);
-    }
-  };
-
+  // ─── CLOSE HANDLER ───
   const onCloseHandler = () => {
-    handleClose();
+    if (onClose) onClose();
   };
 
-  // ─── If not logged in, show a login prompt inside the widget ───
-  const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
-
+  // ─── If chat is closed, render NOTHING (toggle button is handled by DraggableChatButton) ───
   if (!isOpen) {
-    return (
-      <button
-        onClick={onOpen}
-        className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-lime-400 to-green-500 text-black shadow-lg transition hover:scale-105 hover:shadow-lime-500/25 md:bottom-6"
-      >
-        {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-        <MessageCircle size={24} />
-      </button>
-    );
+    return null;
   }
+
+  // ─── Check if user is logged in ───
+  const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
