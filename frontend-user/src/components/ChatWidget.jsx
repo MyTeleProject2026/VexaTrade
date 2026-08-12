@@ -28,11 +28,9 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Load messages from localStorage on mount
+  // Load messages from localStorage
   useEffect(() => {
-    if (userId) {
-      loadLocalMessages();
-    }
+    if (userId) loadLocalMessages();
   }, [userId]);
 
   const loadLocalMessages = () => {
@@ -70,7 +68,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   // Socket connection
   useEffect(() => {
     if (!userId) return;
-
     const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
     
     if (chatApi && chatApi.connect) {
@@ -79,9 +76,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
 
       chatApi.onNewMessage((data) => {
         console.log("📩 [ChatWidget] New message received:", data);
-        if (data.isAutoReply) {
-          console.log("🤖 [ChatWidget] AI auto-reply detected!");
-        }
+        if (data.isAutoReply) console.log("🤖 AI auto-reply detected!");
 
         if (data.conversationId === conversationId) {
           setMessages(prev => {
@@ -114,7 +109,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       });
 
       chatApi.onMessagesLoaded((data) => {
-        console.log("📚 [ChatWidget] Messages loaded:", data);
+        console.log("📚 Messages loaded:", data);
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
           saveMessages(data.messages);
@@ -123,12 +118,11 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       });
       
       chatApi.onConversationCreated?.((data) => {
-        console.log("🆕 [ChatWidget] Conversation created:", data);
+        console.log("🆕 Conversation created:", data);
         if (data.conversationId && !conversationId) {
           setConversationId(data.conversationId);
           const storedKey = `chat_user_${userId}_conversation`;
           localStorage.setItem(storedKey, data.conversationId);
-          
           const oldKey = `chat_messages_temp`;
           const tempMessages = localStorage.getItem(oldKey);
           if (tempMessages) {
@@ -152,7 +146,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
 
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
-    
     const newMessage = {
       id: Date.now(),
       message: inputMessage.trim(),
@@ -160,13 +153,11 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       createdAt: new Date().toISOString(),
       read: true
     };
-    
     setMessages(prev => {
       const updated = [...prev, newMessage];
       saveMessages(updated);
       return updated;
     });
-    
     if (chatApi && chatApi.sendMessage) {
       if (!conversationId) {
         chatApi.sendMessage('new', inputMessage.trim(), userId);
@@ -174,7 +165,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
         chatApi.sendMessage(conversationId, inputMessage.trim());
       }
     }
-    
     setInputMessage("");
     scrollToBottom();
   };
@@ -195,9 +185,9 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      {/* Inner card: max height 90% of viewport, flex column */}
-      <div className="flex w-full max-w-lg flex-col max-h-[90vh] bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4">
+      {/* Full-height card on mobile, max-width on larger screens */}
+      <div className="flex w-full max-w-lg flex-col h-[100dvh] max-h-[100dvh] bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -205,25 +195,19 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
             <span className="font-semibold text-white">Support Chat</span>
             {isConnected && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
           </div>
-          <button
-            onClick={onCloseHandler}
-            className="rounded-lg p-1 text-slate-400 hover:text-white transition"
-          >
+          <button onClick={onCloseHandler} className="rounded-lg p-1 text-slate-400 hover:text-white transition">
             <X size={20} />
           </button>
         </div>
 
-        {/* Messages area – takes remaining space, scrollable */}
+        {/* Messages area – scrollable, takes remaining space */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {!isLoggedIn ? (
             <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
               <LogIn size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-lg font-medium text-white">Login Required</p>
               <p className="mt-1 text-xs">Please log in to chat with our support team.</p>
-              <button
-                onClick={() => window.location.href = '/login'}
-                className="mt-4 px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-medium hover:bg-cyan-400 transition"
-              >
+              <button onClick={() => window.location.href = '/login'} className="mt-4 px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-medium hover:bg-cyan-400 transition">
                 Go to Login
               </button>
             </div>
@@ -263,7 +247,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area – fixed at bottom, doesn't shrink */}
+        {/* Input area – fixed at bottom */}
         {isLoggedIn && (
           <div className="border-t border-white/10 bg-[#111111] p-3 flex-shrink-0">
             <div className="flex gap-2">
@@ -277,7 +261,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
                 rows={1}
                 style={{ minHeight: "40px", maxHeight: "100px" }}
                 onFocus={() => {
-                  // On mobile, scroll input into view after keyboard opens
                   setTimeout(() => {
                     inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }, 300);
