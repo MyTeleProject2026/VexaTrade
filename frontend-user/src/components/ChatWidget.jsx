@@ -18,6 +18,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -77,7 +78,12 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       setIsConnected(true);
 
       chatApi.onNewMessage((data) => {
-        console.log("📩 New message received in ChatWidget:", data);
+        console.log("📩 [ChatWidget] New message received:", data);
+        // ✅ Check if it's an auto-reply
+        if (data.isAutoReply) {
+          console.log("🤖 [ChatWidget] AI auto-reply detected!");
+        }
+
         if (data.conversationId === conversationId) {
           setMessages(prev => {
             const newMsg = {
@@ -109,7 +115,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       });
 
       chatApi.onMessagesLoaded((data) => {
-        console.log("📚 Messages loaded:", data);
+        console.log("📚 [ChatWidget] Messages loaded:", data);
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
           saveMessages(data.messages);
@@ -118,7 +124,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       });
       
       chatApi.onConversationCreated?.((data) => {
-        console.log("🆕 Conversation created:", data);
+        console.log("🆕 [ChatWidget] Conversation created:", data);
         if (data.conversationId && !conversationId) {
           setConversationId(data.conversationId);
           const storedKey = `chat_user_${userId}_conversation`;
@@ -186,7 +192,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     if (onClose) onClose();
   };
 
-  // ─── If chat is closed, render NOTHING (toggle button is handled by DraggableChatButton) ───
+  // ─── If chat is closed, render NOTHING ───
   if (!isOpen) {
     return null;
   }
@@ -195,10 +201,13 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      style={{ height: '100dvh' }} // ✅ fixes keyboard push on mobile
+    >
       <div className="flex h-[85vh] w-full max-w-lg flex-col bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3 flex-shrink-0">
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="text-lime-400" />
             <span className="font-semibold text-white">Support Chat</span>
@@ -213,7 +222,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
         </div>
 
         {/* Chat Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {!isLoggedIn ? (
             // ─── LOGIN REQUIRED MESSAGE ───
             <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
@@ -265,9 +274,10 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
 
         {/* Input Area (only show if logged in) */}
         {isLoggedIn && (
-          <div className="border-t border-white/10 bg-[#111111] p-3">
+          <div className="border-t border-white/10 bg-[#111111] p-3 flex-shrink-0">
             <div className="flex gap-2">
               <textarea
+                ref={inputRef}
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
@@ -275,11 +285,17 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
                 className="flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-lime-400"
                 rows={1}
                 style={{ minHeight: "40px", maxHeight: "100px" }}
+                onFocus={() => {
+                  // Scroll input into view when focused (helps with keyboard)
+                  setTimeout(() => {
+                    inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 300);
+                }}
               />
               <button
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim()}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50 flex-shrink-0"
               >
                 <Send size={18} />
               </button>
