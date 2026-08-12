@@ -67,7 +67,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     }
   }, [messages, conversationId, saveMessages]);
 
-  // Socket connection for real-time (only if user is logged in)
+  // Socket connection
   useEffect(() => {
     if (!userId) return;
 
@@ -79,7 +79,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
 
       chatApi.onNewMessage((data) => {
         console.log("📩 [ChatWidget] New message received:", data);
-        // ✅ Check if it's an auto-reply
         if (data.isAutoReply) {
           console.log("🤖 [ChatWidget] AI auto-reply detected!");
         }
@@ -187,25 +186,18 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     }
   };
 
-  // ─── CLOSE HANDLER ───
   const onCloseHandler = () => {
     if (onClose) onClose();
   };
 
-  // ─── If chat is closed, render NOTHING ───
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
-  // ─── Check if user is logged in ───
   const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-      style={{ height: '100dvh' }} // ✅ fixes keyboard push on mobile
-    >
-      <div className="flex h-[85vh] w-full max-w-lg flex-col bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      {/* Inner card: max height 90% of viewport, flex column */}
+      <div className="flex w-full max-w-lg flex-col max-h-[90vh] bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -221,10 +213,9 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Chat Messages Area */}
+        {/* Messages area – takes remaining space, scrollable */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {!isLoggedIn ? (
-            // ─── LOGIN REQUIRED MESSAGE ───
             <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
               <LogIn size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-lg font-medium text-white">Login Required</p>
@@ -272,7 +263,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area (only show if logged in) */}
+        {/* Input area – fixed at bottom, doesn't shrink */}
         {isLoggedIn && (
           <div className="border-t border-white/10 bg-[#111111] p-3 flex-shrink-0">
             <div className="flex gap-2">
@@ -286,7 +277,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
                 rows={1}
                 style={{ minHeight: "40px", maxHeight: "100px" }}
                 onFocus={() => {
-                  // Scroll input into view when focused (helps with keyboard)
+                  // On mobile, scroll input into view after keyboard opens
                   setTimeout(() => {
                     inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }, 300);
