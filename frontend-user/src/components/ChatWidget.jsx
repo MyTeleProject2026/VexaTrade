@@ -185,10 +185,10 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4">
-      {/* Full-height card on mobile, max-width on larger screens */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4 overflow-hidden">
+      {/* Outer container – full height, prevents scrolling */}
       <div className="flex w-full max-w-lg flex-col h-[100dvh] max-h-[100dvh] bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
+        {/* Header – fixed height */}
         <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3 flex-shrink-0">
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="text-lime-400" />
@@ -200,7 +200,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Messages area – scrollable, takes remaining space */}
+        {/* Messages area – takes remaining space, scrollable */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {!isLoggedIn ? (
             <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
@@ -247,7 +247,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area – fixed at bottom */}
+        {/* Input area – fixed at bottom, never shrinks */}
         {isLoggedIn && (
           <div className="border-t border-white/10 bg-[#111111] p-3 flex-shrink-0">
             <div className="flex gap-2">
