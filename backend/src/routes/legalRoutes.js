@@ -6,7 +6,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { normalizeLegalStatus, getLegalFileUrl, removeUploadedFile, createAuditLog } = require('../utils/helpers');
 const { storage } = require('../../cloudinaryStorage');
-
+const storage = require('../../cloudinaryStorage');
 const upload = multer({ storage });
 
 // ─── Public ─────────────────────────────────────────────────────────
