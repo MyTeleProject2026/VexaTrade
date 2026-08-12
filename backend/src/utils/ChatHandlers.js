@@ -1,7 +1,8 @@
 // backend/src/utils/ChatHandlers.js
 const pool = require('../../db');
 const { generateAutoResponse } = require('./autoResponses');
-
+// const autoReply = generateAutoResponse(trimmedMessage);
+const autoReply = "🔧 This is a TEST auto-reply from the backend. Your message was: " + trimmedMessage;
 // Store connected users
 const connectedUsers = new Map();
 
