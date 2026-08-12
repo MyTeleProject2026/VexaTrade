@@ -9,8 +9,7 @@ const {
   createError, generateAdminToken, normalizeTradingFeeTier,
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
-const { storage } = require('../../cloudinaryStorage');
-
+const storage = require('../../cloudinaryStorage');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
