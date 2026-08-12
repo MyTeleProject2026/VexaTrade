@@ -9,6 +9,7 @@ const fs = require("fs");
 const http = require("http");
 const socketIo = require("socket.io");
 const pool = require("./db");
+const storage = require('./cloudinaryStorage');
 const { setupChatHandlers } = require('./src/utils/ChatHandlers.js');
 
 // ─── Import all route files ─────────────────────────────────────────
