@@ -7,19 +7,17 @@ export default function DraggableChatButton({
   unreadCount = 0, 
   isOpen = false 
 }) {
-  // Load saved position from localStorage (x: left/right, y: top/bottom)
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('chat_button_position');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Ensure both x and y exist
         return { x: parsed.x ?? 0, y: parsed.y ?? 50 };
       } catch (e) {
         return { x: 0, y: 50 };
       }
     }
-    return { x: 0, y: 50 }; // default: right side, middle
+    return { x: 0, y: 50 };
   });
   
   const [isDragging, setIsDragging] = useState(false);
@@ -28,12 +26,10 @@ export default function DraggableChatButton({
   const [hasMoved, setHasMoved] = useState(false);
   const buttonRef = useRef(null);
 
-  // Save position on change
   useEffect(() => {
     localStorage.setItem('chat_button_position', JSON.stringify(position));
   }, [position]);
 
-  // ─── Drag Handlers ───
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -58,16 +54,13 @@ export default function DraggableChatButton({
     let newX = startPosition.x + deltaX;
     let newY = startPosition.y + deltaY;
 
-    // Constrain within viewport (with padding)
     const padding = 20;
-    const buttonWidth = 60; // approximate width of button
+    const buttonWidth = 60;
     const buttonHeight = 60;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // X: 0 = left, viewportWidth - buttonWidth = right
     newX = Math.max(padding, Math.min(viewportWidth - buttonWidth - padding, newX));
-    // Y: 0 = top, viewportHeight - buttonHeight = bottom
     newY = Math.max(padding, Math.min(viewportHeight - buttonHeight - padding, newY));
 
     if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
@@ -112,7 +105,6 @@ export default function DraggableChatButton({
     if (!hasMoved && onClick) onClick();
   }, [hasMoved, onClick]);
 
-  // ─── Global listeners ───
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -153,7 +145,7 @@ export default function DraggableChatButton({
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
       >
-        {/* Drag indicator dots (show on hover) */}
+        {/* Drag indicator dots */}
         <div className="absolute -left-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="w-1 h-3 rounded-full bg-white/30 drag-dot"></div>
           <div className="w-1 h-3 rounded-full bg-white/30 drag-dot"></div>
