@@ -117,7 +117,6 @@ function setupChatHandlers(io) {
         currentUser.role = role || 'user';
         currentUser.token = token;
 
-        // Store connected user
         connectedUsers.set(userId, {
           socketId: socket.id,
           role: role || 'user',
@@ -234,19 +233,21 @@ function setupChatHandlers(io) {
       }
     });
 
-    // ─── send_message ─── ✅ WITH AI AUTO-RESPONSE
+    // ─── send_message ─── ✅ WITH AI AUTO-RESPONSE + DEBUG LOGGING
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, message, userId } = data;
         
-        console.log(`📥 send_message: conversationId=${conversationId}, userId=${userId}, message=${message}`);
+        console.log(`📥 [send_message] conversationId=${conversationId}, userId=${userId}, message=${message}`);
 
         if (!currentUser.id) {
+          console.error('❌ [send_message] Not authenticated');
           socket.emit('error', { message: 'Not authenticated' });
           return;
         }
 
         if (!message || message.trim() === '') {
+          console.error('❌ [send_message] Empty message');
           socket.emit('error', { message: 'Message is required' });
           return;
         }
@@ -255,15 +256,17 @@ function setupChatHandlers(io) {
         const trimmedMessage = message.trim();
         const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
 
+        console.log(`📌 [send_message] senderType=${senderType}, currentUser.id=${currentUser.id}`);
+
         // Handle new conversation properly
         if (!convId || convId === 'new' || convId === 'null' || convId === 'undefined') {
           if (!userId) {
-            console.error('❌ No userId provided for new conversation');
+            console.error('❌ [send_message] No userId provided for new conversation');
             socket.emit('error', { message: 'User ID required for new conversation' });
             return;
           }
           
-          console.log(`🆕 Creating new conversation for user ${userId} with admin ${currentUser.id}`);
+          console.log(`🆕 [send_message] Creating new conversation for user ${userId} with admin ${currentUser.id}`);
           const conv = await getOrCreateConversation(userId, currentUser.id);
           convId = conv.id;
           
@@ -281,12 +284,15 @@ function setupChatHandlers(io) {
         );
 
         if (conv.length === 0) {
+          console.error(`❌ [send_message] Conversation not found: ${convId}`);
           socket.emit('error', { message: 'Conversation not found or access denied' });
           return;
         }
 
         const conversation = conv[0];
         const recipientId = senderType === 'admin' ? conversation.user_id : conversation.admin_id;
+
+        console.log(`📌 [send_message] conversationId=${convId}, recipientId=${recipientId}`);
 
         // ─── SAVE USER MESSAGE ───
         const [result] = await pool.query(
@@ -295,6 +301,8 @@ function setupChatHandlers(io) {
            VALUES (?, ?, ?, ?)`,
           [convId, currentUser.id, senderType, trimmedMessage]
         );
+
+        console.log(`✅ [send_message] User message saved with ID: ${result.insertId}`);
 
         const unreadField = senderType === 'admin' ? 'unread_user' : 'unread_admin';
         await pool.query(
@@ -332,7 +340,7 @@ function setupChatHandlers(io) {
           senderType: senderType
         };
 
-        console.log(`📤 Emitting message to: user_${recipientId}`, messageData);
+        console.log(`📤 [send_message] Emitting user message to: user_${recipientId}`);
 
         // Emit to recipient
         io.to(`user_${recipientId}`).emit('new_message', messageData);
@@ -342,11 +350,13 @@ function setupChatHandlers(io) {
 
         // ─── ✅ AI AUTO-RESPONSE (Only if sender is NOT admin) ───
         if (senderType !== 'admin') {
+          console.log(`🤖 [send_message] Generating AI auto-response for user ${currentUser.id}`);
+          
           try {
             // Generate AI response based on user message
             const autoReply = generateAutoResponse(trimmedMessage);
             
-            console.log(`🤖 Generating auto-reply for user ${currentUser.id}: ${autoReply.substring(0, 50)}...`);
+            console.log(`📝 [send_message] Auto-reply generated: ${autoReply.substring(0, 100)}...`);
 
             // Save auto-reply to database as admin message
             const [autoResult] = await pool.query(
@@ -355,6 +365,8 @@ function setupChatHandlers(io) {
                VALUES (?, ?, 'admin', ?)`,
               [convId, conversation.admin_id, autoReply]
             );
+
+            console.log(`✅ [send_message] Auto-reply saved with ID: ${autoResult.insertId}`);
 
             // Update conversation with auto-reply
             await pool.query(
@@ -389,8 +401,10 @@ function setupChatHandlers(io) {
               conversationId: convId,
               ...autoMessage[0],
               senderType: 'admin',
-              isAutoReply: true  // Flag to identify auto-reply
+              isAutoReply: true  // ✅ Flag to identify auto-reply
             };
+
+            console.log(`📤 [send_message] Emitting auto-reply to user_${conversation.user_id} with isAutoReply=true`);
 
             // ─── EMIT AUTO-REPLY TO USER ───
             io.to(`user_${conversation.user_id}`).emit('new_message', autoData);
@@ -399,11 +413,13 @@ function setupChatHandlers(io) {
             io.to(`user_${conversation.admin_id}`).emit('new_message', autoData);
             io.to('admins').emit('new_message', autoData);
 
-            console.log(`✅ Auto-reply sent to user ${conversation.user_id}`);
+            console.log(`✅ [send_message] Auto-reply sent to user ${conversation.user_id}`);
           } catch (autoError) {
-            console.error('❌ Error generating auto-response:', autoError);
+            console.error('❌ [send_message] Error generating auto-response:', autoError);
             // Don't fail the whole operation if auto-response fails
           }
+        } else {
+          console.log(`ℹ️ [send_message] Sender is admin, skipping AI auto-response`);
         }
 
         // Update admin's conversation list if admin sent
@@ -412,7 +428,7 @@ function setupChatHandlers(io) {
         }
 
       } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('❌ [send_message] Error:', error);
         socket.emit('error', { message: 'Failed to send message: ' + error.message });
       }
     });
