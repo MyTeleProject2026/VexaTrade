@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
+const storage = require('../../cloudinaryStorage');
 const { createError, createTransactionLog, createUserNotification, createAuditLog } = require('../utils/helpers');
 const { getWithdrawalFeeConfig, calculateWithdrawalFee } = require('../../services/tradeService');
 
