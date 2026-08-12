@@ -7,16 +7,19 @@ export default function DraggableChatButton({
   unreadCount = 0, 
   isOpen = false 
 }) {
+  // Load saved position from localStorage (x: left/right, y: top/bottom)
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('chat_button_position');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure both x and y exist
+        return { x: parsed.x ?? 0, y: parsed.y ?? 50 };
       } catch (e) {
         return { x: 0, y: 50 };
       }
     }
-    return { x: 0, y: 50 };
+    return { x: 0, y: 50 }; // default: right side, middle
   });
   
   const [isDragging, setIsDragging] = useState(false);
@@ -25,10 +28,12 @@ export default function DraggableChatButton({
   const [hasMoved, setHasMoved] = useState(false);
   const buttonRef = useRef(null);
 
+  // Save position on change
   useEffect(() => {
     localStorage.setItem('chat_button_position', JSON.stringify(position));
   }, [position]);
 
+  // ─── Drag Handlers ───
   const handleMouseDown = useCallback((e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -48,27 +53,54 @@ export default function DraggableChatButton({
   const handleMouseMove = useCallback((e) => {
     if (!isDragging) return;
     e.preventDefault();
+    const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
-    const newY = startPosition.y + deltaY;
-    const minY = 10;
-    const maxY = 90;
-    const constrainedY = Math.max(minY, Math.min(maxY, newY));
-    if (Math.abs(deltaY) > 5) setHasMoved(true);
-    setPosition({ x: 0, y: constrainedY });
-  }, [isDragging, dragStart.y, startPosition.y]);
+    let newX = startPosition.x + deltaX;
+    let newY = startPosition.y + deltaY;
+
+    // Constrain within viewport (with padding)
+    const padding = 20;
+    const buttonWidth = 60; // approximate width of button
+    const buttonHeight = 60;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // X: 0 = left, viewportWidth - buttonWidth = right
+    newX = Math.max(padding, Math.min(viewportWidth - buttonWidth - padding, newX));
+    // Y: 0 = top, viewportHeight - buttonHeight = bottom
+    newY = Math.max(padding, Math.min(viewportHeight - buttonHeight - padding, newY));
+
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      setHasMoved(true);
+    }
+
+    setPosition({ x: newX, y: newY });
+  }, [isDragging, dragStart.x, dragStart.y, startPosition]);
 
   const handleTouchMove = useCallback((e) => {
     if (!isDragging) return;
     e.preventDefault();
     const touch = e.touches[0];
+    const deltaX = touch.clientX - dragStart.x;
     const deltaY = touch.clientY - dragStart.y;
-    const newY = startPosition.y + deltaY;
-    const minY = 10;
-    const maxY = 90;
-    const constrainedY = Math.max(minY, Math.min(maxY, newY));
-    if (Math.abs(deltaY) > 5) setHasMoved(true);
-    setPosition({ x: 0, y: constrainedY });
-  }, [isDragging, dragStart.y, startPosition.y]);
+    let newX = startPosition.x + deltaX;
+    let newY = startPosition.y + deltaY;
+
+    const padding = 20;
+    const buttonWidth = 60;
+    const buttonHeight = 60;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    newX = Math.max(padding, Math.min(viewportWidth - buttonWidth - padding, newX));
+    newY = Math.max(padding, Math.min(viewportHeight - buttonHeight - padding, newY));
+
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      setHasMoved(true);
+    }
+
+    setPosition({ x: newX, y: newY });
+  }, [isDragging, dragStart.x, dragStart.y, startPosition]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -80,6 +112,7 @@ export default function DraggableChatButton({
     if (!hasMoved && onClick) onClick();
   }, [hasMoved, onClick]);
 
+  // ─── Global listeners ───
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -107,10 +140,10 @@ export default function DraggableChatButton({
 
   return (
     <div 
-      className="fixed right-4 z-50 touch-none chat-appear"
+      className="fixed z-50 touch-none chat-appear"
       style={{
-        top: `${position.y}%`,
-        transform: 'translateY(-50%)',
+        left: `${position.x}px`,
+        top: `${position.y}px`,
         cursor: isDragging ? 'grabbing' : 'grab',
       }}
     >
@@ -120,7 +153,7 @@ export default function DraggableChatButton({
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
       >
-        {/* Drag indicator dots */}
+        {/* Drag indicator dots (show on hover) */}
         <div className="absolute -left-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="w-1 h-3 rounded-full bg-white/30 drag-dot"></div>
           <div className="w-1 h-3 rounded-full bg-white/30 drag-dot"></div>
