@@ -121,23 +121,3 @@
 .chat-appear {
   animation: chatAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
-
-/* ─── HIDE BREVO CHAT WIDGET ──────────────────────────────
-   We use our custom draggable chat button instead.
-   ======================================================== */
-
-/* Hide the entire Brevo widget container */
-.brevo-conversations {
-  display: none !important;
-}
-
-/* Hide the Brevo floating button specifically */
-.brevo-conversations .brevo-chat-button {
-  display: none !important;
-}
-
-/* Hide any Brevo iframe or widget elements */
-.brevo-conversations iframe,
-.brevo-conversations .brevo-iframe {
-  display: none !important;
-}
