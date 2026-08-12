@@ -180,13 +180,13 @@ function ApprovalGuard({ children }) {
 // --- AppContent ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
-  const { voucher, closeVoucher } = useNotification();
+  const { voucher, closeVoucher, showWarning } = useNotification();
 
   // ─── CHAT STATE ───
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  // Get user info for chat
+  // Get user info for chat (may be empty if not logged in)
   const userId = localStorage.getItem('userId') || '';
   const userName = localStorage.getItem('userName') || 'User';
   const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
@@ -233,6 +233,24 @@ function AppContent() {
       }
     }
   }, []);
+
+  // ─── Chat Button Click Handler ───
+  const handleChatButtonClick = () => {
+    const token = localStorage.getItem('userToken') || localStorage.getItem('token');
+    if (!token) {
+      // Show a toast: "Please login to chat"
+      if (showWarning) {
+        showWarning('Please login to access chat support.');
+      } else {
+        alert('Please login to access chat support.'); // fallback
+      }
+      // Optionally redirect to login after a short delay
+      // setTimeout(() => window.location.href = '/login', 1500);
+      return;
+    }
+    // If authenticated, open the chat
+    setIsChatOpen(true);
+  };
 
   if (loading) {
     return (
@@ -305,10 +323,10 @@ function AppContent() {
 
       <VoucherModal voucher={voucher} onClose={closeVoucher} />
 
-      {/* ─── DRAGGABLE CHAT BUTTON ─── */}
-      {userId && token && !isChatOpen && (
+      {/* ─── DRAGGABLE CHAT BUTTON – ALWAYS VISIBLE ─── */}
+      {!isChatOpen && (
         <DraggableChatButton 
-          onClick={() => setIsChatOpen(true)}
+          onClick={handleChatButtonClick}
           unreadCount={chatUnreadCount}
           isOpen={isChatOpen}
         />
