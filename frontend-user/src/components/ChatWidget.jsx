@@ -1,6 +1,6 @@
 // frontend-user/src/components/ChatWidget.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, X, Send } from "lucide-react";
+import { MessageCircle, X, Send, LogIn } from "lucide-react";
 import { chatApi } from "../services/chatApi";
 
 function formatTime(date) {
@@ -71,7 +71,7 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
     }
   }, [messages, conversationId, saveMessages]);
 
-  // Socket connection for real-time
+  // Socket connection for real-time (only if user is logged in)
   useEffect(() => {
     if (!userId) return;
 
@@ -90,7 +90,8 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
               message: data.message,
               senderType: data.senderType || "admin",
               createdAt: data.createdAt || new Date().toISOString(),
-              read: false
+              read: false,
+              isAutoReply: data.isAutoReply || false
             };
             const updated = [...prev, newMsg];
             saveMessages(updated);
@@ -121,7 +122,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
         setIsLoading(false);
       });
       
-      // ✅ FIXED: Listen for conversation created event
       chatApi.onConversationCreated?.((data) => {
         console.log("🆕 Conversation created:", data);
         if (data.conversationId && !conversationId) {
@@ -129,7 +129,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
           const storedKey = `chat_user_${userId}_conversation`;
           localStorage.setItem(storedKey, data.conversationId);
           
-          // ✅ Migrate temp messages to new conversation ID
           const oldKey = `chat_messages_temp`;
           const tempMessages = localStorage.getItem(oldKey);
           if (tempMessages) {
@@ -151,7 +150,6 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
     };
   }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
 
-  // ✅ FIXED: Send message with userId for new conversations
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
     
@@ -169,13 +167,10 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
       return updated;
     });
     
-    // ✅ If no conversationId, send 'new' with userId
     if (chatApi && chatApi.sendMessage) {
       if (!conversationId) {
-        console.log(`📤 Sending new message with userId: ${userId}`);
         chatApi.sendMessage('new', inputMessage.trim(), userId);
       } else {
-        console.log(`📤 Sending message to conversation: ${conversationId}`);
         chatApi.sendMessage(conversationId, inputMessage.trim());
       }
     }
@@ -211,6 +206,9 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
     handleClose();
   };
 
+  // ─── If not logged in, show a login prompt inside the widget ───
+  const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
+
   if (!isOpen) {
     return (
       <button
@@ -230,6 +228,7 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="flex h-[85vh] w-full max-w-lg flex-col bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3">
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="text-lime-400" />
@@ -244,8 +243,22 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
           </button>
         </div>
 
+        {/* Chat Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {isLoading ? (
+          {!isLoggedIn ? (
+            // ─── LOGIN REQUIRED MESSAGE ───
+            <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
+              <LogIn size={48} className="mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium text-white">Login Required</p>
+              <p className="mt-1 text-xs">Please log in to chat with our support team.</p>
+              <button
+                onClick={() => window.location.href = '/login'}
+                className="mt-4 px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-medium hover:bg-cyan-400 transition"
+              >
+                Go to Login
+              </button>
+            </div>
+          ) : isLoading ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
               <div className="animate-pulse">Loading messages...</div>
             </div>
@@ -281,29 +294,32 @@ export default function ChatWidget({ userId, userName, isOpen: externalIsOpen, o
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-white/10 bg-[#111111] p-3">
-          <div className="flex gap-2">
-            <textarea
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Type your message..."
-              className="flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-lime-400"
-              rows={1}
-              style={{ minHeight: "40px", maxHeight: "100px" }}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim()}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50"
-            >
-              <Send size={18} />
-            </button>
+        {/* Input Area (only show if logged in) */}
+        {isLoggedIn && (
+          <div className="border-t border-white/10 bg-[#111111] p-3">
+            <div className="flex gap-2">
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Type your message..."
+                className="flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-lime-400"
+                rows={1}
+                style={{ minHeight: "40px", maxHeight: "100px" }}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim()}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[10px] text-slate-500">
+              Our team typically responds within a few hours
+            </p>
           </div>
-          <p className="mt-2 text-center text-[10px] text-slate-500">
-            Our team typically responds within a few hours
-          </p>
-        </div>
+        )}
       </div>
     </div>
   );
