@@ -3,13 +3,13 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
-const pool = require('./db');
+const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { 
   createError, generateAdminToken, normalizeTradingFeeTier,
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
-const storage = require('./cloudinaryStorage');
+const storage = require('../../cloudinaryStorage');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
