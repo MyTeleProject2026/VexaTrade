@@ -4,6 +4,8 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const pool = require('../../db');
+const storage = require('../../cloudinaryStorage');
+const upload = multer({ storage });
 const { authAdmin } = require('../middleware/auth');
 const { 
   createError, generateAdminToken, normalizeTradingFeeTier,
