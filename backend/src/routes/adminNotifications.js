@@ -2,9 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../../db');
-const { authAdmin } = require('../middleware/auth');
+const { authAdmin } = require('../../middleware/auth');
 const { sendEmail } = require('../../services/emailService');
-const { generateNotificationEmail } = require('../services/emailTemplates');
+const { generateNotificationEmail } = require('../../services/emailTemplates');
 
 // ──────────────────────────────────────────────────────────────
 // POST: Send notification to user (with email ALWAYS)
