@@ -4,7 +4,9 @@
 require("dotenv").config();
 const axios = require("axios");
 const pool = require("./db");
-
+const upload = multer({ storage });
+const multer = require('multer');
+const storage = require('../cloudinaryStorage');
 // ==========================
 // CONSTANTS
 // ==========================
