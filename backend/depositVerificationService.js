@@ -1,5 +1,5 @@
 // depositVerificationService.js
-// Version 3.1 – Manual deposit verification (no TXID required)
+// Version 3.0 – Manual deposit verification (no TXID required)
 
 require("dotenv").config();
 const axios = require("axios");
@@ -118,7 +118,7 @@ async function getAllNetworkSettings() {
 }
 
 // ==========================
-// ✅ MANUAL VERIFICATION (no TXID required)
+// ✅ NEW: MANUAL VERIFICATION (no TXID required)
 // ==========================
 async function verifyDepositManually(deposit) {
   const {
