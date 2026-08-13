@@ -1,3 +1,4 @@
+// frontend-user/src/pages/ProfilePage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -17,11 +18,13 @@ import {
   Upload,
   MessageCircle,
   Newspaper,
-  BookOpen,  // ✅ ADDED: For Ebooks Library
+  BookOpen,
 } from "lucide-react";
 import { userApi, getApiErrorMessage } from "../services/api";
 import { getFullImageUrl } from "../utils/image";
 import ChatWidget from "../components/ChatWidget";
+// ✅ IMPORT CHAT CONTEXT
+import { useChat } from '../layouts/ChatContext';
 
 function getKycText(status) {
   return String(status || "not_submitted").replaceAll("_", " ");
@@ -80,6 +83,9 @@ export default function ProfilePage() {
     localStorage.getItem("accessToken") ||
     "";
 
+  // ✅ USE GLOBAL CHAT CONTEXT (replaces local showChat state)
+  const { isChatOpen: showChat, openChat, closeChat } = useChat();
+
   const [profile, setProfile] = useState({
     name: "",
     email: "",
@@ -97,7 +103,6 @@ export default function ProfilePage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [showChat, setShowChat] = useState(false);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -282,13 +287,13 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-5 bg-[#050812] px-2 pb-24 pt-3 sm:px-6 xl:pb-8">
-      {/* Chat Widget - shows when showChat is true OR user clicks floating button */}
+      {/* Chat Widget - uses global chat state from context */}
       {profile?.id && (
         <ChatWidget 
           userId={profile.id.toString()} 
           userName={profile.name || profile.email?.split("@")[0] || "User"} 
           isOpen={showChat}
-          onClose={() => setShowChat(false)}
+          onClose={closeChat}
         />
       )}
       
@@ -349,17 +354,15 @@ export default function ProfilePage() {
       >
         <div className="grid grid-cols-4 gap-2 sm:gap-4">
           <QuickIcon icon={Headphones} label="Get help" onClick={() => navigate("/support")} />
-          {/* Live Chat button - opens the chat widget */}
-          <QuickIcon icon={MessageCircle} label="Live Chat" onClick={() => setShowChat(true)} />
+          {/* ✅ Live Chat button - uses openChat from context */}
+          <QuickIcon icon={MessageCircle} label="Live Chat" onClick={openChat} />
           
-          {/* ✅ ADDED: VexaTrade News button */}
           <QuickIcon 
             icon={Newspaper} 
             label="VexaTrade News" 
             onClick={() => window.open("https://learn-vexatrade.onrender.com/posts", "_blank")} 
           />
           
-          {/* ✅ ADDED: VexaTrade Ebooks button */}
           <QuickIcon 
             icon={BookOpen} 
             label="Ebooks Library" 
