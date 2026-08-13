@@ -144,8 +144,12 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     };
   }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
 
+  // ✅ handleSendMessage with debugging logs
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
+    
+    console.log(`📤 [ChatWidget] handleSendMessage: userId=${userId}, conversationId=${conversationId}, msg=${inputMessage.trim()}`);
+    
     const newMessage = {
       id: Date.now(),
       message: inputMessage.trim(),
@@ -153,11 +157,13 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
       createdAt: new Date().toISOString(),
       read: true
     };
+    
     setMessages(prev => {
       const updated = [...prev, newMessage];
       saveMessages(updated);
       return updated;
     });
+    
     if (chatApi && chatApi.sendMessage) {
       if (!conversationId) {
         chatApi.sendMessage('new', inputMessage.trim(), userId);
@@ -165,6 +171,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
         chatApi.sendMessage(conversationId, inputMessage.trim());
       }
     }
+    
     setInputMessage("");
     scrollToBottom();
   };
@@ -280,6 +287,3 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
