@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("./db");
 const { authUser, authAdmin } = require('./src/middleware/auth');
-const storage = require('../../cloudinaryStorage');
+const storage = require('./cloudinaryStorage');
 function normalizeNewsActive(value) {
   return Number(value) === 0 ? 0 : 1;
 }
