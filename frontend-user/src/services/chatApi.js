@@ -96,18 +96,20 @@ export const chatApi = {
   getSocket: () => socket,
   isConnected: () => isConnected,
   
-  // ✅ FIXED: Send message with userId for new conversations
+  // ✅ FIXED: Send message with userId for new conversations + DEBUG LOGS
   sendMessage: (conversationId, message, userId = null) => { 
-    console.log(`📤 Sending message: conversationId=${conversationId}, userId=${userId}, message=${message}`);
+    console.log(`📤 [chatApi] sendMessage called: convId=${conversationId}, userId=${userId}, msg=${message}`);
+    console.log(`📤 [chatApi] socket exists? ${!!socket}, isConnected? ${isConnected}`);
     
     if (socket && isConnected) {
+      console.log(`📤 [chatApi] ✅ Emitting send_message to socket`);
       socket.emit("send_message", { 
         conversationId, 
         message,
         userId: userId // ✅ Include userId for new conversations
       });
     } else {
-      console.warn("⚠️ Socket not connected, message stored locally only");
+      console.warn(`⚠️ [chatApi] ❌ Socket not connected! Message stored locally only.`);
     }
     
     // Store in localStorage as fallback
