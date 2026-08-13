@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../../db');
 const { getUserProfile } = require('../../services/vexaccount');
-const storage = require('../../cloudinaryStorage');
 const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key_2024_secure';
 
 /**
