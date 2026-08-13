@@ -1,12 +1,10 @@
 // depositVerificationService.js
-// Version 3.0 – Manual deposit verification (no TXID required)
+// Version 3.1 – Manual deposit verification (no TXID required)
 
 require("dotenv").config();
 const axios = require("axios");
 const pool = require("./db");
-const upload = multer({ storage });
-const multer = require('multer');
-const storage = require('../cloudinaryStorage');
+
 // ==========================
 // CONSTANTS
 // ==========================
@@ -120,7 +118,7 @@ async function getAllNetworkSettings() {
 }
 
 // ==========================
-// ✅ NEW: MANUAL VERIFICATION (no TXID required)
+// ✅ MANUAL VERIFICATION (no TXID required)
 // ==========================
 async function verifyDepositManually(deposit) {
   const {
