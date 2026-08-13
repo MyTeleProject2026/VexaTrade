@@ -7,7 +7,7 @@ import MaintenanceScreen from './pages/MaintenanceScreen';
 import ToastContainer from "./components/ToastNotification";
 import VoucherModal from "./components/VoucherModal";
 import { NotificationProvider, useNotification } from "./hooks/useNotification.jsx";
-import { ChatProvider, useChat } from "./layouts/ChatContext"; // ✅ new import
+import { ChatProvider, useChat } from "./layouts/ChatContext";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -40,7 +40,7 @@ import { userApi } from "./services/api";
 import ChatWidget from "./components/ChatWidget";
 import DraggableChatButton from "./components/DraggableChatButton";
 
-// --- Helper functions (unchanged) ---
+// --- Helper functions ---
 function safeParse(value) {
   try {
     return JSON.parse(value);
@@ -114,7 +114,7 @@ async function refreshUserDataFromServer() {
   return null;
 }
 
-// --- PrivateRoute (unchanged) ---
+// --- PrivateRoute ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
 
@@ -125,7 +125,7 @@ function PrivateRoute({ children }) {
   return children;
 }
 
-// --- ApprovalGuard (unchanged) ---
+// --- ApprovalGuard ---
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
@@ -178,17 +178,28 @@ function ApprovalGuard({ children }) {
   return children;
 }
 
-// --- AppContent (uses ChatContext) ---
+// --- AppContent ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher, showWarning } = useNotification();
-  const { isChatOpen, openChat, closeChat } = useChat(); // ✅ use context
+  const { isChatOpen, openChat, closeChat } = useChat();
 
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  // Get user info for chat
-  const userId = localStorage.getItem('userId') || '';
-  const userName = localStorage.getItem('userName') || 'User';
+  // ✅ FIX: Get userId from user object in localStorage, not from a separate key
+  let userId = '';
+  let userName = 'User';
+  const userData = localStorage.getItem('user') || localStorage.getItem('userData');
+  if (userData) {
+    try {
+      const user = JSON.parse(userData);
+      userId = user.id || user.user_id || '';
+      userName = user.name || user.email?.split('@')[0] || 'User';
+    } catch (e) {
+      console.warn('Failed to parse user data:', e);
+    }
+  }
+
   const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
 
   // Check unread messages from localStorage
@@ -207,7 +218,7 @@ function AppContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // Brevo identification (keep)
+  // Brevo identification
   useEffect(() => {
     const token = localStorage.getItem("userToken") || localStorage.getItem("token");
     const userData = localStorage.getItem("user");
@@ -346,7 +357,7 @@ export default function App() {
 
   return (
     <NotificationProvider>
-      <ChatProvider>   {/* ✅ wrap with ChatProvider */}
+      <ChatProvider>
         <AppContent />
         <ToastContainer />
       </ChatProvider>
