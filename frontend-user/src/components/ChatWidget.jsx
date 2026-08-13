@@ -287,3 +287,6 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
