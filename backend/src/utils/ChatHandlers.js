@@ -2,8 +2,8 @@
 const pool = require('../../db');
 const { generateAutoResponse } = require('./autoResponses');
 
-// ✅ Fixed admin ID – change this to the actual admin user ID in your system
-const DEFAULT_ADMIN_ID = 1;
+// ✅ Updated to your actual admin ID (from admins table)
+const DEFAULT_ADMIN_ID = 30001;
 
 // Store connected users (socket IDs by userId)
 const connectedUsers = new Map();
