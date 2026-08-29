@@ -61,6 +61,31 @@ async function debitAvailableAsset(connection, { userId, coin, network, amount, 
   await recordLedger(connection, { userId, coin, network, bucket:'available', entryType:'ecosystem_debit', amount, referenceType, referenceId, note });
 }
 
+async function moveAvailableToPending(connection, { userId, coin, network, amount, entryType = 'asset_pending', referenceType, referenceId, note }) {
+  coin = normalizeCoin(coin); network = normalizeNetwork(network); amount = Number(amount);
+  if (!coin || !Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid pending asset amount');
+  await ensureAssetRow(connection, userId, coin);
+  const [update] = await connection.execute(
+    `UPDATE user_assets SET available_balance=available_balance-?, pending_balance=pending_balance+?, balance=available_balance-?+reserved_balance+pending_balance WHERE user_id=? AND coin=? AND available_balance>=?`,
+    [amount, amount, amount, userId, coin, amount]
+  );
+  if (update.affectedRows !== 1) throw createError(400, `Insufficient ${coin} available balance`);
+  await recordLedger(connection,{userId,coin,network,bucket:'pending',entryType,amount,referenceType,referenceId,note});
+}
+
+async function movePendingToAvailable(connection, { userId, coin, network, amount, entryType = 'asset_pending_release', referenceType, referenceId, note }) {
+  coin = normalizeCoin(coin); network = normalizeNetwork(network); amount = Number(amount);
+  if (!coin || !Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid pending release amount');
+  const [update] = await connection.execute(
+    `UPDATE user_assets SET pending_balance=pending_balance-?, available_balance=available_balance+?, balance=available_balance+reserved_balance-pending_balance? WHERE user_id=? AND coin=? AND pending_balance>=?`,
+    [amount, amount, amount, userId, coin, amount]
+  );
+  // Correct total balance expression separately to avoid depending on stale arithmetic.
+  if (update.affectedRows !== 1) throw createError(409, `Unable to release pending ${coin} balance`);
+  await connection.execute('UPDATE user_assets SET balance=available_balance+reserved_balance+pending_balance WHERE user_id=? AND coin=?',[userId,coin]);
+  await recordLedger(connection,{userId,coin,network,bucket:'available',entryType,amount,referenceType,referenceId,note});
+}
+
 async function reserveAssetBalance(connection, { userId, coin, network, amount, referenceType, referenceId, note }) {
   coin = normalizeCoin(coin); network = normalizeNetwork(network); amount = Number(amount);
   if (!coin || !Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid asset reservation');
@@ -92,4 +117,4 @@ async function releaseReservedAsset(connection, { userId, coin, network, amount,
   await recordLedger(connection, { userId, coin, network, bucket:'available', entryType:'withdrawal_release', amount, referenceType, referenceId, note });
 }
 
-module.exports = { ensureAssetRow, recordLedger, creditAssetBalance, debitAvailableAsset, reserveAssetBalance, releaseReservedAsset, normalizeCoin, normalizeNetwork, ASSET_PRECISION };
+module.exports = { ensureAssetRow, recordLedger, creditAssetBalance, debitAvailableAsset, moveAvailableToPending, movePendingToAvailable, reserveAssetBalance, releaseReservedAsset, normalizeCoin, normalizeNetwork, ASSET_PRECISION };
