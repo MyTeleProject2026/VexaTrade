@@ -6,79 +6,9 @@ const { authUser } = require('../middleware/auth');
 const { createError, createTransactionLog } = require('../utils/helpers');
 const { getBinancePrice, getNextOutcomeQueueItem, getTradeRuleByTimer, ensureUserExists } = require('../../services/tradeService');
 
-// ─── GET /api/trade/rules ──────────────────────────────────────────
-router.get('/trade/rules', authUser, async (req, res, next) => {
-  try {
-    const [rows] = await pool.execute(
-      `SELECT id, timer_seconds, payout_percent, status, created_at FROM trade_rules WHERE status = 'active' ORDER BY timer_seconds ASC`
-    );
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
-});
-
-// ─── POST /api/trades/quick-amount ──────────────────────────────────
-router.post('/trades/quick-amount', authUser, async (req, res, next) => {
-  try {
-    const percentage = Number(req.body.percentage || 0);
-    if (![25, 50, 75].includes(percentage)) throw createError(400, "Invalid percentage");
-    const [rows] = await pool.execute(`SELECT balance FROM users WHERE id = ?`, [req.user.id]);
-    const balance = Number(rows[0]?.balance || 0);
-    const amount = Number(((balance * percentage) / 100).toFixed(2));
-    res.json({ success: true, data: { amount, percentage } });
-  } catch (error) { next(error); }
-});
-
-// ─── POST /api/trades/place ─────────────────────────────────────────
-router.post('/trades/place', authUser, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const pair = String(req.body.pair || "").trim().toUpperCase();
-    const direction = String(req.body.direction || "").trim().toLowerCase();
-    const timer = Number(req.body.timer || 0);
-    const amount = Number(req.body.amount || 0);
-    if (!pair) throw createError(400, "Pair required");
-    if (!["bullish", "bearish"].includes(direction)) throw createError(400, "Direction must be bullish or bearish");
-    if (![60, 180, 300].includes(timer)) throw createError(400, "Invalid timer");
-    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid trade amount");
-    await connection.beginTransaction();
-    const user = await ensureUserExists(connection, req.user.id);
-    const currentBalance = Number(user.balance || 0);
-    if (currentBalance < amount) throw createError(400, "Insufficient balance");
-    const rule = await getTradeRuleByTimer(connection, timer);
-    if (!rule) throw createError(400, "No active trade rule for this timer");
-    const queueItem = await getNextOutcomeQueueItem(connection, { pair, direction, timerSeconds: timer });
-    if (!queueItem) throw createError(400, "No prepared outcome found");
-    let entryPrice = 0;
-    try { entryPrice = await getBinancePrice(pair); } catch (_) {}
-    const payoutPercent = Number(rule.payout_percent || 0);
-    const endTime = new Date(Date.now() + timer * 1000);
-    await connection.execute(`UPDATE users SET balance = balance - ? WHERE id = ?`, [amount, req.user.id]);
-    const [tradeResult] = await connection.execute(
-      `INSERT INTO trades (user_id, pair, direction, timer_seconds, amount, entry_price, payout_percent, status, result, assigned_result, queue_id, created_at, end_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?, NOW(), ?)`,
-      [req.user.id, pair, direction, timer, amount, entryPrice, payoutPercent, queueItem.result, queueItem.id, endTime]
-    );
-    await connection.execute(`UPDATE trade_outcome_queue SET is_used = 1, used_at = NOW() WHERE id = ?`, [queueItem.id]);
-    await createTransactionLog(connection, { userId: req.user.id, type: "trade_debit", amount, status: "completed", referenceId: tradeResult.insertId, note: `${pair} ${direction} trade opened` });
-    await connection.commit();
-    res.json({ success: true, message: "Trade placed", data: { tradeId: tradeResult.insertId, pair, direction, timer, amount, entryPrice, payoutPercent, assignedResult: queueItem.result, endTime } });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
-
-// ─── GET /api/trades/open ───────────────────────────────────────────
-router.get('/trades/open', authUser, async (req, res, next) => {
-  try {
-    const [rows] = await pool.execute(`SELECT * FROM trades WHERE user_id = ? AND status = 'open' ORDER BY id DESC`, [req.user.id]);
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
-});
-
-// ─── GET /api/trades/history ────────────────────────────────────────
-router.get('/trades/history', authUser, async (req, res, next) => {
-  try {
-    const [rows] = await pool.execute(`SELECT * FROM trades WHERE user_id = ? ORDER BY id DESC LIMIT 200`, [req.user.id]);
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
-});
-
-module.exports = router;
+router.get('/trade/rules', authUser, async (req, res, next) => { try { const [rows] = await pool.execute(`SELECT id,timer_seconds,payout_percent,status,created_at FROM trade_rules WHERE status='active' ORDER BY timer_seconds ASC`); res.json({success:true,data:rows}); } catch(e){next(e);} });
+router.post('/trades/quick-amount', authUser, async(req,res,next)=>{try{const p=Number(req.body.percentage||0);if(![25,50,75].includes(p))throw createError(400,'Invalid percentage');const [rows]=await pool.execute(`SELECT balance FROM users WHERE id=?`,[req.user.id]);const b=Number(rows[0]?.balance||0);res.json({success:true,data:{amount:Number((b*p/100).toFixed(2)),percentage:p}})}catch(e){next(e)}});
+router.post('/trades/place', authUser, async(req,res,next)=>{const db=await pool.getConnection();try{const pair=String(req.body.pair||'').trim().toUpperCase(),direction=String(req.body.direction||'').trim().toLowerCase(),timer=Number(req.body.timer||0),amount=Number(req.body.amount||0);if(!pair)throw createError(400,'Pair required');if(!['bullish','bearish'].includes(direction))throw createError(400,'Direction must be bullish or bearish');if(![60,180,300].includes(timer))throw createError(400,'Invalid timer');if(!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid trade amount');await db.beginTransaction();const user=await ensureUserExists(db,req.user.id);const rule=await getTradeRuleByTimer(db,timer);if(!rule)throw createError(400,'No active trade rule for this timer');const balance=Number(user.balance||0);if(balance<amount)throw createError(400,'Insufficient balance');const queue=await getNextOutcomeQueueItem(db,{pair,direction,timerSeconds:timer});if(!queue)throw createError(400,'No prepared outcome found');let entry=0;try{entry=await getBinancePrice(pair)}catch(_){}const payout=Number(rule.payout_percent||0),end=new Date(Date.now()+timer*1000);const [result]=await db.execute(`INSERT INTO trades(user_id,pair,direction,timer_seconds,amount,entry_price,payout_percent,status,result,assigned_result,queue_id,created_at,end_time) VALUES(?,?,?,?,?,?,?,'open',NULL,?,?,NOW(),?)`,[req.user.id,pair,direction,timer,amount,entry,payout,queue.result,queue.id,end]);const [debit]=await db.execute(`UPDATE users SET balance=balance-?,updated_at=NOW() WHERE id=? AND balance>=?`,[amount,req.user.id,amount]);if(debit.affectedRows!==1)throw createError(409,'Balance changed; trade was not opened');const [used]=await db.execute(`UPDATE trade_outcome_queue SET is_used=1,used_at=NOW() WHERE id=? AND is_used=0`,[queue.id]);if(used.affectedRows!==1)throw createError(409,'Trade outcome was already assigned');await createTransactionLog(db,{userId:req.user.id,type:'trade_debit',amount,status:'completed',referenceId:result.insertId,note:`${pair} ${direction} trade opened`});await db.commit();res.json({success:true,message:'Trade placed',data:{tradeId:result.insertId,pair,direction,timer,amount,entryPrice:entry,payoutPercent:payout,endTime:end}})}catch(e){await db.rollback();next(e)}finally{db.release()}});
+router.get('/trades/open',authUser,async(req,res,next)=>{try{const [r]=await pool.execute(`SELECT * FROM trades WHERE user_id=? AND status='open' ORDER BY id DESC`,[req.user.id]);res.json({success:true,data:r})}catch(e){next(e)}});
+router.get('/trades/history',authUser,async(req,res,next)=>{try{const [r]=await pool.execute(`SELECT * FROM trades WHERE user_id=? ORDER BY id DESC LIMIT 200`,[req.user.id]);res.json({success:true,data:r})}catch(e){next(e)}});
+module.exports=router;
