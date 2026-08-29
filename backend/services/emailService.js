@@ -1,96 +1,65 @@
 // backend/services/emailService.js
 const axios = require('axios');
 
-const BREVO_API_KEY = process.env.KEPLERS_PASSWORD || process.env.SMTP_PASS;
+const BREVO_API_KEY = process.env.BREVO_API_KEY || process.env.KEPLERS_PASSWORD || process.env.SMTP_PASS;
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const FROM_EMAIL = process.env.FROM_EMAIL || 'vexatradeblockchainecosystem@gmail.com';
 const FROM_NAME = process.env.MAIL_FROM_NAME || 'VexaTrade';
 
+function maskEmail(value) {
+  const email = String(value || '').trim();
+  const at = email.indexOf('@');
+  if (at <= 1) return '***';
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
 async function sendEmail({ to, subject, html }) {
-  console.log(`📧 [sendEmail] Attempting to send email to: ${to}`);
-  console.log(`📧 [sendEmail] Using FROM: ${FROM_NAME} <${FROM_EMAIL}>`);
-  
+  const recipient = String(to || '').trim();
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    throw new Error('Valid recipient email is required');
+  }
   if (!BREVO_API_KEY) {
-    console.error('❌ [sendEmail] No Brevo API key found. Please set KEPLERS_PASSWORD or SMTP_PASS.');
-    console.log(`📧 [sendEmail] FAKE EMAIL (no API key) - To: ${to}, Subject: ${subject}`);
-    return false;
+    // Security-sensitive messages must never silently succeed when delivery is unavailable.
+    throw new Error('Email delivery is not configured');
   }
 
   try {
-    const response = await axios.post(
-      BREVO_API_URL,
-      {
-        sender: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ email: to }],
-        subject: subject,
-        htmlContent: html,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': BREVO_API_KEY,
-        },
-        timeout: 30000,
-      }
-    );
-    console.log(`✅ [sendEmail] Email sent successfully to ${to}`);
-    console.log(`✅ [sendEmail] Brevo response:`, response.status, response.statusText);
+    const response = await axios.post(BREVO_API_URL, {
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: recipient }],
+      subject: String(subject || 'VexaTrade notification'),
+      htmlContent: String(html || ''),
+    }, {
+      headers: { 'Content-Type': 'application/json', 'api-key': BREVO_API_KEY },
+      timeout: 15000,
+    });
+    console.info(`[email] delivered to ${maskEmail(recipient)} status=${response.status}`);
     return true;
   } catch (error) {
-    console.error(`❌ [sendEmail] Failed to send email to ${to}:`);
-    console.error(`❌ [sendEmail] Error details:`, error.response?.data || error.message);
-    if (error.response?.data) {
-      console.error(`❌ [sendEmail] Brevo API error:`, JSON.stringify(error.response.data, null, 2));
-    }
+    console.error(`[email] delivery failed to ${maskEmail(recipient)}:`, error.response?.data?.message || error.message);
     return false;
   }
 }
 
-async function sendOtpEmail({ to, code }) {
-  console.log(`📧 [sendOtpEmail] Preparing OTP email for: ${to}, code: ${code}`);
-  
+async function sendOtpEmail({ to, code, purpose = 'verification' }) {
+  const safePurpose = String(purpose || 'verification').replace(/[^a-z0-9 _-]/gi, '').slice(0, 60);
   const html = `
-    <div style="font-family: Arial, sans-serif; padding: 24px; background: #0b0b0b; color: #ffffff;">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h1 style="color: #06b6d4; margin: 0;">VexaTrade</h1>
-        <p style="color: #64748b; margin: 4px 0 0;">Secure Trading Platform</p>
+    <div style="font-family:Arial,sans-serif;padding:32px;background:#09090b;color:#fff">
+      <div style="max-width:560px;margin:auto;background:#15151b;border:1px solid #2b2b35;border-radius:20px;padding:30px">
+        <h1 style="margin:0 0 8px">VexaTrade</h1>
+        <p style="color:#a1a1aa">Secure account verification</p>
+        <p>Your verification code for <strong>${safePurpose}</strong> is:</p>
+        <div style="font-size:36px;font-weight:700;letter-spacing:10px;text-align:center;padding:18px;margin:22px 0;background:#0b0b10;border-radius:14px">${String(code)}</div>
+        <p style="color:#a1a1aa">This code expires in 10 minutes. Never share it with anyone.</p>
+        <p style="color:#71717a;font-size:12px">If you did not request this code, secure your account immediately.</p>
       </div>
-      <div style="background: #1a1a2e; border-radius: 16px; padding: 24px; border: 1px solid #2d2d44;">
-        <h2 style="margin: 0 0 16px; color: #ffffff;">Email Verification</h2>
-        <p style="margin: 0 0 16px; color: #cbd5e1;">Your 6-digit verification code is:</p>
-        <div style="font-size: 36px; font-weight: 700; letter-spacing: 12px; color: #06b6d4; text-align: center; background: #0d0d1a; padding: 16px; border-radius: 12px; margin: 16px 0;">
-          ${code}
-        </div>
-        <p style="margin: 16px 0 0; color: #94a3b8; font-size: 14px;">This code expires in <strong style="color: #ffffff;">10 minutes</strong>.</p>
-        <p style="margin: 8px 0 0; color: #64748b; font-size: 12px;">If you didn't request this, please ignore this email.</p>
-      </div>
-      <div style="text-align: center; margin-top: 24px; color: #475569; font-size: 12px;">
-        <p>VexaTrade - Your trusted trading platform</p>
-      </div>
-    </div>
-  `;
-  
-  return sendEmail({ to, subject: '🔐 VexaTrade Email Verification Code', html });
+    </div>`;
+  return sendEmail({ to, subject: 'VexaTrade security verification code', html });
 }
 
 async function sendPasswordResetEmail({ to, resetLink }) {
-  const html = `
-    <div style="font-family: Arial, sans-serif; padding: 24px; background: #0b0b0b; color: #ffffff;">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h1 style="color: #06b6d4; margin: 0;">VexaTrade</h1>
-      </div>
-      <div style="background: #1a1a2e; border-radius: 16px; padding: 24px; border: 1px solid #2d2d44;">
-        <h2 style="margin: 0 0 16px; color: #ffffff;">Reset Your Password</h2>
-        <p style="margin: 0 0 16px; color: #cbd5e1;">Click the link below to reset your password. This link expires in 1 hour.</p>
-        <a href="${resetLink}" style="display: inline-block; background: #06b6d4; color: #000000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 16px 0;">
-          Reset Password
-        </a>
-        <p style="margin: 16px 0 0; color: #94a3b8; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-      </div>
-    </div>
-  `;
-  
-  return sendEmail({ to, subject: '🔑 VexaTrade Password Reset', html });
+  const html = `<div style="font-family:Arial,sans-serif;padding:32px;background:#09090b;color:#fff"><div style="max-width:560px;margin:auto;background:#15151b;border:1px solid #2b2b35;border-radius:20px;padding:30px"><h1>VexaTrade</h1><h2>Reset your password</h2><p>This secure link expires in 1 hour.</p><a href="${String(resetLink)}" style="display:inline-block;padding:13px 22px;background:#fff;color:#000;border-radius:9px;text-decoration:none;font-weight:700">Reset Password</a><p style="color:#a1a1aa">If you did not request this, ignore this message.</p></div></div>`;
+  return sendEmail({ to, subject: 'VexaTrade password reset', html });
 }
 
 module.exports = { sendEmail, sendOtpEmail, sendPasswordResetEmail };
