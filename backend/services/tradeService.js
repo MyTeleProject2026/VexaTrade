@@ -7,6 +7,7 @@ const {
   createUserNotification,
   splitSymbol, // ✅ Imported from helpers instead of redefining
 } = require('../src/utils/helpers');
+const { creditAssetBalance, movePendingToAvailable } = require('./assetLedgerService');
 
 const BINANCE_PRICE_API = "https://api.binance.com/api/v3/ticker/price";
 const BINANCE_24H_API = "https://api.binance.com/api/v3/ticker/24hr";
@@ -308,7 +309,7 @@ async function settleDailyFunds() {
       );
 
       if (profitToWallet > 0) {
-        await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [profitToWallet, fund.user_id]);
+        await creditAssetBalance(connection,{userId:fund.user_id,coin:'USDT',network:'INTERNAL',amount:profitToWallet,referenceType:'user_fund_profit',referenceId:fund.id,note:`Daily profit from ${fund.plan_name}`});
         await createTransactionLog(connection, {
           userId: fund.user_id,
           type: "funds_profit",
@@ -325,7 +326,7 @@ async function settleDailyFunds() {
         const totalReturn = newPrincipal;
         const totalProfitEarned = totalReturn - originalPrincipal;
 
-        await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [totalReturn, fund.user_id]);
+        await movePendingToAvailable(connection,{userId:fund.user_id,coin:'USDT',network:'INTERNAL',amount:totalReturn,entryType:'fund_principal_return',referenceType:'user_fund',referenceId:fund.id,note:`Principal return from ${fund.plan_name}`});
         await connection.execute(
           `UPDATE user_funds SET status = 'completed', completed_at = ?, updated_at = NOW() WHERE id = ?`,
           [now, fund.id]
