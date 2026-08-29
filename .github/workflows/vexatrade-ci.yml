@@ -17,12 +17,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - run: node --check server.js
       - run: node --check src/routes/vexaAccountSso.js
+      - run: node --check src/routes/securityRoutes.js
+      - run: node --check src/routes/jointAccountRoutes.js
+      - run: node --check src/routes/withdrawalRoutes.js
       - run: node --check src/middleware/auth.js
 
   frontend-user:
@@ -35,10 +38,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend-user/package-lock.json
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - run: npm run build
 
   frontend-admin:
@@ -51,8 +54,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend-admin/package-lock.json
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - run: npm run build
