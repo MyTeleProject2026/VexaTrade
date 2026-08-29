@@ -1,0 +1,58 @@
+name: VexaTrade CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend:
+    name: Backend validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: node --check server.js
+      - run: node --check src/routes/vexaAccountSso.js
+      - run: node --check src/middleware/auth.js
+
+  frontend-user:
+    name: Frontend user build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-user
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend-user/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  frontend-admin:
+    name: Frontend admin build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend-admin/package-lock.json
+      - run: npm ci
+      - run: npm run build
