@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const { authUser } = require('../middleware/auth');
 const { createError, createTransactionLog } = require('../utils/helpers');
 const { getWithdrawalFeeConfig, calculateWithdrawalFee } = require('../../services/tradeService');
+const { reserveAssetBalance } = require('../../services/assetLedgerService');
 
 async function verifyTransactionPasscode(connection, userId, supplied) {
   const passcode = String(supplied || '').trim();
@@ -17,8 +18,8 @@ async function verifyTransactionPasscode(connection, userId, supplied) {
   return stored === passcode;
 }
 
-// Withdrawal is deliberately a pending request. It is not broadcast to a
-// blockchain from this route; an authorized settlement/processor must complete it.
+// A request reserves the selected asset. Settlement is performed later by the
+// authorized ecosystem treasury workflow; this endpoint never fabricates a blockchain transfer.
 router.post('/withdrawals/request', authUser, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
@@ -33,40 +34,85 @@ router.post('/withdrawals/request', authUser, async (req, res, next) => {
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid amount');
 
     await connection.beginTransaction();
-    const [userRows] = await connection.execute(`SELECT id, uid, balance, status, passcode FROM users WHERE id = ? FOR UPDATE`, [req.user.id]);
+    const [userRows] = await connection.execute(
+      'SELECT id, uid, status, passcode FROM users WHERE id = ? FOR UPDATE',
+      [req.user.id]
+    );
     if (!userRows.length) throw createError(404, 'User not found');
     const user = userRows[0];
-    if (["disabled", "frozen"].includes(String(user.status || '').toLowerCase())) throw createError(403, 'User account not active');
-    if (!await verifyTransactionPasscode(connection, req.user.id, transactionPasscode)) throw createError(401, 'Valid transaction passcode required');
+    if (['disabled', 'frozen'].includes(String(user.status || '').toLowerCase())) {
+      throw createError(403, 'User account not active');
+    }
+    if (!await verifyTransactionPasscode(connection, req.user.id, transactionPasscode)) {
+      throw createError(401, 'Valid transaction passcode required');
+    }
 
     const feeConfig = await getWithdrawalFeeConfig(connection, coin, network);
     const feeAmount = calculateWithdrawalFee(amount, feeConfig);
     const feeType = String(feeConfig?.fee_type || 'fixed').toLowerCase();
-    const totalDeduction = Number((amount + feeAmount).toFixed(8));
-    const netAmount = Number(Math.max(0, amount - (feeType === 'percent' ? amount * Number(feeConfig?.fee_amount || 0) / 100 : Number(feeConfig?.fee_amount || 0))).toFixed(8));
-    const balance = Number(user.balance || 0);
-    if (balance < totalDeduction) throw createError(400, `Insufficient balance. Required ${totalDeduction} including fee ${feeAmount}`);
+    const totalDeduction = Number((amount + feeAmount).toFixed(18));
+    const netAmount = Number(Math.max(0, amount - (feeType === 'percent'
+      ? amount * Number(feeConfig?.fee_amount || 0) / 100
+      : Number(feeConfig?.fee_amount || 0))).toFixed(18));
 
-    // Keep funds reserved while the request is pending. A later settlement/rejection
-    // operation must release or finalize the reserved amount.
-    await connection.execute(`UPDATE users SET balance = balance - ? WHERE id = ?`, [totalDeduction, req.user.id]);
+    // Create first so the immutable asset ledger can reference the withdrawal.
     const [result] = await connection.execute(
-      `INSERT INTO withdrawals (user_id, coin, network, address, amount, fee_amount, fee_type, net_amount, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+      `INSERT INTO withdrawals
+        (user_id, coin, network, address, amount, fee_amount, fee_type, net_amount, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_authorization', NOW(), NOW())`,
       [req.user.id, coin, network, address, amount, feeAmount, feeType, netAmount]
     );
-    await createTransactionLog(connection, { userId: req.user.id, type: 'withdrawal_request', amount: totalDeduction, status: 'pending', referenceId: result.insertId, note: `${coin} ${network} withdrawal request` });
+
+    await reserveAssetBalance(connection, {
+      userId: req.user.id,
+      coin,
+      network,
+      amount: totalDeduction,
+      referenceType: 'withdrawal',
+      referenceId: result.insertId,
+      note: `${coin} ${network} withdrawal reservation`
+    });
+
+    await createTransactionLog(connection, {
+      userId: req.user.id,
+      type: 'withdrawal_request',
+      amount: totalDeduction,
+      status: 'pending',
+      referenceId: result.insertId,
+      note: `${coin} ${network} withdrawal request; asset reserved`
+    });
+
     await connection.commit();
-    res.json({ success: true, message: 'Withdrawal request submitted for authorization', data: { id: result.insertId, status: 'pending', amount, feeAmount, feeType, netAmount, totalDeduction } });
+    res.json({
+      success: true,
+      message: 'Withdrawal request submitted for authorization',
+      data: {
+        id: result.insertId,
+        status: 'pending_authorization',
+        coin,
+        network,
+        amount,
+        feeAmount,
+        feeType,
+        netAmount,
+        totalDeduction,
+        settlement: 'manual_treasury'
+      }
+    });
   } catch (error) {
     await connection.rollback();
     next(error);
-  } finally { connection.release(); }
+  } finally {
+    connection.release();
+  }
 });
 
 router.get('/withdrawals', authUser, async (req, res, next) => {
   try {
-    const [rows] = await pool.execute(`SELECT * FROM withdrawals WHERE user_id = ? ORDER BY id DESC`, [req.user.id]);
+    const [rows] = await pool.execute(
+      'SELECT * FROM withdrawals WHERE user_id = ? ORDER BY id DESC',
+      [req.user.id]
+    );
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 });
