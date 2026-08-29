@@ -12,6 +12,7 @@ const storage = require('./cloudinaryStorage');
 const { setupChatHandlers } = require('./src/utils/ChatHandlers.js');
 const authRoutes = require('./src/routes/auth');
 const vexaAccountSsoRoutes = require('./src/routes/vexaAccountSso');
+const securityRoutes = require('./src/routes/securityRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const walletRoutes = require('./src/routes/walletRoutes');
 const transferRoutes = require('./src/routes/transferRoutes');
@@ -44,6 +45,7 @@ const uploadDirs=["uploads","uploads/deposits","uploads/qrcodes","uploads/kyc","
 const server=http.createServer(app);const io=socketIo(server,{cors:{origin:allowedOrigins,credentials:true,methods:["GET","POST","PUT","DELETE"]},transports:['websocket','polling']});setupChatHandlers(io);app.set('io',io);
 app.use('/api/auth',authRoutes);
 app.use('/api/auth/vexaaccount',vexaAccountSsoRoutes);
+app.use('/api',securityRoutes);
 app.use('/api/chat',require('./src/middleware/auth').authUser,chatRoutes);
 app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);app.use('/api',adminRoutes);app.use('/api',legalRoutes);app.use('/api',supportRoutes);app.use('/api',jointAccountRoutes);app.use('/api',marketRoutes);app.use('/api',convertRoutes);app.use("/api/funds/plans",overrideFundsPlans);app.use("/api/admin/network-verification-settings",adminNetworkRoutes);app.use("/api/admin/fund-rules",adminFundRoutes);app.use("/api/employee",employeeRoutes);app.use("/api/news",newsRoutes);app.use("/api/maintenance",maintenanceRoutes);app.use('/api/admin',adminNotificationRoutes);
 app.get('/api/health',async(req,res)=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();res.json({success:true,message:"VexaTrade backend running",database:DB_NAME});}catch(_){res.status(500).json({success:false,message:"Database connection failed"});}});app.get('/',(req,res)=>res.json({success:true,message:"VexaTrade backend running"}));app.use((req,res)=>req.path.startsWith("/api/")?res.status(404).json({success:false,message:"API route not found"}):res.status(404).send("Not found"));app.use((err,req,res,next)=>{console.error("Server error:",err);const message=process.env.NODE_ENV==='production'?"Internal server error":(err.message||"Internal server error");res.status(err.status||500).json({success:false,message});});server.listen(PORT,async()=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();console.log(`✅ VexaTrade backend running on port ${PORT}`);console.log(`✅ MySQL connected successfully`);console.log(`✅ Database: ${DB_NAME}`);console.log(`✅ WebSocket: ws://localhost:${PORT}`);console.log(`✅ Allowed origins: ${allowedOrigins.length} domains`);}catch(error){console.error("❌ MySQL connection failed:",error.message);}});module.exports={app,server,io};
