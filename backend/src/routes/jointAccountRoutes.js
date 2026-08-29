@@ -24,15 +24,18 @@ router.post('/joint-account/request', authUser, async (req, res, next) => {
     if (!requesterRows.length) throw createError(404, "User not found");
     const requester = requesterRows[0];
     if (!partnerEmail) throw createError(400, "Partner email required");
-    const [partnerRows] = await pool.execute(`SELECT id, uid, email, kyc_status FROM users WHERE email = ?`, [partnerEmail.trim()]);
+    const normalizedEmail = partnerEmail.trim().toLowerCase();
+    const [partnerRows] = await pool.execute(`SELECT id, uid, email, kyc_status FROM users WHERE LOWER(email) = ? LIMIT 1`, [normalizedEmail]);
     if (!partnerRows.length) throw createError(404, "Partner not found");
     const partner = partnerRows[0];
     if (partner.uid === requester.uid) throw createError(400, "Cannot request with yourself");
     if (partner.kyc_status !== "approved") throw createError(400, "Partner KYC required");
-    const [existing] = await pool.execute(`SELECT id FROM joint_account_requests WHERE requester_uid = ? AND partner_uid = ? AND status = 'pending'`, [requester.uid, partner.uid]);
+    const [requesterActive] = await pool.execute(`SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1`, [requester.uid, requester.uid]);
+    if (requesterActive.length) throw createError(400, "Already in a joint account");
+    const [partnerActive] = await pool.execute(`SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1`, [partner.uid, partner.uid]);
+    if (partnerActive.length) throw createError(400, "Partner is already in a joint account");
+    const [existing] = await pool.execute(`SELECT id FROM joint_account_requests WHERE ((requester_uid = ? AND partner_uid = ?) OR (requester_uid = ? AND partner_uid = ?)) AND status = 'pending' LIMIT 1`, [requester.uid, partner.uid, partner.uid, requester.uid]);
     if (existing.length) throw createError(400, "Request already pending");
-    const [activeJoint] = await pool.execute(`SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active'`, [requester.uid, requester.uid]);
-    if (activeJoint.length) throw createError(400, "Already in a joint account");
     const [result] = await pool.execute(
       `INSERT INTO joint_account_requests (requester_uid, requester_email, partner_uid, partner_email, partner_kyc_number, status, requester_id, partner_id)
        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
@@ -47,18 +50,18 @@ router.get('/joint-account/combined-balance', authUser, async (req, res, next) =
     const [userRows] = await pool.execute(`SELECT id, uid, balance FROM users WHERE id = ?`, [req.user.id]);
     if (!userRows.length) return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: 0, userBalance: 0, partnerBalance: 0, partnerName: null } });
     const currentUser = userRows[0];
-    const [jointRows] = await pool.execute(`SELECT * FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active'`, [currentUser.uid, currentUser.uid]);
+    const [jointRows] = await pool.execute(`SELECT * FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1`, [currentUser.uid, currentUser.uid]);
     if (!jointRows.length) {
       return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: Number(currentUser.balance || 0), userBalance: Number(currentUser.balance || 0), partnerBalance: 0, partnerName: null } });
     }
     const joint = jointRows[0];
     const partnerUid = joint.user1_uid === currentUser.uid ? joint.user2_uid : joint.user1_uid;
-    const [partnerRows] = await pool.execute(`SELECT id, uid, name, email, balance FROM users WHERE uid = ?`, [partnerUid]);
+    const [partnerRows] = await pool.execute(`SELECT id, uid, name, balance FROM users WHERE uid = ? LIMIT 1`, [partnerUid]);
     let partnerBalance = 0;
     let partnerName = null;
     if (partnerRows.length) {
       partnerBalance = Number(partnerRows[0].balance || 0);
-      partnerName = partnerRows[0].name || partnerRows[0].email;
+      partnerName = partnerRows[0].name || partnerRows[0].uid;
     }
     const combinedBalance = Number(currentUser.balance || 0) + partnerBalance;
     res.json({ success: true, data: { hasJointAccount: true, combinedBalance, userBalance: Number(currentUser.balance || 0), partnerBalance, partnerName, partnerUid, accountId: joint.account_id } });
@@ -78,13 +81,18 @@ router.post('/admin/joint-account-requests/:id/approve', authAdmin, async (req, 
   try {
     const requestId = req.params.id;
     await connection.beginTransaction();
-    const [requestRows] = await connection.execute(`SELECT * FROM joint_account_requests WHERE id = ? AND status = 'pending'`, [requestId]);
+    const [requestRows] = await connection.execute(`SELECT * FROM joint_account_requests WHERE id = ? AND status = 'pending' FOR UPDATE`, [requestId]);
     if (!requestRows.length) throw createError(404, "Request not found");
     const request = requestRows[0];
-    const [requesterUser] = await connection.execute(`SELECT id FROM users WHERE uid = ?`, [request.requester_uid]);
-    const [partnerUser] = await connection.execute(`SELECT id FROM users WHERE uid = ?`, [request.partner_uid]);
+    const [requesterUser] = await connection.execute(`SELECT id, uid FROM users WHERE uid = ? FOR UPDATE`, [request.requester_uid]);
+    const [partnerUser] = await connection.execute(`SELECT id, uid FROM users WHERE uid = ? FOR UPDATE`, [request.partner_uid]);
     if (!requesterUser.length || !partnerUser.length) throw createError(404, "User not found");
-    const accountId = `JA${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const [existingJoint] = await connection.execute(`SELECT id FROM joint_accounts WHERE ((user1_uid = ? AND user2_uid = ?) OR (user1_uid = ? AND user2_uid = ?)) AND status = 'active' LIMIT 1 FOR UPDATE`, [request.requester_uid, request.partner_uid, request.partner_uid, request.requester_uid]);
+    if (existingJoint.length) throw createError(409, "Users already have an active joint account");
+    const [requesterOtherJoint] = await connection.execute(`SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1 FOR UPDATE`, [request.requester_uid, request.requester_uid]);
+    const [partnerOtherJoint] = await connection.execute(`SELECT id FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1 FOR UPDATE`, [request.partner_uid, request.partner_uid]);
+    if (requesterOtherJoint.length || partnerOtherJoint.length) throw createError(409, "One of these users is already in an active joint account");
+    const accountId = `JA${Date.now()}${cryptoSafeRandomSuffix()}`;
     await connection.execute(`INSERT INTO joint_accounts (account_id, user1_uid, user2_uid, status, approved_at) VALUES (?, ?, ?, 'active', NOW())`, [accountId, request.requester_uid, request.partner_uid]);
     await connection.execute(`UPDATE joint_account_requests SET status = 'approved', updated_at = NOW() WHERE id = ?`, [requestId]);
     await createUserNotification(connection, { userId: requesterUser[0].id, title: "Joint Account Approved", message: `Your joint account with ${request.partner_email} has been approved!`, type: "joint_account" });
@@ -93,6 +101,10 @@ router.post('/admin/joint-account-requests/:id/approve', authAdmin, async (req, 
     res.json({ success: true, message: "Joint account approved" });
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
+
+function cryptoSafeRandomSuffix() {
+  return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+}
 
 router.post('/admin/joint-account-requests/:id/reject', authAdmin, async (req, res, next) => {
   try {
@@ -109,13 +121,18 @@ router.post('/admin/joint-accounts/:id/disconnect', authAdmin, async (req, res, 
   const connection = await pool.getConnection();
   try {
     const jointAccountId = Number(req.params.id);
+    if (!Number.isInteger(jointAccountId) || jointAccountId <= 0) throw createError(400, "Invalid joint account ID");
     await connection.beginTransaction();
-    const [jointRows] = await connection.execute(`SELECT * FROM joint_accounts WHERE id = ? AND status = 'active'`, [jointAccountId]);
+    const [jointRows] = await connection.execute(`SELECT * FROM joint_accounts WHERE id = ? AND status = 'active' FOR UPDATE`, [jointAccountId]);
     if (!jointRows.length) throw createError(404, "Joint account not found");
     const joint = jointRows[0];
+    const [users] = await connection.execute(`SELECT id, uid, name FROM users WHERE uid IN (?, ?)`, [joint.user1_uid, joint.user2_uid]);
+    const userByUid = new Map(users.map(user => [user.uid, user]));
     await connection.execute(`UPDATE joint_accounts SET status = 'inactive', updated_at = NOW() WHERE id = ?`, [jointAccountId]);
-    await createUserNotification(connection, { userId: joint.user1_id, title: "Joint Account Disconnected", message: `Your joint account with ${joint.user2_uid} has been disconnected.`, type: "security" });
-    await createUserNotification(connection, { userId: joint.user2_id, title: "Joint Account Disconnected", message: `Your joint account with ${joint.user1_uid} has been disconnected.`, type: "security" });
+    const user1 = userByUid.get(joint.user1_uid);
+    const user2 = userByUid.get(joint.user2_uid);
+    if (user1) await createUserNotification(connection, { userId: user1.id, title: "Joint Account Disconnected", message: `Your joint account with ${user2?.name || joint.user2_uid} has been disconnected.`, type: "security" });
+    if (user2) await createUserNotification(connection, { userId: user2.id, title: "Joint Account Disconnected", message: `Your joint account with ${user1?.name || joint.user1_uid} has been disconnected.`, type: "security" });
     await createAuditLog(connection, { adminId: req.admin.id, action: "disconnect_joint_account", referenceId: jointAccountId, note: `Disconnected joint account #${jointAccountId}` });
     await connection.commit();
     res.json({ success: true, message: "Joint account disconnected" });
