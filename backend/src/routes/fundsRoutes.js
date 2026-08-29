@@ -3,167 +3,18 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
-const { toNumber, randomRate, addDays, createUserNotification, createTransactionLog } = require('../utils/helpers');
+const { toNumber, randomRate, addDays, createUserNotification } = require('../utils/helpers');
 const { settleDailyFunds } = require('../../services/tradeService');
 
-// ─── GET /api/funds/summary ────────────────────────────────────────
-router.get('/funds/summary', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const [activeRows] = await pool.execute(
-      `SELECT COALESCE(SUM(locked_principal), 0) AS active_funded_amount,
-              COALESCE(SUM(earned_profit), 0) AS active_earned_profit, COUNT(*) AS active_count
-       FROM user_funds WHERE user_id = ? AND status = 'active'`,
-      [userId]
-    );
-    const [completedRows] = await pool.execute(
-      `SELECT COALESCE(SUM(earned_profit), 0) AS completed_profit, COUNT(*) AS completed_count
-       FROM user_funds WHERE user_id = ? AND status = 'completed'`,
-      [userId]
-    );
-    const [todayRows] = await pool.execute(
-      `SELECT COALESCE(SUM(profit_amount), 0) AS today_profit
-       FROM fund_profit_logs WHERE user_id = ? AND DATE(credited_at) = CURDATE()`,
-      [userId]
-    );
-    res.json({
-      success: true,
-      data: {
-        active_funded_amount: toNumber(activeRows?.[0]?.active_funded_amount),
-        active_earned_profit: toNumber(activeRows?.[0]?.active_earned_profit),
-        active_count: Number(activeRows?.[0]?.active_count || 0),
-        completed_profit: toNumber(completedRows?.[0]?.completed_profit),
-        completed_count: Number(completedRows?.[0]?.completed_count || 0),
-        today_profit: toNumber(todayRows?.[0]?.today_profit),
-      }
-    });
-  } catch (error) { next(error); }
-});
+router.get('/funds/summary', authUser, async (req,res,next)=>{try{const uid=req.user.id;const [[a]]=await pool.execute(`SELECT COALESCE(SUM(locked_principal),0) active_funded_amount,COALESCE(SUM(earned_profit),0) active_earned_profit,COUNT(*) active_count FROM user_funds WHERE user_id=? AND status='active'`,[uid]);const [[c]]=await pool.execute(`SELECT COALESCE(SUM(earned_profit),0) completed_profit,COUNT(*) completed_count FROM user_funds WHERE user_id=? AND status='completed'`,[uid]);const [[t]]=await pool.execute(`SELECT COALESCE(SUM(profit_amount),0) today_profit FROM fund_profit_logs WHERE user_id=? AND DATE(credited_at)=CURDATE()`,[uid]);res.json({success:true,data:{active_funded_amount:toNumber(a.active_funded_amount),active_earned_profit:toNumber(a.active_earned_profit),active_count:Number(a.active_count),completed_profit:toNumber(c.completed_profit),completed_count:Number(c.completed_count),today_profit:toNumber(t.today_profit)}})}catch(e){next(e)}});
 
-// ─── GET /api/funds/active ──────────────────────────────────────────
-router.get('/funds/active', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const [rows] = await pool.execute(
-      `SELECT uf.*, fp.name AS plan_name, fp.min_amount, fp.max_amount
-       FROM user_funds uf INNER JOIN fund_plans fp ON fp.id = uf.plan_id
-       WHERE uf.user_id = ? AND uf.status = 'active'
-       ORDER BY uf.created_at DESC`,
-      [userId]
-    );
-    const data = rows.map(row => ({
-      ...row,
-      days_left: Math.max(0, Number(row.total_days || 0) - Number(row.current_day || 0)),
-      total_receive_if_complete: toNumber(row.locked_principal) + toNumber(row.earned_profit)
-    }));
-    res.json({ success: true, data });
-  } catch (error) { next(error); }
-});
+router.get('/funds/active',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute(`SELECT uf.*,fp.name plan_name,fp.min_amount,fp.max_amount FROM user_funds uf JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.user_id=? AND uf.status='active' ORDER BY uf.created_at DESC`,[req.user.id]);res.json({success:true,data:rows.map(r=>({...r,days_left:Math.max(0,Number(r.total_days||0)-Number(r.current_day||0)),total_receive_if_complete:toNumber(r.locked_principal)+toNumber(r.earned_profit)}))})}catch(e){next(e)}});
 
-// ─── GET /api/funds/history ────────────────────────────────────────
-router.get('/funds/history', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const [rows] = await pool.execute(
-      `SELECT uf.*, fp.name AS plan_name
-       FROM user_funds uf INNER JOIN fund_plans fp ON fp.id = uf.plan_id
-       WHERE uf.user_id = ?
-       ORDER BY uf.created_at DESC`,
-      [userId]
-    );
-    res.json({
-      success: true,
-      data: rows.map(row => ({
-        ...row,
-        total_received: String(row.status || "").toLowerCase() === "completed"
-          ? toNumber(row.locked_principal) + toNumber(row.earned_profit)
-          : 0
-      }))
-    });
-  } catch (error) { next(error); }
-});
+router.get('/funds/history',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute(`SELECT uf.*,fp.name plan_name FROM user_funds uf JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.user_id=? ORDER BY uf.created_at DESC`,[req.user.id]);res.json({success:true,data:rows.map(r=>({...r,total_received:String(r.status).toLowerCase()==='completed'?toNumber(r.locked_principal)+toNumber(r.earned_profit):0}))})}catch(e){next(e)}});
 
-// ─── POST /api/funds/apply ──────────────────────────────────────────
-router.post('/funds/apply', authUser, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const userId = req.user.id;
-    const planId = Number(req.body?.plan_id);
-    const amount = toNumber(req.body?.amount);
-    if (!planId) return res.status(400).json({ success: false, message: "Plan required" });
-    if (!amount || amount <= 0) return res.status(400).json({ success: false, message: "Amount must be > 0" });
-    await connection.beginTransaction();
-    const [planRows] = await pool.execute(
-      `SELECT id, name, duration_days, min_amount, max_amount, min_daily_profit_percent, max_daily_profit_percent, user_limit_count, is_active
-       FROM fund_plans WHERE id = ?`,
-      [planId]
-    );
-    const plan = planRows?.[0];
-    if (!plan || Number(plan.is_active) !== 1) { await connection.rollback(); return res.status(404).json({ success: false, message: "Plan not found or inactive" }); }
-    const minAmount = toNumber(plan.min_amount);
-    const maxAmount = plan.max_amount === null ? null : toNumber(plan.max_amount);
-    if (amount < minAmount) { await connection.rollback(); return res.status(400).json({ success: false, message: `Minimum amount is ${minAmount} USDT` }); }
-    if (maxAmount !== null && amount > maxAmount) { await connection.rollback(); return res.status(400).json({ success: false, message: `Maximum amount is ${maxAmount} USDT` }); }
-    if (plan.user_limit_count !== null) {
-      const [usageRows] = await pool.execute(`SELECT COUNT(*) AS total_used FROM user_funds WHERE user_id = ? AND plan_id = ?`, [userId, planId]);
-      if (Number(usageRows[0]?.total_used || 0) >= Number(plan.user_limit_count)) { await connection.rollback(); return res.status(400).json({ success: false, message: "Usage limit reached" }); }
-    }
-    const [userRows] = await pool.execute(`SELECT id, balance FROM users WHERE id = ?`, [userId]);
-    if (!userRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "User not found" }); }
-    const currentBalance = toNumber(userRows[0].balance);
-    if (amount > currentBalance) { await connection.rollback(); return res.status(400).json({ success: false, message: "Insufficient balance" }); }
-    const selectedDailyRate = randomRate(plan.min_daily_profit_percent, plan.max_daily_profit_percent);
-    const startedAt = new Date();
-    const endsAt = addDays(startedAt, Number(plan.duration_days || 0));
-    await connection.execute(`UPDATE users SET balance = balance - ? WHERE id = ?`, [amount, userId]);
-    const [insertResult] = await connection.execute(
-      `INSERT INTO user_funds (user_id, plan_id, amount, locked_principal, selected_daily_profit_percent, total_days, current_day, earned_profit, status, started_at, ends_at, last_profit_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'active', ?, ?, NULL)`,
-      [userId, planId, amount, amount, selectedDailyRate, Number(plan.duration_days || 0), startedAt, endsAt]
-    );
-    await createUserNotification(connection, { userId, title: "Fund Applied", message: `${plan.name} started with ${amount.toFixed(2)} USDT at ${selectedDailyRate}% daily rate.`, type: "funds" });
-    await connection.commit();
-    res.json({
-      success: true,
-      message: "Fund applied",
-      data: {
-        fund_id: insertResult.insertId,
-        plan_id: plan.id,
-        plan_name: plan.name,
-        amount,
-        selected_daily_profit_percent: selectedDailyRate,
-        total_days: Number(plan.duration_days || 0),
-        started_at: startedAt,
-        ends_at: endsAt,
-        remaining_balance: currentBalance - amount
-      }
-    });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
+router.post('/funds/apply',authUser,async(req,res,next)=>{const db=await pool.getConnection();try{const uid=req.user.id,planId=Number(req.body?.plan_id),amount=toNumber(req.body?.amount);if(!Number.isInteger(planId)||planId<=0)return res.status(400).json({success:false,message:'Plan required'});if(!Number.isFinite(amount)||amount<=0)return res.status(400).json({success:false,message:'Amount must be > 0'});await db.beginTransaction();const [[plan]]=await db.execute(`SELECT id,name,duration_days,min_amount,max_amount,min_daily_profit_percent,max_daily_profit_percent,user_limit_count,is_active FROM fund_plans WHERE id=? FOR UPDATE`,[planId]);if(!plan||Number(plan.is_active)!==1)throw Object.assign(new Error('Plan not found or inactive'),{status:404});const min=toNumber(plan.min_amount),max=plan.max_amount===null?null:toNumber(plan.max_amount);if(amount<min)throw Object.assign(new Error(`Minimum amount is ${min} USDT`),{status:400});if(max!==null&&amount>max)throw Object.assign(new Error(`Maximum amount is ${max} USDT`),{status:400});if(plan.user_limit_count!==null){const [[u]]=await db.execute(`SELECT COUNT(*) total_used FROM user_funds WHERE user_id=? AND plan_id=?`,[uid,planId]);if(Number(u.total_used)>=Number(plan.user_limit_count))throw Object.assign(new Error('Usage limit reached'),{status:400});}const [[user]]=await db.execute(`SELECT id,balance FROM users WHERE id=? FOR UPDATE`,[uid]);if(!user)throw Object.assign(new Error('User not found'),{status:404});const balance=toNumber(user.balance);if(amount>balance)throw Object.assign(new Error('Insufficient balance'),{status:400});const rate=randomRate(plan.min_daily_profit_percent,plan.max_daily_profit_percent),started=new Date(),ends=addDays(started,Number(plan.duration_days||0));const [ins]=await db.execute(`INSERT INTO user_funds(user_id,plan_id,amount,locked_principal,selected_daily_profit_percent,total_days,current_day,earned_profit,status,started_at,ends_at,last_profit_at) VALUES(?,?,?,?,?,?,0,0,'active',?,?,NULL)`,[uid,planId,amount,amount,rate,Number(plan.duration_days||0),started,ends]);await db.execute(`UPDATE users SET balance=balance-?,updated_at=NOW() WHERE id=?`,[amount,uid]);await createUserNotification(db,{userId:uid,title:'Fund Applied',message:`${plan.name} started with ${amount.toFixed(2)} USDT at ${rate}% daily rate.`,type:'funds'});await db.commit();res.json({success:true,message:'Fund applied',data:{fund_id:ins.insertId,plan_id:plan.id,plan_name:plan.name,amount,selected_daily_profit_percent:rate,total_days:Number(plan.duration_days||0),started_at:started,ends_at:ends,remaining_balance:balance-amount}})}catch(e){await db.rollback();next(e)}finally{db.release()}});
 
-// ─── GET /api/funds/completed-latest ───────────────────────────────
-router.get('/funds/completed-latest', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const [rows] = await pool.execute(
-      `SELECT uf.*, fp.name AS plan_name
-       FROM user_funds uf INNER JOIN fund_plans fp ON fp.id = uf.plan_id
-       WHERE uf.user_id = ? AND uf.status = 'completed'
-       ORDER BY uf.completed_at DESC, uf.id DESC LIMIT 1`,
-      [userId]
-    );
-    const row = rows?.[0] || null;
-    if (!row) return res.json({ success: true, data: null });
-    res.json({ success: true, data: { ...row, total_received: toNumber(row.locked_principal) + toNumber(row.earned_profit) } });
-  } catch (error) { next(error); }
-});
+router.get('/funds/completed-latest',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute(`SELECT uf.*,fp.name plan_name FROM user_funds uf JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.user_id=? AND uf.status='completed' ORDER BY uf.completed_at DESC,uf.id DESC LIMIT 1`,[req.user.id]);const r=rows[0];res.json({success:true,data:r?{...r,total_received:toNumber(r.locked_principal)+toNumber(r.earned_profit)}:null})}catch(e){next(e)}});
 
-// ─── POST /api/funds/settle-daily ──────────────────────────────────
-router.post('/funds/settle-daily', async (req, res, next) => {
-  try {
-    const result = await settleDailyFunds();
-    res.json({ success: true, message: "Daily fund settlement completed", data: result });
-  } catch (error) { next(error); }
-});
-
-module.exports = router;
+router.post('/funds/settle-daily',authUser,async(req,res,next)=>{try{const result=await settleDailyFunds();res.json({success:true,message:'Daily fund settlement completed',data:result})}catch(e){next(e)}});
+module.exports=router;
