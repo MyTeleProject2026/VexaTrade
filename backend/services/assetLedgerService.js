@@ -77,7 +77,7 @@ async function movePendingToAvailable(connection, { userId, coin, network, amoun
   coin = normalizeCoin(coin); network = normalizeNetwork(network); amount = Number(amount);
   if (!coin || !Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid pending release amount');
   const [update] = await connection.execute(
-    `UPDATE user_assets SET pending_balance=pending_balance-?, available_balance=available_balance+?, balance=available_balance+reserved_balance-pending_balance? WHERE user_id=? AND coin=? AND pending_balance>=?`,
+    `UPDATE user_assets SET pending_balance=pending_balance-?, available_balance=available_balance+?, balance=available_balance+reserved_balance+pending_balance WHERE user_id=? AND coin=? AND pending_balance>=?`,
     [amount, amount, amount, userId, coin, amount]
   );
   // Correct total balance expression separately to avoid depending on stale arithmetic.
