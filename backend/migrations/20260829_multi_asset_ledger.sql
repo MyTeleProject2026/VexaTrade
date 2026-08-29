@@ -6,9 +6,18 @@ ALTER TABLE user_assets
   ADD COLUMN IF NOT EXISTS reserved_balance DECIMAL(36,18) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS pending_balance DECIMAL(36,18) NOT NULL DEFAULT 0;
 
+-- Preserve existing per-asset holdings.
 UPDATE user_assets
 SET available_balance = balance
 WHERE available_balance = 0 AND balance <> 0;
+
+-- One-time compatibility migration: move legacy universal USDT balance into
+-- the authoritative user_assets model without overwriting an existing USDT row.
+INSERT INTO user_assets (user_id, coin, balance, avg_price, available_balance, reserved_balance, pending_balance)
+SELECT u.id, 'USDT', u.balance, 1, u.balance, 0, 0
+FROM users u
+LEFT JOIN user_assets a ON a.user_id = u.id AND a.coin = 'USDT'
+WHERE a.user_id IS NULL AND u.balance <> 0;
 
 CREATE TABLE IF NOT EXISTS asset_ledger_entries (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
