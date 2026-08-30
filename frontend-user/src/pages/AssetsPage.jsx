@@ -151,7 +151,7 @@ function normalizeHoldings(rawRows = [], markets = []) {
         spotPnl,
         spotPnlPercent,
         accent: getCoinAccent(symbol),
-        apr: symbol === "USDT" ? "Up to 50% APR" : "",
+        apr: "",
         logo: COIN_LOGOS[symbol] || { icon: symbol[0], color: "#6B7280" },
       };
     })
@@ -162,16 +162,10 @@ function normalizeHoldings(rawRows = [], markets = []) {
 // ✅ NEW: Fetch real user assets from backend
 async function fetchUserAssets(token, markets) {
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-    const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-    
-    if (data.success && Array.isArray(data.data?.assets)) {
-      return normalizeHoldings(data.data.assets, markets);
-    }
-    return [];
+    const res = await userApi.getUserAssets(token);
+    const data = res?.data || {};
+    const rows = Array.isArray(data?.data?.assets) ? data.data.assets : (Array.isArray(data?.assets) ? data.assets : []);
+    return normalizeHoldings(rows, markets);
   } catch (err) {
     console.error("Failed to fetch user assets:", err);
     return [];
