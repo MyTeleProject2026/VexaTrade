@@ -41,4 +41,12 @@ async function releaseReservedAsset(connection,{userId,coin,network,amount,refer
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid asset release');
   await ensureAssetRow(connection,userId,coin);const [u]=await connection.execute('UPDATE user_assets SET reserved_balance=reserved_balance-?,available_balance=available_balance+? WHERE user_id=? AND coin=? AND reserved_balance>=?',[amount,amount,userId,coin,amount]);if(u.affectedRows!==1)throw createError(409,`Unable to release reserved ${coin} balance`);await syncTotal(connection,userId,coin);await recordLedger(connection,{userId,coin,network,bucket:'available',entryType:'withdrawal_release',amount,referenceType,referenceId,note});
 }
-module.exports={ensureAssetRow,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
+async function consumeReservedAsset(connection,{userId,coin,network,amount,referenceType,referenceId,note}){
+  coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid reserved asset settlement');
+  await ensureAssetRow(connection,userId,coin);
+  const [u]=await connection.execute('UPDATE user_assets SET reserved_balance=reserved_balance-? WHERE user_id=? AND coin=? AND reserved_balance>=?',[amount,userId,coin,amount]);
+  if(u.affectedRows!==1)throw createError(409,'Unable to settle reserved asset balance');
+  await syncTotal(connection,userId,coin);
+  await recordLedger(connection,{userId,coin,network,bucket:'reserved',entryType:'withdrawal_settlement',amount,referenceType,referenceId,note});
+}
+module.exports={ensureAssetRow,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
