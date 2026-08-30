@@ -79,18 +79,25 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
   const [priceChange, setPriceChange] = useState(0);
   const [isPositive, setIsPositive] = useState(true);
 
-  // Simulate price updates every second (you can replace with WebSocket)
   useEffect(() => {
-    if (!runningTrade) return;
-    const interval = setInterval(() => {
-      const base = runningTrade.entryPrice || 0;
-      const delta = (Math.random() - 0.5) * 0.002 * base;
-      const newPrice = base + delta;
-      setCurrentPrice(newPrice);
-      setPriceChange(delta);
-      setIsPositive(delta >= 0);
-    }, 1000);
-    return () => clearInterval(interval);
+    if (!runningTrade?.pair) return;
+    let cancelled = false;
+    const loadLivePrice = async () => {
+      try {
+        const res = await marketApi.price(runningTrade.pair);
+        const row = res.data?.data || {};
+        const next = Number(row.price || row.lastPrice || 0);
+        if (!cancelled && Number.isFinite(next) && next > 0) {
+          setCurrentPrice(next);
+          const delta = next - Number(runningTrade.entryPrice || 0);
+          setPriceChange(delta);
+          setIsPositive(delta >= 0);
+        }
+      } catch (_) {}
+    };
+    loadLivePrice();
+    const interval = setInterval(loadLivePrice, 2000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [runningTrade]);
 
   const safeTotal = Math.max(1, Number(runningTrade?.timer || 1));
@@ -162,8 +169,12 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
 function ResultModal({ result, tradeHistory = [], onClose }) {
   if (!result) return null;
 
-  const isWin = String(result.result || result.status || "").toLowerCase().includes("win");
-  const profit = isWin ? Number(result.amount || 0) * 0.025 : -Number(result.amount || 0) * 0.025;
+  const outcome = String(result.result || result.status || "").toLowerCase();
+  const isWin = outcome === "win";
+  const isTie = outcome === "tie";
+  const stake = Number(result.amount || 0);
+  const payoutPercent = Number(result.payout_percent || result.payoutPercent || 0);
+  const profit = isWin ? stake * payoutPercent / 100 : 0;
 
   // Calculate stats from tradeHistory
   const totalTrades = tradeHistory.length;
@@ -173,14 +184,15 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
   const netPnl = tradeHistory.reduce((acc, t) => {
     const isWinTrade = String(t.result || t.status || "").toLowerCase().includes("win");
     const amt = Number(t.amount || 0);
-    return acc + (isWinTrade ? amt * 0.025 : -amt * 0.025);
+    const payout = Number(t.payout_percent || t.payoutPercent || 0);
+    return acc + (isWinTrade ? amt * payout / 100 : (String(t.result || t.status || "").toLowerCase() === "tie" ? 0 : -amt));
   }, 0);
 
   // Generate order ID
   const orderId = `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id || Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
   const entryPrice = Number(result.entry_price || 0);
-  const changePercent = isWin ? 0.15 : -0.12; // simulated exit change
-  const exitPrice = entryPrice * (1 + changePercent / 100);
+  const exitPrice = Number(result.exit_price || entryPrice);
+  const changePercent = entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 : 0;
   const directionDisplay = result.direction === "bullish" ? "BUY" : "SELL";
 
   return (
@@ -194,8 +206,8 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
       <div className="w-full max-w-md space-y-4">
         {/* Header: WIN/LOSS */}
         <div className="text-center">
-          <div className={`text-5xl font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>
-            {isWin ? "Win" : "Loss"}
+          <div className={`text-5xl font-bold ${isTie ? "text-amber-300" : (isWin ? "text-emerald-300" : "text-red-300")}`}>
+            {isTie ? "Tie" : (isWin ? "Win" : "Loss")}
           </div>
           <div className="mt-1 text-sm text-slate-400">Trade Result</div>
         </div>
