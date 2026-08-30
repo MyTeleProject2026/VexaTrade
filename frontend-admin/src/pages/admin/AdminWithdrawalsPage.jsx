@@ -117,7 +117,7 @@ export default function AdminWithdrawalsPage() {
   }
 
   async function handleApprove(id) {
-    const confirmed = window.confirm("Approve this withdrawal?");
+    const confirmed = window.confirm("Begin settlement processing for this authorized withdrawal?");
     if (!confirmed) return;
 
     try {
@@ -126,7 +126,7 @@ export default function AdminWithdrawalsPage() {
       setSuccess("");
 
       await adminApi.approveWithdrawal(id, {}, token);
-      const successMsg = `Withdrawal #${id} approved successfully.`;
+      const successMsg = `Withdrawal #${id} moved to settlement processing.`;
       setSuccess(successMsg);
       // ✅ ADDED: Success toast
       addToast(successMsg, "success");
@@ -142,8 +142,10 @@ export default function AdminWithdrawalsPage() {
   }
 
   async function handleReject(id) {
+    const settlementNote = window.prompt("Cancellation reason / settlement note (optional):", "");
+    if (settlementNote === null) return;
     const confirmed = window.confirm(
-      "Reject this withdrawal? User balance will be refunded."
+      "Cancel this withdrawal and release the reserved asset balance back to the user?"
     );
     if (!confirmed) return;
 
@@ -152,8 +154,8 @@ export default function AdminWithdrawalsPage() {
       setError("");
       setSuccess("");
 
-      await adminApi.rejectWithdrawal(id, {}, token);
-      const successMsg = `Withdrawal #${id} rejected and refunded successfully.`;
+      await adminApi.rejectWithdrawal(id, { settlement_note: settlementNote }, token);
+      const successMsg = `Withdrawal #${id} cancelled and reserved asset balance released.`;
       setSuccess(successMsg);
       // ✅ ADDED: Success toast
       addToast(successMsg, "success");
@@ -166,6 +168,24 @@ export default function AdminWithdrawalsPage() {
     } finally {
       setActionLoading("");
     }
+  }
+
+  async function handleComplete(id) {
+    const txid = window.prompt("Enter the REAL external blockchain transaction hash/reference:");
+    if (txid === null) return;
+    if (!String(txid).trim()) {
+      const errorMsg = "A real external transaction hash/reference is required to complete settlement.";
+      setError(errorMsg); addToast(errorMsg, "error"); return;
+    }
+    const settlementNote = window.prompt("Settlement note (optional):", "");
+    if (settlementNote === null) return;
+    try {
+      setActionLoading(`complete-${id}`); setError(""); setSuccess("");
+      await adminApi.completeWithdrawal(id, { txid: String(txid).trim(), settlement_note: settlementNote }, token);
+      const successMsg = `Withdrawal #${id} settlement completed with recorded transaction reference.`;
+      setSuccess(successMsg); addToast(successMsg, "success"); await fetchWithdrawals(false, false);
+    } catch (err) { const errorMsg = getApiErrorMessage(err); setError(errorMsg); addToast(errorMsg, "error"); }
+    finally { setActionLoading(""); }
   }
 
   function handleFilterChange(e) {
@@ -228,12 +248,9 @@ export default function AdminWithdrawalsPage() {
   const stats = useMemo(() => {
     return {
       total: withdrawals.length,
-      pending: withdrawals.filter(
-        (item) => String(item.status || "").toLowerCase() === "pending"
-      ).length,
-      approved: withdrawals.filter(
-        (item) => String(item.status || "").toLowerCase() === "approved"
-      ).length,
+      awaitingAuthorization: withdrawals.filter((item) => String(item.status || "").toLowerCase() === "pending_joint_authorization").length,
+      ready: withdrawals.filter((item) => String(item.status || "").toLowerCase() === "pending_settlement").length,
+      processing: withdrawals.filter((item) => String(item.status || "").toLowerCase() === "settlement_processing").length,
       rejected: withdrawals.filter(
         (item) => String(item.status || "").toLowerCase() === "rejected"
       ).length,
@@ -264,7 +281,7 @@ export default function AdminWithdrawalsPage() {
               Withdrawal Management
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Review wallet destinations and approve or reject outgoing transfer requests.
+              Monitor authorization and settlement stages. Completion requires a real external transaction reference.
             </p>
           </div>
 
@@ -298,9 +315,9 @@ export default function AdminWithdrawalsPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Total" value={stats.total} />
-        <StatCard label="Pending" value={stats.pending} tone="text-amber-300" />
-        <StatCard label="Approved" value={stats.approved} tone="text-emerald-300" />
-        <StatCard label="Rejected" value={stats.rejected} tone="text-rose-300" />
+        <StatCard label="Joint Authorization" value={stats.awaitingAuthorization} tone="text-amber-300" />
+        <StatCard label="Ready for Settlement" value={stats.ready} tone="text-cyan-300" />
+        <StatCard label="Processing" value={stats.processing} tone="text-violet-300" />
         <StatCard
           label="Amount"
           value={`${formatAmount(stats.amount)} USDT`}
@@ -344,9 +361,11 @@ export default function AdminWithdrawalsPage() {
             className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           >
             <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
+            <option value="pending_joint_authorization">Joint Authorization</option>
+            <option value="pending_settlement">Ready for Settlement</option>
+            <option value="settlement_processing">Settlement Processing</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Cancelled</option>
           </select>
 
           <select
@@ -394,7 +413,9 @@ export default function AdminWithdrawalsPage() {
         ) : (
           filteredWithdrawals.map((w) => {
             const status = String(w.status || "").toLowerCase();
-            const isPending = status === "pending";
+            const canBeginSettlement = status === "pending_settlement";
+            const isProcessing = status === "settlement_processing";
+            const canCancel = ["pending_joint_authorization", "pending_settlement", "settlement_processing"].includes(status);
             const address = w.wallet_address || w.address || "--";
 
             return (
@@ -469,30 +490,14 @@ export default function AdminWithdrawalsPage() {
                       </div>
                     </div>
 
-                    {isPending ? (
+                    {canBeginSettlement || isProcessing || canCancel ? (
                       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                        <button
-                          type="button"
-                          disabled={actionLoading === `approve-${w.id}`}
-                          onClick={() => handleApprove(w.id)}
-                          className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
-                        >
-                          {actionLoading === `approve-${w.id}` ? "Approving..." : "Approve"}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={actionLoading === `reject-${w.id}`}
-                          onClick={() => handleReject(w.id)}
-                          className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
-                        >
-                          {actionLoading === `reject-${w.id}` ? "Rejecting..." : "Reject"}
-                        </button>
+                        {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Starting..." : "Begin Settlement"}</button> : null}
+                        {isProcessing ? <button type="button" disabled={actionLoading === `complete-${w.id}`} onClick={() => handleComplete(w.id)} className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50">{actionLoading === `complete-${w.id}` ? "Completing..." : "Record Real TXID & Complete"}</button> : null}
+                        {canCancel ? <button type="button" disabled={actionLoading === `reject-${w.id}`} onClick={() => handleReject(w.id)} className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">{actionLoading === `reject-${w.id}` ? "Cancelling..." : "Cancel & Release Asset"}</button> : null}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-4 text-center text-sm text-slate-400">
-                        This request has already been processed.
-                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-[#0a0e1a]/50 px-4 py-4 text-center text-sm text-slate-400">{status === "pending_joint_authorization" ? "Waiting for the other joint account holder to authorize." : "No settlement action is currently available."}</div>
                     )}
                   </div>
                 </div>
