@@ -15,10 +15,21 @@ const otpHash = value => crypto.createHash('sha256').update(String(value)).diges
 const otpCode = () => String(crypto.randomInt(0,1000000)).padStart(6,'0');
 
 async function verifyTransactionPasscode(connection,userId,supplied){
- const passcode=String(supplied||'').trim();if(!/^\d{4,12}$/.test(passcode))return false;
- const [rows]=await connection.execute('SELECT passcode FROM users WHERE id=? LIMIT 1',[userId]);
- if(!rows.length||!rows[0].passcode)return false;const stored=String(rows[0].passcode);
- if(stored.startsWith('$2'))return bcrypt.compare(passcode,stored);return false;
+ const passcode=String(supplied||'').trim();
+ if(!/^\d{4,12}$/.test(passcode))return {verified:false,locked:false};
+ const [rows]=await connection.execute('SELECT passcode,passcode_failed_attempts,passcode_locked_until FROM users WHERE id=? LIMIT 1',[userId]);
+ if(!rows.length||!rows[0].passcode)return {verified:false,locked:false};
+ if(rows[0].passcode_locked_until && new Date(rows[0].passcode_locked_until).getTime()>Date.now())return {verified:false,locked:true};
+ const stored=String(rows[0].passcode);
+ const verified=stored.startsWith('$2') ? await bcrypt.compare(passcode,stored) : false;
+ if(verified){
+  await connection.execute('UPDATE users SET passcode_failed_attempts=0,passcode_locked_until=NULL,passcode_verified_at=NOW(),updated_at=NOW() WHERE id=?',[userId]);
+  return {verified:true,locked:false};
+ }
+ const attempts=Number(rows[0].passcode_failed_attempts||0)+1;
+ const locked=attempts>=5;
+ await connection.execute('UPDATE users SET passcode_failed_attempts=?,passcode_locked_until=?,updated_at=NOW() WHERE id=?',[locked?0:attempts,locked?new Date(Date.now()+15*60*1000):null,userId]);
+ return {verified:false,locked};
 }
 async function verifyTwoFactor(connection,userId,token){
  const [rows]=await connection.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=? LIMIT 1',[userId]);
@@ -41,7 +52,9 @@ router.post('/withdrawals/request',authUser,async(req,res,next)=>{
   await connection.beginTransaction();
   const [users]=await connection.execute('SELECT id,status FROM users WHERE id=? FOR UPDATE',[req.user.id]);if(!users.length)throw createError(404,'User not found');
   if(['disabled','frozen'].includes(String(users[0].status||'').toLowerCase()))throw createError(403,'User account not active');
-  if(!await verifyTransactionPasscode(connection,req.user.id,req.body.transactionPasscode??req.body.passcode))throw createError(401,'Valid transaction passcode required');
+  const passcode=await verifyTransactionPasscode(connection,req.user.id,req.body.transactionPasscode??req.body.passcode);
+  if(passcode.locked)throw createError(429,'Too many failed attempts. Transaction passcode locked for 15 minutes');
+  if(!passcode.verified)throw createError(401,'Valid transaction passcode required');
   const twofa=await verifyTwoFactor(connection,req.user.id,req.body.twoFactorCode??req.body.twofaCode);
   if(twofa.required&&!twofa.verified)throw createError(401,'Valid authenticator code required');
   const feeConfig=await getWithdrawalFeeConfig(connection,coin,network),feeAmount=calculateWithdrawalFee(amount,feeConfig),feeType=String(feeConfig?.fee_type||'fixed').toLowerCase();
