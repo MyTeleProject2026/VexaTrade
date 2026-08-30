@@ -179,7 +179,7 @@ export default function ConvertPage() {
       if (!silent) setLoading(true);
       else setRefreshing(true);
 
-      const [walletRes, marketRes, platformRes] = await Promise.allSettled([
+      const [walletRes, assetsRes, marketRes, platformRes] = await Promise.allSettled([
         userApi.getWalletSummary(token),
         userApi.getUserAssets(token),
         marketApi.home(),
@@ -197,7 +197,6 @@ export default function ConvertPage() {
         );
       }
 
-      const assetsRes = arguments[0];
       if (assetsRes?.status === "fulfilled") {
         const payload = assetsRes.value?.data || {};
         const rows = Array.isArray(payload?.data?.assets) ? payload.data.assets : (Array.isArray(payload?.assets) ? payload.assets : []);
