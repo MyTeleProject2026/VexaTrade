@@ -87,5 +87,7 @@ router.post('/withdrawals/:id/joint-authorize',authUser,async(req,res,next)=>{
  }catch(error){await connection.rollback();next(error)}finally{connection.release()}
 });
 
+router.get('/withdrawals/pending-joint-authorizations',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute('SELECT w.id,w.coin,w.network,w.address,w.amount,w.fee_amount,w.net_amount,w.status,w.created_at,jwa.expires_at,jwa.attempts FROM joint_withdrawal_authorizations jwa JOIN withdrawals w ON w.id=jwa.withdrawal_id WHERE jwa.required_user_id=? AND jwa.verified_at IS NULL AND jwa.consumed_at IS NULL AND jwa.expires_at>NOW() ORDER BY w.id DESC',[req.user.id]);res.json({success:true,data:rows})}catch(error){next(error)}});
+
 router.get('/withdrawals',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute('SELECT * FROM withdrawals WHERE user_id=? ORDER BY id DESC',[req.user.id]);res.json({success:true,data:rows})}catch(error){next(error)}});
 module.exports=router;
