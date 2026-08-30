@@ -3,7 +3,7 @@ const router=express.Router();
 const pool=require('../../db');
 const {authAdmin}=require('../middleware/auth');
 const {createError,createTransactionLog,createUserNotification,createAuditLog}=require('../utils/helpers');
-const {creditAssetBalance,releaseReservedAsset,recordLedger}=require('../../services/assetLedgerService');
+const {creditAssetBalance,releaseReservedAsset,consumeReservedAsset}=require('../../services/assetLedgerService');
 
 router.post('/operations/deposits/:id/approve',authAdmin,async(req,res,next)=>{
  const c=await pool.getConnection();
@@ -58,11 +58,9 @@ router.post('/operations/withdrawals/:id/settle',authAdmin,async(req,res,next)=>
   await c.beginTransaction();
   const [rows]=await c.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[Number(req.params.id)]);
   if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];
-  if(!['pending_authorization','pending','authorized','processing'].includes(String(w.status).toLowerCase()))throw createError(409,'Withdrawal cannot be settled');
+  if(String(w.status).toLowerCase()!=='settlement_processing')throw createError(409,'Withdrawal must be in settlement_processing before completion');
   const reservedAmount=Number(w.amount)+Number(w.fee_amount||0);
-  const [u]=await c.execute('UPDATE user_assets SET reserved_balance=reserved_balance-?, balance=available_balance+reserved_balance-?+pending_balance WHERE user_id=? AND coin=? AND reserved_balance>=?',[reservedAmount,reservedAmount,w.user_id,w.coin,reservedAmount]);
-  if(u.affectedRows!==1)throw createError(409,'Reserved asset unavailable');
-  await recordLedger(c,{userId:w.user_id,coin:w.coin,network:w.network,bucket:'settled',entryType:'manual_treasury_settlement',amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:`Actual settlement reference: ${txid}; ${note}`});
+  await consumeReservedAsset(c,{userId:w.user_id,coin:w.coin,network:w.network,amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:'Actual settlement reference: '+txid+'; '+note});
   await c.execute("UPDATE withdrawals SET status='completed', txid=?, updated_at=NOW() WHERE id=?",[txid,w.id]);
   await createAuditLog(c,{adminId:req.admin.id,action:'withdrawal_settled',targetUserId:w.user_id,referenceId:w.id,note:`${w.coin}/${w.network}; reference ${txid}`});
   await createUserNotification(c,{userId:w.user_id,title:'Withdrawal completed',message:`Your ${w.coin} withdrawal was settled. Transaction reference: ${txid}`,type:'general'});
