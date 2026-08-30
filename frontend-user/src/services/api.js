@@ -586,6 +586,11 @@ export const withdrawalApi = {
     appApiClient.post(`/api/withdrawals/${id}/joint-authorize`, payload, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
     }),
+
+  pendingJointAuthorizations: (token) =>
+    appApiClient.get("/api/withdrawals/pending-joint-authorizations", {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 };
 
 // ============================================================
