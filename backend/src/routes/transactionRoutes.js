@@ -1,246 +1,39 @@
 // backend/src/routes/transactionRoutes.js
-const express = require('express');
-const router = express.Router();
-const pool = require('../../db');
-const { authUser } = require('../middleware/auth');
+const express=require('express');
+const router=express.Router();
+const pool=require('../../db');
+const {authUser}=require('../middleware/auth');
 
-// ─── GET /api/transactions ──────────────────────────────────────────
-// Unified transactions endpoint - combines all transaction types
-router.get('/transactions', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const { type, limit = 50, offset = 0 } = req.query;
+const safeLimit=(value,max=100)=>Math.min(Math.max(Number.parseInt(value,10)||50,1),max);
+const normalizeRows=(rows,type)=>rows.map(row=>({...row,type,amount:Number(row.amount||0),coin:row.coin||row.currency||'USDT',network:row.network||'INTERNAL',date:row.date||row.created_at}));
 
-    // Get deposits
-    const [deposits] = await pool.execute(`
-      SELECT 
-        id,
-        'deposit' as type,
-        amount,
-        status,
-        created_at as date,
-        payment_method as method,
-        reference as reference,
-        'Deposit' as description
-      FROM deposits 
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT 100
-    `, [userId]);
+router.get('/transactions',authUser,async(req,res,next)=>{try{
+ const userId=req.user.id, type=String(req.query.type||'all'),limit=safeLimit(req.query.limit),offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
+ const [deposits,withdrawals,trades,transfers,funds,converts]=await Promise.all([
+  pool.execute("SELECT id,amount,coin,network,status,created_at,date,txid AS reference,'Deposit' description FROM deposits WHERE user_id=? ORDER BY created_at DESC LIMIT 100",[userId]).then(x=>x[0]),
+  pool.execute("SELECT id,amount,coin,network,status,created_at,txid AS reference,'Withdrawal' description FROM withdrawals WHERE user_id=? ORDER BY created_at DESC LIMIT 100",[userId]).then(x=>x[0]),
+  pool.execute("SELECT id,amount,'USDT' coin,'INTERNAL' network,status,result,entry_price,exit_price,payout_percent,created_at,'Trade' description FROM trades WHERE user_id=? ORDER BY created_at DESC LIMIT 100",[userId]).then(x=>x[0]),
+  pool.execute(`SELECT ut.id,ut.amount,ut.currency coin,'INTERNAL' network,ut.status,ut.created_at,ut.note reference,CASE WHEN ut.sender_id=? THEN CONCAT('Transfer sent to ',r.uid) ELSE CONCAT('Transfer received from ',s.uid) END description FROM user_transfers ut LEFT JOIN users s ON s.id=ut.sender_id LEFT JOIN users r ON r.id=ut.receiver_id WHERE ut.sender_id=? OR ut.receiver_id=? ORDER BY ut.created_at DESC LIMIT 100`,[userId,userId,userId]).then(x=>x[0]),
+  pool.execute("SELECT id,amount,'USDT' coin,'INTERNAL' network,status,plan_name,created_at,CONCAT('Fund Plan: ',plan_name) description FROM user_funds WHERE user_id=? ORDER BY created_at DESC LIMIT 100",[userId]).then(x=>x[0]),
+  pool.execute("SELECT id,from_amount amount,from_coin coin,'INTERNAL' network,status,to_coin,receive_amount,fee_usdt,fee_percent,created_at,CONCAT('Converted ',from_coin,' to ',to_coin) description FROM convert_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 100",[userId]).then(x=>x[0])
+ ]);
+ let all=[...normalizeRows(deposits,'deposit'),...normalizeRows(withdrawals,'withdrawal'),...normalizeRows(trades,'trade'),...normalizeRows(transfers,'transfer'),...normalizeRows(funds,'fund'),...normalizeRows(converts,'convert')];
+ if(type!=='all')all=all.filter(x=>x.type===type||(type==='funds'&&x.type==='fund'));
+ all.sort((a,b)=>new Date(b.created_at||b.date||0)-new Date(a.created_at||a.date||0));
+ const total=all.length,transactions=all.slice(offset,offset+limit);
+ res.json({success:true,data:transactions,pagination:{total,limit,offset},counts:{total,deposit:deposits.length,withdrawal:withdrawals.length,trade:trades.length,transfer:transfers.length,fund:funds.length,convert:converts.length}});
+}catch(e){next(e)}});
 
-    // Get withdrawals
-    const [withdrawals] = await pool.execute(`
-      SELECT 
-        id,
-        'withdrawal' as type,
-        amount,
-        status,
-        created_at as date,
-        withdrawal_method as method,
-        reference as reference,
-        'Withdrawal' as description
-      FROM withdrawals 
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT 100
-    `, [userId]);
+router.get('/transactions/summary',authUser,async(req,res,next)=>{try{
+ const userId=req.user.id;
+ const [[depositTotal],[withdrawalTotal],[tradeTotal],[pendingDeposits],[pendingWithdrawals]]=await Promise.all([
+  pool.execute("SELECT COALESCE(SUM(amount),0) total FROM deposits WHERE user_id=? AND status IN ('completed','approved')",[userId]).then(x=>x[0]),
+  pool.execute("SELECT COALESCE(SUM(amount),0) total FROM withdrawals WHERE user_id=? AND status='completed'",[userId]).then(x=>x[0]),
+  pool.execute("SELECT COALESCE(SUM(amount),0) total FROM trades WHERE user_id=? AND status='completed'",[userId]).then(x=>x[0]),
+  pool.execute("SELECT COUNT(*) count FROM deposits WHERE user_id=? AND status='pending'",[userId]).then(x=>x[0]),
+  pool.execute("SELECT COUNT(*) count FROM withdrawals WHERE user_id=? AND status IN ('pending_joint_authorization','pending_settlement','settlement_processing')",[userId]).then(x=>x[0])
+ ]);
+ res.json({success:true,data:{totals:{deposits:Number(depositTotal.total||0),withdrawals:Number(withdrawalTotal.total||0),trades:Number(tradeTotal.total||0)},pending:{deposits:Number(pendingDeposits.count||0),withdrawals:Number(pendingWithdrawals.count||0)}}});
+}catch(e){next(e)}});
 
-    // Get trades
-    const [trades] = await pool.execute(`
-      SELECT 
-        id,
-        'trade' as type,
-        amount,
-        status,
-        created_at as date,
-        trade_type as method,
-        CONCAT('Trade ', trade_type) as description
-      FROM trades 
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT 100
-    `, [userId]);
-
-    // Get transfers (sent and received)
-    const [transfers] = await pool.execute(`
-      SELECT 
-        ut.id,
-        'transfer' as type,
-        ut.amount,
-        ut.status,
-        ut.created_at as date,
-        CASE 
-          WHEN ut.sender_id = ? THEN CONCAT('Sent to ', r.uid)
-          ELSE CONCAT('Received from ', s.uid)
-        END as method,
-        ut.note as reference,
-        CONCAT('Transfer ', 
-          CASE 
-            WHEN ut.sender_id = ? THEN 'sent'
-            ELSE 'received'
-          END
-        ) as description
-      FROM user_transfers ut
-      LEFT JOIN users s ON s.id = ut.sender_id
-      LEFT JOIN users r ON r.id = ut.receiver_id
-      WHERE ut.sender_id = ? OR ut.receiver_id = ?
-      ORDER BY ut.created_at DESC
-      LIMIT 100
-    `, [userId, userId, userId, userId]);
-
-    // Get funds transactions
-    const [funds] = await pool.execute(`
-      SELECT 
-        id,
-        'fund' as type,
-        amount,
-        status,
-        created_at as date,
-        plan_name as method,
-        reference,
-        CONCAT('Fund Plan: ', plan_name) as description
-      FROM user_funds
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT 100
-    `, [userId]);
-
-    // Combine all transactions
-    let allTransactions = [
-      ...deposits.map(t => ({ 
-        ...t, 
-        date: t.date || t.created_at,
-        amount: Number(t.amount)
-      })),
-      ...withdrawals.map(t => ({ 
-        ...t, 
-        date: t.date || t.created_at,
-        amount: Number(t.amount)
-      })),
-      ...trades.map(t => ({ 
-        ...t, 
-        date: t.date || t.created_at,
-        amount: Number(t.amount)
-      })),
-      ...transfers.map(t => ({ 
-        ...t, 
-        date: t.date || t.created_at,
-        amount: Number(t.amount)
-      })),
-      ...funds.map(t => ({ 
-        ...t, 
-        date: t.date || t.created_at,
-        amount: Number(t.amount)
-      }))
-    ];
-
-    // Filter by type if specified
-    if (type && type !== 'all') {
-      allTransactions = allTransactions.filter(t => t.type === type);
-    }
-
-    // Sort by date (newest first)
-    allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Apply pagination
-    const total = allTransactions.length;
-    const paginated = allTransactions.slice(Number(offset), Number(offset) + Number(limit));
-
-    // Calculate counts by type
-    const counts = {
-      total: total,
-      deposit: deposits.length,
-      withdrawal: withdrawals.length,
-      trade: trades.length,
-      transfer: transfers.length,
-      fund: funds.length
-    };
-
-    res.json({
-      success: true,
-      data: {
-        transactions: paginated,
-        pagination: {
-          total,
-          limit: Number(limit),
-          offset: Number(offset)
-        },
-        counts
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    next(error);
-  }
-});
-
-// ─── GET /api/transactions/summary ──────────────────────────────────
-router.get('/transactions/summary', authUser, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-
-    // Get total deposits
-    const [depositTotal] = await pool.execute(
-      `SELECT SUM(amount) as total FROM deposits WHERE user_id = ? AND status = 'completed'`,
-      [userId]
-    );
-
-    // Get total withdrawals
-    const [withdrawalTotal] = await pool.execute(
-      `SELECT SUM(amount) as total FROM withdrawals WHERE user_id = ? AND status = 'completed'`,
-      [userId]
-    );
-
-    // Get total trades volume
-    const [tradeTotal] = await pool.execute(
-      `SELECT SUM(amount) as total FROM trades WHERE user_id = ? AND status = 'completed'`,
-      [userId]
-    );
-
-    // Get pending transactions count
-    const [pendingDeposits] = await pool.execute(
-      `SELECT COUNT(*) as count FROM deposits WHERE user_id = ? AND status = 'pending'`,
-      [userId]
-    );
-    const [pendingWithdrawals] = await pool.execute(
-      `SELECT COUNT(*) as count FROM withdrawals WHERE user_id = ? AND status = 'pending'`,
-      [userId]
-    );
-
-    // Get recent transactions (last 30 days)
-    const [recent] = await pool.execute(`
-      (SELECT 'deposit' as type, amount, status, created_at as date FROM deposits WHERE user_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY))
-      UNION ALL
-      (SELECT 'withdrawal' as type, amount, status, created_at as date FROM withdrawals WHERE user_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY))
-      UNION ALL
-      (SELECT 'trade' as type, amount, status, created_at as date FROM trades WHERE user_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY))
-      UNION ALL
-      (SELECT 'transfer' as type, amount, status, created_at as date FROM user_transfers WHERE sender_id = ? OR receiver_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY))
-      ORDER BY date DESC
-      LIMIT 10
-    `, [userId, userId, userId, userId, userId]);
-
-    res.json({
-      success: true,
-      data: {
-        totals: {
-          deposits: Number(depositTotal[0]?.total || 0),
-          withdrawals: Number(withdrawalTotal[0]?.total || 0),
-          trades: Number(tradeTotal[0]?.total || 0)
-        },
-        pending: {
-          deposits: pendingDeposits[0]?.count || 0,
-          withdrawals: pendingWithdrawals[0]?.count || 0
-        },
-        recent: recent || []
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching transaction summary:', error);
-    next(error);
-  }
-});
-
-module.exports = router;
+module.exports=router;
