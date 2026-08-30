@@ -111,6 +111,8 @@ export default function WithdrawPage() {
     network: "TRC20",
     amount: "",
     address: "",
+    transactionPasscode: "",
+    twoFactorCode: "",
   });
 
   const [error, setError] = useState("");
@@ -268,6 +270,11 @@ export default function WithdrawPage() {
       return;
     }
 
+    if (!/^\\d{4,12}$/.test(form.transactionPasscode)) {
+      showError("Enter your 4–12 digit transaction passcode.");
+      return;
+    }
+
     if (!form.address.trim()) {
       showError("Please enter a valid wallet address.");
       return;
@@ -294,13 +301,16 @@ export default function WithdrawPage() {
           network: form.network,
           amount: Number(form.amount),
           wallet_address: form.address,
+          transactionPasscode: form.transactionPasscode,
+          twoFactorCode: form.twoFactorCode,
         },
         token
       );
 
       const responseData = res?.data?.data || {};
 
-      showSuccess("Withdrawal request submitted successfully!");
+      const jointRequired = responseData.authorization === "joint_partner_email_otp";
+      showSuccess(jointRequired ? "Withdrawal created. Your joint account holder must authorize it using the email OTP." : "Withdrawal authorized and queued for settlement.");
 
       showVoucher({
         title: "Withdrawal Requested",
@@ -313,7 +323,7 @@ export default function WithdrawPage() {
           amount: Number(form.amount),
           feeAmount: responseData.feeAmount || 0,
           netAmount: responseData.netAmount || Number(form.amount),
-          status: "Pending",
+          status: responseData.status || "Pending",
           created_at: new Date().toISOString(),
         },
       });
@@ -323,6 +333,8 @@ export default function WithdrawPage() {
         network: "TRC20",
         amount: "",
         address: "",
+        transactionPasscode: "",
+        twoFactorCode: "",
       });
 
       setTab("history");
@@ -586,6 +598,35 @@ export default function WithdrawPage() {
                   className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
                   disabled={!isKycApproved || isMainWithdrawDisabled}
                 />
+              </div>
+
+              <div>
+                <FieldLabel>Transaction Passcode</FieldLabel>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="4–12 digit transaction passcode"
+                  value={form.transactionPasscode}
+                  onChange={(e) => setForm({ ...form, transactionPasscode: e.target.value.replace(/\\D/g, "").slice(0, 12) })}
+                  className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
+                  disabled={!isKycApproved || isMainWithdrawDisabled}
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Authenticator Code (if 2FA is enabled)</FieldLabel>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="6-digit authenticator code"
+                  value={form.twoFactorCode}
+                  onChange={(e) => setForm({ ...form, twoFactorCode: e.target.value.replace(/\\D/g, "").slice(0, 6) })}
+                  className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500"
+                  disabled={!isKycApproved || isMainWithdrawDisabled}
+                />
+                <p className="mt-1 text-xs text-slate-500">Required only when Authenticator 2FA is enabled for your account.</p>
               </div>
 
               <div>
