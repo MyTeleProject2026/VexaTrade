@@ -271,6 +271,12 @@ async function settleDailyFunds() {
 
       if (totalDays <= 0) continue;
 
+      const [alreadyLogged] = await connection.execute(
+        'SELECT id FROM fund_profit_logs WHERE user_fund_id=? AND day_number=? LIMIT 1 FOR UPDATE',
+        [fund.id, currentDay + 1]
+      );
+      if (alreadyLogged.length) continue;
+
       const lastCreditDate = fund.last_profit_at
         ? new Date(fund.last_profit_at)
         : new Date(fund.started_at);
@@ -278,10 +284,7 @@ async function settleDailyFunds() {
       
       const startDate = new Date(fund.started_at);
       startDate.setHours(0, 0, 0, 0);
-      
-      const daysSinceStart = Math.floor((todayDate - startDate) / (1000 * 60 * 60 * 24));
-      const expectedDay = Math.min(daysSinceStart, totalDays);
-      
+      if (todayDate <= startDate) continue;
       if (lastCreditDate >= todayDate) continue;
       if (currentDay >= totalDays) continue;
       
