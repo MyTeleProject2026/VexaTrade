@@ -49,4 +49,12 @@ async function consumeReservedAsset(connection,{userId,coin,network,amount,refer
   await syncTotal(connection,userId,coin);
   await recordLedger(connection,{userId,coin,network,bucket:'reserved',entryType:'withdrawal_settlement',amount,referenceType,referenceId,note});
 }
-module.exports={ensureAssetRow,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
+async function consumePendingAsset(connection,{userId,coin,network,amount,referenceType,referenceId,note}){
+  coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid pending asset settlement');
+  await ensureAssetRow(connection,userId,coin);
+  const [u]=await connection.execute('UPDATE user_assets SET pending_balance=pending_balance-? WHERE user_id=? AND coin=? AND pending_balance>=?',[amount,userId,coin,amount]);
+  if(u.affectedRows!==1)throw createError(409,'Unable to settle pending asset balance');
+  await syncTotal(connection,userId,coin);
+  await recordLedger(connection,{userId,coin,network,bucket:'pending',entryType:'asset_consumed',amount,referenceType,referenceId,note});
+}
+module.exports={ensureAssetRow,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
