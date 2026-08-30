@@ -8,45 +8,51 @@ const { createError } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
 const upload = multer({ storage });
 
-// ─── GET /api/deposit/wallets ──────────────────────────────────────
+const normalize = (value) => String(value || '').trim().toUpperCase();
+
 router.get('/deposit/wallets', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT coin, network, display_label AS label, address, minimum_deposit AS min_deposit,
-              qr_image_url AS qr_url, instructions
-       FROM deposit_wallets WHERE status = 'active' ORDER BY sort_order ASC, id DESC`
+      `SELECT id,coin,network,display_label AS label,address,minimum_deposit,minimum_deposit AS min_deposit,qr_image_url AS qr_url,qr_image_url,instructions
+       FROM deposit_wallets WHERE status='active' ORDER BY sort_order ASC,id DESC`
     );
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
+    res.json({ success:true, data:rows });
+  } catch(error){ next(error); }
 });
 
-// ─── POST /api/deposits/upload-receipt ─────────────────────────────
-router.post('/deposits/upload-receipt', authUser, upload.single('receipt'), (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
-  res.json({ success: true, url: req.file.path });
+router.post('/deposits/upload-receipt',authUser,upload.single('receipt'),(req,res)=>{
+  if(!req.file)return res.status(400).json({success:false,message:'No receipt uploaded'});
+  res.json({success:true,data:{url:req.file.path},url:req.file.path});
 });
 
-// ─── POST /api/deposits/request ────────────────────────────────────
-router.post('/deposits/request', authUser, async (req, res, next) => {
-  try {
-    const { coin, network, amount, txid, note, proof } = req.body;
-    if (!coin || !network) throw createError(400, "Invalid wallet");
-    if (!amount || Number(amount) <= 0) throw createError(400, "Invalid amount");
-    const [result] = await pool.execute(
-      `INSERT INTO deposits (user_id, coin, network, amount, txid, note, proof, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
-      [req.user.id, coin, network, amount, txid || null, note || null, proof || null]
-    );
-    res.json({ success: true, message: "Deposit submitted", data: { id: result.insertId, status: "pending" } });
-  } catch (error) { next(error); }
+router.post('/deposits/request',authUser,async(req,res,next)=>{
+ const connection=await pool.getConnection();
+ try{
+  const coin=normalize(req.body.coin),network=normalize(req.body.network),amount=Number(req.body.amount);
+  const txid=String(req.body.txid||'').trim(),note=String(req.body.note||'').trim(),proof=String(req.body.proof||'').trim(),address=String(req.body.address||'').trim();
+  if(!coin||!network)throw createError(400,'Coin and network are required');
+  if(!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid deposit amount');
+  await connection.beginTransaction();
+  const [wallets]=await connection.execute(`SELECT id,coin,network,address,minimum_deposit,status FROM deposit_wallets WHERE UPPER(coin)=? AND UPPER(network)=? AND status='active' FOR UPDATE`,[coin,network]);
+  if(!wallets.length)throw createError(400,'Selected deposit wallet is not active');
+  const wallet=wallets[0],minimum=Number(wallet.minimum_deposit||0);
+  if(minimum>0&&amount<minimum)throw createError(400,`Minimum deposit is ${minimum} ${coin}`);
+  if(address&&String(wallet.address).trim()!==address)throw createError(400,'Deposit address does not match the selected network wallet');
+  if(txid){
+    const [duplicates]=await connection.execute(`SELECT id FROM deposits WHERE UPPER(coin)=? AND UPPER(network)=? AND txid=? AND status NOT IN ('rejected','cancelled') LIMIT 1 FOR UPDATE`,[coin,network,txid]);
+    if(duplicates.length)throw createError(409,'This transaction reference has already been submitted');
+  }
+  const [result]=await connection.execute(`INSERT INTO deposits(user_id,coin,network,amount,txid,note,proof,status,created_at) VALUES(?,?,?,?,?,?,?,'pending',NOW())`,[req.user.id,coin,network,amount,txid||null,note||null,proof||null]);
+  await connection.commit();
+  res.json({success:true,message:'Deposit request submitted for verification',data:{id:result.insertId,status:'pending',coin,network,amount}});
+ }catch(error){await connection.rollback();next(error)}finally{connection.release()}
 });
 
-// ─── GET /api/deposits ──────────────────────────────────────────────
-router.get('/deposits', authUser, async (req, res, next) => {
-  try {
-    const [rows] = await pool.execute(`SELECT * FROM deposits WHERE user_id = ? ORDER BY id DESC`, [req.user.id]);
-    res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
+router.get('/deposits',authUser,async(req,res,next)=>{
+ try{
+  const [rows]=await pool.execute(`SELECT id,coin,network,amount,txid,note,proof,status,created_at,approved_at FROM deposits WHERE user_id=? ORDER BY id DESC`,[req.user.id]);
+  res.json({success:true,data:rows});
+ }catch(error){next(error);}
 });
 
-module.exports = router;
+module.exports=router;
