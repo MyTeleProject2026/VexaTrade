@@ -10,6 +10,7 @@ const {
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
+const { releaseReservedAsset, consumeReservedAsset } = require('../../services/assetLedgerService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -361,39 +362,50 @@ router.get('/admin/withdrawals', authAdmin, async (req, res, next) => {
 router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) => {
   try {
     const withdrawalId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    const [rows] = await pool.execute(`SELECT * FROM withdrawals WHERE id = ?`, [withdrawalId]);
-    if (!rows.length) throw createError(404, "Withdrawal not found");
-    const withdrawal = rows[0];
-    if (withdrawal.status !== "pending") throw createError(400, "Already processed");
-    await pool.execute(`UPDATE withdrawals SET status = 'approved', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", withdrawalId]);
-    await createAuditLog(pool, { adminId: req.admin.id, action: "approve_withdrawal", targetUserId: withdrawal.user_id, referenceId: withdrawal.id, note: adminNote || `Approved withdrawal #${withdrawal.id}` });
-    await createUserNotification(pool, { userId: withdrawal.user_id, title: "Withdrawal approved", message: "Your withdrawal request has been approved.", type: "general" });
-    res.json({ success: true, message: "Withdrawal approved" });
-  } catch (error) { next(error); }
+    const note = String(req.body?.settlement_note || '').trim();
+    const [rows] = await pool.execute('SELECT * FROM withdrawals WHERE id=?',[withdrawalId]);
+    if (!rows.length) throw createError(404,'Withdrawal not found');
+    const w=rows[0];
+    if (w.status !== 'pending_settlement') throw createError(400,'Withdrawal is not authorized for settlement');
+    await pool.execute("UPDATE withdrawals SET status='settlement_processing',admin_note=?,updated_at=NOW() WHERE id=?",[note||'Settlement processing',withdrawalId]);
+    await createAuditLog(pool,{adminId:req.admin.id,action:'begin_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||'Settlement processing started'});
+    res.json({success:true,message:'Withdrawal moved to settlement processing'});
+  } catch(error){next(error);}
 });
 
-router.post('/admin/withdrawals/:id/reject', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const withdrawalId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT * FROM withdrawals WHERE id = ? FOR UPDATE`, [withdrawalId]);
-    if (!rows.length) throw createError(404, "Withdrawal not found");
-    const withdrawal = rows[0];
-    if (withdrawal.status !== "pending") throw createError(400, "Already processed");
-    const amount = Number(withdrawal.amount || 0);
-    const feeAmount = Number(withdrawal.fee_amount || 0);
-    const refundAmount = Number((amount + feeAmount).toFixed(8));
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [refundAmount, withdrawal.user_id]);
-    await connection.execute(`UPDATE withdrawals SET status = 'rejected', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Rejected by admin", withdrawalId]);
-    await createTransactionLog(connection, { userId: withdrawal.user_id, type: "withdrawal_rejected_refund", amount: refundAmount, status: "completed", referenceId: withdrawal.id, note: adminNote || `Withdrawal #${withdrawal.id} rejected and refunded` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "reject_withdrawal", targetUserId: withdrawal.user_id, referenceId: withdrawal.id, note: adminNote || `Rejected withdrawal #${withdrawal.id}` });
-    await createUserNotification(connection, { userId: withdrawal.user_id, title: "Withdrawal rejected", message: `Your withdrawal request has been rejected and ${refundAmount} refunded.`, type: "security" });
-    await connection.commit();
-    res.json({ success: true, message: "Withdrawal rejected and refunded" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+router.post('/admin/withdrawals/:id/complete', authAdmin, async (req,res,next)=>{
+ const connection=await pool.getConnection();
+ try{
+  const withdrawalId=Number(req.params.id),txid=String(req.body?.txid||'').trim(),note=String(req.body?.settlement_note||'').trim();
+  if(!txid)throw createError(400,'Real external transaction hash/reference is required');
+  await connection.beginTransaction();
+  const [rows]=await connection.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[withdrawalId]);
+  if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];
+  if(w.status!=='settlement_processing')throw createError(400,'Withdrawal is not in settlement processing');
+  const reservedAmount=Number(w.amount||0)+Number(w.fee_amount||0);
+  await consumeReservedAsset(connection,{userId:w.user_id,coin:w.coin,network:w.network,amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:'External settlement completed: '+txid});
+  await connection.execute("UPDATE withdrawals SET status='completed',txid=?,admin_note=?,updated_at=NOW() WHERE id=?",[txid,note||'External settlement completed',withdrawalId]);
+  await createTransactionLog(connection,{userId:w.user_id,type:'withdrawal_completed',amount:reservedAmount,status:'completed',referenceId:w.id,note:'External settlement reference: '+txid});
+  await createAuditLog(connection,{adminId:req.admin.id,action:'complete_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||('Completed with transaction reference '+txid)});
+  await createUserNotification(connection,{userId:w.user_id,title:'Withdrawal completed',message:'Your withdrawal has been externally settled. Transaction reference: '+txid,type:'security'});
+  await connection.commit();res.json({success:true,message:'Withdrawal settlement completed'});
+ }catch(error){await connection.rollback();next(error)}finally{connection.release()}
+});
+
+router.post('/admin/withdrawals/:id/reject', authAdmin, async (req,res,next)=>{
+ const connection=await pool.getConnection();
+ try{
+  const withdrawalId=Number(req.params.id),note=String(req.body?.settlement_note||req.body?.admin_note||'').trim();
+  await connection.beginTransaction();const [rows]=await connection.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[withdrawalId]);
+  if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];
+  if(!['pending_settlement','settlement_processing','pending_joint_authorization'].includes(w.status))throw createError(400,'Withdrawal cannot be cancelled in its current state');
+  const reservedAmount=Number(w.amount||0)+Number(w.fee_amount||0);
+  await releaseReservedAsset(connection,{userId:w.user_id,coin:w.coin,network:w.network,amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:'Withdrawal cancelled and reservation released'});
+  await connection.execute("UPDATE withdrawals SET status='rejected',authorization_status='cancelled',admin_note=?,updated_at=NOW() WHERE id=?",[note||'Settlement cancelled',withdrawalId]);
+  await createAuditLog(connection,{adminId:req.admin.id,action:'reject_withdrawal',targetUserId:w.user_id,referenceId:w.id,note:note||'Withdrawal cancelled and asset reservation released'});
+  await createUserNotification(connection,{userId:w.user_id,title:'Withdrawal cancelled',message:'Your withdrawal was cancelled and the reserved asset balance was returned to your available balance.',type:'security'});
+  await connection.commit();res.json({success:true,message:'Withdrawal cancelled and reserved balance released'});
+ }catch(error){await connection.rollback();next(error)}finally{connection.release()}
 });
 
 // ─── Admin Audit Logs ──────────────────────────────────────────────
