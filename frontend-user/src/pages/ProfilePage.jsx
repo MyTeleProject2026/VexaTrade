@@ -291,7 +291,7 @@ export default function ProfilePage() {
       {profile?.id && (
         <ChatWidget 
           userId={profile.id.toString()} 
-          userName={profile.name || profile.email?.split("@")[0] || "User"} 
+          userName={profile.name || "User"} 
           isOpen={showChat}
           onClose={closeChat}
         />
@@ -313,14 +313,14 @@ export default function ProfilePage() {
                 />
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-lg text-white">
-                  {profile?.email?.[0]?.toUpperCase() || "U"}
+                  {profile?.name?.[0]?.toUpperCase() || "U"}
                 </span>
               )}
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="truncate text-2xl font-bold text-white">
-                {profile.email || profile.name || "User"}
+                {profile.name || "User"}
               </div>
               <div className="mt-2 text-lg text-slate-400">Profile and settings</div>
 
