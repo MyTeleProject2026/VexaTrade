@@ -445,12 +445,9 @@ export const userApi = {
       },
     }),
 
-  getUserAssets: (token) => {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
-    return fetch(`${API_BASE_URL}/api/user/assets`, {
-      headers: { Authorization: `Bearer ${getUserToken(token)}` }
-    }).then(res => res.json());
-  },
+  getUserAssets: (token) => appApiClient.get("/api/user/assets", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+
+  getCombinedJointBalance: (token) => appApiClient.get("/api/joint-account/combined-balance", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
 
   getWalletSummary: (token) =>
     appApiClient.get("/api/wallet/summary", {
