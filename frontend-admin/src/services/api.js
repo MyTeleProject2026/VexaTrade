@@ -151,6 +151,8 @@ export const adminApi = {
     api.post(`/api/admin/withdrawals/${id}/approve`, payload || {}, authHeaders(token)),
   rejectWithdrawal: (id, payload, token) =>
     api.post(`/api/admin/withdrawals/${id}/reject`, payload || {}, authHeaders(token)),
+  completeWithdrawal: (id, payload, token) =>
+    api.post(`/api/admin/withdrawals/${id}/complete`, payload || {}, authHeaders(token)),
 
   // ===================== WITHDRAWAL FEES =====================
   getWithdrawalFees: (token) =>
