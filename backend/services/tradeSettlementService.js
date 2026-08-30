@@ -1,7 +1,7 @@
 // backend/services/tradeSettlementService.js
 const pool = require('../db');
 const { getBinancePrice } = require('./tradeService');
-const { movePendingToAvailable, creditAssetBalance, recordLedger } = require('./assetLedgerService');
+const { movePendingToAvailable, creditAssetBalance, consumePendingAsset } = require('./assetLedgerService');
 
 async function settleExpiredTrades(limit = 100) {
   const connection = await pool.getConnection();
@@ -32,14 +32,7 @@ async function settleExpiredTrades(limit = 100) {
           await movePendingToAvailable(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:stake,entryType:'trade_stake_return',referenceType:'trade',referenceId:current.id,note:tied?'Trade tie: stake returned':'Winning trade: stake returned'});
           if (won && profit > 0) await creditAssetBalance(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:profit,referenceType:'trade',referenceId:current.id,note:'Market-settled trade profit'});
         } else {
-          const [u] = await connection.execute(
-            `UPDATE user_assets SET pending_balance=pending_balance-?, balance=available_balance+reserved_balance+pending_balance-?
-             WHERE user_id=? AND coin='USDT' AND pending_balance>=?`,
-            [stake, stake, current.user_id, stake]
-          );
-          if (u.affectedRows !== 1) throw new Error('Pending trade stake unavailable');
-          await connection.execute('UPDATE user_assets SET balance=available_balance+reserved_balance+pending_balance WHERE user_id=? AND coin=?',[current.user_id,'USDT']);
-          await recordLedger(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',bucket:'settled',entryType:'trade_loss_settlement',amount:stake,referenceType:'trade',referenceId:current.id,note:'Market-settled losing trade'});
+          await consumePendingAsset(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:stake,referenceType:'trade',referenceId:current.id,note:'Market-settled losing trade'});
         }
 
         const result = tied ? 'tie' : (won ? 'win' : 'loss');
