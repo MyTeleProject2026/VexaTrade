@@ -16,6 +16,7 @@ import { withdrawalApi, userApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 // ✅ ADDED: Import Profit Withdrawal Modal
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
+import JointWithdrawalAuthorization from "../components/JointWithdrawalAuthorization";
 
 function formatAmount(v) {
   const num = Number(v || 0);
