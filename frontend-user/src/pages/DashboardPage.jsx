@@ -224,12 +224,7 @@ export default function DashboardPage() {
         userApi.getWalletSummary(token),
         marketApi.home(),
         userApi.getNotifications(token),
-        fetch(
-          `${
-            import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"
-          }/api/joint-account/combined-balance`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        ).then((res) => res.json()),
+        userApi.getCombinedJointBalance(token),
         newsApi.getNews(),
       ]);
 
@@ -242,8 +237,10 @@ export default function DashboardPage() {
       if (notifRes.status === "fulfilled") {
         setNotifications(Array.isArray(notifRes.value?.data?.data) ? notifRes.value.data.data : []);
       }
-      if (combinedRes.status === "fulfilled" && combinedRes.value?.success) {
-        setCombinedBalanceData(combinedRes.value.data);
+      if (combinedRes.status === "fulfilled") {
+        const combinedPayload = combinedRes.value?.data || {};
+        if (combinedPayload.success) setCombinedBalanceData(combinedPayload.data);
+        else setCombinedBalanceData(null);
       }
       if (newsRes.status === "fulfilled") {
         const response = newsRes.value;
@@ -356,27 +353,10 @@ export default function DashboardPage() {
 
       {/* Balance Cards */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          title={hasJointAccount ? "Combined Balance" : "Total Balance"}
-          value={balanceFormatted}
-          change="2.95"
-          icon={hasJointAccount ? Users : Wallet}
-          onClick={() => navigate("/assets")}
-          subtext={hasJointAccount ? "Joint account (shared balance)" : ""}
-          compact={true}
-        />
-        <StatCard title="24h Change" value="+2.95%" change="2.95" icon={TrendingUp} />
-        <StatCard
-          title="24h Volume"
-          value={formatCompactNumber(28456789)}
-          icon={TrendingDown}
-        />
-        <StatCard
-          title="Open Trades"
-          value="0"
-          icon={TrendingUp}
-          onClick={() => navigate("/trade")}
-        />
+        <StatCard title={hasJointAccount ? "Combined Balance" : "Total Balance"} value={balanceFormatted} icon={hasJointAccount ? Users : Wallet} onClick={() => navigate("/assets")} subtext={hasJointAccount ? "Joint account (shared balance)" : "Live wallet summary"} compact={true} />
+        <StatCard title="24h Change" value="Market data available below" icon={TrendingUp} />
+        <StatCard title="24h Volume" value="Live market pairs" icon={TrendingDown} />
+        <StatCard title="Open Trades" value="View in Trade" icon={TrendingUp} onClick={() => navigate("/trade")} />
       </div>
 
       {/* Action Buttons */}
