@@ -581,6 +581,11 @@ export const withdrawalApi = {
     appApiClient.post("/api/withdrawals/request", payload, {
       headers: { Authorization: `Bearer ${getUserToken(token)}` }
     }),
+
+  jointAuthorize: (id, payload, token) =>
+    appApiClient.post(`/api/withdrawals/${id}/joint-authorize`, payload, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}` }
+    }),
 };
 
 // ============================================================
