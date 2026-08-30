@@ -27,8 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { getApiErrorMessage } from "../services/api";
-import api from "../services/api";
+import { getApiErrorMessage, fundsApi, userApi } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
@@ -699,21 +698,11 @@ export default function FundsPage() {
 
       const [plansRes, summaryRes, activeRes, historyRes, latestRes] =
         await Promise.allSettled([
-          api.get("/api/funds/plans", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/summary", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/active", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/history", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/api/funds/completed-latest", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
+          fundsApi.plans(token),
+          fundsApi.summary(token),
+          fundsApi.active(token),
+          fundsApi.history(token),
+          fundsApi.latestCompleted(token),
         ]);
 
       if (plansRes.status === "fulfilled") {
@@ -823,16 +812,7 @@ export default function FundsPage() {
       setError("");
       setSuccess("");
 
-      const res = await api.post(
-        "/api/funds/apply",
-        {
-          plan_id: applyModal.id,
-          amount,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);
 
       const responseData = res?.data?.data || {};
 
