@@ -150,11 +150,8 @@ export default function ConvertPage() {
 
   const { showSuccess, showError, showVoucher } = useNotification();
 
-  const [wallet, setWallet] = useState({
-    balance: 0,
-    user: null,
-    walletLabel: "Main Wallet",
-  });
+  const [wallet, setWallet] = useState({ balance: 0, user: null, walletLabel: "Main Wallet" });
+  const [assetBalances, setAssetBalances] = useState({});
 
   const [platformSettings, setPlatformSettings] = useState({
     wallet_label: "Main Wallet",
@@ -184,6 +181,7 @@ export default function ConvertPage() {
 
       const [walletRes, marketRes, platformRes] = await Promise.allSettled([
         userApi.getWalletSummary(token),
+        userApi.getUserAssets(token),
         marketApi.home(),
         // ✅ FIX: Call with cache-busting (already handled in api.js)
         userApi.getPublicPlatformSettings(),
@@ -197,6 +195,13 @@ export default function ConvertPage() {
             walletLabel: "Main Wallet",
           }
         );
+      }
+
+      const assetsRes = arguments[0];
+      if (assetsRes?.status === "fulfilled") {
+        const payload = assetsRes.value?.data || {};
+        const rows = Array.isArray(payload?.data?.assets) ? payload.data.assets : (Array.isArray(payload?.assets) ? payload.assets : []);
+        setAssetBalances(Object.fromEntries(rows.map((x) => [String(x.coin || x.symbol || "").toUpperCase(), Number(x.available_balance ?? x.available ?? x.balance ?? 0)])));
       }
 
       if (marketRes.status === "fulfilled") {
@@ -329,16 +334,9 @@ export default function ConvertPage() {
   }
 
   function handleUseMax() {
-    if (form.fromCoin !== "USDT") {
-      showError("Max balance is only available when converting from USDT.");
-      setSuccess("");
-      return;
-    }
-
-    setForm((prev) => ({
-      ...prev,
-      fromAmount: formatMoney(wallet.balance),
-    }));
+    const available = Number(assetBalances[form.fromCoin] ?? (form.fromCoin === "USDT" ? wallet.balance : 0));
+    if (!(available > 0)) { showError(`No available ${form.fromCoin} balance to convert.`); setSuccess(""); return; }
+    setForm((prev) => ({ ...prev, fromAmount: formatAmount(available, 8) }));
 
     setError("");
     setSuccess("");
@@ -359,9 +357,8 @@ export default function ConvertPage() {
       return "Market price is not available for this conversion pair right now.";
     }
 
-    if (form.fromCoin === "USDT" && amount > Number(wallet.balance || 0)) {
-      return "Insufficient available USDT balance.";
-    }
+    const available = Number(assetBalances[form.fromCoin] ?? (form.fromCoin === "USDT" ? wallet.balance : 0));
+    if (amount > available) return `Insufficient available ${form.fromCoin} balance.`;
 
     return "";
   }
