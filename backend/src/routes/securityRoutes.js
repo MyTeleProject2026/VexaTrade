@@ -1,55 +1,20 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const QRCode = require('qrcode');
 const router = express.Router();
 const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
+const { generateSetup, verifyToken, encryptSecret, decryptSecret, recoveryCodes, hashRecoveryCodes, verifyRecoveryCode } = require('../../services/twoFactorService');
 
-function normalizePasscode(value) {
-  return String(value ?? '').trim();
-}
+function normalizePasscode(value) { return String(value ?? '').trim(); }
+function validatePasscode(value) { return /^\d{4,12}$/.test(value); }
 
-function validatePasscode(value) {
-  return /^\d{4,12}$/.test(value);
-}
+router.post('/user/set-passcode', authUser, async (req,res,next)=>{try{const passcode=normalizePasscode(req.body?.passcode);if(!validatePasscode(passcode))return res.status(400).json({success:false,message:'Passcode must contain 4 to 12 digits'});const hash=await bcrypt.hash(passcode,12);await pool.execute('UPDATE users SET passcode=?,updated_at=NOW() WHERE id=?',[hash,req.user.id]);res.json({success:true,message:'Passcode saved securely'})}catch(e){next(e)}});
+router.post('/user/verify-passcode', authUser, async (req,res,next)=>{try{const passcode=normalizePasscode(req.body?.passcode);if(!validatePasscode(passcode))return res.status(400).json({success:false,message:'Valid passcode required'});const [rows]=await pool.execute('SELECT passcode FROM users WHERE id=? LIMIT 1',[req.user.id]);if(!rows.length||!rows[0].passcode)return res.status(400).json({success:false,message:'Transaction passcode is not configured'});const stored=String(rows[0].passcode);let valid=stored.startsWith('$2')?await bcrypt.compare(passcode,stored):stored===passcode;if(valid&&!stored.startsWith('$2'))await pool.execute('UPDATE users SET passcode=?,updated_at=NOW() WHERE id=?',[await bcrypt.hash(passcode,12),req.user.id]);if(!valid)return res.status(401).json({success:false,message:'Invalid transaction passcode'});res.json({success:true,verified:true,message:'Transaction passcode verified'})}catch(e){next(e)}});
 
-// Secure passcode setup. Existing plaintext passcodes are transparently migrated
-// when successfully verified by /verify-passcode.
-router.post('/user/set-passcode', authUser, async (req, res, next) => {
-  try {
-    const passcode = normalizePasscode(req.body?.passcode);
-    if (!validatePasscode(passcode)) {
-      return res.status(400).json({ success: false, message: 'Passcode must contain 4 to 12 digits' });
-    }
-    const hash = await bcrypt.hash(passcode, 12);
-    await pool.execute('UPDATE users SET passcode = ?, updated_at = NOW() WHERE id = ?', [hash, req.user.id]);
-    return res.json({ success: true, message: 'Passcode saved securely' });
-  } catch (error) { next(error); }
-});
-
-router.post('/user/verify-passcode', authUser, async (req, res, next) => {
-  try {
-    const passcode = normalizePasscode(req.body?.passcode);
-    if (!validatePasscode(passcode)) return res.status(400).json({ success: false, message: 'Valid passcode required' });
-    const [rows] = await pool.execute('SELECT passcode FROM users WHERE id = ? LIMIT 1', [req.user.id]);
-    if (!rows.length || !rows[0].passcode) return res.status(400).json({ success: false, message: 'Transaction passcode is not configured' });
-
-    const stored = String(rows[0].passcode);
-    let valid = false;
-    if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
-      valid = await bcrypt.compare(passcode, stored);
-    } else {
-      // Compatibility path for legacy plaintext records; successful verification
-      // immediately upgrades the stored value to a bcrypt hash.
-      valid = stored === passcode;
-      if (valid) {
-        const upgraded = await bcrypt.hash(passcode, 12);
-        await pool.execute('UPDATE users SET passcode = ?, updated_at = NOW() WHERE id = ?', [upgraded, req.user.id]);
-      }
-    }
-
-    if (!valid) return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
-    return res.json({ success: true, verified: true, message: 'Transaction passcode verified' });
-  } catch (error) { next(error); }
-});
-
-module.exports = router;
+router.post('/user/2fa/setup',authUser,async(req,res,next)=>{try{const [users]=await pool.execute('SELECT uid FROM users WHERE id=?',[req.user.id]);if(!users.length)return res.status(404).json({success:false,message:'User not found'});const setup=generateSetup(users[0].uid);const encrypted=encryptSecret(setup.secret);await pool.execute(`INSERT INTO user_two_factor(user_id,secret_encrypted,enabled,created_at,updated_at) VALUES(?,?,0,NOW(),NOW()) ON DUPLICATE KEY UPDATE secret_encrypted=VALUES(secret_encrypted),enabled=0,verified_at=NULL,updated_at=NOW()`,[req.user.id,encrypted]);const qrCode=await QRCode.toDataURL(setup.otpauthUrl,{width:280,margin:2});res.json({success:true,data:{otpauthUrl:setup.otpauthUrl,qrCode,manualKey:setup.secret}})}catch(e){next(e)}});
+router.post('/user/2fa/enable',authUser,async(req,res,next)=>{const c=await pool.getConnection();try{const token=req.body?.token;await c.beginTransaction();const [rows]=await c.execute('SELECT secret_encrypted FROM user_two_factor WHERE user_id=? FOR UPDATE',[req.user.id]);if(!rows.length)throw Object.assign(new Error('Start 2FA setup first'),{status:400});const secret=decryptSecret(rows[0].secret_encrypted);if(!verifyToken(secret,token))throw Object.assign(new Error('Invalid authenticator code'),{status:400});const codes=recoveryCodes();const hashes=await hashRecoveryCodes(codes);await c.execute('DELETE FROM two_factor_recovery_codes WHERE user_id=?',[req.user.id]);for(const hash of hashes)await c.execute('INSERT INTO two_factor_recovery_codes(user_id,code_hash,created_at) VALUES(?,?,NOW())',[req.user.id,hash]);await c.execute('UPDATE user_two_factor SET enabled=1,verified_at=NOW(),updated_at=NOW() WHERE user_id=?',[req.user.id]);await c.execute('UPDATE users SET twofa_enabled=1,updated_at=NOW() WHERE id=?',[req.user.id]);await c.commit();res.json({success:true,message:'Authenticator 2FA enabled',data:{recoveryCodes:codes}})}catch(e){await c.rollback();next(e)}finally{c.release()}});
+router.post('/user/2fa/verify',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=?',[req.user.id]);if(!rows.length||!rows[0].enabled)return res.status(400).json({success:false,message:'2FA is not enabled'});const valid=verifyToken(decryptSecret(rows[0].secret_encrypted),req.body?.token);if(!valid)return res.status(401).json({success:false,message:'Invalid authenticator code'});res.json({success:true,verified:true})}catch(e){next(e)}});
+router.post('/user/2fa/recovery',authUser,async(req,res,next)=>{const c=await pool.getConnection();try{const code=String(req.body?.code||'').trim().toUpperCase();await c.beginTransaction();const [rows]=await c.execute('SELECT id,code_hash FROM two_factor_recovery_codes WHERE user_id=? AND used_at IS NULL FOR UPDATE',[req.user.id]);let found=null;for(const row of rows){if(await verifyRecoveryCode(code,row.code_hash)){found=row;break}}if(!found)throw Object.assign(new Error('Invalid recovery code'),{status:401});await c.execute('UPDATE two_factor_recovery_codes SET used_at=NOW() WHERE id=?',[found.id]);await c.commit();res.json({success:true,verified:true,message:'Recovery code accepted'})}catch(e){await c.rollback();next(e)}finally{c.release()}});
+router.post('/user/2fa/disable',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=?',[req.user.id]);if(!rows.length||!rows[0].enabled)return res.status(400).json({success:false,message:'2FA is not enabled'});if(!verifyToken(decryptSecret(rows[0].secret_encrypted),req.body?.token))return res.status(401).json({success:false,message:'Invalid authenticator code'});await pool.execute('UPDATE user_two_factor SET enabled=0,updated_at=NOW() WHERE user_id=?',[req.user.id]);await pool.execute('UPDATE users SET twofa_enabled=0,updated_at=NOW() WHERE id=?',[req.user.id]);res.json({success:true,message:'Authenticator 2FA disabled'})}catch(e){next(e)}});
+module.exports=router;
