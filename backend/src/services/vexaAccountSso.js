@@ -28,12 +28,9 @@ function authorizationUrl(state, codeChallenge, scope = 'openid profile email') 
 async function exchangeCode(code, codeVerifier) {
   requireConfig();
   const response = await axios.post(`${VEXA_ACCOUNT_URL}/api/sso/token`, {
-    grant_type: 'authorization_code',
-    client_id: VEXA_ACCOUNT_CLIENT_ID,
-    client_secret: VEXA_ACCOUNT_CLIENT_SECRET,
-    redirect_uri: VEXA_ACCOUNT_REDIRECT_URI,
-    code,
-    code_verifier: codeVerifier,
+    grant_type: 'authorization_code', client_id: VEXA_ACCOUNT_CLIENT_ID,
+    client_secret: VEXA_ACCOUNT_CLIENT_SECRET, redirect_uri: VEXA_ACCOUNT_REDIRECT_URI,
+    code, code_verifier: codeVerifier,
   }, { timeout: TIMEOUT });
   return response.data;
 }
