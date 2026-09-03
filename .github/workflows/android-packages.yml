@@ -1,0 +1,35 @@
+name: VexaTrade Android packages
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Build user APK/AAB
+        working-directory: packaging/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleUserRelease bundleUserRelease
+      - name: Build admin APK/AAB
+        working-directory: packaging/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleAdminRelease bundleAdminRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vexatrade-android-release
+          path: |
+            packaging/android/app/build/outputs/apk/user/release/*.apk
+            packaging/android/app/build/outputs/apk/admin/release/*.apk
+            packaging/android/app/build/outputs/bundle/userRelease/*.aab
+            packaging/android/app/build/outputs/bundle/adminRelease/*.aab
