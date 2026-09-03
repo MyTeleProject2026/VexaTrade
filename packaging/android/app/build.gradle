@@ -1,14 +1,2 @@
 plugins { id 'com.android.application' }
-
-android {
-    namespace 'com.mytele.vexatrade.android'
-    compileSdk 35
-    defaultConfig { minSdk 24; targetSdk 35; versionCode 1; versionName '1.0.0' }
-    flavorDimensions += 'surface'
-    productFlavors {
-        user { dimension 'surface'; applicationId 'com.mytele.vexatrade.user'; resValue 'string','app_name','VexaTrade'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://www.vexatrade-v.2bd.net') + '"' }
-        admin { dimension 'surface'; applicationId 'com.mytele.vexatrade.admin'; resValue 'string','app_name','VexaTrade Admin'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('adminWebAppUrl') ?: 'https://admin.vexatrade-v.2bd.net') + '"' }
-    }
-    buildTypes { release { minifyEnabled false } }
-    buildFeatures { buildConfig true }
-}
+android { namespace 'com.mytele.vexatrade.android'; compileSdk 36; defaultConfig { minSdk 24; targetSdk 36; versionCode 1; versionName '1.0.0' }; flavorDimensions += 'surface'; productFlavors { user { dimension 'surface'; applicationId 'com.mytele.vexatrade.user'; resValue 'string','app_name','VexaTrade'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://www.vexatrade-v.2bd.net') + '"' }; admin { dimension 'surface'; applicationId 'com.mytele.vexatrade.admin'; resValue 'string','app_name','VexaTrade Admin'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('adminWebAppUrl') ?: 'https://admin.vexatrade-v.2bd.net') + '"' } }; buildTypes { release { minifyEnabled false } }; buildFeatures { buildConfig true } }
