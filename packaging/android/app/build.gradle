@@ -1,2 +1,25 @@
 plugins { id 'com.android.application' }
-android { namespace 'com.mytele.vexatrade.android'; compileSdk 36; defaultConfig { minSdk 24; targetSdk 36; versionCode 1; versionName '1.0.0' }; flavorDimensions += 'surface'; productFlavors { user { dimension 'surface'; applicationId 'com.mytele.vexatrade.user'; resValue 'string','app_name','VexaTrade'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://www.vexatrade-v.2bd.net') + '"' }; admin { dimension 'surface'; applicationId 'com.mytele.vexatrade.admin'; resValue 'string','app_name','VexaTrade Admin'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('adminWebAppUrl') ?: 'https://admin.vexatrade-v.2bd.net') + '"' } }; buildTypes { release { minifyEnabled false } }; buildFeatures { buildConfig true } }
+
+def requiredEnv = { String name ->
+    def value = System.getenv(name)
+    if (!value) throw new GradleException("Missing required release signing environment variable: ${name}")
+    value
+}
+
+android {
+    namespace 'com.mytele.vexatrade.android'
+    compileSdk 36
+    defaultConfig { minSdk 24; targetSdk 36; versionCode 1; versionName '1.0.0' }
+    flavorDimensions += 'surface'
+    productFlavors {
+        user { dimension 'surface'; applicationId 'com.mytele.vexatrade.user'; resValue 'string','app_name','VexaTrade'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://www.vexatrade-v.2bd.net') + '"' }
+        admin { dimension 'surface'; applicationId 'com.mytele.vexatrade.admin'; resValue 'string','app_name','VexaTrade Admin'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('adminWebAppUrl') ?: 'https://admin.vexatrade-v.2bd.net') + '"' }
+    }
+    signingConfigs {
+        userRelease { storeFile file(requiredEnv('USER_KEYSTORE_PATH')); storePassword requiredEnv('USER_KEYSTORE_PASSWORD'); keyAlias requiredEnv('USER_KEY_ALIAS'); keyPassword requiredEnv('USER_KEY_PASSWORD'); enableV1Signing true; enableV2Signing true; enableV3Signing true; enableV4Signing true }
+        adminRelease { storeFile file(requiredEnv('ADMIN_KEYSTORE_PATH')); storePassword requiredEnv('ADMIN_KEYSTORE_PASSWORD'); keyAlias requiredEnv('ADMIN_KEY_ALIAS'); keyPassword requiredEnv('ADMIN_KEY_PASSWORD'); enableV1Signing true; enableV2Signing true; enableV3Signing true; enableV4Signing true }
+    }
+    buildTypes { release { minifyEnabled false } }
+    applicationVariants.all { variant -> if (variant.buildType.name == 'release') variant.signingConfig = signingConfigs.findByName("${variant.flavorName}Release") }
+    buildFeatures { buildConfig true }
+}
