@@ -52,6 +52,23 @@ app.use('/api/auth/vexaaccount',vexaAccountSsoRoutes);
 app.use('/api',securityRoutes);
 app.use('/api/chat',require('./src/middleware/auth').authUser,chatRoutes);
 app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);app.use('/api',adminRoutes);app.use('/api',assetOperationsRoutes);app.use('/api',assetSettlementRoutes);app.use('/api',supportedAssetRoutes);app.use('/api',legalRoutes);app.use('/api',supportRoutes);app.use('/api',jointAccountRoutes);app.use('/api',marketRoutes);app.use('/api',convertRoutes);app.use("/api/funds/plans",overrideFundsPlans);app.use("/api/admin/network-verification-settings",adminNetworkRoutes);app.use("/api/admin/fund-rules",adminFundRoutes);app.use("/api/employee",employeeRoutes);app.use("/api/news",newsRoutes);app.use("/api/maintenance",maintenanceRoutes);app.use('/api/admin',adminNotificationRoutes);
-app.get('/api/health',async(req,res)=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();res.json({success:true,message:"VexaTrade backend running",database:DB_NAME});}catch(_){res.status(500).json({success:false,message:"Database connection failed"});}});app.get('/',(req,res)=>res.json({success:true,message:"VexaTrade backend running"}));app.use((req,res)=>req.path.startsWith("/api/")?res.status(404).json({success:false,message:"API route not found"}):res.status(404).send("Not found"));app.use((err,req,res,next)=>{console.error("Server error:",err);const message=process.env.NODE_ENV==='production'?"Internal server error":(err.message||"Internal server error");res.status(err.status||500).json({success:false,message});});const tradeSettlementInterval=setInterval(()=>settleExpiredTrades(100).catch(e=>console.error('Trade settlement worker error:',e.message)),5000);tradeSettlementInterval.unref();
+app.get('/api/health',async(req,res)=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();res.json({success:true,message:"VexaTrade backend running",database:DB_NAME});}catch(_){res.status(500).json({success:false,message:"Database connection failed"});}});app.get('/',(req,res)=>res.json({success:true,message:"VexaTrade backend running"}));app.use((req,res)=>req.path.startsWith("/api/")?res.status(404).json({success:false,message:"API route not found"}):res.status(404).send("Not found"));app.use((err,req,res,next)=>{console.error("Server error:",err);const message=process.env.NODE_ENV==='production'?"Internal server error":(err.message||"Internal server error");res.status(err.status||500).json({success:false,message});});
+let tradeSettlementRunning = false;
+const runTradeSettlement = async () => {
+  if (tradeSettlementRunning) {
+    console.log('Trade settlement worker already running; skipping overlapping cycle');
+    return;
+  }
+  tradeSettlementRunning = true;
+  try {
+    const settled = await settleExpiredTrades(100);
+    if (settled > 0) console.log(`Trade settlement worker settled ${settled} trade(s)`);
+  } catch (e) {
+    console.error('Trade settlement worker error:',e.message);
+  } finally {
+    tradeSettlementRunning = false;
+  }
+};
+const tradeSettlementInterval=setInterval(runTradeSettlement,5000);tradeSettlementInterval.unref();
 const shutdown=async(signal)=>{console.log(`Received ${signal}; shutting down VexaTrade server`);clearInterval(tradeSettlementInterval);await new Promise(resolve=>server.close(resolve));await pool.end();process.exit(0);};process.once('SIGTERM',()=>shutdown('SIGTERM').catch(()=>process.exit(1)));process.once('SIGINT',()=>shutdown('SIGINT').catch(()=>process.exit(1)));
 server.listen(PORT,async()=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();console.log(`VexaTrade backend running on port ${PORT}`);console.log(`MySQL connected successfully`);console.log(`Database: ${DB_NAME}`);console.log(`Allowed origins: ${allowedOrigins.length} domains`);}catch(error){console.error("MySQL connection failed:",error.message);}});module.exports={app,server,io};
