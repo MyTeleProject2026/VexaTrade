@@ -7,10 +7,14 @@ async function settleExpiredTrades(limit = 100) {
   const connection = await pool.getConnection();
   let settled = 0;
   try {
+    // TiDB/MySQL prepared statements can reject a parameter marker in LIMIT
+    // with "Incorrect arguments to LIMIT". Keep the value strictly numeric
+    // and interpolate the validated integer instead of binding it as `?`.
+    const safeLimit = Math.max(1, Math.min(1000, Math.trunc(Number(limit)) || 100));
     const [trades] = await connection.execute(
       `SELECT id,user_id,pair,direction,amount,entry_price,payout_percent
        FROM trades WHERE status='open' AND end_time <= NOW()
-       ORDER BY end_time ASC LIMIT ?`, [Number(limit)]
+       ORDER BY end_time ASC LIMIT ${safeLimit}`
     );
     for (const trade of trades) {
       await connection.beginTransaction();
