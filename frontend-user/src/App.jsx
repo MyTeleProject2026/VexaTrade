@@ -36,11 +36,9 @@ import AccountVerificationPage from "./pages/AccountVerificationPage";
 import UserLayout from "./layouts/UserLayout";
 import { userApi } from "./services/api";
 
-// ─── Chat imports ──────────────────────────────────────────────
 import ChatWidget from "./components/ChatWidget";
 import DraggableChatButton from "./components/DraggableChatButton";
 
-// --- Helper functions ---
 function safeParse(value) {
   try {
     return JSON.parse(value);
@@ -96,25 +94,44 @@ function isUserUnderReview(user) {
   return false;
 }
 
+// Keep profile refresh single-flight across every component that may request it.
+// React effects, StrictMode, and multiple pages can otherwise create duplicate
+// authenticated profile calls at the same time.
+let profileRefreshPromise = null;
+let profileRefreshToken = "";
+
 async function refreshUserDataFromServer() {
   const token = getStoredToken();
   if (!token) return null;
 
-  try {
-    const response = await userApi.getProfile(token);
-    if (response?.data?.success) {
-      const freshUser = response.data.data;
-      localStorage.setItem("user", JSON.stringify(freshUser));
-      localStorage.setItem("userData", JSON.stringify(freshUser));
-      return freshUser;
-    }
-  } catch (error) {
-    console.error("Failed to refresh user data:", error);
+  if (profileRefreshPromise && profileRefreshToken === token) {
+    return profileRefreshPromise;
   }
-  return null;
+
+  profileRefreshToken = token;
+  profileRefreshPromise = (async () => {
+    try {
+      const response = await userApi.getProfile(token);
+      if (response?.data?.success) {
+        const freshUser = response.data.data;
+        localStorage.setItem("user", JSON.stringify(freshUser));
+        localStorage.setItem("userData", JSON.stringify(freshUser));
+        return freshUser;
+      }
+    } catch (error) {
+      // A temporary API/network failure must not clear a valid session or
+      // redirect/reload the page. The cached authenticated user remains usable.
+      console.error("Failed to refresh user data:", error);
+    } finally {
+      profileRefreshPromise = null;
+      profileRefreshToken = "";
+    }
+    return null;
+  })();
+
+  return profileRefreshPromise;
 }
 
-// --- PrivateRoute ---
 function PrivateRoute({ children }) {
   const token = getStoredToken();
 
@@ -125,7 +142,6 @@ function PrivateRoute({ children }) {
   return children;
 }
 
-// --- ApprovalGuard ---
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
@@ -141,24 +157,32 @@ function ApprovalGuard({ children }) {
   ];
 
   const pathname = location.pathname;
+  const isPreApprovalRoute = allowedBeforeApproval.some((route) => pathname.startsWith(route));
+  const hasCachedUser = Boolean(user?.id && user?.email);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function checkUserStatus() {
       const token = getStoredToken();
-      if (!token) return;
+      if (!token || isPreApprovalRoute) return;
 
-      setIsChecking(true);
+      // Never block an already-authenticated page for the full network timeout.
+      // Use cached session data immediately and reconcile with the server in
+      // the background. If there is no cached user, show the loading state.
+      if (!hasCachedUser) setIsChecking(true);
+
       const freshUser = await refreshUserDataFromServer();
-      if (freshUser) {
-        setUser(freshUser);
-      }
+      if (cancelled) return;
+      if (freshUser) setUser(freshUser);
       setIsChecking(false);
     }
 
-    if (!allowedBeforeApproval.some((route) => pathname.startsWith(route))) {
-      checkUserStatus();
-    }
-  }, [pathname]);
+    checkUserStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, isPreApprovalRoute, hasCachedUser]);
 
   if (isChecking) {
     return (
@@ -168,17 +192,13 @@ function ApprovalGuard({ children }) {
     );
   }
 
-  if (
-    isUserUnderReview(user) &&
-    !allowedBeforeApproval.some((route) => pathname.startsWith(route))
-  ) {
+  if (isUserUnderReview(user) && !isPreApprovalRoute) {
     return <Navigate to="/account-verification" replace />;
   }
 
   return children;
 }
 
-// --- AppContent ---
 function AppContent() {
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher, showWarning } = useNotification();
@@ -186,7 +206,6 @@ function AppContent() {
 
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  // ✅ FIX: Get userId from user object in localStorage, not from a separate key
   let userId = '';
   let userName = 'User';
   const userData = localStorage.getItem('user') || localStorage.getItem('userData');
@@ -202,27 +221,22 @@ function AppContent() {
 
   const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
 
-  // Check unread messages from localStorage
   useEffect(() => {
     const checkUnreadMessages = () => {
       try {
         const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]");
         const total = conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0);
         setChatUnreadCount(total);
-      } catch (e) {
-        // silent
-      }
+      } catch (e) {}
     };
     checkUnreadMessages();
     const interval = setInterval(checkUnreadMessages, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Brevo identification
   useEffect(() => {
     const token = localStorage.getItem("userToken") || localStorage.getItem("token");
     const userData = localStorage.getItem("user");
-    
     if (token && userData && window.BrevoConversations) {
       try {
         const user = JSON.parse(userData);
@@ -244,15 +258,11 @@ function AppContent() {
     }
   }, []);
 
-  // Chat button click handler
   const handleChatButtonClick = () => {
     const token = localStorage.getItem('userToken') || localStorage.getItem('token');
     if (!token) {
-      if (showWarning) {
-        showWarning('Please login to access chat support.');
-      } else {
-        alert('Please login to access chat support.');
-      }
+      if (showWarning) showWarning('Please login to access chat support.');
+      else alert('Please login to access chat support.');
       return;
     }
     openChat();
@@ -282,23 +292,8 @@ function AppContent() {
         <Route path="/two-factor-auth" element={<TwoFactorAuthPage />} />
         <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route
-          path="/account-verification"
-          element={
-            <PrivateRoute>
-              <AccountVerificationPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          element={
-            <PrivateRoute>
-              <ApprovalGuard>
-                <UserLayout />
-              </ApprovalGuard>
-            </PrivateRoute>
-          }
-        >
+        <Route path="/account-verification" element={<PrivateRoute><AccountVerificationPage /></PrivateRoute>} />
+        <Route element={<PrivateRoute><ApprovalGuard><UserLayout /></ApprovalGuard></PrivateRoute>}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/trade" element={<TradePage />} />
@@ -318,42 +313,21 @@ function AppContent() {
       </Routes>
 
       <VoucherModal voucher={voucher} onClose={closeVoucher} />
-
-      {/* Draggable Chat Button – always visible */}
-      {!isChatOpen && (
-        <DraggableChatButton 
-          onClick={handleChatButtonClick}
-          unreadCount={chatUnreadCount}
-          isOpen={isChatOpen}
-        />
-      )}
-
-      {/* Chat Widget */}
-      <ChatWidget
-        userId={userId}
-        userName={userName}
-        isOpen={isChatOpen}
-        onClose={closeChat}
-      />
+      {!isChatOpen && <DraggableChatButton onClick={handleChatButtonClick} unreadCount={chatUnreadCount} isOpen={isChatOpen} />}
+      <ChatWidget userId={userId} userName={userName} isOpen={isChatOpen} onClose={closeChat} />
     </>
   );
 }
 
-// --- MAIN APP ---
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 4400);
-
+    const timer = setTimeout(() => setShowSplash(false), 4400);
     return () => clearTimeout(timer);
   }, []);
 
-  if (showSplash) {
-    return <SplashScreen />;
-  }
+  if (showSplash) return <SplashScreen />;
 
   return (
     <NotificationProvider>
