@@ -4,51 +4,117 @@ const { getBinancePrice } = require('./tradeService');
 const { movePendingToAvailable, creditAssetBalance, consumePendingAsset } = require('./assetLedgerService');
 
 async function settleExpiredTrades(limit = 100) {
-  const connection = await pool.getConnection();
-  let settled = 0;
+  // TiDB/MySQL prepared statements can reject a parameter marker in LIMIT
+  // with "Incorrect arguments to LIMIT". Keep the value strictly numeric
+  // and interpolate the validated integer instead of binding it as `?`.
+  const safeLimit = Math.max(1, Math.min(1000, Math.trunc(Number(limit)) || 100));
+
+  // Do not hold a DB connection while waiting on external market-price APIs.
+  // Keeping a connection open during a slow market request can exhaust the
+  // pool and make normal API requests such as /api/user/profile time out.
+  let connection = await pool.getConnection();
+  let trades;
   try {
-    // TiDB/MySQL prepared statements can reject a parameter marker in LIMIT
-    // with "Incorrect arguments to LIMIT". Keep the value strictly numeric
-    // and interpolate the validated integer instead of binding it as `?`.
-    const safeLimit = Math.max(1, Math.min(1000, Math.trunc(Number(limit)) || 100));
-    const [trades] = await connection.execute(
+    [trades] = await connection.execute(
       `SELECT id,user_id,pair,direction,amount,entry_price,payout_percent
        FROM trades WHERE status='open' AND end_time <= NOW()
        ORDER BY end_time ASC LIMIT ${safeLimit}`
     );
-    for (const trade of trades) {
-      await connection.beginTransaction();
-      try {
-        const [locked] = await connection.execute('SELECT * FROM trades WHERE id=? FOR UPDATE',[trade.id]);
-        const current = locked[0];
-        if (!current || current.status !== 'open' || new Date(current.end_time).getTime() > Date.now()) { await connection.rollback(); continue; }
+  } finally {
+    connection.release();
+  }
 
-        let exitPrice;
-        try { exitPrice = Number(await getBinancePrice(current.pair)); } catch (_) { throw new Error('Market price unavailable; settlement deferred'); }
-        if (!Number.isFinite(exitPrice) || exitPrice <= 0 || !Number(current.entry_price)) { throw new Error('Invalid market price for settlement'); }
+  let settled = 0;
 
-        const won = current.direction === 'bullish' ? exitPrice > Number(current.entry_price) : exitPrice < Number(current.entry_price);
-        const tied = exitPrice === Number(current.entry_price);
-        const stake = Number(current.amount);
-        const profit = won ? Number((stake * Number(current.payout_percent || 0) / 100).toFixed(18)) : 0;
-
-        if (won || tied) {
-          await movePendingToAvailable(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:stake,entryType:'trade_stake_return',referenceType:'trade',referenceId:current.id,note:tied?'Trade tie: stake returned':'Winning trade: stake returned'});
-          if (won && profit > 0) await creditAssetBalance(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:profit,referenceType:'trade',referenceId:current.id,note:'Market-settled trade profit'});
-        } else {
-          await consumePendingAsset(connection,{userId:current.user_id,coin:'USDT',network:'INTERNAL',amount:stake,referenceType:'trade',referenceId:current.id,note:'Market-settled losing trade'});
-        }
-
-        const result = tied ? 'tie' : (won ? 'win' : 'loss');
-        await connection.execute(`UPDATE trades SET status='completed',result=?,exit_price=?,settled_at=NOW() WHERE id=?`,[result,exitPrice,current.id]);
-        await connection.commit();
-        settled++;
-      } catch (error) {
-        await connection.rollback();
-        if (!/settlement deferred/.test(error.message)) console.error('Trade settlement failed', trade.id, error.message);
-      }
+  for (const trade of trades) {
+    let exitPrice;
+    try {
+      exitPrice = Number(await getBinancePrice(trade.pair));
+    } catch (_) {
+      console.error('Trade settlement deferred', trade.id, 'market price unavailable');
+      continue;
     }
-  } finally { connection.release(); }
+
+    if (!Number.isFinite(exitPrice) || exitPrice <= 0 || !Number(trade.entry_price)) {
+      console.error('Trade settlement deferred', trade.id, 'invalid market price');
+      continue;
+    }
+
+    connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [locked] = await connection.execute(
+        'SELECT * FROM trades WHERE id=? FOR UPDATE',
+        [trade.id]
+      );
+      const current = locked[0];
+      if (!current || current.status !== 'open' || new Date(current.end_time).getTime() > Date.now()) {
+        await connection.rollback();
+        continue;
+      }
+
+      const won = current.direction === 'bullish'
+        ? exitPrice > Number(current.entry_price)
+        : exitPrice < Number(current.entry_price);
+      const tied = exitPrice === Number(current.entry_price);
+      const stake = Number(current.amount);
+      const profit = won
+        ? Number((stake * Number(current.payout_percent || 0) / 100).toFixed(18))
+        : 0;
+
+      if (!Number.isFinite(stake) || stake <= 0) {
+        throw new Error('Invalid trade stake');
+      }
+
+      if (won || tied) {
+        await movePendingToAvailable(connection, {
+          userId: current.user_id,
+          coin: 'USDT',
+          network: 'INTERNAL',
+          amount: stake,
+          entryType: 'trade_stake_return',
+          referenceType: 'trade',
+          referenceId: current.id,
+          note: tied ? 'Trade tie: stake returned' : 'Winning trade: stake returned'
+        });
+        if (won && profit > 0) {
+          await creditAssetBalance(connection, {
+            userId: current.user_id,
+            coin: 'USDT',
+            network: 'INTERNAL',
+            amount: profit,
+            referenceType: 'trade',
+            referenceId: current.id,
+            note: 'Market-settled trade profit'
+          });
+        }
+      } else {
+        await consumePendingAsset(connection, {
+          userId: current.user_id,
+          coin: 'USDT',
+          network: 'INTERNAL',
+          amount: stake,
+          referenceType: 'trade',
+          referenceId: current.id,
+          note: 'Market-settled losing trade'
+        });
+      }
+
+      const result = tied ? 'tie' : (won ? 'win' : 'loss');
+      await connection.execute(
+        `UPDATE trades SET status='completed',result=?,exit_price=?,settled_at=NOW() WHERE id=?`,
+        [result, exitPrice, current.id]
+      );
+      await connection.commit();
+      settled++;
+    } catch (error) {
+      try { await connection.rollback(); } catch (_) {}
+      console.error('Trade settlement failed', trade.id, error.message);
+    } finally {
+      connection.release();
+    }
+  }
+
   return settled;
 }
 
