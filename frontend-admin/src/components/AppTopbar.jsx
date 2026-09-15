@@ -1,120 +1,80 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Newspaper } from "lucide-react";
+import { ArrowLeft, Bell, Home, Menu, ShieldCheck } from "lucide-react";
 
-function getCurrentTime() {
-  try {
-    return new Date().toLocaleString();
-  } catch {
-    return "";
-  }
+const SECTION_TAGS = [
+  ["/admin/control-center", "Command Center"],
+  ["/admin/dashboard", "Overview"],
+  ["/admin/users", "User Control"],
+  ["/admin/kyc", "Identity Review"],
+  ["/admin/deposit-networks", "Wallet Network Setup"],
+  ["/admin/deposits", "Deposit Review"],
+  ["/admin/withdrawal-fees", "Fee Control"],
+  ["/admin/withdrawal-settings", "Policy Control"],
+  ["/admin/withdrawals", "Withdrawal Review"],
+  ["/admin/profit-withdrawal-requests", "Profit Review"],
+  ["/admin/trading-funds-control", "Trading Control"],
+  ["/admin/trades", "Trade Operations"],
+  ["/admin/trade-rules", "Rule Management"],
+  ["/admin/joint-account-requests", "Account Requests"],
+  ["/admin/joint-accounts", "Joint Accounts"],
+  ["/admin/loans", "Loan Control"],
+  ["/admin/loan-settings", "Loan Settings"],
+  ["/admin/audit-logs", "Governance"],
+  ["/admin/support", "Customer Service"],
+  ["/admin/platform-settings", "Global Settings"],
+  ["/admin/news", "News Control"],
+  ["/admin/legal-docs", "Legal Control"],
+  ["/admin/maintenance", "Availability Control"],
+];
+
+function currentTime() {
+  try { return new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); } catch { return ""; }
 }
 
-export default function AppTopbar({
-  title,
-  subtitle,
-  onMenuClick,
-  admin = false,
-}) {
+export default function AppTopbar({ title = "Super Admin", subtitle = "VexaTrade platform control plane.", onMenuClick, admin = false }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const sectionTag = useMemo(() => SECTION_TAGS.find(([path]) => location.pathname === path || (path === "/admin/users" && location.pathname.startsWith("/admin/users/")))?.[1] || (admin ? "Admin Panel" : "Platform"), [location.pathname, admin]);
+  const canGoBack = location.pathname !== "/admin/dashboard" && location.pathname !== "/admin/control-center";
 
-  const sectionTag = useMemo(() => {
-    const path = location.pathname || "";
-
-    if (path.includes("/dashboard")) return "Overview";
-    if (path.includes("/users")) return "User Control";
-    if (path.includes("/kyc")) return "Identity Review";
-    if (path.includes("/deposits")) return "Deposit Review";
-    if (path.includes("/deposit-networks")) return "Wallet Network Setup";
-    if (path.includes("/withdrawals")) return "Withdrawal Review";
-    if (path.includes("/withdrawal-fees")) return "Fee Control";
-    if (path.includes("/trades")) return "Trade Control";
-    if (path.includes("/trade-rules")) return "Rule Management";
-    if (path.includes("/audit-logs")) return "Activity Tracking";
-    if (path.includes("/support")) return "Customer Service";
-    if (path.includes("/platform-settings")) return "Global Settings";
-    if (path.includes("/loans")) return "Loan Control";
-    if (path.includes("/loan-settings")) return "Loan Settings";
-    if (path.includes("/legal-docs")) return "Legal Control";
-    if (path.includes("/news")) return "News Control";
-
-    return admin ? "Admin Panel" : "Platform";
-  }, [location.pathname, admin]);
-
-  const handleLogout = () => {
+  const logout = () => {
     if (admin) {
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("adminData");
-      localStorage.removeItem("adminUser");
-      localStorage.removeItem("admin_token");
-      navigate("/admin/login");
-      return;
+      ["adminToken", "admin_token", "adminData", "adminUser"].forEach((key) => localStorage.removeItem(key));
+      navigate("/admin/login", { replace: true });
+    } else {
+      ["userToken", "token", "accessToken", "userRefreshToken", "userData", "user"].forEach((key) => localStorage.removeItem(key));
+      navigate("/login", { replace: true });
     }
-
-    localStorage.removeItem("userToken");
-    localStorage.removeItem("token");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("userRefreshToken");
-    localStorage.removeItem("userData");
-    localStorage.removeItem("user");
-    navigate("/login");
   };
 
-  const showNewsIcon = (location.pathname || "").includes("/news");
-
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl">
-      <div className="flex min-h-[73px] items-center justify-between gap-4 px-4 py-4 sm:px-5 lg:px-6 xl:px-8">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/[0.06] xl:hidden"
-            onClick={onMenuClick}
-          >
-            Menu
-          </button>
-
-          <div className="min-w-0">
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-300">
-                {showNewsIcon ? <Newspaper size={12} /> : null}
-                {sectionTag}
-              </span>
-
-              <span className="hidden text-[11px] text-slate-500 sm:inline">
-                {getCurrentTime()}
-              </span>
-            </div>
-
-            <div className="truncate text-lg font-semibold text-white sm:text-xl">
-              {title}
-            </div>
-
-            <div className="hidden truncate text-sm text-slate-400 md:block">
-              {subtitle}
-            </div>
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#080d18]/95 shadow-lg shadow-black/10 backdrop-blur-xl">
+      <div className="flex min-h-[60px] items-center gap-2 px-3 sm:px-4 lg:px-6">
+        <button type="button" aria-label="Open navigation" onClick={onMenuClick} className="admin-button px-2.5 xl:hidden"><Menu size={16} /></button>
+        {canGoBack ? <button type="button" aria-label="Go back" onClick={() => navigate(-1)} className="admin-button hidden px-2.5 sm:inline-flex"><ArrowLeft size={15} /></button> : null}
+        <button type="button" onClick={() => navigate("/admin/control-center")} className="hidden items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-white/[0.04] md:flex">
+          <span className="grid h-7 w-7 place-items-center rounded-lg border border-cyan-400/20 bg-cyan-500/10"><ShieldCheck size={14} className="text-cyan-300" /></span>
+          <span className="text-xs font-bold text-white">VexaTrade <span className="text-slate-500">Admin</span></span>
+        </button>
+        <div className="mx-1 h-7 w-px bg-white/10" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-cyan-300">{sectionTag}</span>
+            <span className="hidden text-[10px] text-slate-600 lg:inline">{currentTime()}</span>
           </div>
+          <div className="truncate text-sm font-bold text-white">{title}</div>
+          <div className="hidden truncate text-[10px] text-slate-500 lg:block">{subtitle}</div>
         </div>
-
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <div className="hidden rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 md:block">
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">
-              Session
-            </div>
-            <div className="text-sm font-medium text-slate-200">
-              {admin ? "Administrator" : "User"}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-          >
-            Logout
-          </button>
+        <div className="hidden items-center gap-2 sm:flex">
+          <button type="button" onClick={() => navigate("/admin/dashboard")} className="admin-button px-2.5" title="Dashboard"><Home size={14} /><span className="hidden lg:inline">Home</span></button>
+          <button type="button" onClick={() => navigate("/admin/audit-logs")} className="admin-button px-2.5" title="Audit & Compliance"><Bell size={14} /><span className="hidden lg:inline">Audit</span></button>
         </div>
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-500/5 px-2.5 py-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span className="hidden text-[9px] font-bold uppercase tracking-wide text-emerald-300 sm:inline">Live</span>
+        </div>
+        <button type="button" onClick={logout} className="admin-button px-2.5 sm:px-3">Logout</button>
       </div>
     </header>
   );
