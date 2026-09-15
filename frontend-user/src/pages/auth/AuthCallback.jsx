@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { getAccountStatus, isFullyApprovedStatus } from '../../services/accountStatus';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://vexatrade-5ycu.onrender.com';
 
@@ -49,39 +50,18 @@ const AuthCallback = () => {
           localStorage.setItem('userData', JSON.stringify(data.user));
         }
 
-        // Resolve access from the authoritative VexaTrade API once after SSO.
-        // This prevents a stale callback payload or cached browser state from
-        // sending an already-approved account through the verification screen.
+        // Resolve account access once after SSO. The shared status helper
+        // deduplicates concurrent requests and keeps the result for the
+        // current browser session so route remounts do not create a request loop.
         setMessage('Checking your VexaTrade account access…');
         let destination = isFullyApproved(data.user) ? '/dashboard' : '/account-verification';
         try {
-          const statusResponse = await fetch(`${API_BASE_URL}/api/auth/verification-status`, {
-            method: 'GET',
-            headers: { Authorization: `Bearer ${data.token}` },
-            credentials: 'include',
-          });
-          const statusData = await statusResponse.json();
-          if (statusResponse.ok && statusData?.success && statusData?.status) {
-            const status = statusData.status;
-            const approved = status.emailVerified === true &&
-              String(status.kycStatus || '').toLowerCase() === 'approved' &&
-              String(status.accountStatus || '').toLowerCase() === 'active';
+          const status = await getAccountStatus(data.token);
+          if (status) {
+            const approved = isFullyApprovedStatus(status);
             destination = approved ? '/dashboard' : '/account-verification';
-
-            const currentUser = data.user || {};
-            const reconciledUser = {
-              ...currentUser,
-              email_verified: status.emailVerified ? 1 : 0,
-              kyc_status: status.kycStatus || currentUser.kyc_status || 'not_submitted',
-              status: status.accountStatus || currentUser.status || 'pending',
-              platform_access: status.platformAccess || (approved ? 'active' : 'locked'),
-            };
-            localStorage.setItem('user', JSON.stringify(reconciledUser));
-            localStorage.setItem('userData', JSON.stringify(reconciledUser));
           }
         } catch (statusError) {
-          // Keep the callback result as a safe fallback. A transient status
-          // check failure must not destroy a valid authenticated session.
           console.warn('VexaTrade verification status check after SSO failed:', statusError);
         }
 
