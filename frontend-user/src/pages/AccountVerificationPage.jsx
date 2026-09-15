@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../hooks/useNotification";
-import { userApi } from "../services/api";
+import { getAccountStatus, isFullyApprovedStatus, clearAccountStatusCache } from "../services/accountStatus";
 
 function getStoredToken() {
   return localStorage.getItem("userToken") || localStorage.getItem("token") || localStorage.getItem("accessToken") || "";
@@ -21,27 +21,23 @@ function isUserFullyApproved(user) {
     String(user?.status || "").toLowerCase() === "active";
 }
 
-async function refreshUserDataFromServer() {
-  if (!getStoredToken()) return null;
-  try {
-    const response = await userApi.getVerificationStatus();
-    const data = response?.data;
-    if (!data?.success || !data?.status) return null;
-    const currentUser = getStoredUser();
-    const freshUser = {
-      ...currentUser,
-      email_verified: data.status.emailVerified ? 1 : 0,
-      kyc_status: data.status.kycStatus || "not_submitted",
-      status: data.status.accountStatus || "pending",
-      platform_access: data.status.platformAccess || "locked",
-    };
-    localStorage.setItem("user", JSON.stringify(freshUser));
-    localStorage.setItem("userData", JSON.stringify(freshUser));
-    return freshUser;
-  } catch (error) {
-    console.error("Failed to refresh user data:", error);
-    return null;
-  }
+async function refreshUserDataFromServer(force = false) {
+  const token = getStoredToken();
+  if (!token) return null;
+  const status = await getAccountStatus(token, { force });
+  if (!status) return null;
+
+  const currentUser = getStoredUser();
+  const freshUser = {
+    ...currentUser,
+    email_verified: status.emailVerified ? 1 : 0,
+    kyc_status: status.kycStatus || "not_submitted",
+    status: status.accountStatus || "pending",
+    platform_access: status.platformAccess || "locked",
+  };
+  localStorage.setItem("user", JSON.stringify(freshUser));
+  localStorage.setItem("userData", JSON.stringify(freshUser));
+  return freshUser;
 }
 
 export default function AccountVerificationPage() {
@@ -54,7 +50,7 @@ export default function AccountVerificationPage() {
   useEffect(() => {
     let cancelled = false;
     async function reconcile() {
-      const freshUser = await refreshUserDataFromServer();
+      const freshUser = await refreshUserDataFromServer(false);
       if (cancelled) return;
       if (freshUser) {
         setUser(freshUser);
@@ -63,8 +59,6 @@ export default function AccountVerificationPage() {
           return;
         }
       } else {
-        // Network failure must not destroy the existing session. If the cached
-        // state is already approved, it is safe to continue to the dashboard.
         const cached = getStoredUser();
         setUser(cached);
         if (isUserFullyApproved(cached)) {
@@ -90,16 +84,18 @@ export default function AccountVerificationPage() {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const freshUser = await refreshUserDataFromServer();
+      const freshUser = await refreshUserDataFromServer(true);
       if (!freshUser) {
         showError("Failed to refresh status. Please try again.");
         return;
       }
       setUser(freshUser);
-      if (isUserFullyApproved(freshUser)) {
+      if (isUserFullyApproved(freshUser) || isFullyApprovedStatus({
+        emailVerified: Number(freshUser.email_verified) === 1,
+        kycStatus: freshUser.kyc_status,
+        accountStatus: freshUser.status,
+      })) {
         showSuccess("Account verified! Redirecting to dashboard...");
-        // Navigate immediately. The previous 1500ms delay created an extra
-        // render window in which the approval guard could see stale state.
         navigate("/dashboard", { replace: true });
       } else {
         showInfo("Status refreshed");
@@ -112,6 +108,7 @@ export default function AccountVerificationPage() {
   };
 
   const handleLogout = () => {
+    clearAccountStatusCache();
     localStorage.removeItem("userToken");
     localStorage.removeItem("token");
     localStorage.removeItem("accessToken");
