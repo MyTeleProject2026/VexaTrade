@@ -23,7 +23,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v4
+      - name: Set up Android SDK command-line tools
+        uses: android-actions/setup-android@v4
+        with:
+          # setup-android@v4 defaults to the obsolete SDK package named "tools".
+          # Request only platform-tools here; the workflow installs the exact
+          # compile/build packages in the next step.
+          packages: platform-tools
       - name: Install Android SDK
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
       - name: Restore release keystores
