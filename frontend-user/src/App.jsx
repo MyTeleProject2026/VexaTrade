@@ -34,7 +34,7 @@ import SupportPage from "./pages/SupportPage";
 import AccountVerificationPage from "./pages/AccountVerificationPage";
 
 import UserLayout from "./layouts/UserLayout";
-import { userApi } from "./services/api";
+import { getAccountStatus, isFullyApprovedStatus } from "./services/accountStatus";
 
 import ChatWidget from "./components/ChatWidget";
 import DraggableChatButton from "./components/DraggableChatButton";
@@ -59,6 +59,7 @@ function getStoredUser() {
     status: user?.status || "pending",
     approved_at: user?.approved_at || null,
     account_stage: user?.account_stage || "",
+    platform_access: user?.platform_access || "",
   };
 }
 
@@ -73,35 +74,6 @@ function isUserUnderReview(user) {
   return !isUserFullyApproved(user);
 }
 
-let profileRefreshPromise = null;
-let profileRefreshToken = "";
-
-async function refreshUserDataFromServer() {
-  const token = getStoredToken();
-  if (!token) return null;
-  if (profileRefreshPromise && profileRefreshToken === token) return profileRefreshPromise;
-
-  profileRefreshToken = token;
-  profileRefreshPromise = (async () => {
-    try {
-      const response = await userApi.getProfile(token);
-      if (response?.data?.success) {
-        const freshUser = response.data.data;
-        localStorage.setItem("user", JSON.stringify(freshUser));
-        localStorage.setItem("userData", JSON.stringify(freshUser));
-        return freshUser;
-      }
-    } catch (error) {
-      console.error("Failed to refresh user data:", error);
-    } finally {
-      profileRefreshPromise = null;
-      profileRefreshToken = "";
-    }
-    return null;
-  })();
-  return profileRefreshPromise;
-}
-
 function PrivateRoute({ children }) {
   return getStoredToken() ? children : <Navigate to="/login" replace />;
 }
@@ -109,9 +81,7 @@ function PrivateRoute({ children }) {
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
-  const cachedApproved = isUserFullyApproved(user);
-  const [isResolved, setIsResolved] = useState(cachedApproved);
-  const [checking, setChecking] = useState(!cachedApproved);
+  const [checking, setChecking] = useState(false);
 
   const allowedBeforeApproval = [
     "/profile", "/profile/user-center", "/kyc", "/legal-documents", "/support", "/account-verification",
@@ -123,43 +93,62 @@ function ApprovalGuard({ children }) {
     let cancelled = false;
     if (isPreApprovalRoute) {
       setChecking(false);
-      setIsResolved(true);
       return () => { cancelled = true; };
     }
 
     const token = getStoredToken();
     if (!token) return () => { cancelled = true; };
 
-    async function reconcileAccess() {
-      // A cached approved session may render immediately, but the server still
-      // remains authoritative and can revoke access in the background.
-      const cached = getStoredUser();
-      if (isUserFullyApproved(cached)) {
-        setUser(cached);
+    // The SSO callback and account-verification page already use the centralized
+    // account-status service. This guard must never call /user/profile and must
+    // never use its own refresh loop. The shared service deduplicates requests
+    // and caches the authoritative result for the current browser session.
+    let sessionResolved = false;
+    const resolvedKey = `vexa_trade_access_resolved:${token}`;
+    try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
+
+    async function reconcileAccessOnce() {
+      if (cancelled) return;
+
+      const cachedUser = getStoredUser();
+      if (sessionResolved && isUserFullyApproved(cachedUser)) {
+        setUser(cachedUser);
         setChecking(false);
-        setIsResolved(true);
-      } else {
-        setChecking(true);
-        setIsResolved(false);
+        return;
       }
 
-      const freshUser = await refreshUserDataFromServer();
+      setChecking(true);
+      const status = await getAccountStatus(token);
       if (cancelled) return;
-      if (freshUser) setUser(freshUser);
+
+      if (status) {
+        const freshUser = {
+          ...getStoredUser(),
+          email_verified: status.emailVerified ? 1 : 0,
+          kyc_status: status.kycStatus || "not_submitted",
+          status: status.accountStatus || "pending",
+          platform_access: status.platformAccess || (isFullyApprovedStatus(status) ? "active" : "locked"),
+        };
+        localStorage.setItem("user", JSON.stringify(freshUser));
+        localStorage.setItem("userData", JSON.stringify(freshUser));
+        setUser(freshUser);
+        try { sessionStorage.setItem(resolvedKey, "1"); } catch {}
+      } else {
+        // Do not start another request when the status request fails. Keep the
+        // last known local account state and let the user explicitly retry from
+        // Account Verification if necessary.
+        setUser(cachedUser);
+      }
       setChecking(false);
-      setIsResolved(true);
     }
 
-    reconcileAccess();
+    reconcileAccessOnce();
     return () => { cancelled = true; };
   }, [pathname, isPreApprovalRoute]);
 
   if (isPreApprovalRoute) return children;
 
-  // Never make a redirect decision from stale localStorage before the first
-  // authoritative server reconciliation. This is the root fix for the
-  // approved-user verification/dashboard bounce.
-  if (!isResolved || checking) {
+  if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050812]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
