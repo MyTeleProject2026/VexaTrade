@@ -7,6 +7,71 @@ const { creditAssetBalance, debitAvailableAsset } = require('../../services/asse
 
 const normalize = (value, fallback) => String(value || fallback).trim().toUpperCase();
 
+// Ledger-authoritative user list. This compatibility route intentionally precedes
+// the legacy /admin/users handler so the admin UI never reads users.balance as the
+// source of truth for wallet funds.
+router.get('/admin/users', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT
+        u.id, u.uid, u.name, u.first_name, u.last_name, u.gender, u.date_of_birth,
+        u.country, u.email,
+        COALESCE(ua.balance, 0) AS balance,
+        COALESCE(ua.available_balance, 0) AS available_balance,
+        COALESCE(ua.reserved_balance, 0) AS reserved_balance,
+        COALESCE(ua.pending_balance, 0) AS pending_balance,
+        u.status, u.email_verified, u.kyc_status, u.approved_at,
+        u.trading_fee_tier, u.twofa_enabled, u.avatar_url,
+        CASE WHEN u.passcode IS NOT NULL AND TRIM(u.passcode) <> '' THEN 1 ELSE 0 END AS has_passcode,
+        u.created_at, u.updated_at
+      FROM users u
+      LEFT JOIN user_assets ua ON ua.user_id = u.id AND ua.coin = 'USDT'
+      ORDER BY u.id DESC
+      LIMIT 500
+    `);
+    res.json({ success: true, data: rows.map(row => ({
+      ...row,
+      balance: toNumber(row.balance),
+      available_balance: toNumber(row.available_balance),
+      reserved_balance: toNumber(row.reserved_balance),
+      pending_balance: toNumber(row.pending_balance),
+    })) });
+  } catch (error) { next(error); }
+});
+
+// Ledger-aware user detail response used by the admin user workspace.
+router.get('/admin/users/:id', authAdmin, async (req, res, next) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId <= 0) throw createError(400, 'Invalid user id');
+    const [[user]] = await pool.execute('SELECT * FROM users WHERE id=? LIMIT 1', [userId]);
+    if (!user) throw createError(404, 'User not found');
+    const [assets] = await pool.execute(`
+      SELECT coin, balance, available_balance, reserved_balance, pending_balance, avg_price
+      FROM user_assets WHERE user_id=? ORDER BY coin ASC
+    `, [userId]);
+    const usdt = assets.find(asset => String(asset.coin).toUpperCase() === 'USDT');
+    res.json({
+      success: true,
+      data: {
+        ...user,
+        balance: toNumber(usdt?.balance),
+        available_balance: toNumber(usdt?.available_balance),
+        reserved_balance: toNumber(usdt?.reserved_balance),
+        pending_balance: toNumber(usdt?.pending_balance),
+        assets: assets.map(asset => ({
+          ...asset,
+          balance: toNumber(asset.balance),
+          available_balance: toNumber(asset.available_balance),
+          reserved_balance: toNumber(asset.reserved_balance),
+          pending_balance: toNumber(asset.pending_balance),
+          avg_price: toNumber(asset.avg_price),
+        })),
+      }
+    });
+  } catch (error) { next(error); }
+});
+
 router.post('/admin/users/:id/add-funds', authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
