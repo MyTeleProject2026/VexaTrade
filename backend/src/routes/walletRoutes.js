@@ -6,6 +6,24 @@ const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
 const { getBinanceHomeMarkets } = require('../../services/tradeService');
 
+let assetColumnsCache = null;
+let assetColumnsCacheAt = 0;
+
+async function getUserAssetColumns() {
+  const now = Date.now();
+  if (assetColumnsCache && now - assetColumnsCacheAt < 60000) return assetColumnsCache;
+  try {
+    const [rows] = await pool.query('SHOW COLUMNS FROM user_assets');
+    assetColumnsCache = new Set(rows.map(row => String(row.Field || row.field || '')));
+    assetColumnsCacheAt = now;
+    return assetColumnsCache;
+  } catch (_) {
+    assetColumnsCache = new Set();
+    assetColumnsCacheAt = now;
+    return assetColumnsCache;
+  }
+}
+
 async function getPriceMap() {
   const priceMap = new Map([['USDTUSDT', 1]]);
   try {
@@ -24,29 +42,59 @@ async function getPriceMap() {
 router.get('/wallet/summary', authUser, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified
+      `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified, balance
        FROM users WHERE id = ?`,
       [req.user.id]
     );
     if (!rows.length) throw createError(404, 'User not found');
-    const [assetRows] = await pool.execute(
-      `SELECT COALESCE(SUM(available_balance),0) AS available_usdt
-       FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
-      [req.user.id]
-    );
-    const [settingRows] = await pool.execute(
-      `SELECT setting_value FROM platform_settings WHERE setting_key = 'wallet_label' LIMIT 1`
-    );
+
     const user = rows[0];
+    let availableUsdt = Number(user.balance || 0);
+    const columns = await getUserAssetColumns();
+
+    try {
+      if (columns.has('available_balance')) {
+        const [assetRows] = await pool.execute(
+          `SELECT COALESCE(SUM(available_balance),0) AS available_usdt
+           FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
+          [req.user.id]
+        );
+        availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+      } else if (columns.has('balance')) {
+        const [assetRows] = await pool.execute(
+          `SELECT COALESCE(SUM(balance),0) AS available_usdt
+           FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
+          [req.user.id]
+        );
+        availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+      }
+    } catch (assetError) {
+      console.warn('[Wallet] Asset balance lookup failed; using users.balance fallback:', assetError?.message || assetError);
+    }
+
+    let walletLabel = 'Main Wallet';
+    try {
+      const [settingRows] = await pool.execute(
+        `SELECT setting_value FROM platform_settings WHERE setting_key = 'wallet_label' LIMIT 1`
+      );
+      walletLabel = settingRows[0]?.setting_value || walletLabel;
+    } catch (settingsError) {
+      console.warn('[Wallet] wallet_label setting unavailable; using default:', settingsError?.message || settingsError);
+    }
+
     res.json({
       success: true,
       data: {
-        balance: Number(assetRows[0]?.available_usdt || 0),
-        walletLabel: settingRows[0]?.setting_value || 'Main Wallet',
+        balance: Number.isFinite(availableUsdt) ? availableUsdt : 0,
+        walletLabel,
         user: {
-          id: user.id, uid: user.uid, name: user.name,
-          first_name: user.first_name, last_name: user.last_name,
-          status: user.status, kyc_status: user.kyc_status || 'not_submitted',
+          id: user.id,
+          uid: user.uid,
+          name: user.name,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          status: user.status,
+          kyc_status: user.kyc_status || 'not_submitted',
           email_verified: Number(user.email_verified || 0)
         }
       }
@@ -56,17 +104,51 @@ router.get('/wallet/summary', authUser, async (req, res, next) => {
 
 async function buildAssets(userId) {
   const priceMap = await getPriceMap();
-  const [assetRows] = await pool.execute(
-    `SELECT coin, balance, avg_price, available_balance, reserved_balance, pending_balance
-     FROM user_assets
-     WHERE user_id = ? AND (available_balance > 0.000000000000000001
-       OR reserved_balance > 0.000000000000000001
-       OR pending_balance > 0.000000000000000001)
-     ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END, available_balance DESC`,
-    [userId]
-  );
+  const columns = await getUserAssetColumns();
+  let assetRows = [];
+
+  try {
+    if (columns.has('available_balance') && columns.has('reserved_balance') && columns.has('pending_balance')) {
+      const [rows] = await pool.execute(
+        `SELECT coin, balance, avg_price, available_balance, reserved_balance, pending_balance
+         FROM user_assets
+         WHERE user_id = ? AND (available_balance > 0.000000000000000001
+           OR reserved_balance > 0.000000000000000001
+           OR pending_balance > 0.000000000000000001)
+         ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END, available_balance DESC`,
+        [userId]
+      );
+      assetRows = rows;
+    } else if (columns.has('balance')) {
+      const [rows] = await pool.execute(
+        `SELECT coin, balance, avg_price
+         FROM user_assets
+         WHERE user_id = ? AND balance > 0.000000000000000001
+         ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END, balance DESC`,
+        [userId]
+      );
+      assetRows = rows.map(row => ({ ...row, available_balance: row.balance, reserved_balance: 0, pending_balance: 0 }));
+    }
+  } catch (assetError) {
+    console.warn('[Wallet] Portfolio asset lookup failed:', assetError?.message || assetError);
+    assetRows = [];
+  }
+
+  // Keep the page usable on deployments where the newer user_assets ledger
+  // migration has not been applied yet. The legacy users.balance remains the
+  // authoritative USDT fallback until the ledger is available.
+  if (!assetRows.length) {
+    try {
+      const [users] = await pool.execute('SELECT balance FROM users WHERE id=? LIMIT 1', [userId]);
+      const legacyBalance = Number(users[0]?.balance || 0);
+      if (legacyBalance > 0) {
+        assetRows = [{ coin: 'USDT', balance: legacyBalance, avg_price: 1, available_balance: legacyBalance, reserved_balance: 0, pending_balance: 0 }];
+      }
+    } catch (_) {}
+  }
+
   const assets = assetRows.map(asset => {
-    const coin = String(asset.coin).toUpperCase();
+    const coin = String(asset.coin || 'USDT').toUpperCase();
     const available = Number(asset.available_balance || 0);
     const reserved = Number(asset.reserved_balance || 0);
     const pending = Number(asset.pending_balance || 0);
@@ -74,7 +156,7 @@ async function buildAssets(userId) {
     const avgPrice = Number(asset.avg_price || 0);
     const currentPrice = coin === 'USDT' ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
     const invested = avgPrice * total;
-    const spotPnl = (currentPrice - avgPrice) * total;
+    const spotPnl = currentPrice > 0 ? (currentPrice - avgPrice) * total : 0;
     return {
       symbol: coin,
       amount: available,
