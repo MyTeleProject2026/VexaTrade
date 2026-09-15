@@ -24,6 +24,7 @@ const fundsRoutes = require('./src/routes/fundsRoutes');
 const loanRoutes = require('./src/routes/loanRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const adminControlCenterRoutes = require('./src/routes/adminControlCenterRoutes');
+const adminLedgerControlRoutes = require('./src/routes/adminLedgerControlRoutes');
 const assetOperationsRoutes = require('./src/routes/assetOperationsRoutes');
 const assetSettlementRoutes = require('./src/routes/assetSettlementRoutes');
 const supportedAssetRoutes = require('./src/routes/supportedAssetRoutes');
@@ -53,7 +54,13 @@ app.use('/api/auth',authRoutes);
 app.use('/api/auth/vexaaccount',vexaAccountSsoRoutes);
 app.use('/api',securityRoutes);
 app.use('/api/chat',require('./src/middleware/auth').authUser,chatRoutes);
-app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',activityRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);app.use('/api',assetSettlementRoutes);app.use('/api',adminRoutes);app.use('/api',adminControlCenterRoutes);app.use('/api',assetOperationsRoutes);app.use('/api',supportedAssetRoutes);app.use('/api',legalRoutes);app.use('/api',supportRoutes);app.use('/api',jointAccountRoutes);app.use('/api',marketRoutes);app.use('/api',convertRoutes);app.use("/api/funds/plans",overrideFundsPlans);app.use("/api/admin/network-verification-settings",adminNetworkRoutes);app.use("/api/admin/fund-rules",adminFundRoutes);app.use("/api/employee",employeeRoutes);app.use("/api/news",newsRoutes);app.use("/api/maintenance",maintenanceRoutes);app.use('/api/admin',adminNotificationRoutes);
+app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',activityRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);
+// Canonical ledger-aware settlement routes must be registered before legacy admin compatibility routes.
+app.use('/api',assetSettlementRoutes);
+// Legacy admin financial endpoints are kept for API compatibility but now execute against user_assets/asset_ledger_entries.
+app.use('/api',adminLedgerControlRoutes);
+app.use('/api',adminRoutes);
+app.use('/api',adminControlCenterRoutes);app.use('/api',assetOperationsRoutes);app.use('/api',supportedAssetRoutes);app.use('/api',legalRoutes);app.use('/api',supportRoutes);app.use('/api',jointAccountRoutes);app.use('/api',marketRoutes);app.use('/api',convertRoutes);app.use("/api/funds/plans",overrideFundsPlans);app.use("/api/admin/network-verification-settings",adminNetworkRoutes);app.use("/api/admin/fund-rules",adminFundRoutes);app.use("/api/employee",employeeRoutes);app.use("/api/news",newsRoutes);app.use("/api/maintenance",maintenanceRoutes);app.use('/api/admin',adminNotificationRoutes);
 app.get('/api/health',async(req,res)=>{try{const connection=await pool.getConnection();await connection.ping();connection.release();res.json({success:true,message:"VexaTrade backend running",database:DB_NAME});}catch(_){res.status(500).json({success:false,message:"Database connection failed"});}});app.get('/',(req,res)=>res.json({success:true,message:"VexaTrade backend running"}));app.use((req,res)=>req.path.startsWith("/api/")?res.status(404).json({success:false,message:"API route not found"}):res.status(404).send("Not found"));app.use((err,req,res,next)=>{console.error("Server error:",err);const message=process.env.NODE_ENV==='production'?"Internal server error":(err.message||"Internal server error");res.status(err.status||500).json({success:false,message});});
 let tradeSettlementRunning = false;
 const runTradeSettlement = async () => {
