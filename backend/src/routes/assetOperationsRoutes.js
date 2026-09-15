@@ -5,6 +5,22 @@ const { authAdmin } = require('../middleware/auth');
 const { createError, createTransactionLog, createUserNotification, createAuditLog } = require('../utils/helpers');
 const { creditAssetBalance, debitAvailableAsset } = require('../../services/assetLedgerService');
 
+let assetColumnsCache = null;
+let assetColumnsCacheAt = 0;
+
+async function getAssetColumns() {
+  const now = Date.now();
+  if (assetColumnsCache && now - assetColumnsCacheAt < 60000) return assetColumnsCache;
+  try {
+    const [rows] = await pool.query('SHOW COLUMNS FROM user_assets');
+    assetColumnsCache = new Set(rows.map((row) => String(row.Field || row.field || '')));
+  } catch (_) {
+    assetColumnsCache = new Set();
+  }
+  assetColumnsCacheAt = now;
+  return assetColumnsCache;
+}
+
 router.post('/operations/users/:id/assets/credit', authAdmin, async (req,res,next)=>{
   const connection=await pool.getConnection();
   try{
@@ -23,7 +39,7 @@ router.post('/operations/users/:id/assets/credit', authAdmin, async (req,res,nex
     await createUserNotification(connection,{userId,title:'Asset balance updated',message:`${amount} ${coin} was credited to your available balance.`,type:'general'});
     await connection.commit();
     res.json({success:true,message:'Asset credited',data:{userId,coin,network,amount}});
-  }catch(e){await connection.rollback();next(e)}finally{connection.release()}
+  }catch(e){try{await connection.rollback()}catch(_){} next(e)}finally{connection.release()}
 });
 
 router.post('/operations/users/:id/assets/debit', authAdmin, async (req,res,next)=>{
@@ -44,13 +60,34 @@ router.post('/operations/users/:id/assets/debit', authAdmin, async (req,res,next
     await createUserNotification(connection,{userId,title:'Asset balance updated',message:`${amount} ${coin} was removed from your available balance.`,type:'security'});
     await connection.commit();
     res.json({success:true,message:'Asset debited',data:{userId,coin,network,amount}});
-  }catch(e){await connection.rollback();next(e)}finally{connection.release()}
+  }catch(e){try{await connection.rollback()}catch(_){} next(e)}finally{connection.release()}
 });
 
-router.get('/operations/users/:id/assets',authAdmin,async(req,res,next)=>{try{
-  const userId=Number(req.params.id);
-  const [rows]=await pool.execute('SELECT coin,balance,available_balance,reserved_balance,pending_balance,avg_price FROM user_assets WHERE user_id=? ORDER BY coin',[userId]);
-  res.json({success:true,data:rows});
-}catch(e){next(e)}});
+router.get('/operations/users/:id/assets',authAdmin,async(req,res,next)=>{
+  try{
+    const userId=Number(req.params.id);
+    if(!Number.isInteger(userId)||userId<=0) throw createError(400,'Invalid user id');
+    const columns=await getAssetColumns();
+    if(!columns.has('coin')) throw createError(503,'Asset ledger is not available on this deployment');
+
+    const selectable=['coin'];
+    for(const column of ['balance','available_balance','reserved_balance','pending_balance','avg_price','updated_at']){
+      if(columns.has(column)) selectable.push(column);
+    }
+    const [rows]=await pool.execute(
+      `SELECT ${selectable.join(', ')} FROM user_assets WHERE user_id=? ORDER BY coin`,
+      [userId]
+    );
+    const data=rows.map((row)=>({
+      ...row,
+      balance:Number(row.balance||0),
+      available_balance:Number(row.available_balance ?? row.balance ?? 0),
+      reserved_balance:Number(row.reserved_balance||0),
+      pending_balance:Number(row.pending_balance||0),
+      avg_price:Number(row.avg_price||0),
+    }));
+    res.json({success:true,data});
+  }catch(e){next(e)}
+});
 
 module.exports=router;
