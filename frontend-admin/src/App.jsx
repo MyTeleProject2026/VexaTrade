@@ -4,7 +4,6 @@ import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminControlCenterPage from "./pages/admin/AdminControlCenterPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
-import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
 import AdminUserDetailsControlPage from "./pages/admin/AdminUserDetailsControlPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
@@ -12,22 +11,24 @@ import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
 import AdminDepositVerificationSettings from "./pages/admin/AdminDepositVerificationSettings";
 import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
 import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
+import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
+import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 import AdminTradesPage from "./pages/admin/AdminTradesPage";
 import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
 import AdminSupportPage from "./pages/admin/AdminSupportPage";
 import AdminPlatformSettingsPage from "./pages/admin/AdminPlatformSettingsPage";
-import MaintenanceSettings from './pages/admin/MaintenanceSettings';
+import MaintenanceSettings from "./pages/admin/MaintenanceSettings";
 import AdminLoanPage from "./pages/admin/AdminLoanPage";
 import AdminLoanSettingsPage from "./pages/admin/AdminLoanSettingsPage";
 import AdminLegalDocumentsPage from "./pages/admin/AdminLegalDocumentsPage";
 import AdminNewsPage from "./pages/admin/AdminNewsPage";
 import AdminTradingFundsControlPage from "./pages/admin/AdminTradingFundsControlPage";
+import AdminFundsPage from "./pages/admin/AdminFundsPage";
+import AdminFundsRulesPage from "./pages/admin/AdminFundsRulesPage";
 import AdminJointAccountRequests from "./pages/admin/AdminJointAccountRequests";
 import AdminJointAccountsPage from "./pages/admin/AdminJointAccountsPage";
 import AdminLayout from "./layouts/AdminLayout";
-import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
-import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token");
@@ -35,39 +36,39 @@ function PrivateRoute({ children }) {
 }
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/admin/login" replace />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<AdminDashboardPage />} />
-        <Route path="control-center" element={<AdminControlCenterPage />} />
-        <Route path="users" element={<AdminUsersPage />} />
-        <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
-        <Route path="kyc" element={<AdminKycPage />} />
-        <Route path="deposits" element={<AdminDepositsPage />} />
-        <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
-        <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
-        <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
-        <Route path="withdrawal-fees" element={<AdminWithdrawalFeesPage />} />
-        <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
-        <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
-        <Route path="trades" element={<AdminTradesPage />} />
-        <Route path="trade-rules" element={<AdminTradeRulesPage />} />
-        <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
-        <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
-        <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
-        <Route path="audit-logs" element={<AdminAuditLogsPage />} />
-        <Route path="support" element={<AdminSupportPage />} />
-        <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
-        <Route path="maintenance" element={<MaintenanceSettings />} />
-        <Route path="loans" element={<AdminLoanPage />} />
-        <Route path="loan-settings" element={<AdminLoanSettingsPage />} />
-        <Route path="legal-docs" element={<AdminLegalDocumentsPage />} />
-        <Route path="news" element={<AdminNewsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/admin/login" replace />} />
-    </Routes>
-  );
+  return <Routes>
+    <Route path="/" element={<Navigate to="/admin/login" replace />} />
+    <Route path="/admin/login" element={<AdminLoginPage />} />
+    <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
+      <Route index element={<Navigate to="control-center" replace />} />
+      <Route path="dashboard" element={<AdminDashboardPage />} />
+      <Route path="control-center" element={<AdminControlCenterPage />} />
+      <Route path="users" element={<AdminUsersPage />} />
+      <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
+      <Route path="kyc" element={<AdminKycPage />} />
+      <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
+      <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
+      <Route path="deposits" element={<AdminDepositsPage />} />
+      <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
+      <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
+      <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
+      <Route path="withdrawal-fees" element={<AdminWithdrawalFeesPage />} />
+      <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
+      <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
+      <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
+      <Route path="funds" element={<AdminFundsPage />} />
+      <Route path="fund-rules" element={<AdminFundsRulesPage />} />
+      <Route path="trades" element={<AdminTradesPage />} />
+      <Route path="trade-rules" element={<AdminTradeRulesPage />} />
+      <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+      <Route path="support" element={<AdminSupportPage />} />
+      <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
+      <Route path="maintenance" element={<MaintenanceSettings />} />
+      <Route path="loans" element={<AdminLoanPage />} />
+      <Route path="loan-settings" element={<AdminLoanSettingsPage />} />
+      <Route path="legal-docs" element={<AdminLegalDocumentsPage />} />
+      <Route path="news" element={<AdminNewsPage />} />
+    </Route>
+    <Route path="*" element={<Navigate to="/admin/login" replace />} />
+  </Routes>;
 }
