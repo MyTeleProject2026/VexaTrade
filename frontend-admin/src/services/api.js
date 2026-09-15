@@ -4,11 +4,7 @@ import axios from "axios";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 const ADMIN_REQUEST_TIMEOUT_MS = 20000;
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: ADMIN_REQUEST_TIMEOUT_MS,
-  headers: { "Content-Type": "application/json" },
-});
+const api = axios.create({ baseURL: API_BASE_URL, timeout: ADMIN_REQUEST_TIMEOUT_MS, headers: { "Content-Type": "application/json" } });
 
 export function getApiErrorMessage(error) {
   if (error?.code === "ECONNABORTED" || error?.code === "ERR_CANCELED") return "Request timed out. Please retry.";
@@ -24,21 +20,14 @@ api.interceptors.request.use((config) => {
   config.headers["X-Client-Request"] = `vexatrade-admin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return config;
 });
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const status = error?.response?.status;
-    const url = error?.config?.url || "";
-    if (status === 401 && !url.includes("/api/admin/login")) {
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("adminData");
-      localStorage.removeItem("adminUser");
-    }
-    return Promise.reject(error);
+api.interceptors.response.use((response) => response, (error) => {
+  const status = error?.response?.status;
+  const url = error?.config?.url || "";
+  if (status === 401 && !url.includes("/api/admin/login")) {
+    ["adminToken", "admin_token", "adminData", "adminUser"].forEach((key) => localStorage.removeItem(key));
   }
-);
+  return Promise.reject(error);
+});
 
 export const adminApi = {
   login: (payload) => api.post("/api/admin/login", payload),
@@ -70,8 +59,8 @@ export const adminApi = {
   approveKyc: (id, payload, token) => api.post(`/api/admin/kyc/${id}/approve`, payload || {}, authHeaders(token)),
   rejectKyc: (id, payload, token) => api.post(`/api/admin/kyc/${id}/reject`, payload || {}, authHeaders(token)),
   getDeposits: (token) => api.get("/api/admin/deposits", authHeaders(token)),
-  approveDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/approve`, payload || {}, authHeaders(token)),
-  rejectDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/reject`, payload || {}, authHeaders(token)),
+  approveDeposit: (id, payload, token) => api.post(`/api/operations/deposits/${id}/approve`, payload || {}, authHeaders(token)),
+  rejectDeposit: (id, payload, token) => api.post(`/api/operations/deposits/${id}/reject`, payload || {}, authHeaders(token)),
   getDepositNetworks: (token) => api.get("/api/admin/deposit-networks", authHeaders(token)),
   createDepositNetwork: (payload, token) => api.post("/api/admin/deposit-networks", payload, authHeaders(token)),
   updateDepositNetwork: (id, payload, token) => api.put(`/api/admin/deposit-networks/${id}`, payload, authHeaders(token)),
@@ -83,8 +72,8 @@ export const adminApi = {
   syncNetworkVerificationSettings: (token) => api.post("/api/admin/network-verification-settings/sync", {}, authHeaders(token)),
   getWithdrawals: (token) => api.get("/api/admin/withdrawals", authHeaders(token)),
   approveWithdrawal: (id, payload, token) => api.post(`/api/admin/withdrawals/${id}/approve`, payload || {}, authHeaders(token)),
-  rejectWithdrawal: (id, payload, token) => api.post(`/api/admin/withdrawals/${id}/reject`, payload || {}, authHeaders(token)),
-  completeWithdrawal: (id, payload, token) => api.post(`/api/admin/withdrawals/${id}/complete`, payload || {}, authHeaders(token)),
+  rejectWithdrawal: (id, payload, token) => api.post(`/api/operations/withdrawals/${id}/reject`, payload || {}, authHeaders(token)),
+  completeWithdrawal: (id, payload, token) => api.post(`/api/operations/withdrawals/${id}/settle`, payload || {}, authHeaders(token)),
   getWithdrawalFees: (token) => api.get("/api/admin/withdrawal-fees", authHeaders(token)),
   saveWithdrawalFee: (payload, token) => api.post("/api/admin/withdrawal-fees", payload, authHeaders(token)),
   createWithdrawalFee: (payload, token) => api.post("/api/admin/withdrawal-fees", payload, authHeaders(token)),
