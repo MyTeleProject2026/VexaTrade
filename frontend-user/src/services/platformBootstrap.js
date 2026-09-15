@@ -1,8 +1,8 @@
 import { userApi, marketApi, getApiErrorMessage } from "./api";
 
-const CACHE_KEY = "vexa_trade_platform_bootstrap_v1";
+const CACHE_KEY = "vexa_trade_platform_bootstrap_v2";
 const CACHE_TTL_MS = 60 * 1000;
-const TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 4500;
 let activeRun = null;
 let cachedResult = null;
 
@@ -22,17 +22,21 @@ function writeSessionCache(data) {
   try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data })); } catch (_) {}
 }
 
-function withTimeout(promise, timeout = TIMEOUT_MS) {
-  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), timeout))]);
-}
-
 async function runStep(key, request) {
   const startedAt = Date.now();
+  let timer;
   try {
-    const response = await withTimeout(request());
+    const response = await Promise.race([
+      request(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error("Request timed out"), { code: "ETIMEDOUT" })), REQUEST_TIMEOUT_MS);
+      }),
+    ]);
     return { key, status: "success", httpStatus: response?.status || 200, durationMs: Date.now() - startedAt, data: response?.data, error: null };
   } catch (error) {
     return { key, status: "error", httpStatus: error?.response?.status || null, durationMs: Date.now() - startedAt, data: null, error: getApiErrorMessage(error) };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -46,23 +50,32 @@ export async function bootstrapVexaTradePlatform(token, { force = false, onStep 
   }
   if (activeRun && !force) return activeRun;
 
+  // ApprovalGuard already reconciles account access immediately before this gate.
+  // Do not request the same profile again or make the user wait on a waterfall.
   activeRun = (async () => {
+    const stepRequests = [
+      ["wallet", () => userApi.getWalletSummary(authToken)],
+      ["assets", () => userApi.getUserAssets(authToken)],
+      ["market", () => marketApi.home()],
+    ];
+
     const steps = [];
     const publish = (step) => { steps.push(step); onStep?.(step, [...steps]); return step; };
 
-    // Authenticate/account state first. Once this succeeds/fails, the remaining
-    // independent home data is resolved together, avoiding a long request waterfall.
-    publish(await runStep("account", () => userApi.getProfile(authToken)));
-    const [wallet, assets, market] = await Promise.all([
-      runStep("wallet", () => userApi.getWalletSummary(authToken)),
-      runStep("assets", () => userApi.getUserAssets(authToken)),
-      runStep("market", () => marketApi.home()),
-    ]);
-    publish(wallet); publish(assets); publish(market);
+    // All independent platform bootstrap requests start together.
+    const results = await Promise.all(stepRequests.map(([key, request]) => runStep(key, request)));
+    results.forEach(publish);
 
     const successful = steps.filter((step) => step.status === "success").length;
     const failed = steps.length - successful;
-    const result = { status: failed === 0 ? "success" : successful > 0 ? "partial" : "error", completed: true, timestamp: Date.now(), steps, successful, failed };
+    const result = {
+      status: failed === 0 ? "success" : successful > 0 ? "partial" : "error",
+      completed: true,
+      timestamp: Date.now(),
+      steps,
+      successful,
+      failed,
+    };
     cachedResult = { timestamp: Date.now(), data: result };
     writeSessionCache(result);
     return result;
@@ -73,7 +86,10 @@ export async function bootstrapVexaTradePlatform(token, { force = false, onStep 
 
 export function clearPlatformBootstrapCache() {
   cachedResult = null;
-  try { sessionStorage.removeItem(CACHE_KEY); } catch (_) {}
+  try {
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("vexa_trade_platform_bootstrap_v1");
+  } catch (_) {}
 }
 
 export function getPlatformBootstrapCache() { return readSessionCache(); }
