@@ -15,7 +15,10 @@ async function securityEvent(userId, eventType, success, req) {
       'INSERT INTO security_events(user_id,event_type,success,ip_address,user_agent) VALUES(?,?,?,?,?)',
       [userId, eventType, success ? 1 : 0, String(req.ip || '').slice(0, 64), String(req.get('user-agent') || '').slice(0, 500)]
     );
-  } catch (_) {}
+  } catch (e) {
+    // Audit logging must never prevent a valid security operation from completing.
+    console.warn('[Security] security event write skipped:', e?.message || e);
+  }
 }
 
 // The lockout migration is deployed separately from application code. Detect its
@@ -32,7 +35,9 @@ async function getPasscodeColumns() {
           const name = String(row.Field || row.field || '');
           if (name) columns.add(name);
         }
-      } catch (_) {}
+      } catch (e) {
+        console.warn('[Security] Could not inspect passcode columns:', e?.message || e);
+      }
       return {
         failedAttempts: columns.has('passcode_failed_attempts'),
         lockedUntil: columns.has('passcode_locked_until'),
@@ -67,28 +72,84 @@ router.post('/user/verify-passcode', authUser, async (req, res, next) => {
     if (!validatePasscode(passcode)) return res.status(400).json({ success: false, message: 'Valid passcode required' });
 
     const columns = await getPasscodeColumns();
-    const selected = ['passcode'];
-    if (columns.failedAttempts) selected.push('passcode_failed_attempts');
-    if (columns.lockedUntil) selected.push('passcode_locked_until');
+    const optionalSelected = [];
+    if (columns.failedAttempts) optionalSelected.push('passcode_failed_attempts');
+    if (columns.lockedUntil) optionalSelected.push('passcode_locked_until');
 
-    const [rows] = await pool.execute(
-      `SELECT ${selected.join(',')} FROM users WHERE id=? LIMIT 1`,
-      [req.user.id]
-    );
-    if (!rows.length || !rows[0].passcode) return res.status(400).json({ success: false, message: 'Transaction passcode is not configured' });
+    // Always have a passcode-only fallback. This prevents an optional lockout
+    // migration/schema mismatch from turning an otherwise valid unlock into 500.
+    let rows;
+    try {
+      const selected = ['passcode', ...optionalSelected];
+      [rows] = await pool.execute(
+        `SELECT ${selected.join(',')} FROM users WHERE id=? LIMIT 1`,
+        [req.user.id]
+      );
+    } catch (queryError) {
+      console.warn('[Security] Optional passcode columns unavailable; using passcode-only lookup:', queryError?.message || queryError);
+      [rows] = await pool.execute(
+        'SELECT passcode FROM users WHERE id=? LIMIT 1',
+        [req.user.id]
+      );
+    }
+
+    if (!rows.length || !rows[0].passcode) {
+      return res.status(400).json({ success: false, message: 'Transaction passcode is not configured' });
+    }
 
     const lockedUntil = columns.lockedUntil ? rows[0].passcode_locked_until : null;
     if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) {
       return res.status(429).json({ success: false, message: 'Transaction passcode is temporarily locked' });
     }
 
-    const stored = String(rows[0].passcode);
-    const valid = stored.startsWith('$2') ? await bcrypt.compare(passcode, stored) : stored === passcode;
+    const stored = String(rows[0].passcode).trim();
+    let valid = false;
+    try {
+      // New passcodes are bcrypt hashes. Keep support for legacy plaintext values
+      // so existing accounts can unlock once and are then transparently upgraded.
+      if (/^\$2[aby]?\$\d{2}\$/.test(stored)) {
+        valid = await bcrypt.compare(passcode, stored);
+      } else {
+        valid = stored === passcode;
+      }
+    } catch (compareError) {
+      console.error('[Security] Passcode comparison failed:', compareError?.message || compareError);
+      return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
+    }
 
-    if (valid) {
+    if (!valid) {
+      if (!columns.failedAttempts || !columns.lockedUntil) {
+        await securityEvent(req.user.id, 'passcode_failed', false, req);
+        return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
+      }
+
+      try {
+        const attempts = Number(rows[0].passcode_failed_attempts || 0) + 1;
+        const locked = attempts >= 5;
+        await pool.execute(
+          'UPDATE users SET passcode_failed_attempts=?,passcode_locked_until=?,updated_at=NOW() WHERE id=?',
+          [locked ? 0 : attempts, locked ? new Date(Date.now() + 15 * 60 * 1000) : null, req.user.id]
+        );
+        await securityEvent(req.user.id, 'passcode_failed', false, req);
+        return res.status(locked ? 429 : 401).json({
+          success: false,
+          message: locked ? 'Too many failed attempts. Passcode locked for 15 minutes' : 'Invalid transaction passcode',
+          attemptsRemaining: Math.max(0, 5 - attempts),
+        });
+      } catch (lockoutError) {
+        // Lockout bookkeeping is secondary to returning the correct credential result.
+        console.error('[Security] Failed to persist passcode lockout state:', lockoutError?.message || lockoutError);
+        await securityEvent(req.user.id, 'passcode_failed', false, req);
+        return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
+      }
+    }
+
+    // A valid passcode must unlock even when a non-essential migration column or
+    // audit table is unavailable. Persistence below is best-effort by design.
+    try {
       const updates = [];
       const params = [];
-      if (!stored.startsWith('$2')) {
+      if (!/^\$2[aby]?\$\d{2}\$/.test(stored)) {
         updates.push('passcode=?');
         params.push(await bcrypt.hash(passcode, 12));
       }
@@ -98,32 +159,29 @@ router.post('/user/verify-passcode', authUser, async (req, res, next) => {
       if (updates.length) {
         updates.push('updated_at=NOW()');
         params.push(req.user.id);
-        await pool.execute(`UPDATE users SET ${updates.join(',')} WHERE id=?`, params);
+        try {
+          await pool.execute(`UPDATE users SET ${updates.join(',')} WHERE id=?`, params);
+        } catch (persistError) {
+          console.warn('[Security] Passcode verification metadata update skipped:', persistError?.message || persistError);
+          // Retry with only the columns known to be fundamental to the account.
+          if (!/^\$2[aby]?\$\d{2}\$/.test(stored)) {
+            try {
+              await pool.execute('UPDATE users SET passcode=?,updated_at=NOW() WHERE id=?', [await bcrypt.hash(passcode, 12), req.user.id]);
+            } catch (fallbackError) {
+              console.warn('[Security] Legacy passcode upgrade skipped:', fallbackError?.message || fallbackError);
+            }
+          }
+        }
       }
-      await securityEvent(req.user.id, 'passcode_verified', true, req);
-      return res.json({ success: true, verified: true, message: 'Transaction passcode verified' });
+    } catch (persistError) {
+      console.warn('[Security] Passcode post-verification bookkeeping skipped:', persistError?.message || persistError);
     }
 
-    if (!columns.failedAttempts || !columns.lockedUntil) {
-      await securityEvent(req.user.id, 'passcode_failed', false, req);
-      return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
-    }
-
-    const attempts = Number(rows[0].passcode_failed_attempts || 0) + 1;
-    const locked = attempts >= 5;
-    await pool.execute(
-      'UPDATE users SET passcode_failed_attempts=?,passcode_locked_until=?,updated_at=NOW() WHERE id=?',
-      [locked ? 0 : attempts, locked ? new Date(Date.now() + 15 * 60 * 1000) : null, req.user.id]
-    );
-    await securityEvent(req.user.id, 'passcode_failed', false, req);
-    return res.status(locked ? 429 : 401).json({
-      success: false,
-      message: locked ? 'Too many failed attempts. Passcode locked for 15 minutes' : 'Invalid transaction passcode',
-      attemptsRemaining: Math.max(0, 5 - attempts),
-    });
+    await securityEvent(req.user.id, 'passcode_verified', true, req);
+    return res.json({ success: true, verified: true, message: 'Transaction passcode verified' });
   } catch (e) {
     console.error('[Security] verify-passcode failed:', e?.message || e);
-    next(e);
+    return next(e);
   }
 });
 
