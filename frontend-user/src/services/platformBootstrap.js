@@ -3,7 +3,6 @@ import { userApi, marketApi, getApiErrorMessage } from "./api";
 const CACHE_KEY = "vexa_trade_platform_bootstrap_v1";
 const CACHE_TTL_MS = 60 * 1000;
 const TIMEOUT_MS = 8000;
-
 let activeRun = null;
 let cachedResult = null;
 
@@ -24,10 +23,7 @@ function writeSessionCache(data) {
 }
 
 function withTimeout(promise, timeout = TIMEOUT_MS) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), timeout)),
-  ]);
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), timeout))]);
 }
 
 async function runStep(key, request) {
@@ -43,30 +39,26 @@ async function runStep(key, request) {
 export async function bootstrapVexaTradePlatform(token, { force = false, onStep } = {}) {
   const authToken = getToken(token);
   if (!authToken) return { status: "error", completed: true, steps: [], error: "Authentication token missing" };
-
   if (!force) {
     const sessionCached = readSessionCache();
     if (sessionCached) return sessionCached;
     if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_TTL_MS) return cachedResult.data;
   }
-
   if (activeRun && !force) return activeRun;
 
   activeRun = (async () => {
     const steps = [];
-    const execute = async (key, request) => {
-      const step = await runStep(key, request);
-      steps.push(step);
-      onStep?.(step, [...steps]);
-      return step;
-    };
+    const publish = (step) => { steps.push(step); onStep?.(step, [...steps]); return step; };
 
-    // Essential state only. Page-specific endpoints stay page-owned, so the
-    // initial platform entry does not create a giant request waterfall.
-    await execute("account", () => userApi.getProfile(authToken));
-    await execute("wallet", () => userApi.getWalletSummary(authToken));
-    await execute("assets", () => userApi.getUserAssets(authToken));
-    await execute("market", () => marketApi.home());
+    // Authenticate/account state first. Once this succeeds/fails, the remaining
+    // independent home data is resolved together, avoiding a long request waterfall.
+    publish(await runStep("account", () => userApi.getProfile(authToken)));
+    const [wallet, assets, market] = await Promise.all([
+      runStep("wallet", () => userApi.getWalletSummary(authToken)),
+      runStep("assets", () => userApi.getUserAssets(authToken)),
+      runStep("market", () => marketApi.home()),
+    ]);
+    publish(wallet); publish(assets); publish(market);
 
     const successful = steps.filter((step) => step.status === "success").length;
     const failed = steps.length - successful;
@@ -84,6 +76,4 @@ export function clearPlatformBootstrapCache() {
   try { sessionStorage.removeItem(CACHE_KEY); } catch (_) {}
 }
 
-export function getPlatformBootstrapCache() {
-  return readSessionCache();
-}
+export function getPlatformBootstrapCache() { return readSessionCache(); }
