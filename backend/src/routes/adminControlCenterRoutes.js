@@ -14,7 +14,7 @@ const CHECKS = [
   ['depositVerification', 'network_verification_settings'],
   ['withdrawals', 'withdrawals'],
   ['withdrawalFees', 'withdrawal_fees'],
-  ['withdrawalSettings', 'withdrawal_settings'],
+  ['withdrawalSettings', 'platform_withdrawal_settings'],
   ['trades', 'trades'],
   ['funds', 'funds'],
   ['fundRules', 'fund_rules'],
