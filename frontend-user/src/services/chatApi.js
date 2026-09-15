@@ -2,220 +2,190 @@
 import io from "socket.io-client";
 
 let socket = null;
-let isConnected = false;
+let connectionState = "disconnected";
+let connectionGeneration = 0;
+const listeners = new Map();
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 
-// Local storage helpers for fallback
+const emitState = (state, extra = {}) => {
+  connectionState = state;
+  const callbacks = listeners.get("connection_state") || [];
+  callbacks.forEach((callback) => {
+    try { callback({ state, connected: state === "connected" || state === "authenticated", ...extra }); } catch (_) {}
+  });
+};
+
 const getLocalConversations = (userId) => {
-  const stored = localStorage.getItem(`chat_user_${userId}_conversations`);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(`chat_user_${userId}_conversations`);
+    return stored ? JSON.parse(stored) : [];
+  } catch (_) { return []; }
 };
 
 const saveLocalConversation = (userId, conversationId, message) => {
   const convKey = `chat_user_${userId}_conversations`;
   const existing = getLocalConversations(userId);
   const existingConv = existing.find(c => c.id === conversationId);
-  
   if (existingConv) {
     existingConv.last_message = message;
     existingConv.last_message_time = new Date().toISOString();
     existingConv.unread_user = (existingConv.unread_user || 0) + 1;
   } else {
-    existing.push({
-      id: conversationId,
-      last_message: message,
-      last_message_time: new Date().toISOString(),
-      unread_user: 1
-    });
+    existing.push({ id: conversationId, last_message: message, last_message_time: new Date().toISOString(), unread_user: 1 });
   }
-  
-  localStorage.setItem(convKey, JSON.stringify(existing));
+  try { localStorage.setItem(convKey, JSON.stringify(existing)); } catch (_) {}
 };
 
 export const chatApi = {
   connect: (userId, name, token) => {
-    if (socket && isConnected) return socket;
-    
+    if (socket && (connectionState === "connected" || connectionState === "authenticated" || connectionState === "connecting")) return socket;
+
+    const generation = ++connectionGeneration;
+    emitState("connecting");
+
     try {
-      console.log(`🔌 User chat connecting to: ${API_BASE_URL}`);
-      
-      socket = io(API_BASE_URL, { 
-        transports: ["websocket", "polling"], 
+      socket = io(API_BASE_URL, {
+        // Prefer a direct WebSocket so Render does not spend time negotiating
+        // an unnecessary long-polling session. Socket.IO may fall back to polling
+        // only when the WebSocket transport is unavailable.
+        transports: ["websocket", "polling"],
         withCredentials: true,
-        timeout: 10000,
+        timeout: 5000,
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionAttempts: 3,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 2000,
+        randomizationFactor: 0.2,
+        autoConnect: true,
       });
-      
-      socket.on("connect", () => { 
-        isConnected = true; 
-        console.log("✅ User chat socket connected");
-        socket.emit("authenticate", { userId, role: "user", name, token }); 
-      });
-      
-      socket.on("disconnect", () => { 
-        isConnected = false;
-        console.log("❌ User chat socket disconnected");
-      });
-      
-      socket.on("connect_error", (err) => {
-        console.error("❌ Socket connection error:", err.message);
-        isConnected = false;
+
+      socket.on("connect", () => {
+        if (generation !== connectionGeneration) return;
+        emitState("connected", { socketId: socket.id });
+        socket.emit("authenticate", { userId, role: "user", name, token });
       });
 
       socket.on("authenticated", (data) => {
-        console.log("✅ User chat authenticated:", data);
+        if (generation !== connectionGeneration) return;
+        emitState("authenticated", data || {});
+      });
+
+      socket.on("disconnect", (reason) => {
+        if (generation !== connectionGeneration) return;
+        emitState("disconnected", { reason });
+      });
+
+      socket.on("connect_error", (err) => {
+        if (generation !== connectionGeneration) return;
+        emitState("error", { message: err?.message || "Socket connection failed" });
+        // HTTP/API functionality must never wait for chat connectivity.
+        console.warn("[chatApi] Socket connection error:", err?.message || err);
       });
 
       socket.on("auth_error", (data) => {
-        console.error("❌ User chat auth error:", data);
+        if (generation !== connectionGeneration) return;
+        emitState("auth_error", data || {});
       });
-      
+
       socket.on("error", (data) => {
-        console.error("❌ Socket error:", data);
+        if (generation !== connectionGeneration) return;
+        console.warn("[chatApi] Socket error:", data);
       });
-      
     } catch (err) {
-      console.error("Failed to connect socket:", err);
-      isConnected = false;
+      emitState("error", { message: err?.message || "Failed to connect socket" });
+      socket = null;
     }
-    
     return socket;
   },
-  
-  disconnect: () => { 
-    if (socket) { 
-      socket.disconnect(); 
-      socket = null; 
-      isConnected = false; 
-    } 
-  },
-  
-  getSocket: () => socket,
-  isConnected: () => isConnected,
-  
-  // ✅ FIXED: Send message with userId for new conversations + DEBUG LOGS
-  sendMessage: (conversationId, message, userId = null) => { 
-    console.log(`📤 [chatApi] sendMessage called: convId=${conversationId}, userId=${userId}, msg=${message}`);
-    console.log(`📤 [chatApi] socket exists? ${!!socket}, isConnected? ${isConnected}`);
-    
-    if (socket && isConnected) {
-      console.log(`📤 [chatApi] ✅ Emitting send_message to socket`);
-      socket.emit("send_message", { 
-        conversationId, 
-        message,
-        userId: userId // ✅ Include userId for new conversations
-      });
-    } else {
-      console.warn(`⚠️ [chatApi] ❌ Socket not connected! Message stored locally only.`);
-    }
-    
-    // Store in localStorage as fallback
-    const convKey = `chat_messages_${conversationId || 'temp'}`;
-    const existing = localStorage.getItem(convKey);
-    const messages = existing ? JSON.parse(existing) : [];
-    messages.push({
-      id: Date.now(),
-      message: message,
-      senderType: "user",
-      createdAt: new Date().toISOString(),
-      read: true
-    });
-    localStorage.setItem(convKey, JSON.stringify(messages));
-  },
-  
-  deleteMessage: (conversationId, messageId) => { 
-    if (socket && isConnected) {
-      socket.emit("delete_message", { conversationId, messageId });
-    }
-    const convKey = `chat_messages_${conversationId}`;
-    const stored = localStorage.getItem(convKey);
-    if (stored) {
-      const messages = JSON.parse(stored);
-      const updated = messages.filter(msg => msg.id !== messageId);
-      localStorage.setItem(convKey, JSON.stringify(updated));
-    }
-  },
-  
-  getMessages: (conversationId) => { 
-    if (socket && isConnected) {
-      socket.emit("get_messages", { conversationId });
-    } else {
-      const convKey = `chat_messages_${conversationId}`;
-      const stored = localStorage.getItem(convKey);
-      const messages = stored ? JSON.parse(stored) : [];
-      if (chatApi._messagesCallback) {
-        chatApi._messagesCallback({ messages, conversationId });
-      }
-    }
-  },
-  
-  markRead: (conversationId) => { 
-    if (socket && isConnected) {
-      socket.emit("mark_read", { conversationId });
-    }
-    const convKey = `chat_messages_${conversationId}`;
-    const stored = localStorage.getItem(convKey);
-    if (stored) {
-      const messages = JSON.parse(stored);
-      const updated = messages.map(msg => 
-        msg.senderType === "admin" ? { ...msg, read: true } : msg
-      );
-      localStorage.setItem(convKey, JSON.stringify(updated));
-    }
-  },
-  
-  getConversations: () => { 
-    if (socket && isConnected) {
-      socket.emit("get_conversations"); 
-    }
-  },
-  
-  onNewMessage: (callback) => { 
+
+  disconnect: () => {
+    connectionGeneration += 1;
     if (socket) {
-      socket.on("new_message", (data) => {
-        console.log("📩 User received new message:", data);
-        callback(data);
-      });
+      socket.removeAllListeners();
+      socket.disconnect();
+      socket = null;
     }
-    chatApi._newMessageCallback = callback;
-  },
-  
-  onMessagesLoaded: (callback) => { 
-    if (socket) {
-      socket.on("messages_loaded", (data) => {
-        console.log("📚 User messages loaded:", data);
-        callback(data);
-      });
-    }
-    chatApi._messagesCallback = callback;
-  },
-  
-  onUserConversations: (callback) => { 
-    if (socket) socket.on("user_conversations", callback);
+    emitState("disconnected");
   },
 
-  onConversationCreated: (callback) => { 
-    if (socket) {
-      socket.on("conversation_created", (data) => {
-        console.log("🆕 User conversation created:", data);
-        callback(data);
-      });
+  getSocket: () => socket,
+  isConnected: () => !!socket && (connectionState === "connected" || connectionState === "authenticated"),
+  getConnectionState: () => connectionState,
+
+  onConnectionState: (callback) => {
+    const current = listeners.get("connection_state") || [];
+    current.push(callback);
+    listeners.set("connection_state", current);
+    try { callback({ state: connectionState, connected: connectionState === "connected" || connectionState === "authenticated" }); } catch (_) {}
+    return () => {
+      const next = (listeners.get("connection_state") || []).filter((item) => item !== callback);
+      listeners.set("connection_state", next);
+    };
+  },
+
+  sendMessage: (conversationId, message, userId = null) => {
+    if (socket && (connectionState === "connected" || connectionState === "authenticated")) {
+      socket.emit("send_message", { conversationId, message, userId });
+    } else {
+      console.warn("[chatApi] Socket not connected; keeping local fallback message.");
+    }
+    const convKey = `chat_messages_${conversationId || 'temp'}`;
+    try {
+      const existing = localStorage.getItem(convKey);
+      const messages = existing ? JSON.parse(existing) : [];
+      messages.push({ id: Date.now(), message, senderType: "user", createdAt: new Date().toISOString(), read: true });
+      localStorage.setItem(convKey, JSON.stringify(messages));
+      if (userId && conversationId) saveLocalConversation(userId, conversationId, message);
+    } catch (_) {}
+  },
+
+  deleteMessage: (conversationId, messageId) => {
+    if (socket && (connectionState === "connected" || connectionState === "authenticated")) socket.emit("delete_message", { conversationId, messageId });
+    const convKey = `chat_messages_${conversationId}`;
+    try {
+      const stored = localStorage.getItem(convKey);
+      if (stored) localStorage.setItem(convKey, JSON.stringify(JSON.parse(stored).filter(msg => msg.id !== messageId)));
+    } catch (_) {}
+  },
+
+  getMessages: (conversationId) => {
+    if (socket && (connectionState === "connected" || connectionState === "authenticated")) {
+      socket.emit("get_messages", { conversationId });
+    } else {
+      try {
+        const stored = localStorage.getItem(`chat_messages_${conversationId}`);
+        const messages = stored ? JSON.parse(stored) : [];
+        if (chatApi._messagesCallback) chatApi._messagesCallback({ messages, conversationId });
+      } catch (_) {}
     }
   },
-  
-  onMessageDeleted: (callback) => { 
-    if (socket) {
-      socket.on("message_deleted", (data) => {
-        console.log("🗑️ User message deleted:", data);
-        callback(data);
-      });
-    }
+
+  markRead: (conversationId) => {
+    if (socket && (connectionState === "connected" || connectionState === "authenticated")) socket.emit("mark_read", { conversationId });
+    try {
+      const stored = localStorage.getItem(`chat_messages_${conversationId}`);
+      if (stored) {
+        const updated = JSON.parse(stored).map(msg => msg.senderType === "admin" ? { ...msg, read: true } : msg);
+        localStorage.setItem(`chat_messages_${conversationId}`, JSON.stringify(updated));
+      }
+    } catch (_) {}
   },
-  
-  off: (event) => { 
-    if (socket) socket.off(event); 
-  }
+
+  getConversations: () => {
+    if (socket && (connectionState === "connected" || connectionState === "authenticated")) socket.emit("get_conversations");
+  },
+
+  onNewMessage: (callback) => {
+    if (socket) socket.on("new_message", callback);
+    chatApi._newMessageCallback = callback;
+  },
+  onMessagesLoaded: (callback) => {
+    if (socket) socket.on("messages_loaded", callback);
+    chatApi._messagesCallback = callback;
+  },
+  onUserConversations: (callback) => { if (socket) socket.on("user_conversations", callback); },
+  onConversationCreated: (callback) => { if (socket) socket.on("conversation_created", callback); },
+  onMessageDeleted: (callback) => { if (socket) socket.on("message_deleted", callback); },
+  off: (event) => { if (socket) socket.off(event); },
 };
