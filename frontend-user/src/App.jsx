@@ -33,6 +33,8 @@ import UserCenterPage from "./pages/UserCenterPage";
 import KycVerificationPage from "./pages/user/KycVerificationPage";
 import SupportPage from "./pages/SupportPage";
 import AccountVerificationPage from "./pages/AccountVerificationPage";
+import PlatformCenterPage from "./pages/PlatformCenterPage";
+import NotificationCenterPage from "./pages/NotificationCenterPage";
 
 import UserLayout from "./layouts/UserLayout";
 import { getAccountStatus, isFullyApprovedStatus } from "./services/accountStatus";
@@ -218,11 +220,13 @@ function AppContent() {
       <Route path="/account-verification" element={<PrivateRoute><AccountVerificationPage /></PrivateRoute>} />
       <Route element={<PrivateRoute><ApprovalGuard><PlatformBootstrapGate><UserLayout /></PlatformBootstrapGate></ApprovalGuard></PrivateRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/platform" element={<PlatformCenterPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/trade" element={<TradePage />} />
         <Route path="/funds" element={<FundsPage />} />
         <Route path="/convert" element={<ConvertPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/notifications" element={<NotificationCenterPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/user-center" element={<UserCenterPage />} />
         <Route path="/deposit" element={<DepositPage />} />
