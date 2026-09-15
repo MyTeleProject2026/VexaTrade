@@ -21,12 +21,26 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm install --no-audit --no-fund
-      - run: node --check server.js
-      - run: node --check src/routes/vexaAccountSso.js
-      - run: node --check src/routes/securityRoutes.js
-      - run: node --check src/routes/jointAccountRoutes.js
-      - run: node --check src/routes/withdrawalRoutes.js
-      - run: node --check src/middleware/auth.js
+      - name: Validate backend entrypoints and admin routes
+        run: |
+          node --check server.js
+          node --check src/routes/adminRoutes.js
+          node --check src/routes/adminControlCenterRoutes.js
+          node --check src/routes/adminNotifications.js
+          node --check src/routes/vexaAccountSso.js
+          node --check src/routes/securityRoutes.js
+          node --check src/routes/jointAccountRoutes.js
+          node --check src/routes/withdrawalRoutes.js
+          node --check src/routes/assetOperationsRoutes.js
+          node --check src/routes/assetSettlementRoutes.js
+          node --check src/routes/supportedAssetRoutes.js
+          node --check src/routes/legalRoutes.js
+          node --check src/routes/supportRoutes.js
+          node --check src/routes/fundsRoutes.js
+          node --check src/routes/loanRoutes.js
+          node --check src/routes/tradeRoutes.js
+          node --check src/middleware/auth.js
+          node --check services/assetLedgerService.js
 
   frontend-user:
     name: Frontend user build
