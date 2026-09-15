@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 import AppTopbar from "../components/AppTopbar";
 import AdminMobileBottomNav from "../components/AdminMobileBottomNav";
+import AdminErrorBoundary from "../components/AdminErrorBoundary";
 
 const PAGE_META = {
   "/admin/control-center": ["Command & Control Center", "Global operational map and live service health."],
@@ -56,7 +57,7 @@ export default function AdminLayout() {
       <AdminSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-14 xl:pb-0">
         <AppTopbar title={title} subtitle={subtitle} onMenuClick={() => setMobileSidebarOpen(true)} admin />
-        <main className="min-w-0 flex-1"><div className="min-h-[calc(100vh-60px)] bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.06),transparent_25%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] px-2.5 py-3 sm:px-4 sm:py-4 lg:px-5 xl:px-7"><div className="mx-auto w-full max-w-[1920px]"><Outlet /></div></div></main>
+        <main className="min-w-0 flex-1"><div className="min-h-[calc(100vh-60px)] bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.06),transparent_25%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] px-2.5 py-3 sm:px-4 sm:py-4 lg:px-5 xl:px-7"><div className="mx-auto w-full max-w-[1920px]"><AdminErrorBoundary><Outlet /></AdminErrorBoundary></div></div></main>
         <AdminMobileBottomNav />
       </div>
     </div>
