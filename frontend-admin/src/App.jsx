@@ -25,47 +25,101 @@ import AdminTradingFundsControlPage from "./pages/admin/AdminTradingFundsControl
 import AdminJointAccountRequests from "./pages/admin/AdminJointAccountRequests";
 import AdminJointAccountsPage from "./pages/admin/AdminJointAccountsPage";
 import AdminLayout from "./layouts/AdminLayout";
+
+// ✅ Admin pages for withdrawal settings and profit withdrawal requests
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 
+// ─── Private Route Guard ──────────────────────────────────────────────
 function PrivateRoute({ children }) {
-  const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token");
+  const token =
+    localStorage.getItem("adminToken") ||
+    localStorage.getItem("admin_token");
+
   return token ? children : <Navigate to="/admin/login" replace />;
 }
 
+// ─── Main App ──────────────────────────────────────────────────────────
 export default function App() {
   return (
     <Routes>
+      {/* ─── Redirect root to admin login ────────────────────────── */}
       <Route path="/" element={<Navigate to="/admin/login" replace />} />
+
+      {/* ─── Public: Admin Login ──────────────────────────────────── */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
+
+      {/* ─── Protected: Admin Panel ───────────────────────────────── */}
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute>
+            <AdminLayout />
+          </PrivateRoute>
+        }
+      >
         <Route index element={<Navigate to="dashboard" replace />} />
+
+        {/* ─── Dashboard ──────────────────────────────────────────── */}
         <Route path="dashboard" element={<AdminDashboardPage />} />
+
+        {/* ─── Users ───────────────────────────────────────────────── */}
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
-        <Route path="users/:id/details" element={<AdminUserDetailsPage />} />
+
+        {/* ─── KYC ─────────────────────────────────────────────────── */}
         <Route path="kyc" element={<AdminKycPage />} />
+
+        {/* ─── Deposits ────────────────────────────────────────────── */}
         <Route path="deposits" element={<AdminDepositsPage />} />
         <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
         <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
+
+        {/* ─── Withdrawals ─────────────────────────────────────────── */}
         <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
         <Route path="withdrawal-fees" element={<AdminWithdrawalFeesPage />} />
         <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
         <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
+
+        {/* ─── Trades ───────────────────────────────────────────────── */}
         <Route path="trades" element={<AdminTradesPage />} />
         <Route path="trade-rules" element={<AdminTradeRulesPage />} />
+
+        {/* ─── Trading Funds Control ────────────────────────────────── */}
         <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
+
+        {/* ─── Joint Accounts ──────────────────────────────────────── */}
         <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
         <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
+
+        {/* ─── Audit Logs ───────────────────────────────────────────── */}
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+
+        {/* ─── Support ───────────────────────────────────────────────── */}
         <Route path="support" element={<AdminSupportPage />} />
+
+        {/* ─── Platform Settings ────────────────────────────────────── */}
         <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
+
+        {/* ─── Maintenance ──────────────────────────────────────────── */}
         <Route path="maintenance" element={<MaintenanceSettings />} />
+
+        {/* ─── Loans ────────────────────────────────────────────────── */}
         <Route path="loans" element={<AdminLoanPage />} />
         <Route path="loan-settings" element={<AdminLoanSettingsPage />} />
+
+        {/* ─── Legal Documents ──────────────────────────────────────── */}
         <Route path="legal-docs" element={<AdminLegalDocumentsPage />} />
+
+        {/* ─── News ──────────────────────────────────────────────────── */}
         <Route path="news" element={<AdminNewsPage />} />
+
+        {/* ─── ✅ FUTURE: Notifications History ────────────────────── */}
+        {/* Uncomment when ready: <Route path="notifications" element={<AdminNotificationsPage />} /> */}
+
       </Route>
+
+      {/* ─── Fallback ────────────────────────────────────────────────── */}
       <Route path="*" element={<Navigate to="/admin/login" replace />} />
     </Routes>
   );
