@@ -1,6 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://vexatrade-5ycu.onrender.com';
 const CACHE_KEY = 'vexa_trade_account_status_cache_v1';
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 300_000;
 
 let inFlightPromise = null;
 let inFlightToken = '';
@@ -21,9 +21,7 @@ function readCache(token) {
 function writeCache(token, status) {
   try {
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({ token, status, cachedAt: Date.now() }));
-  } catch {
-    // sessionStorage can be unavailable in privacy-restricted browser contexts.
-  }
+  } catch {}
 }
 
 export function clearAccountStatusCache() {
