@@ -5,159 +5,37 @@ import AppTopbar from "../components/AppTopbar";
 import AdminMobileBottomNav from "../components/AdminMobileBottomNav";
 
 const PAGE_META = {
-  "/admin/dashboard": {
-    title: "Dashboard",
-    subtitle:
-      "Monitor platform activity, users, trades, deposits, withdrawals, and loans.",
-  },
-  "/admin/users": {
-    title: "Users",
-    subtitle: "Manage user accounts, balances, and account status controls.",
-  },
-  "/admin/kyc": {
-    title: "KYC Verification",
-    subtitle:
-      "Review identity documents, approve submissions, and manage verification status.",
-  },
-  "/admin/deposits": {
-    title: "Deposits",
-    subtitle: "Review deposit requests, proofs, and approval actions.",
-  },
-  "/admin/deposit-networks": {
-    title: "Deposit Networks",
-    subtitle:
-      "Manage deposit wallet addresses, labels, QR codes, and network status.",
-  },
-  "/admin/withdrawals": {
-    title: "Withdrawals",
-    subtitle:
-      "Track withdrawal requests, review wallet details, and process actions.",
-  },
-  "/admin/withdrawal-fees": {
-    title: "Withdrawal Fees",
-    subtitle: "Configure fee amounts and fee types by network.",
-  },
-  // ✅ ADDED: New withdrawal settings and profit withdrawal requests pages
-  "/admin/withdrawal-settings": {
-    title: "Withdrawal Settings",
-    subtitle: "Configure withdrawal limits for users who haven't achieved their target yet.",
-  },
-  "/admin/profit-withdrawal-requests": {
-    title: "Profit Withdrawal Requests",
-    subtitle: "Review and approve/decline profit withdrawal requests from users.",
-  },
-  "/admin/trades": {
-    title: "Trades",
-    subtitle:
-      "Monitor open trades, queue outcomes, and handle manual overrides.",
-  },
-  "/admin/trade-rules": {
-    title: "Trade Rules",
-    subtitle: "Adjust trading timers, payout percentages, and platform rules.",
-  },
-  "/admin/trading-funds-control": {
-    title: "Trading Control",
-    subtitle:
-      "Manage trades, trade rules, funds, and funds rules from one control page.",
-  },
-  "/admin/audit-logs": {
-    title: "Audit Logs",
-    subtitle: "Track admin activity, export records, and monitor actions.",
-  },
-  "/admin/support": {
-    title: "Support",
-    subtitle:
-      "Manage customer service contact details and support display settings.",
-  },
-  "/admin/platform-settings": {
-    title: "Platform Settings",
-    subtitle:
-      "Control global platform settings, wallet label, fees, and support values.",
-  },
-  "/admin/loans": {
-    title: "Loans",
-    subtitle: "Review user loan requests and approve or reject applications.",
-  },
-  "/admin/loan-settings": {
-    title: "Loan Settings",
-    subtitle:
-      "Manage loan interest rate and repayment cycle for user loan requests.",
-  },
-  "/admin/legal-docs": {
-    title: "Legal Documents",
-    subtitle:
-      "Manage platform legal documents shown inside the user profile section.",
-  },
-  "/admin/news": {
-    title: "News Control",
-    subtitle: "Create and manage platform news and announcements.",
-  },
-  "/admin/joint-account-requests": {
-    title: "Joint Account Requests",
-    subtitle: "Review and approve or reject joint account requests.",
-  },
-  "/admin/joint-accounts": {
-    title: "Joint Accounts",
-    subtitle: "View and manage all active joint accounts.",
-  },
+  "/admin/control-center": ["Command Center", "Global operational overview and control routing."],
+  "/admin/dashboard": ["Dashboard", "Platform health, activity and financial operations overview."],
+  "/admin/users": ["User Management", "Account lifecycle, wallet access and user administration."],
+  "/admin/kyc": ["KYC & Identity", "Identity review, verification decisions and compliance."],
+  "/admin/deposits": ["Deposit Operations", "Review and process incoming deposit activity."],
+  "/admin/deposit-networks": ["Deposit Networks", "Wallet addresses, QR configuration and network operations."],
+  "/admin/deposit-verification-settings": ["Deposit Verification", "Verification policy and operational controls."],
+  "/admin/withdrawals": ["Withdrawal Operations", "Review and process withdrawal requests."],
+  "/admin/withdrawal-fees": ["Withdrawal Fees", "Network fee configuration and controls."],
+  "/admin/withdrawal-settings": ["Withdrawal Settings", "Limits and withdrawal policy configuration."],
+  "/admin/profit-withdrawal-requests": ["Profit Withdrawals", "Review and process profit withdrawal requests."],
+  "/admin/trades": ["Trade Operations", "Monitor and operate active and historical trades."],
+  "/admin/trade-rules": ["Trade Rules", "Trading timing, payout and rule configuration."],
+  "/admin/trading-funds-control": ["Trading Control", "Unified trading, funds and rules operations."],
+  "/admin/joint-account-requests": ["Joint Account Requests", "Review joint account applications."],
+  "/admin/joint-accounts": ["Joint Accounts", "Manage active joint account relationships."],
+  "/admin/loans": ["Loan Operations", "Review and operate user loan requests."],
+  "/admin/loan-settings": ["Loan Settings", "Loan rate and repayment configuration."],
+  "/admin/audit-logs": ["Audit & Compliance", "Administrative activity and financial audit trail."],
+  "/admin/platform-settings": ["Platform Settings", "Global application and platform configuration."],
+  "/admin/support": ["Support Operations", "Customer service configuration and operations."],
+  "/admin/news": ["News Control", "Create and manage platform announcements."],
+  "/admin/legal-docs": ["Legal Documents", "Manage platform legal content."],
+  "/admin/maintenance": ["Maintenance", "Platform availability and maintenance controls."],
 };
 
 export default function AdminLayout() {
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-
-  const pageMeta = useMemo(() => {
-    return (
-      PAGE_META[location.pathname] || {
-        title: "Admin Panel",
-        subtitle: "Manage platform operations from the control panel.",
-      }
-    );
-  }, [location.pathname]);
-
-  useEffect(() => {
-    setMobileSidebarOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!mobileSidebarOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [mobileSidebarOpen]);
-
-  return (
-    <div className="min-h-screen bg-[#050812] text-white">
-      <div className="flex min-h-screen">
-        <AdminSidebar
-          isOpen={mobileSidebarOpen}
-          onClose={() => setMobileSidebarOpen(false)}
-        />
-
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-16 xl:pb-0">
-          <AppTopbar
-            title={pageMeta.title}
-            subtitle={pageMeta.subtitle}
-            onMenuClick={() => setMobileSidebarOpen(true)}
-            admin
-          />
-
-          <main className="min-w-0 flex-1">
-            <div className="min-h-[calc(100vh-73px)] bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.08),transparent_24%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 xl:px-8">
-              <div className="mx-auto w-full max-w-[1800px]">
-                <Outlet />
-              </div>
-            </div>
-          </main>
-
-          {/* Mobile Bottom Navigation */}
-          <AdminMobileBottomNav />
-        </div>
-      </div>
-    </div>
-  );
+  const [title, subtitle] = useMemo(() => PAGE_META[location.pathname] || ["Super Admin", "VexaTrade platform control plane."], [location.pathname]);
+  useEffect(() => setMobileSidebarOpen(false), [location.pathname]);
+  useEffect(() => { if (!mobileSidebarOpen) return undefined; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [mobileSidebarOpen]);
+  return <div className="min-h-screen bg-[#050812] text-white"><div className="flex min-h-screen"><AdminSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} /><div className="flex min-h-screen min-w-0 flex-1 flex-col pb-14 xl:pb-0"><AppTopbar title={title} subtitle={subtitle} onMenuClick={() => setMobileSidebarOpen(true)} admin /><main className="min-w-0 flex-1"><div className="min-h-[calc(100vh-64px)] bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.07),transparent_25%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] px-3 py-3 sm:px-5 sm:py-5 lg:px-6 xl:px-8"><div className="mx-auto w-full max-w-[1920px]"><Outlet /></div></div></main><AdminMobileBottomNav /></div></div></div>;
 }
