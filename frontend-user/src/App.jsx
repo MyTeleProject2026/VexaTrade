@@ -8,7 +8,6 @@ import ToastContainer from "./components/ToastNotification";
 import VoucherModal from "./components/VoucherModal";
 import { NotificationProvider, useNotification } from "./hooks/useNotification.jsx";
 import { ChatProvider, useChat } from "./layouts/ChatContext";
-import PlatformBootstrapGate from "./components/PlatformBootstrapGate";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -65,7 +64,9 @@ function getStoredUser() {
 }
 
 function isUserFullyApproved(user) {
-  return Number(user?.email_verified || 0) === 1 && String(user?.kyc_status || "").toLowerCase() === "approved" && String(user?.status || "").toLowerCase() === "active";
+  return Number(user?.email_verified || 0) === 1 &&
+    String(user?.kyc_status || "").toLowerCase() === "approved" &&
+    String(user?.status || "").toLowerCase() === "active";
 }
 
 function isUserUnderReview(user) {
@@ -73,47 +74,88 @@ function isUserUnderReview(user) {
   return !isUserFullyApproved(user);
 }
 
-function PrivateRoute({ children }) { return getStoredToken() ? children : <Navigate to="/login" replace />; }
+function PrivateRoute({ children }) {
+  return getStoredToken() ? children : <Navigate to="/login" replace />;
+}
 
 function ApprovalGuard({ children }) {
   const location = useLocation();
   const [user, setUser] = useState(() => getStoredUser());
   const [checking, setChecking] = useState(false);
-  const allowedBeforeApproval = ["/profile", "/profile/user-center", "/kyc", "/legal-documents", "/support", "/account-verification"];
+
+  const allowedBeforeApproval = [
+    "/profile", "/profile/user-center", "/kyc", "/legal-documents", "/support", "/account-verification",
+  ];
   const pathname = location.pathname;
   const isPreApprovalRoute = allowedBeforeApproval.some((route) => pathname.startsWith(route));
 
   useEffect(() => {
     let cancelled = false;
-    if (isPreApprovalRoute) { setChecking(false); return () => { cancelled = true; }; }
+    if (isPreApprovalRoute) {
+      setChecking(false);
+      return () => { cancelled = true; };
+    }
+
     const token = getStoredToken();
     if (!token) return () => { cancelled = true; };
+
+    // The SSO callback and account-verification page already use the centralized
+    // account-status service. This guard must never call /user/profile and must
+    // never use its own refresh loop. The shared service deduplicates requests
+    // and caches the authoritative result for the current browser session.
     let sessionResolved = false;
     const resolvedKey = `vexa_trade_access_resolved:${token}`;
     try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
 
     async function reconcileAccessOnce() {
       if (cancelled) return;
+
       const cachedUser = getStoredUser();
-      if (sessionResolved && isUserFullyApproved(cachedUser)) { setUser(cachedUser); setChecking(false); return; }
+      if (sessionResolved && isUserFullyApproved(cachedUser)) {
+        setUser(cachedUser);
+        setChecking(false);
+        return;
+      }
+
       setChecking(true);
       const status = await getAccountStatus(token);
       if (cancelled) return;
+
       if (status) {
-        const freshUser = { ...getStoredUser(), email_verified: status.emailVerified ? 1 : 0, kyc_status: status.kycStatus || "not_submitted", status: status.accountStatus || "pending", platform_access: status.platformAccess || (isFullyApprovedStatus(status) ? "active" : "locked") };
+        const freshUser = {
+          ...getStoredUser(),
+          email_verified: status.emailVerified ? 1 : 0,
+          kyc_status: status.kycStatus || "not_submitted",
+          status: status.accountStatus || "pending",
+          platform_access: status.platformAccess || (isFullyApprovedStatus(status) ? "active" : "locked"),
+        };
         localStorage.setItem("user", JSON.stringify(freshUser));
         localStorage.setItem("userData", JSON.stringify(freshUser));
         setUser(freshUser);
         try { sessionStorage.setItem(resolvedKey, "1"); } catch {}
-      } else setUser(cachedUser);
+      } else {
+        // Do not start another request when the status request fails. Keep the
+        // last known local account state and let the user explicitly retry from
+        // Account Verification if necessary.
+        setUser(cachedUser);
+      }
       setChecking(false);
     }
+
     reconcileAccessOnce();
     return () => { cancelled = true; };
   }, [pathname, isPreApprovalRoute]);
 
   if (isPreApprovalRoute) return children;
-  if (checking) return <div className="flex min-h-screen items-center justify-center bg-[#050812]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" /></div>;
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050812]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   if (isUserUnderReview(user)) return <Navigate to="/account-verification" replace />;
   return children;
 }
@@ -123,26 +165,58 @@ function AppContent() {
   const { voucher, closeVoucher, showWarning } = useNotification();
   const { isChatOpen, openChat, closeChat } = useChat();
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
   let userId = '';
   let userName = 'User';
   const userData = localStorage.getItem('user') || localStorage.getItem('userData');
-  if (userData) { try { const user = JSON.parse(userData); userId = user.id || user.user_id || ''; userName = user.name || user.email?.split('@')[0] || 'User'; } catch (e) { console.warn('Failed to parse user data:', e); } }
+  if (userData) {
+    try {
+      const user = JSON.parse(userData);
+      userId = user.id || user.user_id || '';
+      userName = user.name || user.email?.split('@')[0] || 'User';
+    } catch (e) { console.warn('Failed to parse user data:', e); }
+  }
   const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
 
   useEffect(() => {
-    const checkUnreadMessages = () => { try { const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]"); setChatUnreadCount(conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0)); } catch (e) {} };
-    checkUnreadMessages(); const interval = setInterval(checkUnreadMessages, 5000); return () => clearInterval(interval);
+    const checkUnreadMessages = () => {
+      try {
+        const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]");
+        setChatUnreadCount(conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0));
+      } catch (e) {}
+    };
+    checkUnreadMessages();
+    const interval = setInterval(checkUnreadMessages, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("userToken") || localStorage.getItem("token");
     const storedUserData = localStorage.getItem("user");
     if (storedToken && storedUserData && window.BrevoConversations) {
-      try { const user = JSON.parse(storedUserData); window.BrevoConversations('identify', { email: user.email || '', name: user.name || user.email || 'User', custom_data: { user_id: user.id || user.uid || '', uid: user.uid || '', kyc_status: user.kyc_status || 'not_submitted', status: user.status || 'pending', email_verified: user.email_verified ? 'Yes' : 'No' } }); } catch (e) { console.warn('Could not identify user to Brevo:', e); }
+      try {
+        const user = JSON.parse(storedUserData);
+        window.BrevoConversations('identify', {
+          email: user.email || '', name: user.name || user.email || 'User',
+          custom_data: {
+            user_id: user.id || user.uid || '', uid: user.uid || '',
+            kyc_status: user.kyc_status || 'not_submitted', status: user.status || 'pending',
+            email_verified: user.email_verified ? 'Yes' : 'No',
+          }
+        });
+      } catch (e) { console.warn('Could not identify user to Brevo:', e); }
     }
   }, []);
 
-  const handleChatButtonClick = () => { if (!token) { if (showWarning) showWarning('Please login to access chat support.'); else alert('Please login to access chat support.'); return; } openChat(); };
+  const handleChatButtonClick = () => {
+    if (!token) {
+      if (showWarning) showWarning('Please login to access chat support.');
+      else alert('Please login to access chat support.');
+      return;
+    }
+    openChat();
+  };
+
   if (loading) return <div className="min-h-screen bg-[#050812] flex items-center justify-center"><div className="animate-pulse text-cyan-400">Loading...</div></div>;
   if (maintenance) return <MaintenanceScreen message={message} onRefresh={checkMaintenance} />;
 
@@ -158,7 +232,7 @@ function AppContent() {
       <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/account-verification" element={<PrivateRoute><AccountVerificationPage /></PrivateRoute>} />
-      <Route element={<PrivateRoute><ApprovalGuard><PlatformBootstrapGate><UserLayout /></PlatformBootstrapGate></ApprovalGuard></PrivateRoute>}>
+      <Route element={<PrivateRoute><ApprovalGuard><UserLayout /></ApprovalGuard></PrivateRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/trade" element={<TradePage />} />
@@ -184,12 +258,10 @@ function AppContent() {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
-  return (
-    <NotificationProvider>
-      <ChatProvider>
-        {showSplash ? <SplashScreen onComplete={() => setShowSplash(false)} /> : <AppContent />}
-        <ToastContainer />
-      </ChatProvider>
-    </NotificationProvider>
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 4400);
+    return () => clearTimeout(timer);
+  }, []);
+  if (showSplash) return <SplashScreen />;
+  return <NotificationProvider><ChatProvider><AppContent /><ToastContainer /></ChatProvider></NotificationProvider>;
 }
