@@ -1,29 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Coins, Minus, Plus, RefreshCw, WalletCards, X } from "lucide-react";
 import AdminUserDetailsPage from "./AdminUserDetailsPage";
 import { adminApi, getApiErrorMessage } from "../../services/api";
+import { getAdminSupportedAssets } from "../../services/supportedAssetsApi";
 
-const PRESETS = [
-  ["USDT", "TRC20", "USDT · TRC20"],
-  ["USDT", "ERC20", "USDT · Tether / ERC20"],
-  ["ETH", "ETHEREUM", "ETH · Ethereum"],
-  ["BTC", "BITCOIN", "BTC · Bitcoin"],
-  ["BNB", "BSC", "BNB · BSC"],
-  ["SOL", "SOLANA", "SOL · Solana"],
-  ["XRP", "XRP", "XRP · XRP"],
+const FALLBACK_ASSETS = [
+  { coin: "USDT", name: "Tether USD", networks: ["TRC20", "ERC20", "BEP20"] },
+  { coin: "ETH", name: "Ethereum", networks: ["ERC20"] },
+  { coin: "BTC", name: "Bitcoin", networks: ["BTC"] },
+  { coin: "BNB", name: "BNB", networks: ["BEP20"] },
+  { coin: "SOL", name: "Solana", networks: ["SOLANA"] },
+  { coin: "XRP", name: "XRP", networks: ["XRP"] },
+  { coin: "TRX", name: "TRON", networks: ["TRC20"] },
 ];
+
+function normalizeAssets(data) {
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((asset) => ({
+      coin: String(asset?.coin || "").trim().toUpperCase(),
+      name: String(asset?.name || asset?.coin || "").trim(),
+      networks: Array.isArray(asset?.networks)
+        ? asset.networks.map((network) => String(network).trim().toUpperCase()).filter(Boolean)
+        : [],
+    }))
+    .filter((asset) => asset.coin && asset.networks.length);
+}
 
 export default function AdminUserDetailsControlPage() {
   const { id } = useParams();
   const token = localStorage.getItem("adminToken") || localStorage.getItem("admin_token") || "";
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState([]);
+  const [supportedAssets, setSupportedAssets] = useState(FALLBACK_ASSETS);
   const [loading, setLoading] = useState(false);
+  const [loadingRegistry, setLoadingRegistry] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState({ mode: "credit", preset: "USDT:TRC20", coin: "USDT", network: "TRC20", amount: "", note: "" });
+
+  const presets = useMemo(
+    () => supportedAssets.flatMap((asset) => asset.networks.map((network) => ({
+      value: `${asset.coin}:${network}`,
+      label: `${asset.coin} · ${asset.name}${asset.name !== asset.coin ? ` / ${network}` : ` · ${network}`}`,
+      coin: asset.coin,
+      network,
+    }))),
+    [supportedAssets]
+  );
 
   async function loadAssets() {
     try {
@@ -34,7 +60,18 @@ export default function AdminUserDetailsControlPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { loadAssets(); }, [id]);
+  async function loadSupportedAssets() {
+    try {
+      setLoadingRegistry(true);
+      const response = await getAdminSupportedAssets();
+      const live = normalizeAssets(response?.data?.data);
+      if (live.length) setSupportedAssets(live);
+    } catch (_) {
+      // Keep the safe built-in registry when an older deployment cannot serve the registry yet.
+    } finally { setLoadingRegistry(false); }
+  }
+
+  useEffect(() => { loadAssets(); loadSupportedAssets(); }, [id]);
 
   function selectPreset(value) {
     if (value === "CUSTOM") return setForm((p) => ({ ...p, preset: value }));
@@ -64,7 +101,7 @@ export default function AdminUserDetailsControlPage() {
   return (
     <>
       <AdminUserDetailsPage />
-      <button type="button" onClick={() => { setOpen(true); loadAssets(); }} className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 shadow-2xl hover:bg-cyan-400">
+      <button type="button" onClick={() => { setOpen(true); loadAssets(); loadSupportedAssets(); }} className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500 px-4 py-3 text-sm font-bold text-slate-950 shadow-2xl hover:bg-cyan-400">
         <WalletCards size={17} /> Wallet Control
       </button>
 
@@ -81,9 +118,13 @@ export default function AdminUserDetailsControlPage() {
                 <button type="button" onClick={() => setForm((p) => ({ ...p, mode: "debit" }))} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${form.mode === "debit" ? "border-rose-400/40 bg-rose-500/10 text-rose-300" : "border-white/10 text-slate-400"}`}><Minus size={14} className="mr-1 inline" />Decrease</button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <select value={form.preset} onChange={(e) => selectPreset(e.target.value)} className="rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none">{PRESETS.map(([coin, network, label]) => <option key={`${coin}:${network}`} value={`${coin}:${network}`}>{label}</option>)}<option value="CUSTOM">Custom coin / network</option></select>
+                <select value={form.preset} onChange={(e) => selectPreset(e.target.value)} className="rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none">
+                  {presets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+                  <option value="CUSTOM">Custom coin / network</option>
+                </select>
                 <input type="number" min="0" step="any" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="Amount" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none" />
               </div>
+              {loadingRegistry ? <div className="text-[11px] text-slate-500">Syncing supported asset registry…</div> : null}
               {form.preset === "CUSTOM" ? <div className="grid gap-3 sm:grid-cols-2"><input value={form.coin} onChange={(e) => setForm((p) => ({ ...p, coin: e.target.value.toUpperCase() }))} placeholder="Coin" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none" /><input value={form.network} onChange={(e) => setForm((p) => ({ ...p, network: e.target.value.toUpperCase() }))} placeholder="Network" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none" /></div> : null}
               <textarea rows={3} value={form.note} onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))} placeholder="Reason / audit note" className="w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm text-white outline-none" />
               {error ? <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300">{error}</div> : null}
