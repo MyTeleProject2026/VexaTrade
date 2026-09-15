@@ -8,6 +8,7 @@ import ToastContainer from "./components/ToastNotification";
 import VoucherModal from "./components/VoucherModal";
 import { NotificationProvider, useNotification } from "./hooks/useNotification.jsx";
 import { ChatProvider, useChat } from "./layouts/ChatContext";
+import PlatformBootstrapGate from "./components/PlatformBootstrapGate";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -99,28 +100,21 @@ function ApprovalGuard({ children }) {
     const token = getStoredToken();
     if (!token) return () => { cancelled = true; };
 
-    // The SSO callback and account-verification page already use the centralized
-    // account-status service. This guard must never call /user/profile and must
-    // never use its own refresh loop. The shared service deduplicates requests
-    // and caches the authoritative result for the current browser session.
     let sessionResolved = false;
     const resolvedKey = `vexa_trade_access_resolved:${token}`;
     try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
 
     async function reconcileAccessOnce() {
       if (cancelled) return;
-
       const cachedUser = getStoredUser();
       if (sessionResolved && isUserFullyApproved(cachedUser)) {
         setUser(cachedUser);
         setChecking(false);
         return;
       }
-
       setChecking(true);
       const status = await getAccountStatus(token);
       if (cancelled) return;
-
       if (status) {
         const freshUser = {
           ...getStoredUser(),
@@ -134,28 +128,18 @@ function ApprovalGuard({ children }) {
         setUser(freshUser);
         try { sessionStorage.setItem(resolvedKey, "1"); } catch {}
       } else {
-        // Do not start another request when the status request fails. Keep the
-        // last known local account state and let the user explicitly retry from
-        // Account Verification if necessary.
         setUser(cachedUser);
       }
       setChecking(false);
     }
-
     reconcileAccessOnce();
     return () => { cancelled = true; };
   }, [pathname, isPreApprovalRoute]);
 
   if (isPreApprovalRoute) return children;
-
   if (checking) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050812]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-      </div>
-    );
+    return <div className="flex min-h-screen items-center justify-center bg-[#050812]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" /></div>;
   }
-
   if (isUserUnderReview(user)) return <Navigate to="/account-verification" replace />;
   return children;
 }
@@ -232,7 +216,7 @@ function AppContent() {
       <Route path="/email-2fa-verify" element={<Email2faVerificationPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/account-verification" element={<PrivateRoute><AccountVerificationPage /></PrivateRoute>} />
-      <Route element={<PrivateRoute><ApprovalGuard><UserLayout /></ApprovalGuard></PrivateRoute>}>
+      <Route element={<PrivateRoute><ApprovalGuard><PlatformBootstrapGate><UserLayout /></PlatformBootstrapGate></ApprovalGuard></PrivateRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/trade" element={<TradePage />} />
