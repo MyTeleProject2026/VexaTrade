@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../../db');
-const { authUser } = require('../middleware/auth');
+const { authUser, authAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -39,41 +39,56 @@ function normalizeAsset(row) {
   };
 }
 
+async function getSupportedAssets() {
+  const configured = new Map();
+  try {
+    const [rows] = await pool.execute(
+      `SELECT coin, network, name FROM asset_networks
+       WHERE enabled = 1
+       ORDER BY coin ASC, network ASC`
+    );
+    for (const row of rows) {
+      const coin = String(row.coin || '').trim().toUpperCase();
+      const network = String(row.network || '').trim().toUpperCase();
+      if (!coin || !network) continue;
+      if (!configured.has(coin)) configured.set(coin, { coin, name: row.name || coin, networks: [] });
+      configured.get(coin).networks.push(network);
+    }
+  } catch (_) {
+    // Older schemas may not have asset_networks yet; defaults remain usable.
+  }
+
+  for (const asset of DEFAULT_ASSETS) {
+    if (!configured.has(asset.coin)) configured.set(asset.coin, normalizeAsset(asset));
+    else {
+      const current = configured.get(asset.coin);
+      current.name = current.name || asset.name;
+      current.networks = [...new Set([...current.networks, ...asset.networks])];
+    }
+  }
+
+  return Array.from(configured.values()).filter((asset) => asset.networks.length);
+}
+
 router.get('/supported-assets', authUser, async (req, res, next) => {
   try {
-    const configured = new Map();
-
-    // Prefer an explicit asset/network registry when installed. This makes the
-    // frontend data-driven while remaining compatible with older deployments.
-    try {
-      const [rows] = await pool.execute(
-        `SELECT coin, network, name FROM asset_networks
-         WHERE enabled = 1
-         ORDER BY coin ASC, network ASC`
-      );
-      for (const row of rows) {
-        const coin = String(row.coin || '').trim().toUpperCase();
-        const network = String(row.network || '').trim().toUpperCase();
-        if (!coin || !network) continue;
-        if (!configured.has(coin)) configured.set(coin, { coin, name: row.name || coin, networks: [] });
-        configured.get(coin).networks.push(network);
-      }
-    } catch (_) {
-      // Older schemas may not have asset_networks yet; defaults remain usable.
-    }
-
-    for (const asset of DEFAULT_ASSETS) {
-      if (!configured.has(asset.coin)) configured.set(asset.coin, asset);
-      else {
-        const current = configured.get(asset.coin);
-        current.name = current.name || asset.name;
-        current.networks = [...new Set([...current.networks, ...asset.networks])];
-      }
-    }
-
     res.json({
       success: true,
-      data: Array.from(configured.values()).filter((asset) => asset.networks.length),
+      data: await getSupportedAssets(),
+      source: 'blockchain-network-smart-contract-ecosystem',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin read-only registry endpoint. It uses the exact same registry as the user
+// endpoint so admin wallet controls cannot drift away from supported platform assets.
+router.get('/admin/supported-assets', authAdmin, async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await getSupportedAssets(),
       source: 'blockchain-network-smart-contract-ecosystem',
     });
   } catch (error) {
