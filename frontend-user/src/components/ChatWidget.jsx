@@ -1,6 +1,6 @@
 // frontend-user/src/components/ChatWidget.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageCircle, X, Send, LogIn } from "lucide-react";
+import { MessageCircle, X, Send, LogIn, WifiOff } from "lucide-react";
 import { chatApi } from "../services/chatApi";
 
 function formatTime(date) {
@@ -14,11 +14,21 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
   const [conversationId, setConversationId] = useState(null);
   const [inputMessage, setInputMessage] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState(chatApi.getConnectionState?.() || "disconnected");
   const [isLoading, setIsLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const conversationIdRef = useRef(null);
+  const isOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -28,152 +38,157 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Load messages from localStorage
-  useEffect(() => {
-    if (userId) loadLocalMessages();
-  }, [userId]);
-
-  const loadLocalMessages = () => {
+  const loadLocalMessages = useCallback(() => {
+    if (!userId) return;
     const storedKey = `chat_user_${userId}_conversation`;
     const storedConvId = localStorage.getItem(storedKey);
-    if (storedConvId) {
-      setConversationId(storedConvId);
-      const messagesKey = `chat_messages_${storedConvId}`;
-      const storedMessages = localStorage.getItem(messagesKey);
-      if (storedMessages) {
-        try {
-          const parsed = JSON.parse(storedMessages);
-          setMessages(parsed);
-          const unread = parsed.filter(msg => msg.senderType === "admin" && !msg.read).length;
-          setUnreadCount(unread);
-        } catch (e) {
-          console.error("Error loading messages:", e);
-        }
-      }
+    if (!storedConvId) {
+      setConversationId(null);
+      setMessages([]);
+      setIsLoading(false);
+      return;
     }
-  };
+
+    setConversationId(storedConvId);
+    try {
+      const storedMessages = localStorage.getItem(`chat_messages_${storedConvId}`);
+      const parsed = storedMessages ? JSON.parse(storedMessages) : [];
+      setMessages(Array.isArray(parsed) ? parsed : []);
+      setUnreadCount(Array.isArray(parsed) ? parsed.filter((msg) => msg.senderType === "admin" && !msg.read).length : 0);
+    } catch (_) {
+      setMessages([]);
+    }
+    setIsLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    loadLocalMessages();
+  }, [loadLocalMessages]);
 
   const saveMessages = useCallback((msgs) => {
-    if (conversationId) {
-      localStorage.setItem(`chat_messages_${conversationId}`, JSON.stringify(msgs));
-    }
-  }, [conversationId]);
+    const id = conversationIdRef.current;
+    if (!id) return;
+    try { localStorage.setItem(`chat_messages_${id}`, JSON.stringify(msgs)); } catch (_) {}
+  }, []);
 
+  // Socket is an auxiliary real-time channel. It never blocks the user platform.
+  // Keep one connection lifecycle and do not reconnect just because the modal opens/closes.
   useEffect(() => {
-    if (conversationId && messages.length > 0) {
-      saveMessages(messages);
-    }
-  }, [messages, conversationId, saveMessages]);
+    if (!userId) return undefined;
+    const token = localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token") || "";
+    if (!token) return undefined;
 
-  // Socket connection
-  useEffect(() => {
-    if (!userId) return;
-    const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
-    
-    if (chatApi && chatApi.connect) {
-      chatApi.connect(userId, userName, token);
-      setIsConnected(true);
+    chatApi.connect(userId, userName, token);
+    const unsubscribeState = chatApi.onConnectionState?.((state) => {
+      setConnectionState(state?.state || "disconnected");
+    });
 
-      chatApi.onNewMessage((data) => {
-        console.log("📩 [ChatWidget] New message received:", data);
-        if (data.isAutoReply) console.log("🤖 AI auto-reply detected!");
+    const unsubscribeNew = chatApi.onNewMessage((data) => {
+      const incomingConversationId = data?.conversationId;
+      if (!incomingConversationId) return;
 
-        if (data.conversationId === conversationId) {
-          setMessages(prev => {
-            const newMsg = {
-              id: data.id || Date.now(),
-              message: data.message,
-              senderType: data.senderType || "admin",
-              createdAt: data.createdAt || new Date().toISOString(),
-              read: false,
-              isAutoReply: data.isAutoReply || false
-            };
-            const updated = [...prev, newMsg];
-            saveMessages(updated);
-            return updated;
-          });
-          scrollToBottom();
-        } else if (data.senderType === "admin" && !isOpen) {
-          setUnreadCount(prev => prev + 1);
-        }
+      if (String(incomingConversationId) === String(conversationIdRef.current)) {
+        setMessages((prev) => {
+          const incomingId = data?.id;
+          if (incomingId && prev.some((msg) => String(msg.id) === String(incomingId))) return prev;
+          const next = [...prev, {
+            id: incomingId || `remote-${Date.now()}`,
+            message: data.message,
+            senderType: data.senderType || "admin",
+            createdAt: data.createdAt || data.created_at || new Date().toISOString(),
+            read: data.senderType === "user" || isOpenRef.current,
+            isAutoReply: !!data.isAutoReply,
+          }];
+          saveMessages(next);
+          return next;
+        });
+        if (isOpenRef.current && data.senderType === "admin") chatApi.markRead(incomingConversationId);
+      } else if (data.senderType === "admin") {
+        setUnreadCount((count) => count + 1);
+      }
+    });
+
+    const unsubscribeDeleted = chatApi.onMessageDeleted?.((data) => {
+      if (String(data?.conversationId) !== String(conversationIdRef.current)) return;
+      setMessages((prev) => {
+        const next = prev.filter((msg) => String(msg.id) !== String(data.messageId));
+        saveMessages(next);
+        return next;
       });
+    });
 
-      chatApi.onMessageDeleted?.((data) => {
-        if (data.conversationId === conversationId) {
-          setMessages(prev => {
-            const updated = prev.filter(msg => msg.id !== data.messageId);
-            saveMessages(updated);
-            return updated;
-          });
-        }
-      });
+    const unsubscribeLoaded = chatApi.onMessagesLoaded((data) => {
+      if (String(data?.conversationId) !== String(conversationIdRef.current)) return;
+      const next = Array.isArray(data?.messages) ? data.messages : [];
+      setMessages(next);
+      saveMessages(next);
+      setIsLoading(false);
+      if (isOpenRef.current) {
+        setUnreadCount(0);
+        chatApi.markRead(data.conversationId);
+      }
+    });
 
-      chatApi.onMessagesLoaded((data) => {
-        console.log("📚 Messages loaded:", data);
-        if (data.messages && data.messages.length > 0) {
-          setMessages(data.messages);
-          saveMessages(data.messages);
-        }
-        setIsLoading(false);
-      });
-      
-      chatApi.onConversationCreated?.((data) => {
-        console.log("🆕 Conversation created:", data);
-        if (data.conversationId && !conversationId) {
-          setConversationId(data.conversationId);
-          const storedKey = `chat_user_${userId}_conversation`;
-          localStorage.setItem(storedKey, data.conversationId);
-          const oldKey = `chat_messages_temp`;
-          const tempMessages = localStorage.getItem(oldKey);
-          if (tempMessages) {
-            const newKey = `chat_messages_${data.conversationId}`;
-            localStorage.setItem(newKey, tempMessages);
-            localStorage.removeItem(oldKey);
-          }
-        }
-      });
-    }
+    const unsubscribeCreated = chatApi.onConversationCreated?.((data) => {
+      if (!data?.conversationId) return;
+      setConversationId(String(data.conversationId));
+      conversationIdRef.current = String(data.conversationId);
+      localStorage.setItem(`chat_user_${userId}_conversation`, String(data.conversationId));
+    });
 
     return () => {
-      if (chatApi && chatApi.off) {
-        chatApi.off("new_message");
-        chatApi.off("messages_loaded");
-        chatApi.off("message_deleted");
-        chatApi.off("conversation_created");
-      }
+      unsubscribeState?.();
+      unsubscribeNew?.();
+      unsubscribeDeleted?.();
+      unsubscribeLoaded?.();
+      unsubscribeCreated?.();
+      // Do not disconnect the shared socket here; another mounted chat control may use it.
     };
-  }, [userId, userName, conversationId, isOpen, saveMessages, scrollToBottom]);
+  }, [userId, userName, saveMessages]);
 
-  // ✅ handleSendMessage with debugging logs
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
-    
-    console.log(`📤 [ChatWidget] handleSendMessage: userId=${userId}, conversationId=${conversationId}, msg=${inputMessage.trim()}`);
-    
-    const newMessage = {
-      id: Date.now(),
-      message: inputMessage.trim(),
-      senderType: "user",
-      createdAt: new Date().toISOString(),
-      read: true
-    };
-    
-    setMessages(prev => {
-      const updated = [...prev, newMessage];
-      saveMessages(updated);
-      return updated;
-    });
-    
-    if (chatApi && chatApi.sendMessage) {
-      if (!conversationId) {
-        chatApi.sendMessage('new', inputMessage.trim(), userId);
-      } else {
-        chatApi.sendMessage(conversationId, inputMessage.trim());
-      }
+  // Fetch conversation history only when a real socket is authenticated.
+  useEffect(() => {
+    if (!conversationId || connectionState !== "authenticated") return;
+    setIsLoading(true);
+    chatApi.getMessages(conversationId);
+    const timer = window.setTimeout(() => setIsLoading(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [conversationId, connectionState]);
+
+  useEffect(() => {
+    if (isOpen && conversationId) {
+      setUnreadCount(0);
+      chatApi.markRead(conversationId);
     }
-    
+  }, [isOpen, conversationId]);
+
+  const handleSendMessage = () => {
+    const cleanMessage = inputMessage.trim();
+    if (!cleanMessage || !userId) return;
+
+    const targetConversation = conversationId || "new";
+    const sent = chatApi.sendMessage(targetConversation, cleanMessage, userId);
+
+    // Only create a local pending message when the socket is unavailable.
+    // When connected, the server's authoritative new_message event owns the message.
+    if (!sent) {
+      const localMessage = {
+        id: `local-${Date.now()}`,
+        message: cleanMessage,
+        senderType: "user",
+        createdAt: new Date().toISOString(),
+        read: true,
+        pending: true,
+      };
+      setMessages((prev) => {
+        const next = [...prev, localMessage];
+        if (conversationId) saveMessages(next);
+        return next;
+      });
+    }
+
     setInputMessage("");
-    scrollToBottom();
+    requestAnimationFrame(scrollToBottom);
   };
 
   const handleKeyPress = (e) => {
@@ -183,44 +198,36 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
     }
   };
 
-  const onCloseHandler = () => {
-    if (onClose) onClose();
-  };
-
   if (!isOpen) return null;
 
-  const isLoggedIn = !!localStorage.getItem('userToken') || !!localStorage.getItem('token');
+  const isLoggedIn = !!localStorage.getItem("userToken") || !!localStorage.getItem("accessToken") || !!localStorage.getItem("token");
+  const socketLive = connectionState === "connected" || connectionState === "authenticated";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4 overflow-hidden">
-      {/* Outer container – full height, prevents scrolling */}
-      <div className="flex w-full max-w-lg flex-col h-[100dvh] max-h-[100dvh] bg-[#0a0e1a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header – fixed height */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3 flex-shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/70 p-2 backdrop-blur-sm md:p-4">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0e1a] shadow-2xl">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-white/10 bg-[#111111] px-4 py-3">
           <div className="flex items-center gap-2">
             <MessageCircle size={18} className="text-lime-400" />
             <span className="font-semibold text-white">Support Chat</span>
-            {isConnected && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
+            <span className={`h-2 w-2 rounded-full ${socketLive ? "bg-emerald-400" : "bg-slate-500"}`} />
           </div>
-          <button onClick={onCloseHandler} className="rounded-lg p-1 text-slate-400 hover:text-white transition">
+          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 transition hover:text-white" aria-label="Close support chat">
             <X size={20} />
           </button>
         </div>
 
-        {/* Messages area – takes remaining space, scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 scrollbar-hide">
           {!isLoggedIn ? (
             <div className="flex h-full flex-col items-center justify-center text-center text-sm text-slate-400">
               <LogIn size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-lg font-medium text-white">Login Required</p>
               <p className="mt-1 text-xs">Please log in to chat with our support team.</p>
-              <button onClick={() => window.location.href = '/login'} className="mt-4 px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-medium hover:bg-cyan-400 transition">
-                Go to Login
-              </button>
+              <button onClick={() => { window.location.href = "/login"; }} className="mt-4 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-black transition hover:bg-cyan-400">Go to Login</button>
             </div>
           ) : isLoading ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
-              <div className="animate-pulse">Loading messages...</div>
+              <div className="animate-pulse">Loading messages…</div>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
@@ -228,25 +235,16 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
                 <MessageCircle size={32} className="mx-auto mb-2 opacity-30" />
                 <p>No messages yet.</p>
                 <p className="mt-1 text-xs">Send a message to our support team!</p>
+                {!socketLive && <p className="mt-2 inline-flex items-center gap-1 text-[10px] text-amber-300"><WifiOff size={11} /> Real-time chat is reconnecting; the platform remains available.</p>}
               </div>
             </div>
           ) : (
             messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.senderType === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                  msg.senderType === "user" 
-                    ? "bg-lime-400 text-black" 
-                    : "bg-[#1a1e2a] text-white"
-                }`}>
-                  {msg.senderType === "admin" && (
-                    <p className="mb-1 text-xs text-lime-400">Support Team</p>
-                  )}
-                  <p className="text-sm break-words">{msg.message}</p>
-                  <p className={`mt-1 text-[10px] ${
-                    msg.senderType === "user" ? "text-black/60" : "text-slate-400"
-                  }`}>
-                    {formatTime(msg.created_at || msg.createdAt)}
-                  </p>
+                <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${msg.senderType === "user" ? "bg-lime-400 text-black" : "bg-[#1a1e2a] text-white"}`}>
+                  {msg.senderType === "admin" && <p className="mb-1 text-xs text-lime-400">Support Team</p>}
+                  <p className="break-words text-sm">{msg.message}</p>
+                  <p className={`mt-1 text-[10px] ${msg.senderType === "user" ? "text-black/60" : "text-slate-400"}`}>{formatTime(msg.created_at || msg.createdAt)}</p>
                 </div>
               </div>
             ))
@@ -254,9 +252,8 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area – fixed at bottom, never shrinks */}
         {isLoggedIn && (
-          <div className="border-t border-white/10 bg-[#111111] p-3 flex-shrink-0">
+          <div className="flex-shrink-0 border-t border-white/10 bg-[#111111] p-3">
             <div className="flex gap-2">
               <textarea
                 ref={inputRef}
@@ -264,26 +261,14 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="Type your message..."
-                className="flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-lime-400"
+                className="min-h-10 max-h-24 flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-sm text-white outline-none focus:border-lime-400"
                 rows={1}
-                style={{ minHeight: "40px", maxHeight: "100px" }}
-                onFocus={() => {
-                  setTimeout(() => {
-                    inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 300);
-                }}
               />
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50 flex-shrink-0"
-              >
+              <button onClick={handleSendMessage} disabled={!inputMessage.trim()} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-lime-400 text-black transition hover:bg-lime-300 disabled:opacity-50" aria-label="Send message">
                 <Send size={18} />
               </button>
             </div>
-            <p className="mt-2 text-center text-[10px] text-slate-500">
-              Our team typically responds within a few hours
-            </p>
+            <p className="mt-2 text-center text-[10px] text-slate-500">Our team typically responds within a few hours</p>
           </div>
         )}
       </div>
