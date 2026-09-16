@@ -4,6 +4,7 @@ import io from "socket.io-client";
 let socket = null;
 let connectionState = "disconnected";
 let connectionGeneration = 0;
+let reconnectTimer = null;
 const listeners = new Map();
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
@@ -49,25 +50,60 @@ const saveLocalConversation = (userId, conversationId, message) => {
   try { localStorage.setItem(convKey, JSON.stringify(existing)); } catch (_) {}
 };
 
+const scheduleReconnect = (delay = 1200) => {
+  if (reconnectTimer || !socket || navigator.onLine === false) return;
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    if (!socket || isLive() || navigator.onLine === false) return;
+    try { socket.connect(); } catch (_) {}
+  }, delay);
+};
+
+const attachBrowserRecovery = () => {
+  if (typeof window === "undefined") return;
+  if (window.__vexaTradeChatRecoveryAttached) return;
+  window.__vexaTradeChatRecoveryAttached = true;
+
+  window.addEventListener("online", () => {
+    if (socket && !isLive()) {
+      try { socket.connect(); } catch (_) {}
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && socket && !isLive() && navigator.onLine !== false) {
+      try { socket.connect(); } catch (_) {}
+    }
+  });
+};
+
 export const chatApi = {
   connect: (userId, name, token) => {
+    attachBrowserRecovery();
+
     if (socket && (connectionState === "connected" || connectionState === "authenticated" || connectionState === "connecting")) {
       return socket;
     }
+
+    if (!userId || !token) return null;
 
     const generation = ++connectionGeneration;
     emitState("connecting");
 
     try {
       socket = io(API_BASE_URL, {
+        // Prefer a real WebSocket, but retain Socket.IO polling as a transport fallback.
         transports: ["websocket", "polling"],
+        upgrade: true,
         withCredentials: true,
-        timeout: 5000,
+        timeout: 10000,
         reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 500,
-        reconnectionDelayMax: 2000,
-        randomizationFactor: 0.2,
+        // A support connection should recover after transient Render/mobile/network
+        // disconnects instead of permanently giving up after only three attempts.
+        reconnectionAttempts: 8,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        randomizationFactor: 0.25,
         autoConnect: true,
       });
 
@@ -85,12 +121,36 @@ export const chatApi = {
       socket.on("disconnect", (reason) => {
         if (generation !== connectionGeneration) return;
         emitState("disconnected", { reason });
+        // Socket.IO normally reconnects itself. This additional guarded recovery
+        // covers cases where the manager has stopped after repeated transport errors.
+        if (navigator.onLine !== false) scheduleReconnect(1200);
       });
 
       socket.on("connect_error", (err) => {
         if (generation !== connectionGeneration) return;
         emitState("error", { message: err?.message || "Socket connection failed" });
         console.warn("[chatApi] Socket connection error:", err?.message || err);
+      });
+
+      socket.io?.on("reconnect_attempt", () => {
+        if (generation === connectionGeneration) emitState("connecting");
+      });
+
+      socket.io?.on("reconnect", () => {
+        if (generation === connectionGeneration) emitState("connecting");
+      });
+
+      socket.io?.on("reconnect_error", (err) => {
+        if (generation === connectionGeneration) {
+          emitState("error", { message: err?.message || "Socket reconnect failed" });
+        }
+      });
+
+      socket.io?.on("reconnect_failed", () => {
+        if (generation === connectionGeneration) {
+          emitState("disconnected", { reason: "reconnect_failed" });
+          scheduleReconnect(5000);
+        }
       });
 
       socket.on("auth_error", (data) => {
@@ -105,14 +165,20 @@ export const chatApi = {
     } catch (err) {
       emitState("error", { message: err?.message || "Failed to connect socket" });
       socket = null;
+      scheduleReconnect(1500);
     }
     return socket;
   },
 
   disconnect: () => {
     connectionGeneration += 1;
+    if (reconnectTimer) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (socket) {
       socket.removeAllListeners();
+      socket.io?.removeAllListeners?.();
       socket.disconnect();
       socket = null;
     }
