@@ -56,14 +56,20 @@ export const maintenanceApi = {
         if (status?.success) writeCache(status);
         return status;
       })
-      .catch(() => ({
-        success: true,
-        data: {
-          maintenance: true,
-          message: "VexaTrade is currently undergoing maintenance. Please check back later.",
-          auto_triggered: true,
-        },
-      }))
+      .catch(() => {
+        const fallback = {
+          success: true,
+          data: {
+            maintenance: true,
+            message: "VexaTrade is currently undergoing maintenance. Please check back later.",
+            auto_triggered: true,
+          },
+        };
+        // Cache the fail-safe result too. Otherwise a remounted App would
+        // immediately retry the same unavailable endpoint over and over.
+        writeCache(fallback);
+        return fallback;
+      })
       .finally(() => {
         inFlightPromise = null;
       });
