@@ -72,19 +72,18 @@ function ApprovalGuard({ children }) {
     const resolvedKey = `vexa_trade_access_resolved:${token}`;
     try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
 
-    // A locally persisted fully-approved session is already authorized for the
-    // current SPA session. Do not blank the platform while the background
-    // reconciliation request refreshes the same status.
+    // A fully approved local session is already allowed to render. Do not make
+    // another verification HTTP request on every protected-route mount.
     if (cachedApproved || sessionResolved) {
       setUser(cachedUser);
       setChecking(false);
-    } else {
-      setChecking(true);
+      return () => { cancelled = true; };
     }
+
+    setChecking(true);
 
     async function reconcileAccessOnce() {
       if (cancelled) return;
-      if (sessionResolved && cachedApproved) return;
       const status = await getAccountStatus(token);
       if (cancelled) return;
       if (status) {
@@ -128,7 +127,6 @@ function AppContent() {
     };
     checkUnreadMessages();
     if (!chatEnabled) return undefined;
-    // Chat unread state is auxiliary UI; avoid an aggressive polling loop.
     const interval = setInterval(checkUnreadMessages, 15000);
     return () => clearInterval(interval);
   }, [chatEnabled]);
