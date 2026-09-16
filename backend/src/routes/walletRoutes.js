@@ -67,7 +67,6 @@ async function getPriceMap() {
 }
 
 async function getWalletSummary(req) {
-  // User identity and asset schema are independent reads, so start them together.
   const [userResult, columns] = await Promise.all([
     pool.execute(
       `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified, balance
@@ -132,9 +131,11 @@ async function walletSummaryHandler(req, res, next) {
 
 router.get('/wallet/summary', authUser, walletSummaryHandler);
 router.get('/wallet/summaryGeneral', authUser, walletSummaryHandler);
+// Legacy clients use this exact endpoint name. Keep it as a compatibility alias
+// so older frontend builds do not fall into the backend's generic error handler.
+router.get('/wallet/summaryGeneralInitiator', authUser, walletSummaryHandler);
 
 async function buildAssets(userId) {
-  // Portfolio valuation may use cached market prices; wallet balances remain ledger-authoritative.
   const [priceMap, columns] = await Promise.all([getPriceMap(), getUserAssetColumns()]);
   let assetRows = [];
 
