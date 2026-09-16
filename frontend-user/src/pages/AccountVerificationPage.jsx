@@ -49,13 +49,9 @@ export default function AccountVerificationPage() {
   const { showSuccess, showInfo, showError } = useNotification();
 
   const redirectToDashboard = () => {
+    // Use the SPA router only. A hard window.location fallback caused the
+    // entire VexaTrade application to reload and flash the verification UI.
     navigate("/dashboard", { replace: true });
-    // Keep a hard-navigation fallback only if the SPA route did not change.
-    window.setTimeout(() => {
-      if (window.location.pathname !== "/dashboard") {
-        window.location.assign("/dashboard");
-      }
-    }, 150);
   };
 
   useEffect(() => {
