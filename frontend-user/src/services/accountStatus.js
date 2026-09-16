@@ -5,6 +5,9 @@ const REQUEST_TIMEOUT_MS = 12000;
 
 let inFlightPromise = null;
 let inFlightToken = '';
+let lastSuccessfulToken = '';
+let lastSuccessfulStatus = null;
+let lastSuccessfulAt = 0;
 
 function readCache(token) {
   try {
@@ -20,8 +23,11 @@ function readCache(token) {
 }
 
 function writeCache(token, status) {
+  lastSuccessfulToken = token;
+  lastSuccessfulStatus = status;
+  lastSuccessfulAt = Date.now();
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ token, status, cachedAt: Date.now() }));
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ token, status, cachedAt: lastSuccessfulAt }));
   } catch {}
 }
 
@@ -29,6 +35,9 @@ export function clearAccountStatusCache() {
   try { sessionStorage.removeItem(CACHE_KEY); } catch {}
   inFlightPromise = null;
   inFlightToken = '';
+  lastSuccessfulToken = '';
+  lastSuccessfulStatus = null;
+  lastSuccessfulAt = 0;
 }
 
 export function isFullyApprovedStatus(status) {
@@ -89,8 +98,27 @@ export async function getAccountStatus(token, { force = false } = {}) {
   if (!authToken) return null;
 
   if (!force) {
+    // Keep a successful result in memory as well as sessionStorage. This closes
+    // the small race where StrictMode/route remounts can call the service again
+    // after the first request completed but before another caller observes the
+    // session cache. It also keeps the browser at one verification request per
+    // token during the active SPA session.
+    if (lastSuccessfulToken === authToken && lastSuccessfulStatus && Date.now() - lastSuccessfulAt < CACHE_TTL_MS) {
+      return lastSuccessfulStatus;
+    }
+
     const cached = readCache(authToken);
-    if (cached) return cached;
+    if (cached) {
+      lastSuccessfulToken = authToken;
+      lastSuccessfulStatus = cached;
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        lastSuccessfulAt = Number(JSON.parse(raw || '{}')?.cachedAt || Date.now());
+      } catch {
+        lastSuccessfulAt = Date.now();
+      }
+      return cached;
+    }
   }
 
   if (inFlightPromise && inFlightToken === authToken) {
