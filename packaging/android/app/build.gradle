@@ -20,6 +20,17 @@ android {
         adminRelease { storeFile file(requiredEnv('ADMIN_KEYSTORE_PATH')); storePassword requiredEnv('ADMIN_KEYSTORE_PASSWORD'); keyAlias requiredEnv('ADMIN_KEY_ALIAS'); keyPassword requiredEnv('ADMIN_KEY_PASSWORD'); enableV1Signing true; enableV2Signing true; enableV3Signing true; enableV4Signing true }
     }
     buildTypes { release { minifyEnabled false } }
-    applicationVariants.all { variant -> if (variant.buildType.name == 'release') variant.signingConfig = signingConfigs.findByName("${variant.flavorName}Release") }
     buildFeatures { buildConfig true }
+}
+
+// AGP 8+ exposes variant signing through the Android Components API. The old
+// applicationVariants mutation is read-only on current AGP and breaks release
+// configuration before Gradle can even start assembling the APK/AAB.
+androidComponents {
+    onVariants(selector().withName('userRelease')) { variant ->
+        variant.signingConfig.set(signingConfigs.userRelease)
+    }
+    onVariants(selector().withName('adminRelease')) { variant ->
+        variant.signingConfig.set(signingConfigs.adminRelease)
+    }
 }
