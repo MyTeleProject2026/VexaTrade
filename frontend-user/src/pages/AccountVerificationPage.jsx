@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../hooks/useNotification";
 import { getAccountStatus, isFullyApprovedStatus, clearAccountStatusCache } from "../services/accountStatus";
@@ -22,10 +22,10 @@ function isUserFullyApproved(user) {
     String(user?.status || "").toLowerCase() === "active";
 }
 
-async function refreshUserDataFromServer(force = false) {
+async function refreshUserDataFromServer() {
   const token = getStoredToken();
   if (!token) return null;
-  const status = await getAccountStatus(token, { force });
+  const status = await getAccountStatus(token, { force: true });
   if (!status) return null;
 
   const currentUser = getStoredUser();
@@ -41,71 +41,27 @@ async function refreshUserDataFromServer(force = false) {
   return freshUser;
 }
 
+const ACCESS_UNLOCK_KEY = "vexa_trade_platform_unlocked";
+
 export default function AccountVerificationPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
-  const [statusResolved, setStatusResolved] = useState(() => isUserFullyApproved(getStoredUser()));
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [redirectingToDashboard, setRedirectingToDashboard] = useState(() => isUserFullyApproved(getStoredUser()));
   const { showSuccess, showInfo, showError } = useNotification();
-
-  const redirectToDashboard = () => {
-    setRedirectingToDashboard(true);
-    navigate("/dashboard", { replace: true });
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const cached = getStoredUser();
-
-    // This page must never remain visible for an already-approved account.
-    // The approval guard normally prevents reaching it, but this also covers
-    // direct URL opens and stale route transitions without another HTTP call.
-    if (isUserFullyApproved(cached)) {
-      redirectToDashboard();
-      return () => { cancelled = true; };
-    }
-
-    async function reconcile() {
-      try {
-        const freshUser = await refreshUserDataFromServer(false);
-        if (cancelled) return;
-        if (freshUser) {
-          setUser(freshUser);
-        } else {
-          setUser(getStoredUser());
-        }
-      } catch (error) {
-        if (!cancelled) console.warn("VexaTrade verification reconciliation failed:", error);
-      } finally {
-        if (!cancelled) setStatusResolved(true);
-      }
-    }
-    reconcile();
-    return () => { cancelled = true; };
-  }, [navigate]);
 
   const emailVerified = Number(user?.email_verified || 0) === 1;
   const kycStatus = String(user?.kyc_status || "not_submitted").replaceAll("_", " ");
   const accountStatus = String(user?.status || "pending");
   const isFullyApproved = isUserFullyApproved(user);
 
-  // Reconcile the UI state and route in one place. This catches the exact
-  // case where the Refresh button receives an approved response, updates
-  // localStorage/state, but the route transition is interrupted by a remount.
-  useEffect(() => {
-    if (!statusResolved || !isFullyApproved || redirectingToDashboard) return;
-    redirectToDashboard();
-  }, [statusResolved, isFullyApproved, redirectingToDashboard]);
-
   const handleEmailVerification = () => navigate("/verify-email");
   const handleKYC = () => navigate("/kyc");
 
   const handleRefreshStatus = async () => {
-    if (isRefreshing || redirectingToDashboard) return;
+    if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const freshUser = await refreshUserDataFromServer(true);
+      const freshUser = await refreshUserDataFromServer();
       if (!freshUser) {
         showError("Failed to refresh status. Please try again.");
         return;
@@ -120,14 +76,17 @@ export default function AccountVerificationPage() {
       });
 
       if (approved) {
-        setStatusResolved(true);
-        showSuccess("Account verified! Redirecting to dashboard...");
-        setRedirectingToDashboard(true);
+        // The explicit successful Refresh action is the only operation that
+        // unlocks protected platform routes during this browser session.
+        try { sessionStorage.setItem(ACCESS_UNLOCK_KEY, "1"); } catch {}
+        showSuccess("Account verified! Opening dashboard...");
         navigate("/dashboard", { replace: true });
         return;
       }
-      showInfo("Status refreshed");
+
+      showInfo("Status refreshed. Your account is still awaiting approval.");
     } catch (error) {
+      console.error("VexaTrade verification refresh failed:", error);
       showError("Failed to refresh status. Please try again.");
     } finally {
       setIsRefreshing(false);
@@ -136,6 +95,7 @@ export default function AccountVerificationPage() {
 
   const handleLogout = () => {
     clearAccountStatusCache();
+    try { sessionStorage.removeItem(ACCESS_UNLOCK_KEY); } catch {}
     localStorage.removeItem("userToken");
     localStorage.removeItem("token");
     localStorage.removeItem("accessToken");
@@ -145,37 +105,14 @@ export default function AccountVerificationPage() {
     setTimeout(() => navigate("/login", { replace: true }), 500);
   };
 
-  if (redirectingToDashboard) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050812] text-white">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-          <p className="mt-3 text-sm text-slate-400">Account verified. Opening dashboard…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!statusResolved) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050812] text-white">
-        <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-          <p className="mt-3 text-sm text-slate-400">Checking account status…</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#050812] px-4 py-8 text-white">
       <div className="mx-auto max-w-md rounded-[30px] border border-white/10 bg-[#0a0e1a] p-6 shadow-2xl">
         <div className="text-center">
           <div className="text-[11px] uppercase tracking-[0.32em] text-cyan-300">Account Verification</div>
-          <h1 className="mt-3 text-3xl font-bold">Under Review</h1>
+          <h1 className="mt-3 text-3xl font-bold">{isFullyApproved ? "Account Status" : "Under Review"}</h1>
           <p className="mt-3 text-sm text-slate-400">
-            New Users: "Welcome! To get started, please complete your verification steps.
-            Our team will approve your account shortly."
+            New Users: "Welcome! To get started, please complete your verification steps. Our team will approve your account shortly."
             <br /><br />
             Existing Users: "If you are a returning user, please click 'Refresh Account Status' to check for updates or resume trading."
           </p>
