@@ -65,14 +65,26 @@ function ApprovalGuard({ children }) {
     if (isPreApprovalRoute) { setChecking(false); return () => { cancelled = true; }; }
     const token = getStoredToken();
     if (!token) return () => { cancelled = true; };
+
+    const cachedUser = getStoredUser();
+    const cachedApproved = isUserFullyApproved(cachedUser);
     let sessionResolved = false;
     const resolvedKey = `vexa_trade_access_resolved:${token}`;
     try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
+
+    // A locally persisted fully-approved session is already authorized for the
+    // current SPA session. Do not blank the platform while the background
+    // reconciliation request refreshes the same status.
+    if (cachedApproved || sessionResolved) {
+      setUser(cachedUser);
+      setChecking(false);
+    } else {
+      setChecking(true);
+    }
+
     async function reconcileAccessOnce() {
       if (cancelled) return;
-      const cachedUser = getStoredUser();
-      if (sessionResolved && isUserFullyApproved(cachedUser)) { setUser(cachedUser); setChecking(false); return; }
-      setChecking(true);
+      if (sessionResolved && cachedApproved) return;
       const status = await getAccountStatus(token);
       if (cancelled) return;
       if (status) {
@@ -81,7 +93,9 @@ function ApprovalGuard({ children }) {
         localStorage.setItem("userData", JSON.stringify(freshUser));
         setUser(freshUser);
         try { sessionStorage.setItem(resolvedKey, "1"); } catch {}
-      } else setUser(cachedUser);
+      } else {
+        setUser(getStoredUser());
+      }
       setChecking(false);
     }
     reconcileAccessOnce();
