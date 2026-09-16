@@ -37,7 +37,6 @@ import PlatformCenterPage from "./pages/PlatformCenterPage";
 import NotificationCenterPage from "./pages/NotificationCenterPage";
 
 import UserLayout from "./layouts/UserLayout";
-import { getAccountStatus, isFullyApprovedStatus } from "./services/accountStatus";
 
 import ChatWidget from "./components/ChatWidget";
 import DraggableChatButton from "./components/DraggableChatButton";
@@ -48,62 +47,29 @@ function getStoredUser() {
   const user = safeParse(localStorage.getItem("user")) || safeParse(localStorage.getItem("userData")) || {};
   return { id: user?.id || null, uid: user?.uid || "", name: user?.name || "", email: user?.email || "", email_verified: Number(user?.email_verified || 0), kyc_status: user?.kyc_status || "not_submitted", status: user?.status || "pending", approved_at: user?.approved_at || null, account_stage: user?.account_stage || "", platform_access: user?.platform_access || "" };
 }
-function isUserFullyApproved(user) { return Number(user?.email_verified || 0) === 1 && String(user?.kyc_status || "").toLowerCase() === "approved" && String(user?.status || "").toLowerCase() === "active"; }
-function isUserUnderReview(user) { if (!user || !user.email) return true; return !isUserFullyApproved(user); }
 function PrivateRoute({ children }) { return getStoredToken() ? children : <Navigate to="/login" replace />; }
+
+const ACCESS_UNLOCK_KEY = "vexa_trade_platform_unlocked";
 
 function ApprovalGuard({ children }) {
   const location = useLocation();
-  const [user, setUser] = useState(() => getStoredUser());
   const [checking, setChecking] = useState(false);
   const allowedBeforeApproval = ["/profile", "/profile/user-center", "/kyc", "/legal-documents", "/support", "/account-verification"];
   const pathname = location.pathname;
   const isPreApprovalRoute = allowedBeforeApproval.some((route) => pathname.startsWith(route));
 
   useEffect(() => {
-    let cancelled = false;
-    if (isPreApprovalRoute) { setChecking(false); return () => { cancelled = true; }; }
-    const token = getStoredToken();
-    if (!token) return () => { cancelled = true; };
-
-    const cachedUser = getStoredUser();
-    const cachedApproved = isUserFullyApproved(cachedUser);
-    let sessionResolved = false;
-    const resolvedKey = `vexa_trade_access_resolved:${token}`;
-    try { sessionResolved = sessionStorage.getItem(resolvedKey) === "1"; } catch {}
-
-    // A fully approved local session is already allowed to render. Do not make
-    // another verification HTTP request on every protected-route mount.
-    if (cachedApproved || sessionResolved) {
-      setUser(cachedUser);
-      setChecking(false);
-      return () => { cancelled = true; };
-    }
-
-    setChecking(true);
-
-    async function reconcileAccessOnce() {
-      if (cancelled) return;
-      const status = await getAccountStatus(token);
-      if (cancelled) return;
-      if (status) {
-        const freshUser = { ...getStoredUser(), email_verified: status.emailVerified ? 1 : 0, kyc_status: status.kycStatus || "not_submitted", status: status.accountStatus || "pending", platform_access: status.platformAccess || (isFullyApprovedStatus(status) ? "active" : "locked") };
-        localStorage.setItem("user", JSON.stringify(freshUser));
-        localStorage.setItem("userData", JSON.stringify(freshUser));
-        setUser(freshUser);
-        try { sessionStorage.setItem(resolvedKey, "1"); } catch {}
-      } else {
-        setUser(getStoredUser());
-      }
-      setChecking(false);
-    }
-    reconcileAccessOnce();
-    return () => { cancelled = true; };
+    if (isPreApprovalRoute) { setChecking(false); return undefined; }
+    setChecking(false);
+    return undefined;
   }, [pathname, isPreApprovalRoute]);
 
   if (isPreApprovalRoute) return children;
   if (checking) return <div className="flex min-h-screen items-center justify-center bg-[#050812]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" /></div>;
-  if (isUserUnderReview(user)) return <Navigate to="/account-verification" replace />;
+
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(ACCESS_UNLOCK_KEY) === "1"; } catch {}
+  if (!unlocked) return <Navigate to="/account-verification" replace />;
   return children;
 }
 
@@ -164,7 +130,17 @@ function AppContent() {
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 1400);
+    // A fresh browser/PWA startup must pass through the verification status page.
+    // The unlock flag is only set after the user explicitly refreshes status and
+    // receives active/approved access, then normal SPA navigation remains open.
+    try { sessionStorage.removeItem(ACCESS_UNLOCK_KEY); } catch {}
+
+    // Clear stale modal/sidebar scroll locks so a previous overlay cannot leave
+    // the application visually inaccessible after a route rebuild.
+    document.body.style.overflow = "";
+    document.body.style.pointerEvents = "";
+
+    const timer = setTimeout(() => setShowSplash(false), 2200);
     return () => clearTimeout(timer);
   }, []);
   if (showSplash) return <SplashScreen />;
