@@ -95,6 +95,7 @@ function ApprovalGuard({ children }) {
 }
 
 function AppContent() {
+  const location = useLocation();
   const { maintenance, message, loading, checkMaintenance } = useMaintenance();
   const { voucher, closeVoucher, showWarning } = useNotification();
   const { isChatOpen, openChat, closeChat } = useChat();
@@ -102,23 +103,31 @@ function AppContent() {
   let userId = '', userName = 'User';
   const userData = localStorage.getItem('user') || localStorage.getItem('userData');
   if (userData) { try { const user = JSON.parse(userData); userId = user.id || user.user_id || ''; userName = user.name || user.email?.split('@')[0] || 'User'; } catch (e) { console.warn('Failed to parse user data:', e); } }
-  const token = localStorage.getItem('userToken') || localStorage.getItem('token') || '';
+  const token = getStoredToken();
+  const chatDisabledRoutes = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/auth/callback", "/two-factor-auth", "/email-2fa-verify", "/verify-email", "/account-verification"];
+  const chatEnabled = Boolean(token) && !chatDisabledRoutes.some((route) => location.pathname === route || (route !== "/" && location.pathname.startsWith(`${route}/`)));
 
   useEffect(() => {
-    const checkUnreadMessages = () => { try { const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]"); setChatUnreadCount(conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0)); } catch (e) {} };
+    const checkUnreadMessages = () => {
+      if (!chatEnabled) { setChatUnreadCount(0); return; }
+      try { const conversations = JSON.parse(localStorage.getItem("chat_conversations_user") || "[]"); setChatUnreadCount(conversations.reduce((sum, conv) => sum + (conv.unread_user || 0), 0)); } catch (e) {}
+    };
     checkUnreadMessages();
+    if (!chatEnabled) return undefined;
     // Chat unread state is auxiliary UI; avoid an aggressive polling loop.
     const interval = setInterval(checkUnreadMessages, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [chatEnabled]);
 
   useEffect(() => {
+    if (!chatEnabled) return undefined;
     const storedToken = getStoredToken();
     const storedUserData = localStorage.getItem("user");
     if (storedToken && storedUserData && window.BrevoConversations) {
       try { const user = JSON.parse(storedUserData); window.BrevoConversations('identify', { email: user.email || '', name: user.name || user.email || 'User', custom_data: { user_id: user.id || user.uid || '', uid: user.uid || '', kyc_status: user.kyc_status || 'not_submitted', status: user.status || 'pending', email_verified: user.email_verified ? 'Yes' : 'No' } }); } catch (e) { console.warn('Could not identify user to Brevo:', e); }
     }
-  }, []);
+    return undefined;
+  }, [chatEnabled]);
 
   const handleChatButtonClick = () => { if (!token) { if (showWarning) showWarning('Please login to access chat support.'); else alert('Please login to access chat support.'); return; } openChat(); };
   if (loading) return <div className="min-h-screen bg-[#050812] flex items-center justify-center"><div className="animate-pulse text-cyan-400">Loading...</div></div>;
@@ -135,8 +144,8 @@ function AppContent() {
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
     <VoucherModal voucher={voucher} onClose={closeVoucher} />
-    {!isChatOpen && <DraggableChatButton onClick={handleChatButtonClick} unreadCount={chatUnreadCount} isOpen={isChatOpen} />}
-    <ChatWidget userId={userId} userName={userName} isOpen={isChatOpen} onClose={closeChat} />
+    {chatEnabled && !isChatOpen && <DraggableChatButton onClick={handleChatButtonClick} unreadCount={chatUnreadCount} isOpen={isChatOpen} />}
+    {chatEnabled && <ChatWidget userId={userId} userName={userName} isOpen={isChatOpen} onClose={closeChat} />}
   </>;
 }
 
