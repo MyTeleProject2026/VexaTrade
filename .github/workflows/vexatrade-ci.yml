@@ -24,6 +24,7 @@ jobs:
       - name: Validate backend entrypoints and admin routes
         run: |
           node --check server.js
+          node --check schemaBootstrap.js
           node --check src/routes/adminRoutes.js
           node --check src/routes/adminControlCenterRoutes.js
           node --check src/routes/adminNotifications.js
