@@ -50,23 +50,28 @@ export default function AccountVerificationPage() {
   useEffect(() => {
     let cancelled = false;
     async function reconcile() {
-      const freshUser = await refreshUserDataFromServer(false);
-      if (cancelled) return;
-      if (freshUser) {
-        setUser(freshUser);
-        if (isUserFullyApproved(freshUser)) {
-          navigate("/dashboard", { replace: true });
-          return;
+      try {
+        const freshUser = await refreshUserDataFromServer(false);
+        if (cancelled) return;
+        if (freshUser) {
+          setUser(freshUser);
+          if (isUserFullyApproved(freshUser)) {
+            navigate("/dashboard", { replace: true });
+            return;
+          }
+        } else {
+          const cached = getStoredUser();
+          setUser(cached);
+          if (isUserFullyApproved(cached)) {
+            navigate("/dashboard", { replace: true });
+            return;
+          }
         }
-      } else {
-        const cached = getStoredUser();
-        setUser(cached);
-        if (isUserFullyApproved(cached)) {
-          navigate("/dashboard", { replace: true });
-          return;
-        }
+      } catch (error) {
+        if (!cancelled) console.warn("VexaTrade verification reconciliation failed:", error);
+      } finally {
+        if (!cancelled) setStatusResolved(true);
       }
-      setStatusResolved(true);
     }
     reconcile();
     return () => { cancelled = true; };
@@ -124,6 +129,7 @@ export default function AccountVerificationPage() {
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
           <p className="mt-3 text-sm text-slate-400">Checking account status…</p>
+          <p className="mt-1 text-[11px] text-slate-500">This check is limited to a few seconds.</p>
         </div>
       </div>
     );
