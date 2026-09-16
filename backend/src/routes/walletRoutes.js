@@ -8,10 +8,14 @@ const { getBinanceHomeMarkets } = require('../../services/tradeService');
 
 let assetColumnsCache = null;
 let assetColumnsCacheAt = 0;
+let walletLabelCache = 'Main Wallet';
+let walletLabelCacheAt = 0;
+const SCHEMA_CACHE_TTL_MS = 60000;
+const WALLET_LABEL_CACHE_TTL_MS = 60000;
 
 async function getUserAssetColumns() {
   const now = Date.now();
-  if (assetColumnsCache && now - assetColumnsCacheAt < 60000) return assetColumnsCache;
+  if (assetColumnsCache && now - assetColumnsCacheAt < SCHEMA_CACHE_TTL_MS) return assetColumnsCache;
   try {
     const [rows] = await pool.query('SHOW COLUMNS FROM user_assets');
     assetColumnsCache = new Set(rows.map(row => String(row.Field || row.field || '')));
@@ -22,6 +26,21 @@ async function getUserAssetColumns() {
     assetColumnsCacheAt = now;
     return assetColumnsCache;
   }
+}
+
+async function getWalletLabel() {
+  const now = Date.now();
+  if (now - walletLabelCacheAt < WALLET_LABEL_CACHE_TTL_MS) return walletLabelCache;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT setting_value FROM platform_settings WHERE setting_key = 'wallet_label' LIMIT 1`
+    );
+    walletLabelCache = rows[0]?.setting_value || 'Main Wallet';
+  } catch (settingsError) {
+    console.warn('[Wallet] wallet_label setting unavailable; using cached/default:', settingsError?.message || settingsError);
+  }
+  walletLabelCacheAt = now;
+  return walletLabelCache;
 }
 
 async function getPriceMap() {
@@ -39,16 +58,21 @@ async function getPriceMap() {
 }
 
 async function getWalletSummary(req) {
-  const [rows] = await pool.execute(
-    `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified, balance
-     FROM users WHERE id = ?`,
-    [req.user.id]
-  );
+  // User identity and USDT ledger balance are independent reads, so start them together.
+  const [userResult, columns] = await Promise.all([
+    pool.execute(
+      `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified, balance
+       FROM users WHERE id = ?`,
+      [req.user.id]
+    ),
+    getUserAssetColumns(),
+  ]);
+
+  const [rows] = userResult;
   if (!rows.length) throw createError(404, 'User not found');
 
   const user = rows[0];
   let availableUsdt = Number(user.balance || 0);
-  const columns = await getUserAssetColumns();
 
   try {
     if (columns.has('available_balance')) {
@@ -70,15 +94,7 @@ async function getWalletSummary(req) {
     console.warn('[Wallet] Asset balance lookup failed; using users.balance fallback:', assetError?.message || assetError);
   }
 
-  let walletLabel = 'Main Wallet';
-  try {
-    const [settingRows] = await pool.execute(
-      `SELECT setting_value FROM platform_settings WHERE setting_key = 'wallet_label' LIMIT 1`
-    );
-    walletLabel = settingRows[0]?.setting_value || walletLabel;
-  } catch (settingsError) {
-    console.warn('[Wallet] wallet_label setting unavailable; using default:', settingsError?.message || settingsError);
-  }
+  const walletLabel = await getWalletLabel();
 
   return {
     success: true,
@@ -112,8 +128,8 @@ router.get('/wallet/summary', authUser, walletSummaryHandler);
 router.get('/wallet/summaryGeneral', authUser, walletSummaryHandler);
 
 async function buildAssets(userId) {
-  const priceMap = await getPriceMap();
-  const columns = await getUserAssetColumns();
+  // Portfolio valuation is allowed to fail over to zero prices; wallet balances remain ledger-authoritative.
+  const [priceMap, columns] = await Promise.all([getPriceMap(), getUserAssetColumns()]);
   let assetRows = [];
 
   try {
