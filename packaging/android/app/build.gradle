@@ -28,9 +28,9 @@ android {
 // configuration before Gradle can even start assembling the APK/AAB.
 androidComponents {
     onVariants(selector().withName('userRelease')) { variant ->
-        variant.signingConfig.set(signingConfigs.userRelease)
+        variant.signingConfig.set(android.signingConfigs.getByName('userRelease'))
     }
     onVariants(selector().withName('adminRelease')) { variant ->
-        variant.signingConfig.set(signingConfigs.adminRelease)
+        variant.signingConfig.set(android.signingConfigs.getByName('adminRelease'))
     }
 }
