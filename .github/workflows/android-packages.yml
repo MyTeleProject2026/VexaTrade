@@ -26,24 +26,49 @@ jobs:
       - name: Set up Android SDK command-line tools
         uses: android-actions/setup-android@v4
         with:
-          # setup-android@v4 defaults to the obsolete SDK package named "tools".
-          # Request only platform-tools here; the workflow installs the exact
-          # compile/build packages in the next step.
           packages: platform-tools
       - name: Install Android SDK
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
-      - name: Restore release keystores
+      - name: Prepare release signing
         env:
           USER_KEYSTORE_BASE64: ${{ secrets.VEXATRADE_USER_KEYSTORE_BASE64 }}
           ADMIN_KEYSTORE_BASE64: ${{ secrets.VEXATRADE_ADMIN_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           mkdir -p "$(dirname "$USER_KEYSTORE_PATH")" "$(dirname "$ADMIN_KEYSTORE_PATH")"
-          printf '%s' "$USER_KEYSTORE_BASE64" | base64 --decode > "$USER_KEYSTORE_PATH"
-          printf '%s' "$ADMIN_KEYSTORE_BASE64" | base64 --decode > "$ADMIN_KEYSTORE_PATH"
-          chmod 600 "$USER_KEYSTORE_PATH" "$ADMIN_KEYSTORE_PATH"
-          keytool -list -keystore "$USER_KEYSTORE_PATH" -storepass "$USER_KEYSTORE_PASSWORD" -alias "$USER_KEY_ALIAS" >/dev/null
-          keytool -list -keystore "$ADMIN_KEYSTORE_PATH" -storepass "$ADMIN_KEYSTORE_PASSWORD" -alias "$ADMIN_KEY_ALIAS" >/dev/null
+
+          have_release_secrets=true
+          for value in "$USER_KEYSTORE_BASE64" "$USER_KEYSTORE_PASSWORD" "$USER_KEY_ALIAS" "$USER_KEY_PASSWORD" "$ADMIN_KEYSTORE_BASE64" "$ADMIN_KEYSTORE_PASSWORD" "$ADMIN_KEY_ALIAS" "$ADMIN_KEY_PASSWORD"; do
+            if [ -z "$value" ]; then
+              have_release_secrets=false
+              break
+            fi
+          done
+
+          if [ "$have_release_secrets" = true ]; then
+            printf '%s' "$USER_KEYSTORE_BASE64" | base64 --decode > "$USER_KEYSTORE_PATH"
+            printf '%s' "$ADMIN_KEYSTORE_BASE64" | base64 --decode > "$ADMIN_KEYSTORE_PATH"
+            chmod 600 "$USER_KEYSTORE_PATH" "$ADMIN_KEYSTORE_PATH"
+            keytool -list -keystore "$USER_KEYSTORE_PATH" -storepass "$USER_KEYSTORE_PASSWORD" -alias "$USER_KEY_ALIAS" >/dev/null
+            keytool -list -keystore "$ADMIN_KEYSTORE_PATH" -storepass "$ADMIN_KEYSTORE_PASSWORD" -alias "$ADMIN_KEY_ALIAS" >/dev/null
+            echo "ANDROID_SIGNING_MODE=release" >> "$GITHUB_ENV"
+            echo "Using configured release signing keys."
+          else
+            echo "Configured release signing secrets are incomplete; generating ephemeral CI-only signing keys."
+            user_password="$(openssl rand -hex 24)"
+            admin_password="$(openssl rand -hex 24)"
+            keytool -genkeypair -v -keystore "$USER_KEYSTORE_PATH" -storepass "$user_password" -keypass "$user_password" -alias vexatrade-user-ci -keyalg RSA -keysize 2048 -validity 1 -dname "CN=VexaTrade User CI, OU=CI, O=MyTeleProject2026, C=US" -noprompt
+            keytool -genkeypair -v -keystore "$ADMIN_KEYSTORE_PATH" -storepass "$admin_password" -keypass "$admin_password" -alias vexatrade-admin-ci -keyalg RSA -keysize 2048 -validity 1 -dname "CN=VexaTrade Admin CI, OU=CI, O=MyTeleProject2026, C=US" -noprompt
+            {
+              echo "USER_KEYSTORE_PASSWORD=$user_password"
+              echo "USER_KEY_ALIAS=vexatrade-user-ci"
+              echo "USER_KEY_PASSWORD=$user_password"
+              echo "ADMIN_KEYSTORE_PASSWORD=$admin_password"
+              echo "ADMIN_KEY_ALIAS=vexatrade-admin-ci"
+              echo "ADMIN_KEY_PASSWORD=$admin_password"
+              echo "ANDROID_SIGNING_MODE=ephemeral-ci"
+            } >> "$GITHUB_ENV"
+          fi
       - name: Build user APK/AAB
         working-directory: packaging/android
         run: |
@@ -65,7 +90,7 @@ jobs:
           while IFS= read -r f; do size=$(stat -c '%s' "$f"); [ "$size" -gt 100000 ] || { echo "Release binary unexpectedly small: $f ($size bytes)" >&2; exit 1; }; done < <(find app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \))
       - uses: actions/upload-artifact@v7
         with:
-          name: vexatrade-android-release
+          name: vexatrade-android-release-${{ env.ANDROID_SIGNING_MODE }}
           if-no-files-found: error
           path: |
             packaging/android/app/build/outputs/apk/user/release/*.apk
