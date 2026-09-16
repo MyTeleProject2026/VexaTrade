@@ -92,6 +92,12 @@ jobs:
           node --check src/routes/tradeRoutes.js
           node --check src/middleware/auth.js
           node --check services/assetLedgerService.js
+      - name: Validate runtime dependency graph
+        run: |
+          node -e "require('./cloudinaryStorage'); console.log('Cloudinary storage dependency graph loaded')"
+          node -e "require('multer-storage-cloudinary'); console.log('multer-storage-cloudinary is installed')"
+          node -e "require('cloudinary'); console.log('cloudinary is installed')"
+          node -e "require('socket.io'); console.log('socket.io is installed')"
 
   frontend-user:
     name: Frontend user build
