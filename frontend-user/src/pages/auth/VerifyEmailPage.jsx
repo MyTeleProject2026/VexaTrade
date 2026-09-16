@@ -6,20 +6,17 @@ import { userApi } from "../../services/api";
 
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
-  const { showSuccess, showError, showInfo } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [step, setStep] = useState("send"); // "send" | "verify"
+  const [step, setStep] = useState("send");
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Get user email from localStorage
   useEffect(() => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      if (userData.email) {
-        setEmail(userData.email);
-      }
+      if (userData.email) setEmail(userData.email);
     } catch (e) {
       console.error("Failed to get user email:", e);
     }
@@ -33,15 +30,12 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      // ✅ Use userApi instead of raw fetch
       const response = await userApi.sendEmailVerificationCode();
-      const data = response.data; // axios returns data in .data
-
+      const data = response.data;
       if (data.success) {
         showSuccess("Verification code sent to your email!");
         setStep("verify");
         setResendCooldown(60);
-        // Start cooldown timer
         const interval = setInterval(() => {
           setResendCooldown((prev) => {
             if (prev <= 1) {
@@ -56,12 +50,11 @@ export default function VerifyEmailPage() {
       }
     } catch (error) {
       console.error("Send code error:", error);
-      // Extract error message from axios error
-      const message =
+      showError(
         error?.response?.data?.message ||
-        error?.message ||
-        "Network error. Please try again.";
-      showError(message);
+          error?.message ||
+          "Network error. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -75,60 +68,28 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      // ✅ Use userApi to verify OTP
       const response = await userApi.verifyEmailCode({ code: otp });
       const verifyData = response.data;
 
       if (!verifyData.success) {
         showError(verifyData.message || "Invalid code.");
-        setLoading(false);
         return;
       }
 
+      // The canonical email-verification endpoint already persists the verified
+      // state server-side. Do not call the removed /api/auth/sync-user endpoint.
       showSuccess("Email verified successfully!");
 
-      // ─── Sync user data from VexaAccount ────────────────────
-      try {
-        const userData = JSON.parse(localStorage.getItem("user") || "{}");
-        const token = localStorage.getItem("token") || localStorage.getItem("userToken");
-        const syncResponse = await fetch("/api/auth/sync-user", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            email: userData.email || email,
-            vexaToken: token,
-            userData: userData,
-          }),
-        });
-
-        const syncData = await syncResponse.json();
-        if (syncData.success) {
-          // Update local storage with synced user data
-          const mergedUser = { ...userData, ...syncData.user };
-          localStorage.setItem("user", JSON.stringify(mergedUser));
-          localStorage.setItem("userData", JSON.stringify(mergedUser));
-          showInfo("Profile data refreshed from VexaAccount.");
-        } else {
-          console.warn("Sync failed:", syncData.message);
-        }
-      } catch (syncError) {
-        console.error("Sync error:", syncError);
-      }
-
-      // Navigate back to Account Verification page
       setTimeout(() => {
         navigate("/account-verification", { replace: true });
       }, 1000);
     } catch (error) {
       console.error("Verify error:", error);
-      const message =
+      showError(
         error?.response?.data?.message ||
-        error?.message ||
-        "Verification failed. Please try again.";
-      showError(message);
+          error?.message ||
+          "Verification failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
