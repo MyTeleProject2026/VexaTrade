@@ -19,6 +19,7 @@ const activityRoutes = require('./src/routes/activityRoutes');
 const transferRoutes = require('./src/routes/transferRoutes');
 const depositRoutes = require('./src/routes/depositRoutes');
 const withdrawalRoutes = require('./src/routes/withdrawalRoutes');
+const profitWithdrawalRoutes = require('./src/routes/profitWithdrawalRoutes');
 const tradeRoutes = require('./src/routes/tradeRoutes');
 const fundsRoutes = require('./src/routes/fundsRoutes');
 const loanRoutes = require('./src/routes/loanRoutes');
@@ -56,7 +57,7 @@ app.use('/api/auth',authRoutes);
 app.use('/api/auth/vexaaccount',vexaAccountSsoRoutes);
 app.use('/api',securityRoutes);
 app.use('/api/chat',require('./src/middleware/auth').authUser,chatRoutes);
-app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',activityRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);
+app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',activityRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',profitWithdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);
 // Read-only compatibility/public endpoints must be registered before the generic 404 handler.
 app.use('/api',platformPublicRoutes);
 // Canonical ledger-aware settlement routes must be registered before legacy admin compatibility routes.
