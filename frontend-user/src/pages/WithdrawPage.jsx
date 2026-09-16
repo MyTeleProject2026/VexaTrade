@@ -39,8 +39,12 @@ function statusClass(status) {
 
 const NETWORK_OPTIONS = { USDT: ["TRC20", "ERC20", "BEP20"], BTC: ["BTC"], ETH: ["ERC20"] };
 
-function GlassCard({ children, className = "" }) { return <section className={`rounded-[30px] border border-white/10 bg-[#0a0e1a] shadow-[0_18px_60px_rgba(0,0,0,0.35)] ${className}`}>{children}</section>; }
+function GlassCard({ children, className = "" }) {
+  return <section className={`rounded-[30px] border border-white/10 bg-[#0a0e1a] shadow-[0_18px_60px_rgba(0,0,0,0.35)] ${className}`}>{children}</section>;
+}
+
 function FieldLabel({ children }) { return <label className="mb-2 block text-sm text-slate-400">{children}</label>; }
+
 function ActionButton({ children, onClick, type = "button", disabled = false, variant = "primary", className = "" }) {
   const styles = { primary: "bg-cyan-500 text-black hover:bg-cyan-400", secondary: "border border-white/10 bg-[#0a0e1a] text-white hover:bg-[#1e1e1e]" };
   return <button type={type} onClick={onClick} disabled={disabled} className={`rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant]} ${className}`}>{children}</button>;
@@ -80,8 +84,10 @@ export default function WithdrawPage() {
         setHasTarget(true);
         setTargetProgress({ currentProfit: Number(targetData.current_profit || 0), targetAmount: Number(targetData.target_amount || 0) });
       } else setHasTarget(false);
-    } catch (err) { console.error("Failed to check target:", err); setHasTarget(false); }
-    finally { setTargetChecking(false); }
+    } catch (err) {
+      console.error("Failed to check target:", err);
+      setHasTarget(false);
+    } finally { setTargetChecking(false); }
   }
 
   async function refreshTargetProgress() {
@@ -96,7 +102,8 @@ export default function WithdrawPage() {
 
   function openProfitWithdrawal() {
     if (targetProgress.currentProfit <= 0) { showError("You don't have any profits to withdraw yet."); return; }
-    setProfitWithdrawalAmount(targetProgress.currentProfit); setShowProfitWithdrawalModal(true);
+    setProfitWithdrawalAmount(targetProgress.currentProfit);
+    setShowProfitWithdrawalModal(true);
   }
 
   async function loadProfile() {
@@ -110,8 +117,10 @@ export default function WithdrawPage() {
       else setKycStatus("not_submitted");
       if (walletRes.status === "fulfilled") setWalletBalance(Number(walletRes.value?.data?.data?.balance || 0));
       else setWalletBalance(0);
-    } catch { setKycStatus("not_submitted"); setWalletBalance(0); }
-    finally { setKycLoading(false); }
+    } catch {
+      setKycStatus("not_submitted");
+      setWalletBalance(0);
+    } finally { setKycLoading(false); }
   }
 
   async function loadHistory(silent = false) {
@@ -123,7 +132,10 @@ export default function WithdrawPage() {
     finally { setLoading(false); setRefreshing(false); }
   }
 
-  async function loadAll(silent = false) { setError(""); await Promise.all([loadProfile(), loadHistory(silent), checkUserTarget()]); }
+  async function loadAll(silent = false) {
+    setError("");
+    await Promise.all([loadProfile(), loadHistory(silent), checkUserTarget()]);
+  }
 
   useEffect(() => {
     loadAll();
@@ -140,19 +152,27 @@ export default function WithdrawPage() {
     if (!form.amount || Number(form.amount) <= 0) { showError("Please enter a valid withdrawal amount."); return; }
     if (form.coin === "USDT" && Number(form.amount) > Number(walletBalance || 0)) { showError("Insufficient available balance."); return; }
     try {
-      setSubmitting(true); setError(""); setSuccess("");
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
       const res = await withdrawalApi.request({ coin: form.coin, network: form.network, amount: Number(form.amount), wallet_address: form.address, transactionPasscode: form.transactionPasscode, twoFactorCode: form.twoFactorCode }, token);
       const responseData = res?.data?.data || {};
       const jointRequired = responseData.authorization === "joint_partner_email_otp";
       showSuccess(jointRequired ? "Withdrawal created. Your joint account holder must authorize it using the email OTP." : "Withdrawal authorized and queued for settlement.");
       showVoucher({ title: "Withdrawal Requested", type: "withdraw", transactionId: responseData.id, data: { id: responseData.id, coin: form.coin, network: form.network, amount: Number(form.amount), feeAmount: responseData.feeAmount || 0, netAmount: responseData.netAmount || Number(form.amount), status: responseData.status || "Pending", created_at: new Date().toISOString() } });
       setForm({ coin: "USDT", network: "TRC20", amount: "", address: "", transactionPasscode: "", twoFactorCode: "" });
-      setTab("history"); await loadHistory(true);
+      setTab("history");
+      await loadHistory(true);
     } catch (err) { showError(getApiErrorMessage(err)); }
     finally { setSubmitting(false); }
   }
 
-  function handleProfitWithdrawalSuccess() { showSuccess("Profit withdrawal request submitted. Admin will review and approve."); refreshTargetProgress(); loadHistory(true); }
+  function handleProfitWithdrawalSuccess() {
+    showSuccess("Profit withdrawal request submitted. Admin will review and approve.");
+    refreshTargetProgress();
+    loadHistory(true);
+  }
+
   const targetProgressPercent = useMemo(() => targetProgress.targetAmount <= 0 ? 0 : (targetProgress.currentProfit / targetProgress.targetAmount) * 100, [targetProgress]);
 
   function renderKycCard() {
@@ -170,6 +190,31 @@ export default function WithdrawPage() {
       {renderKycCard()}
       {hasTarget && targetProgress.targetAmount > 0 && !targetChecking && <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Target size={16} className="text-cyan-400" /><span className="text-sm text-slate-300">Your Target Goal:</span><span className="text-sm font-semibold text-white">{targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT</span></div><div className="flex items-center gap-2"><div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} /></div><span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span></div></div>{isTargetAchieved ? <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center"><span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span></div> : <div className="mt-2 text-xs text-slate-400">{targetProgress.currentProfit > 0 ? <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. <button onClick={openProfitWithdrawal} className="ml-1 text-cyan-400 hover:text-cyan-300">Withdraw profits now →</button></span> : <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>}</div>}</div>}
       <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => setTab("request")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "request" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>Request</button><button type="button" onClick={() => setTab("history")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "history" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>History</button></div>
+      {tab === "request" ? <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><ArrowUpToLine size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Withdrawal Request</h2></div></div>
+          {isMainWithdrawDisabled && <div className="mx-5 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"><div className="flex items-start gap-2"><Target size={16} className="text-amber-400 mt-0.5 shrink-0" /><div className="text-xs text-amber-300">You have an active target that is not yet achieved. Please use the <strong>"Withdraw Profits"</strong> button below to withdraw from your profits only. Main withdrawal is disabled until you achieve your target.</div></div></div>}
+          <form onSubmit={handleSubmit} className="space-y-4 p-5">
+            <div className="grid grid-cols-2 gap-3"><div><FieldLabel>Coin</FieldLabel><select value={form.coin} onChange={(e) => setForm({ ...form, coin: e.target.value, network: NETWORK_OPTIONS[e.target.value][0] })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled}>{Object.keys(NETWORK_OPTIONS).map((c) => <option key={c}>{c}</option>)}</select></div>
+              <div><FieldLabel>Network</FieldLabel><select value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled}>{availableNetworks.map((n) => <option key={n}>{n}</option>)}</select></div></div>
+            <div><FieldLabel>Wallet Address</FieldLabel><input type="text" placeholder="Enter wallet address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
+            <div><FieldLabel>Transaction Passcode</FieldLabel><input type="password" inputMode="numeric" autoComplete="off" placeholder="4–12 digit transaction passcode" value={form.transactionPasscode} onChange={(e) => setForm({ ...form, transactionPasscode: e.target.value.replace(/\D/g, "").slice(0, 12) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
+            <div><FieldLabel>Authenticator Code (if 2FA is enabled)</FieldLabel><input type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit authenticator code" value={form.twoFactorCode} onChange={(e) => setForm({ ...form, twoFactorCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /><p className="mt-1 text-xs text-slate-500">Required only when Authenticator 2FA is enabled for your account.</p></div>
+            <div><FieldLabel>Amount</FieldLabel><input type="number" placeholder="Enter amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
+            <ActionButton type="submit" disabled={submitting || !isKycApproved || isMainWithdrawDisabled} className="w-full">{submitting ? "Processing..." : isMainWithdrawDisabled ? "Withdraw Disabled (Target Active)" : isKycApproved ? "Withdraw" : "KYC Required"}</ActionButton>
+          </form>
+        </GlassCard>
+        <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><Wallet size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Withdrawal Summary</h2></div></div>
+          <div className="space-y-4 p-5"><div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Available Balance</div><div className="mt-2 text-3xl font-bold text-white">{formatAmount(walletBalance)} USDT</div></div>
+            {hasTarget && <div className="rounded-[24px] border border-cyan-500/20 bg-cyan-500/10 p-4"><div className="flex items-center justify-between"><div className="text-sm text-cyan-300">Profit Balance (Before Target)</div><DollarSign size={16} className="text-cyan-300" /></div><div className="mt-2 text-2xl font-bold text-cyan-300">{formatAmount(targetProgress.currentProfit)} USDT</div><div className="mt-2 text-xs text-slate-400">Withdraw from profits without affecting your main balance</div><button type="button" onClick={openProfitWithdrawal} disabled={targetProgress.currentProfit <= 0} className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed">Withdraw Profits</button></div>}
+            <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Selected Coin</div><div className="mt-2 text-xl font-semibold text-white">{form.coin}</div></div>
+            <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Selected Network</div><div className="mt-2 text-xl font-semibold text-white">{form.network}</div></div>
+            <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="flex items-start gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-300"><Lock size={18} /></div><div><div className="text-sm font-semibold text-white">Security Reminder</div><div className="mt-2 text-sm leading-6 text-slate-400">Double-check your wallet address and network before submitting. Withdrawals cannot be reversed after processing.</div></div></div></div>
+            {!isKycApproved ? <ActionButton variant="secondary" className="w-full" onClick={() => navigate("/kyc")}>Complete KYC First</ActionButton> : null}
+          </div>
+        </GlassCard>
+      </div> : null}
+      {tab === "history" ? <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold text-white">Withdrawal History</h2><span className="rounded-full border border-white/10 bg-[#050812] px-3 py-1 text-xs text-slate-300">{history.length} Record{history.length === 1 ? "" : "s"}</span></div></div><div className="space-y-4 p-5">{history.length ? history.map((item) => <div key={item.id} className="rounded-[26px] border border-white/10 bg-[#050812] p-5"><div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]"><div><div className="flex flex-wrap items-center gap-3"><div className="text-lg font-semibold text-white">{String(item.coin || "USDT").toUpperCase()} Withdrawal</div><span className="rounded-full border border-white/10 bg-[#151515] px-3 py-1 text-xs text-slate-300">ID #{item.id}</span><span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(item.status)}`}>{item.status || "-"}</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">Coin</div><div className="mt-2 text-sm font-semibold text-white">{item.coin || "--"}</div></div><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">Network</div><div className="mt-2 text-sm font-semibold text-white">{item.network || "--"}</div></div><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">Amount</div><div className="mt-2 text-sm font-semibold text-cyan-400">{formatAmount(item.amount)}</div></div><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">Time</div><div className="mt-2 text-sm font-semibold text-white">{formatTime(item.created_at)}</div></div></div></div><div className="space-y-4"><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">Wallet Address</div><div className="mt-2 break-all text-sm text-white">{item.wallet_address || item.address || "--"}</div></div>{(item.txid || item.note || item.system_note) ? <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs uppercase tracking-wide text-slate-500">TXID / Note</div><div className="mt-2 break-all text-sm text-white">{item.txid || item.system_note || item.note || "--"}</div></div> : null}</div></div></div>) : <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-10 text-center text-sm text-slate-400">No withdrawal history found.</div>}</div></GlassCard> : null}
+      <ProfitWithdrawalModal isOpen={showProfitWithdrawalModal} onClose={() => setShowProfitWithdrawalModal(false)} onSuccess={handleProfitWithdrawalSuccess} currentProfit={profitWithdrawalAmount} targetAmount={targetProgress.targetAmount} />
     </div>
   );
 }
