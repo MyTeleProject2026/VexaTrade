@@ -1,7 +1,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://vexatrade-5ycu.onrender.com';
 const CACHE_KEY = 'vexa_trade_account_status_cache_v1';
 const CACHE_TTL_MS = 300_000;
-const REQUEST_TIMEOUT_MS = 5000;
+const REQUEST_TIMEOUT_MS = 12000;
 
 let inFlightPromise = null;
 let inFlightToken = '';
@@ -47,6 +47,7 @@ async function fetchAccountStatus(authToken) {
       headers: { Authorization: `Bearer ${authToken}` },
       credentials: 'include',
       signal: controller.signal,
+      cache: 'no-store',
     });
     const data = await response.json().catch(() => null);
     if (!response.ok || !data?.success || !data?.status) return null;
@@ -92,7 +93,15 @@ export async function getAccountStatus(token, { force = false } = {}) {
     if (cached) return cached;
   }
 
-  if (inFlightPromise && inFlightToken === authToken) return inFlightPromise;
+  if (inFlightPromise && inFlightToken === authToken) {
+    if (!force) return inFlightPromise;
+    const existingResult = await inFlightPromise;
+    if (existingResult) return existingResult;
+    if (inFlightToken === authToken) {
+      inFlightPromise = null;
+      inFlightToken = '';
+    }
+  }
 
   inFlightToken = authToken;
   inFlightPromise = fetchAccountStatus(authToken);
