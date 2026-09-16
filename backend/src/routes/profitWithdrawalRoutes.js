@@ -111,6 +111,19 @@ router.post('/withdraw/profit-request', authUser, async (req, res, next) => {
   } finally { db.release(); }
 });
 
+router.get('/withdraw/profit-history', authUser, async (req, res, next) => {
+  try {
+    await ensureTable();
+    const [rows] = await pool.execute(`
+      SELECT id,amount,status,admin_note,created_at,updated_at,approved_at,rejected_at
+      FROM profit_withdrawal_requests
+      WHERE user_id=?
+      ORDER BY id DESC LIMIT 100
+    `, [req.user.id]);
+    res.json({ success: true, data: rows });
+  } catch (e) { next(e); }
+});
+
 router.get('/admin/profit-withdrawal-requests', authAdmin, async (req, res, next) => {
   try {
     await ensureTable();
