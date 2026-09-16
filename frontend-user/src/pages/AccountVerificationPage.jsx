@@ -44,18 +44,26 @@ async function refreshUserDataFromServer(force = false) {
 export default function AccountVerificationPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
-  const [statusResolved, setStatusResolved] = useState(false);
+  const [statusResolved, setStatusResolved] = useState(() => isUserFullyApproved(getStoredUser()));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { showSuccess, showInfo, showError } = useNotification();
 
   const redirectToDashboard = () => {
-    // Use the SPA router only. A hard window.location fallback caused the
-    // entire VexaTrade application to reload and flash the verification UI.
     navigate("/dashboard", { replace: true });
   };
 
   useEffect(() => {
     let cancelled = false;
+    const cached = getStoredUser();
+
+    // This page must never remain visible for an already-approved account.
+    // The approval guard normally prevents reaching it, but this also covers
+    // direct URL opens and stale route transitions without another HTTP call.
+    if (isUserFullyApproved(cached)) {
+      navigate("/dashboard", { replace: true });
+      return () => { cancelled = true; };
+    }
+
     async function reconcile() {
       try {
         const freshUser = await refreshUserDataFromServer(false);
@@ -63,16 +71,11 @@ export default function AccountVerificationPage() {
         if (freshUser) {
           setUser(freshUser);
           if (isUserFullyApproved(freshUser)) {
-            redirectToDashboard();
+            navigate("/dashboard", { replace: true });
             return;
           }
         } else {
-          const cached = getStoredUser();
-          setUser(cached);
-          if (isUserFullyApproved(cached)) {
-            redirectToDashboard();
-            return;
-          }
+          setUser(getStoredUser());
         }
       } catch (error) {
         if (!cancelled) console.warn("VexaTrade verification reconciliation failed:", error);
@@ -112,7 +115,7 @@ export default function AccountVerificationPage() {
 
       if (approved) {
         showSuccess("Account verified! Redirecting to dashboard...");
-        redirectToDashboard();
+        navigate("/dashboard", { replace: true });
         return;
       }
       showInfo("Status refreshed");
@@ -140,7 +143,6 @@ export default function AccountVerificationPage() {
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
           <p className="mt-3 text-sm text-slate-400">Checking account status…</p>
-          <p className="mt-1 text-[11px] text-slate-500">This check is limited to a few seconds.</p>
         </div>
       </div>
     );
