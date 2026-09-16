@@ -17,7 +17,7 @@ import { depositApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+  import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 
 function formatAmount(v) {
   const num = Number(v || 0);

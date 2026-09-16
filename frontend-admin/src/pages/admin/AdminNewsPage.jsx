@@ -20,7 +20,7 @@ function resolveImage(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   const base =
-    import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+    import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
   return `${base}${url}`;
 }
 

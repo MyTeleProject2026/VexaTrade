@@ -604,7 +604,7 @@ export default function FundsPage() {
   async function checkUserTarget() {
     try {
       setTargetChecking(true);
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/user/target`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com"}/api/user/target`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -631,7 +631,7 @@ export default function FundsPage() {
 
   async function refreshTargetProgress() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/user/target`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com"}/api/user/target`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -649,7 +649,7 @@ export default function FundsPage() {
 
   async function checkAndPromptNewTarget() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/user/target`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com"}/api/user/target`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();

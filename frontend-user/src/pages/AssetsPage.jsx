@@ -299,7 +299,7 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
   const { showSuccess, showError, showVoucher } = useNotification();
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 
   // Load recent contacts on mount
   useEffect(() => {
@@ -770,7 +770,7 @@ export default function AssetsPage() {
   // ✅ FIX: Load real user assets from backend
   async function loadRealUserAssets() {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com";
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
       const res = await fetch(`${API_BASE_URL}/api/user/assets`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -808,7 +808,7 @@ export default function AssetsPage() {
       ];
 
       tasks.push(
-        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-server.onrender.com"}/api/joint-account/combined-balance`, {
+        fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com"}/api/joint-account/combined-balance`, {
           headers: { Authorization: `Bearer ${token}` }
         }).then(res => res.json())
       );
