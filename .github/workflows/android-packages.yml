@@ -57,6 +57,8 @@ jobs:
             echo "Configured release signing secrets are incomplete; generating ephemeral CI-only signing keys."
             user_password="$(openssl rand -hex 24)"
             admin_password="$(openssl rand -hex 24)"
+            echo "::add-mask::$user_password"
+            echo "::add-mask::$admin_password"
             keytool -genkeypair -v -keystore "$USER_KEYSTORE_PATH" -storepass "$user_password" -keypass "$user_password" -alias vexatrade-user-ci -keyalg RSA -keysize 2048 -validity 1 -dname "CN=VexaTrade User CI, OU=CI, O=MyTeleProject2026, C=US" -noprompt
             keytool -genkeypair -v -keystore "$ADMIN_KEYSTORE_PATH" -storepass "$admin_password" -keypass "$admin_password" -alias vexatrade-admin-ci -keyalg RSA -keysize 2048 -validity 1 -dname "CN=VexaTrade Admin CI, OU=CI, O=MyTeleProject2026, C=US" -noprompt
             {
