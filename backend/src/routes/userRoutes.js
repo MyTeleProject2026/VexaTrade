@@ -11,8 +11,21 @@ const { sendOtpEmail } = require('../../services/emailService');
 const { getBinanceHomeMarkets } = require('../../services/tradeService');
 const upload = multer({ storage });
 
-router.get('/user/profile', authUser, async (req,res,next)=>{try{const [rows]=await pool.execute(`SELECT id,uid,name,first_name,last_name,gender,date_of_birth,country,status,email_verified,kyc_status,approved_at,avatar_url,trading_fee_tier FROM users WHERE id=?`,[req.user.id]);if(!rows.length)throw createError(404,'User not found');res.json({success:true,data:rows[0]})}catch(e){next(e)}});
-router.put('/user/profile',authUser,async(req,res,next)=>{try{const name=String(req.body.name||'').trim();if(!name)throw createError(400,'Name is required');await pool.execute('UPDATE users SET name=?,updated_at=NOW() WHERE id=?',[name,req.user.id]);const [rows]=await pool.execute('SELECT id,uid,name,first_name,last_name,gender,date_of_birth,country,status,email_verified,kyc_status,approved_at,avatar_url,trading_fee_tier FROM users WHERE id=?',[req.user.id]);res.json({success:true,message:'Profile updated',data:rows[0]})}catch(e){next(e)}});
+// Profile wallet values are ledger-authoritative. The legacy users.balance field is
+// intentionally not used for the displayed wallet balance.
+const profileSelect = `
+  SELECT u.id,u.uid,u.name,u.first_name,u.last_name,u.gender,u.date_of_birth,u.country,
+         u.status,u.email_verified,u.kyc_status,u.approved_at,u.avatar_url,u.trading_fee_tier,
+         COALESCE(ua.balance,0) AS balance,
+         COALESCE(ua.available_balance,0) AS available_balance,
+         COALESCE(ua.reserved_balance,0) AS reserved_balance,
+         COALESCE(ua.pending_balance,0) AS pending_balance
+  FROM users u
+  LEFT JOIN user_assets ua ON ua.user_id=u.id AND ua.coin='USDT'
+  WHERE u.id=?`;
+
+router.get('/user/profile', authUser, async (req,res,next)=>{try{const [rows]=await pool.execute(profileSelect,[req.user.id]);if(!rows.length)throw createError(404,'User not found');res.json({success:true,data:rows[0]})}catch(e){next(e)}});
+router.put('/user/profile',authUser,async(req,res,next)=>{try{const name=String(req.body.name||'').trim();if(!name)throw createError(400,'Name is required');await pool.execute('UPDATE users SET name=?,updated_at=NOW() WHERE id=?',[name,req.user.id]);const [rows]=await pool.execute(profileSelect,[req.user.id]);res.json({success:true,message:'Profile updated',data:rows[0]})}catch(e){next(e)}});
 router.post('/user/profile/upload-picture',authUser,upload.single('profile_picture'),async(req,res,next)=>{try{if(!req.file)throw createError(400,'Profile picture required');const [existing]=await pool.execute('SELECT avatar_url FROM users WHERE id=?',[req.user.id]);const oldAvatar=existing[0]?.avatar_url;const avatarUrl=req.file.path;await pool.execute('UPDATE users SET avatar_url=?,updated_at=NOW() WHERE id=?',[avatarUrl,req.user.id]);if(oldAvatar)removeUploadedFile(oldAvatar);res.json({success:true,message:'Profile picture updated',data:{avatar_url:avatarUrl}})}catch(e){next(e)}});
 router.post('/user/set-passcode',authUser,async(req,res,next)=>{try{const passcode=String(req.body.passcode||'').trim();if(!/^\d{4,12}$/.test(passcode))throw createError(400,'Passcode must contain 4 to 12 digits');const hash=await bcrypt.hash(passcode,12);await pool.execute('UPDATE users SET passcode=?,updated_at=NOW() WHERE id=?',[hash,req.user.id]);res.json({success:true,message:'Transaction passcode saved'})}catch(e){next(e)}});
 router.get('/user/security-status',authUser,async(req,res,next)=>{try{const [rows]=await pool.execute('SELECT passcode,twofa_enabled,email_verified,kyc_status,status,approved_at FROM users WHERE id=?',[req.user.id]);const u=rows[0]||{};res.json({success:true,data:{hasPasscode:!!u.passcode,passcode_enabled:!!u.passcode,twofaEnabled:!!u.twofa_enabled,email_verified:Number(u.email_verified||0),kyc_status:u.kyc_status||'not_submitted',status:u.status||'pending',approved_at:u.approved_at||null}})}catch(e){next(e)}});
