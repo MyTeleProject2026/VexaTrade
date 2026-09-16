@@ -46,9 +46,11 @@ export default function AccountVerificationPage() {
   const [user, setUser] = useState(() => getStoredUser());
   const [statusResolved, setStatusResolved] = useState(() => isUserFullyApproved(getStoredUser()));
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [redirectingToDashboard, setRedirectingToDashboard] = useState(() => isUserFullyApproved(getStoredUser()));
   const { showSuccess, showInfo, showError } = useNotification();
 
   const redirectToDashboard = () => {
+    setRedirectingToDashboard(true);
     navigate("/dashboard", { replace: true });
   };
 
@@ -60,7 +62,7 @@ export default function AccountVerificationPage() {
     // The approval guard normally prevents reaching it, but this also covers
     // direct URL opens and stale route transitions without another HTTP call.
     if (isUserFullyApproved(cached)) {
-      navigate("/dashboard", { replace: true });
+      redirectToDashboard();
       return () => { cancelled = true; };
     }
 
@@ -70,10 +72,6 @@ export default function AccountVerificationPage() {
         if (cancelled) return;
         if (freshUser) {
           setUser(freshUser);
-          if (isUserFullyApproved(freshUser)) {
-            navigate("/dashboard", { replace: true });
-            return;
-          }
         } else {
           setUser(getStoredUser());
         }
@@ -92,11 +90,19 @@ export default function AccountVerificationPage() {
   const accountStatus = String(user?.status || "pending");
   const isFullyApproved = isUserFullyApproved(user);
 
+  // Reconcile the UI state and route in one place. This catches the exact
+  // case where the Refresh button receives an approved response, updates
+  // localStorage/state, but the route transition is interrupted by a remount.
+  useEffect(() => {
+    if (!statusResolved || !isFullyApproved || redirectingToDashboard) return;
+    redirectToDashboard();
+  }, [statusResolved, isFullyApproved, redirectingToDashboard]);
+
   const handleEmailVerification = () => navigate("/verify-email");
   const handleKYC = () => navigate("/kyc");
 
   const handleRefreshStatus = async () => {
-    if (isRefreshing) return;
+    if (isRefreshing || redirectingToDashboard) return;
     setIsRefreshing(true);
     try {
       const freshUser = await refreshUserDataFromServer(true);
@@ -114,7 +120,9 @@ export default function AccountVerificationPage() {
       });
 
       if (approved) {
+        setStatusResolved(true);
         showSuccess("Account verified! Redirecting to dashboard...");
+        setRedirectingToDashboard(true);
         navigate("/dashboard", { replace: true });
         return;
       }
@@ -136,6 +144,17 @@ export default function AccountVerificationPage() {
     showSuccess("Logged out successfully");
     setTimeout(() => navigate("/login", { replace: true }), 500);
   };
+
+  if (redirectingToDashboard) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#050812] text-white">
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+          <p className="mt-3 text-sm text-slate-400">Account verified. Opening dashboard…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!statusResolved) {
     return (
