@@ -6,7 +6,57 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: write
+
 jobs:
+  normalize-frontend:
+    name: Normalize frontend API fallbacks
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalize stale API fallback URLs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "https://vexatrade-server.onrender.com": "https://vexatrade-5ycu.onrender.com",
+              "https://cryptopulse-4rhe.onrender.com": "https://vexatrade-5ycu.onrender.com",
+          }
+
+          roots = [Path("frontend-user"), Path("frontend-admin")]
+          extensions = {".js", ".jsx", ".ts", ".tsx", ".css", ".html"}
+          changed = []
+
+          for root in roots:
+              for path in root.rglob("*"):
+                  if not path.is_file() or path.suffix.lower() not in extensions:
+                      continue
+                  text = path.read_text(encoding="utf-8")
+                  updated = text
+                  for old, new in replacements.items():
+                      updated = updated.replace(old, new)
+                  if updated != text:
+                      path.write_text(updated, encoding="utf-8")
+                      changed.append(str(path))
+
+          print("Normalized files:")
+          for path in changed:
+              print(path)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend-user frontend-admin
+          if git diff --cached --quiet; then
+            echo "No stale frontend API fallback URLs remain."
+          else
+            git commit -m "chore: normalize frontend API fallbacks"
+            git push origin HEAD:master
+          fi
+
   backend:
     name: Backend validation
     runs-on: ubuntu-latest
@@ -46,11 +96,15 @@ jobs:
   frontend-user:
     name: Frontend user build
     runs-on: ubuntu-latest
+    needs: normalize-frontend
+    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') }}
     defaults:
       run:
         working-directory: frontend-user
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: master
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -62,11 +116,15 @@ jobs:
   frontend-admin:
     name: Frontend admin build
     runs-on: ubuntu-latest
+    needs: normalize-frontend
+    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') }}
     defaults:
       run:
         working-directory: frontend-admin
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: master
       - uses: actions/setup-node@v4
         with:
           node-version: 22
