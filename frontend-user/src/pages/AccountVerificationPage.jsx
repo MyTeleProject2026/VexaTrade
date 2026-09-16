@@ -13,6 +13,7 @@ function getStoredUser() {
     id: user?.id || null, uid: user?.uid || "", name: user?.name || "", email: user?.email || "",
     email_verified: Number(user?.email_verified || 0), kyc_status: user?.kyc_status || "not_submitted",
     status: user?.status || "pending", approved_at: user?.approved_at || null, account_stage: user?.account_stage || "",
+    platform_access: user?.platform_access || "",
   };
 }
 function isUserFullyApproved(user) {
@@ -47,6 +48,16 @@ export default function AccountVerificationPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { showSuccess, showInfo, showError } = useNotification();
 
+  const redirectToDashboard = () => {
+    navigate("/dashboard", { replace: true });
+    // Keep a hard-navigation fallback only if the SPA route did not change.
+    window.setTimeout(() => {
+      if (window.location.pathname !== "/dashboard") {
+        window.location.assign("/dashboard");
+      }
+    }, 150);
+  };
+
   useEffect(() => {
     let cancelled = false;
     async function reconcile() {
@@ -56,14 +67,14 @@ export default function AccountVerificationPage() {
         if (freshUser) {
           setUser(freshUser);
           if (isUserFullyApproved(freshUser)) {
-            navigate("/dashboard", { replace: true });
+            redirectToDashboard();
             return;
           }
         } else {
           const cached = getStoredUser();
           setUser(cached);
           if (isUserFullyApproved(cached)) {
-            navigate("/dashboard", { replace: true });
+            redirectToDashboard();
             return;
           }
         }
@@ -95,16 +106,20 @@ export default function AccountVerificationPage() {
         return;
       }
       setUser(freshUser);
-      if (isUserFullyApproved(freshUser) || isFullyApprovedStatus({
-        emailVerified: Number(freshUser.email_verified) === 1,
+
+      const approved = isUserFullyApproved(freshUser) || isFullyApprovedStatus({
+        emailVerified: Boolean(freshUser.email_verified),
         kycStatus: freshUser.kyc_status,
         accountStatus: freshUser.status,
-      })) {
+        platformAccess: freshUser.platform_access,
+      });
+
+      if (approved) {
         showSuccess("Account verified! Redirecting to dashboard...");
-        navigate("/dashboard", { replace: true });
-      } else {
-        showInfo("Status refreshed");
+        redirectToDashboard();
+        return;
       }
+      showInfo("Status refreshed");
     } catch (error) {
       showError("Failed to refresh status. Please try again.");
     } finally {
@@ -153,7 +168,7 @@ export default function AccountVerificationPage() {
           <div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">Email verification</span><span className={`rounded-full px-3 py-1 text-xs font-semibold ${emailVerified ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{emailVerified ? "Completed" : "Required"}</span></div>
           <div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">Account status</span><span className={`rounded-full px-3 py-1 text-xs font-semibold ${accountStatus.toLowerCase() === "active" ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border border-white/10 bg-white/[0.04] text-white"}`}>{accountStatus}</span></div>
           <div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">KYC status</span><span className={`rounded-full px-3 py-1 text-xs font-semibold ${kycStatus.toLowerCase() === "approved" ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border border-white/10 bg-white/[0.04] text-white"}`}>{kycStatus || "not submitted"}</span></div>
-          <div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">Platform access</span><span className={`rounded-full px-3 py-1 text-xs font-semibold ${isFullyApproved ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border border-amber-500/30 bg-amber-500/10 text-amber-300"}`}>{isFullyApproved ? "Active" : "Locked until approval"}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-sm text-slate-400">Platform access</span><span className={`${isFullyApproved ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border border-amber-500/30 bg-amber-500/10 text-amber-300"} rounded-full px-3 py-1 text-xs font-semibold`}>{isFullyApproved ? "Active" : "Locked until approval"}</span></div>
         </div>
 
         <div className="mt-6 grid gap-3">
