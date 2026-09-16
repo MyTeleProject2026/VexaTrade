@@ -1,6 +1,7 @@
 // backend/services/tradeSettlementService.js
 const pool = require('../db');
 const { getBinancePrice } = require('./tradeService');
+const { createUserNotification } = require('../src/utils/helpers');
 const { movePendingToAvailable, creditAssetBalance, consumePendingAsset } = require('./assetLedgerService');
 
 async function settleExpiredTrades(limit = 100) {
@@ -105,6 +106,19 @@ async function settleExpiredTrades(limit = 100) {
         `UPDATE trades SET status='completed',result=?,exit_price=?,settled_at=NOW() WHERE id=?`,
         [result, exitPrice, current.id]
       );
+
+      const notificationMessage = tied
+        ? `Trade #${current.id} tied. Your ${stake.toFixed(2)} USDT stake was returned.`
+        : won
+          ? `Trade #${current.id} won. Stake returned: ${stake.toFixed(2)} USDT. Profit: ${profit.toFixed(2)} USDT.`
+          : `Trade #${current.id} lost. ${stake.toFixed(2)} USDT stake was settled.`;
+      await createUserNotification(connection, {
+        userId: current.user_id,
+        title: tied ? 'Trade tied' : (won ? 'Trade won' : 'Trade lost'),
+        message: notificationMessage,
+        type: 'trade',
+      });
+
       await connection.commit();
       settled++;
     } catch (error) {
