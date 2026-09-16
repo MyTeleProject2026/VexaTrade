@@ -10,8 +10,11 @@ let assetColumnsCache = null;
 let assetColumnsCacheAt = 0;
 let walletLabelCache = 'Main Wallet';
 let walletLabelCacheAt = 0;
+let priceMapCache = null;
+let priceMapCacheAt = 0;
 const SCHEMA_CACHE_TTL_MS = 60000;
 const WALLET_LABEL_CACHE_TTL_MS = 60000;
+const PRICE_MAP_CACHE_TTL_MS = 5000;
 
 async function getUserAssetColumns() {
   const now = Date.now();
@@ -44,6 +47,9 @@ async function getWalletLabel() {
 }
 
 async function getPriceMap() {
+  const now = Date.now();
+  if (priceMapCache && now - priceMapCacheAt < PRICE_MAP_CACHE_TTL_MS) return priceMapCache;
+
   const priceMap = new Map([['USDTUSDT', 1]]);
   try {
     const marketSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
@@ -54,11 +60,14 @@ async function getPriceMap() {
       if (symbol && price > 0) priceMap.set(symbol, price);
     }
   } catch (_) {}
+
+  priceMapCache = priceMap;
+  priceMapCacheAt = now;
   return priceMap;
 }
 
 async function getWalletSummary(req) {
-  // User identity and USDT ledger balance are independent reads, so start them together.
+  // User identity and asset schema are independent reads, so start them together.
   const [userResult, columns] = await Promise.all([
     pool.execute(
       `SELECT id, uid, name, first_name, last_name, email, status, kyc_status, email_verified, balance
@@ -115,9 +124,6 @@ async function getWalletSummary(req) {
   };
 }
 
-// GET /api/wallet/summary
-// GET /api/wallet/summaryGeneral is retained as a compatibility alias because
-// older deployed user clients still request that endpoint.
 async function walletSummaryHandler(req, res, next) {
   try {
     res.json(await getWalletSummary(req));
@@ -128,7 +134,7 @@ router.get('/wallet/summary', authUser, walletSummaryHandler);
 router.get('/wallet/summaryGeneral', authUser, walletSummaryHandler);
 
 async function buildAssets(userId) {
-  // Portfolio valuation is allowed to fail over to zero prices; wallet balances remain ledger-authoritative.
+  // Portfolio valuation may use cached market prices; wallet balances remain ledger-authoritative.
   const [priceMap, columns] = await Promise.all([getPriceMap(), getUserAssetColumns()]);
   let assetRows = [];
 
