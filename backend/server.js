@@ -34,6 +34,7 @@ const supportRoutes = require('./src/routes/supportRoutes');
 const jointAccountRoutes = require('./src/routes/jointAccountRoutes');
 const marketRoutes = require('./src/routes/marketRoutes');
 const convertRoutes = require('./src/routes/convertRoutes');
+const platformPublicRoutes = require('./src/routes/platformPublicRoutes');
 const employeeRoutes = require("./employeeRoutes");
 const newsRoutes = require("./newsRoutes");
 const maintenanceRoutes = require("./maintenanceRoutes");
@@ -56,6 +57,8 @@ app.use('/api/auth/vexaaccount',vexaAccountSsoRoutes);
 app.use('/api',securityRoutes);
 app.use('/api/chat',require('./src/middleware/auth').authUser,chatRoutes);
 app.use('/api',userRoutes);app.use('/api',walletRoutes);app.use('/api',activityRoutes);app.use('/api',transferRoutes);app.use('/api',depositRoutes);app.use('/api',withdrawalRoutes);app.use('/api',tradeRoutes);app.use('/api',fundsRoutes);app.use('/api',loanRoutes);
+// Read-only compatibility/public endpoints must be registered before the generic 404 handler.
+app.use('/api',platformPublicRoutes);
 // Canonical ledger-aware settlement routes must be registered before legacy admin compatibility routes.
 app.use('/api',assetSettlementRoutes);
 // Legacy admin financial endpoints are kept for API compatibility but now execute against user_assets/asset_ledger_entries.
