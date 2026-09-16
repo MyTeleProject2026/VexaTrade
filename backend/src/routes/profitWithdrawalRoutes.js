@@ -153,7 +153,8 @@ router.post('/admin/profit-withdrawal-requests/:id/approve', authAdmin, async (r
     if (!funds.target) throw createError(409, 'User has no active target');
     if (Number(request.amount) > funds.available) throw createError(409, 'Requested profit is no longer available');
 
-    await db.execute(`UPDATE user_targets SET current_profit=current_profit-?,updated_at=NOW() WHERE id=? AND current_profit>=?`, [request.amount, funds.target.id, request.amount]);
+    const [updatedTarget] = await db.execute(`UPDATE user_targets SET current_profit=current_profit-?,updated_at=NOW() WHERE id=? AND current_profit>=?`, [request.amount, funds.target.id, request.amount]);
+    if (!updatedTarget.affectedRows) throw createError(409, 'Requested profit is no longer available');
     await db.execute(`UPDATE profit_withdrawal_requests SET status='approved',approved_at=NOW(),updated_at=NOW() WHERE id=?`, [requestId]);
     await createTransactionLog(db, { userId: request.user_id, type: 'profit_withdrawal_approved', amount: Number(request.amount), status: 'approved', referenceId: requestId, note: 'Profit withdrawal approved for manual treasury settlement' });
     await createUserNotification(db, { userId: request.user_id, title: 'Profit withdrawal approved', message: `Your ${Number(request.amount).toFixed(2)} USDT profit withdrawal was approved and is ready for manual settlement.`, type: 'withdrawal' });
