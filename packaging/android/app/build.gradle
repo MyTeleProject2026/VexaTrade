@@ -23,14 +23,13 @@ android {
     buildFeatures { buildConfig true }
 }
 
-// AGP 8+ exposes variant signing through the Android Components API. The old
-// applicationVariants mutation is read-only on current AGP and breaks release
-// configuration before Gradle can even start assembling the APK/AAB.
+// AGP 8+ exposes release variants through Android Components. Assign the
+// existing flavor-specific signing configs directly to the generated variants.
 androidComponents {
     onVariants(selector().withName('userRelease')) { variant ->
-        variant.signingConfig.set(android.signingConfigs.getByName('userRelease'))
+        variant.signingConfig = android.signingConfigs.getByName('userRelease')
     }
     onVariants(selector().withName('adminRelease')) { variant ->
-        variant.signingConfig.set(android.signingConfigs.getByName('adminRelease'))
+        variant.signingConfig = android.signingConfigs.getByName('adminRelease')
     }
 }
