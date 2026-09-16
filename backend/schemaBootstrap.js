@@ -50,6 +50,13 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'withdrawals', 'joint_authorization_id', 'BIGINT UNSIGNED NULL');
     await addColumn(connection, 'withdrawals', 'two_factor_verified_at', 'DATETIME NULL');
 
+    // Convert and internal-transfer idempotency fields are also used by the
+    // user platform. Older production databases may not have run these files.
+    await addColumn(connection, 'convert_transactions', 'idempotency_key', 'VARCHAR(128) NULL');
+    await addColumn(connection, 'convert_transactions', 'request_hash', 'CHAR(64) NULL');
+    await addColumn(connection, 'user_transfers', 'idempotency_key', 'VARCHAR(128) NULL');
+    await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS asset_ledger_entries (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
