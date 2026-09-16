@@ -26,10 +26,20 @@ const PAGE_META = {
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname];
-  for (const route of ["/profile/user-center", "/profile", "/deposit", "/withdraw", "/loan", "/legal-documents", "/transactions", "/convert", "/kyc", "/assets", "/trade", "/funds", "/support"]) {
-    if (pathname.startsWith(route)) return PAGE_META[route];
-  }
-  return PAGE_META["/dashboard"];
+  if (pathname.startsWith("/profile/user-center")) return PAGE_META["/profile/user-center"];
+  if (pathname.startsWith("/profile")) return PAGE_META["/profile"];
+  if (pathname.startsWith("/deposit")) return PAGE_META["/deposit"];
+  if (pathname.startsWith("/withdraw")) return PAGE_META["/withdraw"];
+  if (pathname.startsWith("/loan")) return PAGE_META["/loan"];
+  if (pathname.startsWith("/legal-documents")) return PAGE_META["/legal-documents"];
+  if (pathname.startsWith("/transactions")) return PAGE_META["/transactions"];
+  if (pathname.startsWith("/convert")) return PAGE_META["/convert"];
+  if (pathname.startsWith("/kyc")) return PAGE_META["/kyc"];
+  if (pathname.startsWith("/assets")) return PAGE_META["/assets"];
+  if (pathname.startsWith("/trade")) return PAGE_META["/trade"];
+  if (pathname.startsWith("/funds")) return PAGE_META["/funds"];
+  if (pathname.startsWith("/support")) return PAGE_META["/support"];
+  return { title: "VexaTrade", subtitle: "Overview of your account and market activity" };
 }
 
 function shouldShowBackButton(pathname) {
@@ -51,33 +61,27 @@ export default function UserLayout() {
   const showBackButton = shouldShowBackButton(location.pathname);
 
   useEffect(() => {
-    let mounted = true;
     const checkPasscode = async () => {
       try {
         setCheckingPasscode(true);
         const token = getStoredToken();
-        if (!token || sessionStorage.getItem("VexaTrade_passcode_verified") === "1") {
-          if (mounted) setIsPasscodeLocked(false);
-          return;
-        }
+        if (!token) { setIsPasscodeLocked(false); setCheckingPasscode(false); return; }
+        const isVerified = sessionStorage.getItem("VexaTrade_passcode_verified");
+        if (isVerified === "1") { setIsPasscodeLocked(false); setCheckingPasscode(false); return; }
         const res = await userApi.securityStatus(token);
-        if (mounted) setIsPasscodeLocked(Boolean(res?.data?.data?.hasPasscode));
+        const hasPasscode = res?.data?.data?.hasPasscode || false;
+        setIsPasscodeLocked(Boolean(hasPasscode));
       } catch (error) {
         console.error("❌ Passcode check error:", error);
-        // Fail closed for the lock only when the API explicitly reports the
-        // account has a passcode; a transient status failure must not lock out
-        // an otherwise authenticated user.
-        if (mounted) setIsPasscodeLocked(false);
-      } finally {
-        if (mounted) setCheckingPasscode(false);
-      }
+        setIsPasscodeLocked(false);
+      } finally { setCheckingPasscode(false); }
     };
     checkPasscode();
-    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    if (sidebarOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
     return () => { document.body.style.overflow = ""; };
   }, [sidebarOpen]);
 
@@ -86,17 +90,15 @@ export default function UserLayout() {
   useEffect(() => {
     let ignore = false;
     let inFlight = false;
-    const controller = new AbortController();
+    let interval;
     let timeoutId;
 
     async function loadUnreadStatus() {
       if (inFlight) return;
       const token = getStoredToken();
-      if (!token) {
-        if (!ignore) setHasUnread(false);
-        return;
-      }
+      if (!token) { if (!ignore) setHasUnread(false); return; }
       inFlight = true;
+      const controller = new AbortController();
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
         timeoutId = window.setTimeout(() => controller.abort(), 8000);
@@ -110,65 +112,92 @@ export default function UserLayout() {
         const list = Array.isArray(json?.data) ? json.data : [];
         if (!ignore) setHasUnread(list.some((item) => !Number(item?.is_read)));
       } catch (error) {
-        if (!ignore && error?.name !== "AbortError") setHasUnread(false);
+        if (!ignore && error?.name !== "AbortError") console.error("Notification status check failed:", error);
       } finally {
         if (timeoutId) window.clearTimeout(timeoutId);
+        timeoutId = null;
         inFlight = false;
       }
     }
 
     loadUnreadStatus();
-    const interval = window.setInterval(loadUnreadStatus, 30000);
+    interval = window.setInterval(loadUnreadStatus, 30000);
     return () => {
       ignore = true;
       window.clearInterval(interval);
-      controller.abort();
       if (timeoutId) window.clearTimeout(timeoutId);
     };
   }, [location.pathname]);
 
   function handleBack() {
-    if (["/deposit", "/withdraw", "/convert", "/transactions"].includes(location.pathname)) {
-      navigate("/assets");
-      return;
-    }
+    if (location.pathname === "/deposit" || location.pathname === "/withdraw" || location.pathname === "/convert" || location.pathname === "/transactions") { navigate("/assets"); return; }
+    if (location.pathname === "/notifications") { navigate("/dashboard"); return; }
+    if (location.pathname === "/profile/user-center") { navigate("/profile"); return; }
+    if (location.pathname === "/loan" || location.pathname === "/legal-documents" || location.pathname === "/kyc" || location.pathname === "/support") { navigate("/profile"); return; }
     navigate(-1);
   }
 
+  function openWallet() { navigate("/assets"); }
+  function openNotifications() { navigate("/transactions"); }
+  const handlePasscodeUnlock = () => {
+    setIsPasscodeLocked(false);
+    sessionStorage.setItem("VexaTrade_passcode_verified", "1");
+  };
+
   if (checkingPasscode) {
-    return <div className="min-h-screen bg-[#050812] text-slate-300 flex items-center justify-center text-sm">Checking account security…</div>;
+    return (
+      <div className="min-h-screen bg-[#050812] flex items-center justify-center">
+        <div className="animate-pulse text-cyan-400">Loading...</div>
+      </div>
+    );
   }
 
-  if (isPasscodeLocked) {
-    return <PasscodeLockScreen onUnlocked={() => setIsPasscodeLocked(false)} />;
-  }
+  if (isPasscodeLocked) return <PasscodeLockScreen onUnlock={handlePasscodeUnlock} />;
 
   return (
     <div className="min-h-screen bg-[#050812] text-white">
-      <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main className="min-h-screen lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#050812]/95 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              {showBackButton ? (
-                <button type="button" onClick={handleBack} className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5" aria-label="Back"><ArrowLeft size={18} /></button>
-              ) : (
-                <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5 lg:hidden" aria-label="Menu"><Menu size={18} /></button>
-              )}
-              <div>
-                <div className="text-sm font-semibold text-white">{pageMeta.title}</div>
-                <div className="hidden text-xs text-slate-500 sm:block">{pageMeta.subtitle}</div>
+      <div className="flex min-h-screen">
+        <aside className="hidden md:block md:shrink-0">
+          <div className="h-screen sticky top-0"><UserSidebar /></div>
+        </aside>
+
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            <button type="button" className="flex-1 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar" />
+            <div className="h-full w-[85%] max-w-sm border-l border-white/10 bg-[#0a0e1a] shadow-2xl overflow-y-auto">
+              <UserSidebar onNavigate={() => setSidebarOpen(false)} onClose={() => setSidebarOpen(false)} showClose={true} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl safe-top">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                {showBackButton ? (
+                  <button type="button" onClick={handleBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white" aria-label="Go back"><ArrowLeft size={18} /></button>
+                ) : (
+                  <button type="button" onClick={() => setSidebarOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white md:hidden" aria-label="Open menu"><Menu size={18} /></button>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-base font-semibold text-white sm:text-lg">{pageMeta.title}</div>
+                  <div className="truncate text-xs text-gray-400">{pageMeta.subtitle}</div>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={openWallet} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white sm:h-10 sm:w-10" aria-label="Wallet"><Wallet size={16} className="sm:h-[18px] sm:w-[18px]" /></button>
+                <button type="button" onClick={openNotifications} className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white sm:h-10 sm:w-10" aria-label="Notifications">
+                  <Bell size={16} className="sm:h-[18px] sm:w-[18px]" />
+                  {hasUnread && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />}
+                </button>
               </div>
             </div>
-            <button type="button" onClick={() => navigate("/transactions")} className="relative rounded-xl border border-white/10 p-2 text-slate-300 hover:bg-white/5" aria-label="Notifications">
-              <Bell size={18} />
-              {hasUnread && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-cyan-400" />}
-            </button>
-          </div>
-        </header>
-        <Outlet />
-      </main>
-      <MobileBottomNav />
+          </header>
+
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-6"><Outlet /></main>
+          <div className="md:hidden safe-bottom"><MobileBottomNav /></div>
+        </div>
+      </div>
     </div>
   );
 }
