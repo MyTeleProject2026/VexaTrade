@@ -63,11 +63,10 @@ jobs:
               else:
                   raise SystemExit(f'Expected transaction call not found in {path}')
 
-          exact(
-              'frontend-user/src/pages/ConvertPage.jsx',
-              '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
-              '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute('
-          )
+          exact('frontend-user/src/pages/ConvertPage.jsx',
+                '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
+                '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(')
+
           p = Path('frontend-user/src/pages/ConvertPage.jsx')
           text = p.read_text(encoding='utf-8')
           old = '          fromAmount: amount,\n        },\n        token\n      );'
@@ -78,50 +77,53 @@ jobs:
           elif new not in text:
               raise SystemExit('Convert wrapper payload terminator not found')
 
-          exact(
-              'frontend-user/src/pages/FundsPage.jsx',
-              '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
-              '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));'
-          )
-
-          exact(
-              'frontend-user/src/pages/LoanPage.jsx',
-              '      const res = await loanApi.apply(payload, token);',
-              '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));'
-          )
-
-          exact(
-              'frontend-user/src/pages/TradePage.jsx',
-              '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
-              '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));'
-          )
+          exact('frontend-user/src/pages/FundsPage.jsx',
+                '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
+                '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));')
+          exact('frontend-user/src/pages/LoanPage.jsx',
+                '      const res = await loanApi.apply(payload, token);',
+                '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));')
+          exact('frontend-user/src/pages/TradePage.jsx',
+                '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
+                '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));')
 
           assets = add_import('frontend-user/src/pages/AssetsPage.jsx')
           text = assets.read_text(encoding='utf-8')
-          old = '''    try {\n      setLoading(true);\n      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {'''
-          new = '''    try {\n      setLoading(true);\n      const idempotencyKey = createActionIdempotencyKey("transfer");\n      const res = await runSingleUserAction("transfer-submit", () => fetch(`${API_BASE_URL}/api/user/transfer`, {'''
+          old = '    try {\n      setLoading(true);\n      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {'
+          new = '    try {\n      setLoading(true);\n      const idempotencyKey = createActionIdempotencyKey("transfer");\n      const res = await runSingleUserAction("transfer-submit", () => fetch(`${API_BASE_URL}/api/user/transfer`, {'
           if old in text:
               text = text.replace(old, new, 1)
           elif new not in text:
               raise SystemExit('Assets transfer start not found')
-          old = '''          note: note || null\n        })\n      });'''
-          new = '''          note: note || null,\n          idempotencyKey,\n        })\n      }));'''
+          old = '          note: note || null\n        })\n      });'
+          new = '          note: note || null,\n          idempotencyKey,\n        })\n      }));'
           if old in text:
               text = text.replace(old, new, 1)
           elif new not in text:
               raise SystemExit('Assets transfer payload terminator not found')
           assets.write_text(text, encoding='utf-8')
           print('UPDATED Assets transfer')
+
+          # Existing syntax error: remove the unmatched JSX fragment closer.
+          user_center = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = user_center.read_text(encoding='utf-8')
+          bad = '    </div>\n    </>\n  );\n}'
+          good = '    </div>\n  );\n}'
+          if bad in text:
+              user_center.write_text(text.replace(bad, good, 1), encoding='utf-8')
+              print('FIXED UserCenterPage JSX syntax')
+          elif 'function StatusBadge' in text:
+              print('CHECK UserCenterPage: fragment closer already absent')
           PY
 
           cd frontend-user
-          npm ci --no-audit --no-fund
+          npm install --no-audit --no-fund
           npm run build
           cd ..
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend-user/src/pages
+          git add frontend-user/src/pages frontend-user/package-lock.json
           if git diff --cached --quiet; then
             echo "No remaining user transaction source changes required."
           else
