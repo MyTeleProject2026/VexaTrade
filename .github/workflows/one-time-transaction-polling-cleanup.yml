@@ -15,7 +15,7 @@ jobs:
         with:
           ref: master
 
-      - name: Remove remaining user financial polling
+      - name: Remove polling and unify user financial actions
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -28,28 +28,103 @@ jobs:
           text2, count = pattern.subn('\n  // Trade state is loaded on entry and after intentional user actions only.\n  // Do not continuously poll financial endpoints while this page is open.\n', text, count=1)
           if count:
               trade.write_text(text2, encoding='utf-8')
-              print('UPDATED TradePage.jsx')
-          else:
-              print('SKIP TradePage.jsx: polling block not found')
+              print('UPDATED TradePage polling')
 
           tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
           text = tx.read_text(encoding='utf-8')
           pattern = re.compile(r'''\n\s*useEffect\(\(\) => \{\n\s*load\(\);\n\s*const interval = setInterval\(\(\) => load\(true\), 10000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[\]\);\n''')
-          new = '''\n  useEffect(() => {\n    load();\n\n    const handleTransactionComplete = () => {\n      load(true);\n    };\n\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n'''
-          text2, count = pattern.subn(new, text, count=1)
+          new = '''\n  useEffect(() => {\n    load();\n    const handleTransactionComplete = () => load(true);\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n'''
+          tx2, count = pattern.subn(new, text, count=1)
           if count:
-              tx.write_text(text2, encoding='utf-8')
-              print('UPDATED TransactionsPage.jsx')
-          else:
-              print('SKIP TransactionsPage.jsx: polling block not found')
+              tx.write_text(tx2, encoding='utf-8')
+              print('UPDATED TransactionsPage polling')
+
+          action_import = 'import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";'
+
+          def add_import(path):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if 'from "../services/actionRequest"' not in text:
+                  marker = 'import { useNotification } from "../hooks/useNotification";'
+                  if marker not in text:
+                      raise SystemExit(f'Missing notification import in {path}')
+                  text = text.replace(marker, marker + '\n' + action_import, 1)
+                  p.write_text(text, encoding='utf-8')
+              return p
+
+          def exact(path, old, new):
+              p = add_import(path)
+              text = p.read_text(encoding='utf-8')
+              if old in text:
+                  p.write_text(text.replace(old, new, 1), encoding='utf-8')
+                  print('UPDATED', path)
+              elif new in text:
+                  print('ALREADY UPDATED', path)
+              else:
+                  raise SystemExit(f'Expected transaction call not found in {path}')
+
+          exact(
+              'frontend-user/src/pages/ConvertPage.jsx',
+              '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
+              '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute('
+          )
+          p = Path('frontend-user/src/pages/ConvertPage.jsx')
+          text = p.read_text(encoding='utf-8')
+          old = '          fromAmount: amount,\n        },\n        token\n      );'
+          new = '          fromAmount: amount,\n          idempotencyKey,\n        },\n        token\n      ));'
+          if old in text:
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+              print('UPDATED Convert payload')
+          elif new not in text:
+              raise SystemExit('Convert wrapper payload terminator not found')
+
+          exact(
+              'frontend-user/src/pages/FundsPage.jsx',
+              '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
+              '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));'
+          )
+
+          exact(
+              'frontend-user/src/pages/LoanPage.jsx',
+              '      const res = await loanApi.apply(payload, token);',
+              '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));'
+          )
+
+          exact(
+              'frontend-user/src/pages/TradePage.jsx',
+              '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
+              '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));'
+          )
+
+          assets = add_import('frontend-user/src/pages/AssetsPage.jsx')
+          text = assets.read_text(encoding='utf-8')
+          old = '''    try {\n      setLoading(true);\n      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {'''
+          new = '''    try {\n      setLoading(true);\n      const idempotencyKey = createActionIdempotencyKey("transfer");\n      const res = await runSingleUserAction("transfer-submit", () => fetch(`${API_BASE_URL}/api/user/transfer`, {'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('Assets transfer start not found')
+          old = '''          note: note || null\n        })\n      });'''
+          new = '''          note: note || null,\n          idempotencyKey,\n        })\n      }));'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('Assets transfer payload terminator not found')
+          assets.write_text(text, encoding='utf-8')
+          print('UPDATED Assets transfer')
           PY
+
+          cd frontend-user
+          npm ci --no-audit --no-fund
+          npm run build
+          cd ..
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend-user/src/pages/TradePage.jsx frontend-user/src/pages/TransactionsPage.jsx
+          git add frontend-user/src/pages
           if git diff --cached --quiet; then
-            echo "No remaining transaction polling changes needed."
+            echo "No remaining user transaction source changes required."
           else
-            git commit -m "fix: remove remaining user transaction polling"
+            git commit -m "feat: unify user transaction single-action lifecycle"
             git push origin HEAD:master
           fi
