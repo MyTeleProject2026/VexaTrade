@@ -1,13 +1,13 @@
 // frontend-user/src/services/financialPollingGuard.js
 //
-// Financial/account pages should load once when opened and refresh only from
-// an explicit user action or after the affected transaction completes.
-// This guard blocks only the known legacy page-level API polling callbacks;
-// live market UI timers, countdowns, animations, chat/notification timers,
+// Financial/account pages load once when opened and refresh only from an
+// explicit user action or after the affected transaction completes.
+// Live market UI timers, countdowns, animations, chat/notification timers,
 // and backend cron jobs are intentionally left untouched.
 
 const originalSetInterval = window.setInterval.bind(window);
 const originalClearInterval = window.clearInterval.bind(window);
+const originalFetch = typeof window.fetch === "function" ? window.fetch.bind(window) : null;
 
 const BLOCKED_CALLBACK_MARKERS = [
   "loadData(true)",
@@ -31,10 +31,17 @@ function isLegacyFinancialPolling(callback, delay) {
   if (typeof callback !== "function") return false;
   const source = callbackSource(callback);
   if (!BLOCKED_CALLBACK_MARKERS.some((marker) => source.includes(marker))) return false;
-
-  // The legacy financial/account refresh loops are 10s/15s/30s loops.
-  // Keep this guard narrow so unrelated timers continue to work normally.
   return delay === 10000 || delay === 15000 || delay === 30000;
+}
+
+function isTargetRequest(input) {
+  const url = typeof input === "string" ? input : input?.url || "";
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.pathname === "/api/user/target";
+  } catch {
+    return String(url).includes("/api/user/target");
+  }
 }
 
 export function installFinancialPollingGuard() {
@@ -54,6 +61,23 @@ export function installFinancialPollingGuard() {
     if (BLOCKED_INTERVALS.delete(id)) return;
     return originalClearInterval(id);
   };
+
+  // Legacy FundsPage target refresh uses raw fetch instead of the bounded
+  // Axios client. Keep manual target refreshes bounded to one 8s request so
+  // an unavailable target endpoint cannot create a 20s hanging request.
+  if (originalFetch) {
+    const fetchWithTargetTimeout = async (input, init = {}) => {
+      if (!isTargetRequest(input)) return originalFetch(input, init);
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 8000);
+      try {
+        return await originalFetch(input, { ...init, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timer);
+      }
+    };
+    window.fetch = fetchWithTargetTimeout;
+  }
 }
 
 export default installFinancialPollingGuard;
