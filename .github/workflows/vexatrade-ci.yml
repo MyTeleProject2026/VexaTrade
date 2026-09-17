@@ -71,26 +71,32 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm install --no-audit --no-fund
-      - name: Validate backend entrypoints and admin routes
+      - name: Validate backend entrypoints and financial routes
         run: |
           node --check server.js
           node --check schemaBootstrap.js
+          node --check src/middleware/auth.js
+          node --check src/middleware/transactionSecurity.js
+          node --check src/routes/transactionSecurityRoutes.js
+          node --check src/routes/depositRoutes.js
+          node --check src/routes/withdrawalRoutes.js
+          node --check src/routes/convertRoutes.js
+          node --check src/routes/transferRoutes.js
+          node --check src/routes/tradeRoutes.js
+          node --check src/routes/fundsRoutes.js
+          node --check src/routes/loanRoutes.js
+          node --check src/routes/profitWithdrawalRoutes.js
           node --check src/routes/adminRoutes.js
           node --check src/routes/adminControlCenterRoutes.js
           node --check src/routes/adminNotifications.js
           node --check src/routes/vexaAccountSso.js
           node --check src/routes/securityRoutes.js
           node --check src/routes/jointAccountRoutes.js
-          node --check src/routes/withdrawalRoutes.js
           node --check src/routes/assetOperationsRoutes.js
           node --check src/routes/assetSettlementRoutes.js
           node --check src/routes/supportedAssetRoutes.js
           node --check src/routes/legalRoutes.js
           node --check src/routes/supportRoutes.js
-          node --check src/routes/fundsRoutes.js
-          node --check src/routes/loanRoutes.js
-          node --check src/routes/tradeRoutes.js
-          node --check src/middleware/auth.js
           node --check services/assetLedgerService.js
       - name: Validate runtime dependency graph
         run: |
