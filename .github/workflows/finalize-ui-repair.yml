@@ -1,0 +1,63 @@
+name: Finalize UserCenter and deposit QR repair
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-user/package-lock.json
+      - name: Repair exact source defects and validate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Remove the duplicate body of the 2FA modal introduced by the previous repair attempt.
+          p = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = p.read_text(encoding='utf-8')
+          duplicate = '''        open={twoFactorModalOpen}\n        token={token}\n        onClose={() => setTwoFactorModalOpen(false)}\n        onCompleted={() => {\n          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));\n          showSuccess("Authenticator 2FA enabled successfully");\n        }}\n      />\n      {/* Header with Balance */}'''
+          replacement = '''      {/* Header with Balance */}'''
+          if duplicate in text:
+              text = text.replace(duplicate, replacement, 1)
+          p.write_text(text, encoding='utf-8')
+
+          # Deposit: normalize QR aliases and render the admin-configured QR in the first section.
+          p = Path('frontend-user/src/pages/SecureDepositPage.jsx')
+          text = p.read_text(encoding='utf-8')
+          old = "const rows=Array.isArray(w.value?.data?.data)?w.value.data.data:[];setWallets(rows);"
+          new = "const rows=(Array.isArray(w.value?.data?.data)?w.value.data.data:[]).map(row=>({...row,qr_image_url:row.qr_image_url||row.qr_url||row.qrCodeUrl||row.qr_code_url||row.qr_code||row.qr_image||row.qr||null}));setWallets(rows);"
+          if old in text:
+              text = text.replace(old, new, 1)
+          address_marker = '{selected?.address&&<div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">'
+          qr_card = '''{selected?.qr_image_url&&<div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4"><div className="flex items-center justify-between"><div><div className="text-xs font-semibold text-white">Scan to deposit</div><div className="mt-1 text-[11px] text-slate-500">Use only this VexaTrade address on the selected network.</div></div><span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-300">{form.network}</span></div><div className="mt-4 flex justify-center"><div className="rounded-2xl bg-white p-3 shadow-xl"><img src={selected.qr_image_url} alt={`${form.coin} ${form.network} deposit QR`} className="h-48 w-48 rounded-xl object-contain" /></div></div><div className="mt-3 text-center text-[11px] text-slate-500">Verify coin + network before sending.</div></div>}'''
+          if address_marker in text and 'Scan to deposit' not in text:
+              text = text.replace(address_marker, qr_card + address_marker, 1)
+          p.write_text(text, encoding='utf-8')
+          PY
+          cd frontend-user
+          npm ci --no-audit --no-fund
+          npm run build
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend-user/src/pages/UserCenterPage.jsx frontend-user/src/pages/SecureDepositPage.jsx
+          if git diff --cached --quiet; then
+            echo "No source changes needed"
+          else
+            git commit -m "fix: finalize UserCenter JSX and deposit QR rendering"
+            git push origin HEAD:master
+          fi
