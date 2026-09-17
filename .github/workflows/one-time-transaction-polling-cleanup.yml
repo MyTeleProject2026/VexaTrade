@@ -1,0 +1,82 @@
+name: One-time transaction polling cleanup
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Remove remaining user financial polling
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Trade: open/history state must not be polled continuously while the
+          # page is open. Initial load and the explicit Refresh button remain.
+          trade = Path('frontend-user/src/pages/TradePage.jsx')
+          text = trade.read_text(encoding='utf-8')
+          old = '''  // previously repeated every 2.5s, which caused the 500 wallet endpoint to be
+  // hammered and made the whole terminal look like it was continuously loading.
+  useEffect(() => {
+    const interval = setInterval(() => syncTradeState(false), 5000);
+    return () => clearInterval(interval);
+  }, [token]);
+'''
+          if old in text:
+              text = text.replace(old, '''  // Trade state is loaded on entry and after intentional user actions only.
+  // Do not continuously poll financial endpoints while this page is open.
+''', 1)
+              trade.write_text(text, encoding='utf-8')
+              print('UPDATED TradePage.jsx')
+          else:
+              print('SKIP TradePage.jsx: polling block not found')
+
+          # Transactions: keep initial/manual loading, but remove the 10-second
+          # page-open polling loop. Transaction completion events trigger one
+          # explicit refresh instead of a background request stream.
+          tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
+          text = tx.read_text(encoding='utf-8')
+          old = '''  useEffect(() => {
+    load();
+    const interval = setInterval(() => load(true), 10000);
+    return () => clearInterval(interval);
+  }, []);
+'''
+          new = '''  useEffect(() => {
+    load();
+
+    const handleTransactionComplete = () => {
+      load(true);
+    };
+
+    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
+    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
+  }, []);
+'''
+          if old in text:
+              text = text.replace(old, new, 1)
+              tx.write_text(text, encoding='utf-8')
+              print('UPDATED TransactionsPage.jsx')
+          else:
+              print('SKIP TransactionsPage.jsx: polling block not found')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend-user/src/pages/TradePage.jsx frontend-user/src/pages/TransactionsPage.jsx
+          if git diff --cached --quiet; then
+            echo "No remaining transaction polling changes needed."
+          else
+            git commit -m "fix: remove remaining user transaction polling"
+            git push origin HEAD:master
+          fi
