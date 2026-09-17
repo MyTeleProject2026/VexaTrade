@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 
 const DEFAULT_STEPS = ["Details", "Review", "Security", "Complete"];
 
@@ -59,15 +59,13 @@ export function TransactionFlowShell({
         <section className={`mt-3 rounded-[28px] border border-white/10 bg-[#0a0e1a] shadow-[0_18px_60px_rgba(0,0,0,0.32)] ${compact ? "p-4" : "p-4 sm:p-5"}`}>
           {success ? (
             <div className="py-5 text-center sm:py-8">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300">
-                <CheckCircle2 size={34} />
-              </div>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300"><CheckCircle2 size={34} /></div>
               <h2 className="mt-4 text-lg font-bold text-white">{successTitle}</h2>
               <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400 sm:text-sm">{successDescription}</p>
               {successMeta.length > 0 && (
                 <div className="mx-auto mt-5 max-w-md overflow-hidden rounded-2xl border border-white/10 bg-black/20 text-left">
-                  {successMeta.map(([label, value]) => (
-                    <div key={label} className="flex items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-0">
+                  {successMeta.map(([label, value], metaIndex) => (
+                    <div key={`${label}-${metaIndex}`} className="flex items-center justify-between gap-4 border-b border-white/5 px-4 py-3 last:border-0">
                       <span className="text-xs text-slate-500">{label}</span>
                       <span className="max-w-[65%] truncate text-right text-xs font-semibold text-white">{value ?? "--"}</span>
                     </div>
@@ -88,9 +86,7 @@ export function TransactionFlowShell({
           <div className="sticky bottom-3 z-20 mt-3 rounded-2xl border border-white/10 bg-[#081223]/95 p-2 shadow-2xl backdrop-blur-xl sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0">
             <div className="grid grid-cols-2 gap-2">
               {onBack ? (
-                <button type="button" onClick={onBack} disabled={loading} className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
-                  <ArrowLeft size={15} className="mr-1.5 inline" />{backLabel}
-                </button>
+                <button type="button" onClick={onBack} disabled={loading} className="rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"><ArrowLeft size={15} className="mr-1.5 inline" />{backLabel}</button>
               ) : <span />}
               {onNext && (
                 <button type="button" onClick={onNext} disabled={nextDisabled || loading} className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50">
@@ -108,10 +104,10 @@ export function TransactionFlowShell({
 export function TransactionReviewCard({ title = "Review transaction", rows = [], warning = "" }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <h2 className="text-sm font-semibold text-white">{title}</h2>
-      <div className="mt-3 divide-y divide-white/5">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="mb-3 flex items-center gap-2"><ShieldCheck size={15} className="text-cyan-300" /><h2 className="text-sm font-semibold text-white">{title}</h2></div>
+      <div className="divide-y divide-white/5">
+        {rows.map(([label, value], index) => (
+          <div key={`${label}-${index}`} className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
             <span className="text-xs text-slate-500">{label}</span>
             <span className="max-w-[65%] break-words text-right text-xs font-semibold text-white">{value ?? "--"}</span>
           </div>
@@ -125,11 +121,17 @@ export function TransactionReviewCard({ title = "Review transaction", rows = [],
 export function TransactionProcessingCard({ title = "Processing transaction", description = "Please keep this page open while your request is being submitted." }) {
   return (
     <div className="py-8 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
-        <Loader2 size={28} className="animate-spin" />
-      </div>
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300"><Loader2 size={28} className="animate-spin" /></div>
       <h2 className="mt-4 text-base font-bold text-white">{title}</h2>
       <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">{description}</p>
+    </div>
+  );
+}
+
+export function TransactionSecurityStage({ title = "Security authorization", description = "Complete the required account security checks before the financial request is sent." }) {
+  return (
+    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4">
+      <div className="flex items-start gap-3"><div className="rounded-xl bg-cyan-500/10 p-2 text-cyan-300"><LockKeyhole size={16} /></div><div><h2 className="text-sm font-semibold text-white">{title}</h2><p className="mt-1 text-xs leading-5 text-slate-400">{description}</p></div></div>
     </div>
   );
 }
