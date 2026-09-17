@@ -1,11 +1,19 @@
 import { useContext, createContext, useState, useCallback, useRef, useEffect } from "react";
 
 const NotificationContext = createContext(null);
+const GLOBAL_TRANSACTION_RECEIPT_TYPES = new Set([
+  "convert",
+  "transfer",
+  "trade",
+  "funds",
+  "loan",
+  "profit-withdrawal",
+]);
 
 export function NotificationProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [voucher, setVoucher] = useState(null);
-  const [voucherKey, setVoucherKey] = useState(0); // ✅ Force re-render
+  const [voucherKey, setVoucherKey] = useState(0);
   const closeTimeoutRef = useRef(null);
   const voucherTimeoutRef = useRef(null);
 
@@ -34,9 +42,7 @@ export function NotificationProvider({ children }) {
     showToast(message, "info", duration);
   }, [showToast]);
 
-  // ✅ FIXED: Force close and clear any pending vouchers
   const closeVoucher = useCallback(() => {
-    // Clear any existing timeouts
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -45,41 +51,39 @@ export function NotificationProvider({ children }) {
       clearTimeout(voucherTimeoutRef.current);
       voucherTimeoutRef.current = null;
     }
-    
-    // Reset body styles
+
     document.body.style.overflow = '';
     document.body.style.pointerEvents = '';
-    
-    // Close the voucher
     setVoucher(null);
   }, []);
 
-  // ✅ FIXED: Properly show voucher with cleanup
   const showVoucher = useCallback((voucherData) => {
-    // Clear any pending close timeout
+    // Convert/transfer/trade/funds/loan/profit-withdrawal now have the
+    // single global full-screen TransactionResultModal. Keep this legacy
+    // voucher path for deposit/withdraw and unrelated voucher types so
+    // existing functionality is preserved without double receipts.
+    const type = String(voucherData?.type || '').trim().toLowerCase();
+    if (GLOBAL_TRANSACTION_RECEIPT_TYPES.has(type)) return;
+
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
-    
-    // Clear any pending voucher timeout
+
     if (voucherTimeoutRef.current) {
       clearTimeout(voucherTimeoutRef.current);
       voucherTimeoutRef.current = null;
     }
-    
-    // Close existing voucher first
+
     setVoucher(null);
-    
-    // Small delay to ensure cleanup, then show new voucher
+
     voucherTimeoutRef.current = setTimeout(() => {
       setVoucher(voucherData);
-      setVoucherKey(prev => prev + 1); // Force re-render
+      setVoucherKey(prev => prev + 1);
       voucherTimeoutRef.current = null;
     }, 50);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (closeTimeoutRef.current) {
