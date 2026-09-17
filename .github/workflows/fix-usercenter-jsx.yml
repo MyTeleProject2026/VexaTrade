@@ -23,34 +23,29 @@ jobs:
           p = Path('frontend-user/src/pages/UserCenterPage.jsx')
           text = p.read_text(encoding='utf-8')
 
-          # The loading branch must be a normal single-root return.
-          loading_open = '  if (loading) {\n    return (\n    <>\n      <TwoFactorSetupModal'
-          loading_fixed = '  if (loading) {\n    return (\n      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">'
-          if loading_open in text:
-              start = text.index(loading_open)
-              modal_start = text.index('      <TwoFactorSetupModal', start)
-              spinner_start = text.index('      <div className="flex min-h-[60vh]', modal_start)
-              spinner_end = text.index('    );\n  }\n\n  return (', spinner_start)
-              spinner = text[spinner_start:spinner_end]
-              text = text[:start] + loading_fixed + '\n' + spinner + '\n    );\n  }\n\n  return (\n    <>\n      <TwoFactorSetupModal' + text[spinner_end + len('    );\n  }\n\n  return (\n    <div className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">'):]
-              # The reconstruction above intentionally preserves the existing main JSX after the modal.
-          else:
-              # Handle the exact current form without reconstructing the whole component.
-              bad = '''  if (loading) {\n    return (\n    <>\n      <TwoFactorSetupModal'''
-              if bad in text:
-                  text = text.replace(bad, '  if (loading) {\n    return (\n      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">', 1)
+          modal = '''      <TwoFactorSetupModal\n        open={twoFactorModalOpen}\n        token={token}\n        onClose={() => setTwoFactorModalOpen(false)}\n        onCompleted={() => {\n          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));\n          showSuccess("Authenticator 2FA enabled successfully");\n        }}\n      />\n'''
 
-          # Safe direct normalization for the known malformed current structure.
-          text = text.replace('      <TwoFactorSetupModal\n        open={twoFactorModalOpen}', '      <TwoFactorSetupModal\n        open={twoFactorModalOpen}', 1)
+          # Restore the loading branch to a single spinner root.
+          loading_prefix = '  if (loading) {\n    return (\n    <>\n' + modal
+          if loading_prefix in text:
+              text = text.replace(loading_prefix, '  if (loading) {\n    return (\n', 1)
+          elif '  if (loading) {\n    return (\n      <div className="flex min-h-[60vh]' not in text:
+              raise SystemExit('Unexpected UserCenter loading branch')
+
+          # Mount the 2FA modal at the UserCenter page root and preserve the existing closing fragment.
+          main_marker = '  return (\n    <div className="mx-auto max-w-4xl'
+          if main_marker in text and '  return (\n    <>\n' + modal not in text:
+              text = text.replace(main_marker, '  return (\n    <>\n' + modal + '    <div className="mx-auto max-w-4xl', 1)
+
           p.write_text(text, encoding='utf-8')
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add frontend-user/src/pages/UserCenterPage.jsx
           if git diff --cached --quiet; then
-            echo "No UserCenter source change required"
+            echo "UserCenter JSX already repaired"
           else
-            git commit -m "fix: restore UserCenter root fragment structure"
+            git commit -m "fix: repair UserCenter JSX root structure"
             git pull --rebase origin master
             git push origin HEAD:master
           fi
