@@ -82,23 +82,49 @@ function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
 
   useEffect(() => {
     if (!runningTrade?.pair) return;
+
     let cancelled = false;
-    const loadLivePrice = async () => {
-      try {
-        const res = await marketApi.price(runningTrade.pair);
-        const row = res.data?.data || {};
-        const next = Number(row.price || row.lastPrice || 0);
-        if (!cancelled && Number.isFinite(next) && next > 0) {
-          setCurrentPrice(next);
-          const delta = next - Number(runningTrade.entryPrice || 0);
-          setPriceChange(delta);
-          setIsPositive(delta >= 0);
-        }
-      } catch (_) {}
+    let ws = null;
+    const safeSymbol = String(runningTrade.pair || "").trim().toLowerCase();
+
+    const applyPrice = (nextValue) => {
+      const next = Number(nextValue);
+      if (cancelled || !Number.isFinite(next) || next <= 0) return;
+      setCurrentPrice(next);
+      const delta = next - Number(runningTrade.entryPrice || 0);
+      setPriceChange(delta);
+      setIsPositive(delta >= 0);
     };
-    loadLivePrice();
-    const interval = setInterval(loadLivePrice, 2000);
-    return () => { cancelled = true; clearInterval(interval); };
+
+    // The countdown is the trade expiry clock. Market pricing must be an
+    // independent real-time stream, not a 2-second polling loop.
+    try {
+      ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@trade`);
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          applyPrice(message?.p);
+        } catch (_) {}
+      };
+      ws.onerror = () => {
+        // One fallback snapshot is enough; do not start a retry/poll loop.
+        void marketApi.price(runningTrade.pair)
+          .then((res) => applyPrice(res.data?.data?.price || res.data?.data?.lastPrice))
+          .catch(() => {});
+      };
+    } catch (_) {
+      void marketApi.price(runningTrade.pair)
+        .then((res) => applyPrice(res.data?.data?.price || res.data?.data?.lastPrice))
+        .catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+        ws = null;
+      }
+    };
   }, [runningTrade]);
 
   const safeTotal = Math.max(1, Number(runningTrade?.timer || 1));
