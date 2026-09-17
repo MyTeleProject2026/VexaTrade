@@ -65,6 +65,7 @@ function StatusBadge({ verified, label }) {
       {verified ? <CheckCircle size={14} /> : <XCircle size={14} />}
       <span>{label}</span>
     </div>
+    </>
   );
 }
 
@@ -568,6 +569,13 @@ export default function UserCenterPage() {
 
   if (loading) {
     return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
     <>
       <TwoFactorSetupModal
         open={twoFactorModalOpen}
@@ -578,13 +586,6 @@ export default function UserCenterPage() {
           showSuccess("Authenticator 2FA enabled successfully");
         }}
       />
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  return (
     <div className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
       {/* Header with Balance */}
       <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0e1a]/80 to-slate-950/80 p-4 shadow-xl sm:p-5">
