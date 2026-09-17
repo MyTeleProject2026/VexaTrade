@@ -20,51 +20,25 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          # Idempotent source cleanup. This run is deliberately triggered again
-          # after the security/balance fixes so the remaining page-open polling
-          # is removed from the current master revision.
           trade = Path('frontend-user/src/pages/TradePage.jsx')
           text = trade.read_text(encoding='utf-8')
-          old = '''  // Only open/history are synchronization data. Wallet and market requests were
-  // previously repeated every 2.5s, which caused the 500 wallet endpoint to be
-  // hammered and made the whole terminal look like it was continuously loading.
-  useEffect(() => {
-    const interval = setInterval(() => syncTradeState(false), 5000);
-    return () => clearInterval(interval);
-  }, [token]);
-'''
-          if old in text:
-              text = text.replace(old, '''  // Trade state is loaded on entry and after intentional user actions only.
-  // Do not continuously poll financial endpoints while this page is open.
-''', 1)
-              trade.write_text(text, encoding='utf-8')
+          pattern = re.compile(r'''\n\s*// Only open/history are synchronization data\. Wallet and market requests were\n\s*// previously repeated every 2\.5s, which caused the 500 wallet endpoint to be\n\s*// hammered and made the whole terminal look like it was continuously loading\.\n\s*useEffect\(\(\) => \{\n\s*const interval = setInterval\(\(\) => syncTradeState\(false\), 5000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[token\]\);\n''')
+          text2, count = pattern.subn('\n  // Trade state is loaded on entry and after intentional user actions only.\n  // Do not continuously poll financial endpoints while this page is open.\n', text, count=1)
+          if count:
+              trade.write_text(text2, encoding='utf-8')
               print('UPDATED TradePage.jsx')
           else:
               print('SKIP TradePage.jsx: polling block not found')
 
           tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
           text = tx.read_text(encoding='utf-8')
-          old = '''  useEffect(() => {
-    load();
-    const interval = setInterval(() => load(true), 10000);
-    return () => clearInterval(interval);
-  }, []);
-'''
-          new = '''  useEffect(() => {
-    load();
-
-    const handleTransactionComplete = () => {
-      load(true);
-    };
-
-    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
-    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
-  }, []);
-'''
-          if old in text:
-              text = text.replace(old, new, 1)
-              tx.write_text(text, encoding='utf-8')
+          pattern = re.compile(r'''\n\s*useEffect\(\(\) => \{\n\s*load\(\);\n\s*const interval = setInterval\(\(\) => load\(true\), 10000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[\]\);\n''')
+          new = '''\n  useEffect(() => {\n    load();\n\n    const handleTransactionComplete = () => {\n      load(true);\n    };\n\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n'''
+          text2, count = pattern.subn(new, text, count=1)
+          if count:
+              tx.write_text(text2, encoding='utf-8')
               print('UPDATED TransactionsPage.jsx')
           else:
               print('SKIP TransactionsPage.jsx: polling block not found')
