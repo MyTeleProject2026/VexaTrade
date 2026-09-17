@@ -65,7 +65,6 @@ function StatusBadge({ verified, label }) {
       {verified ? <CheckCircle size={14} /> : <XCircle size={14} />}
       <span>{label}</span>
     </div>
-    </>
   );
 }
 

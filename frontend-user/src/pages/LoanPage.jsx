@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { loanApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 
 function formatAmount(value, digits = 2) {
   const num = Number(value || 0);
@@ -145,7 +146,8 @@ export default function LoanPage() {
           .join(" | "),
       };
 
-      const res = await loanApi.apply(payload, token);
+      const idempotencyKey = createActionIdempotencyKey("loan");
+      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));
       const responseData = res?.data?.data || {};
 
       showSuccess(res?.data?.message || `Loan request submitted successfully. Amount: ${formatAmount(amount)} USDT.`);

@@ -29,6 +29,7 @@ import {
 } from "recharts";
 import { getApiErrorMessage, fundsApi, userApi } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
@@ -822,7 +823,8 @@ export default function FundsPage() {
       setError("");
       setSuccess("");
 
-      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);
+      const idempotencyKey = createActionIdempotencyKey("funds");
+      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));
 
       const responseData = res?.data?.data || {};
 

@@ -17,6 +17,7 @@ import {
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 
 const COINS = [
   {
@@ -391,15 +392,17 @@ export default function ConvertPage() {
       setSuccess("");
 
       const amount = Number(form.fromAmount || 0);
+      const idempotencyKey = createActionIdempotencyKey("convert");
 
-      const res = await convertApi.execute(
+      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(
         {
           fromCoin: form.fromCoin,
           toCoin: form.toCoin,
           fromAmount: amount,
+          idempotencyKey,
         },
         token
-      );
+      ));
 
       const responseData = res?.data?.data || {};
 

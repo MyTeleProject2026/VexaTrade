@@ -28,6 +28,7 @@ import {
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 
 function formatMoney(value) {
   const num = Number(value || 0);
@@ -441,7 +442,8 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
     
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {
+      const idempotencyKey = createActionIdempotencyKey("transfer");
+      const res = await runSingleUserAction("transfer-submit", () => fetch(`${API_BASE_URL}/api/user/transfer`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -450,9 +452,10 @@ function QrTransferModal({ isOpen, onClose, onTransferComplete }) {
         body: JSON.stringify({
           recipientUid: scannedUser.uid,
           amount: Number(amount),
-          note: note || null
+          note: note || null,
+          idempotencyKey,
         })
-      });
+      }));
       const data = await res.json();
       if (data.success) {
         showSuccess(`Successfully sent ${amount} USDT to ${scannedUser.name || scannedUser.email}`);

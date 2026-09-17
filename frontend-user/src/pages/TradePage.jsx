@@ -18,6 +18,7 @@ import {
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 import TargetModal from "../components/TargetModal";
 
 // ---------- constants & helpers ----------
@@ -396,7 +397,8 @@ export default function TradePage() {
     if (!amount || Number(amount) <= 0) { showError("Enter a valid trade amount"); return; }
     try {
       setPlacing(true);
-      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);
+      const idempotencyKey = createActionIdempotencyKey("trade");
+      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));
       const data = res.data?.data || {};
       const tradeId = Number(data.tradeId || 0);
       if (tradeId) { lastPlacedTradeIdRef.current = tradeId; shownSettledTradeIdRef.current = null; }
