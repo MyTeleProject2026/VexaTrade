@@ -22,40 +22,67 @@ async function addColumn(connection, table, column, definition) {
   }
 }
 
+async function indexExists(connection, table, indexName) {
+  const [rows] = await connection.execute(
+    `SELECT 1 FROM information_schema.statistics
+     WHERE table_schema=DATABASE() AND table_name=? AND index_name=? LIMIT 1`,
+    [table, indexName]
+  );
+  return rows.length > 0;
+}
+
+async function ensureUniqueIndex(connection, table, indexName, columns) {
+  if (!(await indexExists(connection, table, indexName))) {
+    await connection.execute(`CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(c => `\`${c}\``).join(',')})`);
+    console.log(`[Schema] Added unique index ${table}.${indexName}`);
+  }
+}
+
 async function ensureFinancialSchema() {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
-    // Multi-asset ledger buckets used by deposits, funds and withdrawals.
     if (await columnExists(connection, 'user_assets', 'balance')) {
       await addColumn(connection, 'user_assets', 'available_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'reserved_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'pending_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
-      await connection.execute(`
-        UPDATE user_assets
-        SET available_balance = balance
-        WHERE available_balance = 0 AND balance <> 0
-      `);
+      await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND balance <> 0`);
     }
 
-    // Deposit idempotency fields are required by POST /deposits/request.
     await addColumn(connection, 'deposits', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'deposits', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'deposits', 'uq_deposits_user_idempotency', ['user_id', 'idempotency_key']);
 
-    // Withdrawal idempotency/security fields are required by POST /withdrawals/request.
     await addColumn(connection, 'withdrawals', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'withdrawals', 'request_hash', 'CHAR(64) NULL');
     await addColumn(connection, 'withdrawals', 'authorization_status', "VARCHAR(32) NOT NULL DEFAULT 'not_required'");
     await addColumn(connection, 'withdrawals', 'joint_authorization_id', 'BIGINT UNSIGNED NULL');
     await addColumn(connection, 'withdrawals', 'two_factor_verified_at', 'DATETIME NULL');
+    await ensureUniqueIndex(connection, 'withdrawals', 'uq_withdrawals_user_idempotency', ['user_id', 'idempotency_key']);
 
-    // Convert and internal-transfer idempotency fields are also used by the
-    // user platform. Older production databases may not have run these files.
     await addColumn(connection, 'convert_transactions', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'convert_transactions', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'convert_transactions', 'uq_convert_user_idempotency', ['user_id', 'idempotency_key']);
+
     await addColumn(connection, 'user_transfers', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'user_transfers', 'uq_transfer_user_idempotency', ['sender_id', 'idempotency_key']);
+
+    // Trade/fund/loan submissions previously had frontend idempotency keys but
+    // no durable backend key. These additive fields make the one-click/one-
+    // operation contract enforceable at the database boundary too.
+    await addColumn(connection, 'trades', 'idempotency_key', 'VARCHAR(128) NULL');
+    await addColumn(connection, 'trades', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'trades', 'uq_trades_user_idempotency', ['user_id', 'idempotency_key']);
+
+    await addColumn(connection, 'user_funds', 'idempotency_key', 'VARCHAR(128) NULL');
+    await addColumn(connection, 'user_funds', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'user_funds', 'uq_user_funds_user_idempotency', ['user_id', 'idempotency_key']);
+
+    await addColumn(connection, 'loans', 'idempotency_key', 'VARCHAR(128) NULL');
+    await addColumn(connection, 'loans', 'request_hash', 'CHAR(64) NULL');
+    await ensureUniqueIndex(connection, 'loans', 'uq_loans_user_idempotency', ['user_id', 'idempotency_key']);
 
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS asset_ledger_entries (
