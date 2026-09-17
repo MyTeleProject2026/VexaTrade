@@ -36,6 +36,7 @@ import { userApi, getApiErrorMessage } from "../services/api";
 import { getFullImageUrl } from "../utils/image";
 import { useNotification } from "../hooks/useNotification";
 import ImageCropper from "../components/ImageCropper";
+import TwoFactorSetupModal from "../components/TwoFactorSetupModal";
 
 function getToken() {
   return localStorage.getItem("userToken") || 
@@ -56,6 +57,16 @@ function formatMoney(value) {
 
 function StatusBadge({ verified, label }) {
   return (
+    <>
+      <TwoFactorSetupModal
+        open={twoFactorModalOpen}
+        token={token}
+        onClose={() => setTwoFactorModalOpen(false)}
+        onCompleted={() => {
+          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
+          showSuccess("Authenticator 2FA enabled successfully");
+        }}
+      />
     <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
       verified 
         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
@@ -64,6 +75,7 @@ function StatusBadge({ verified, label }) {
       {verified ? <CheckCircle size={14} /> : <XCircle size={14} />}
       <span>{label}</span>
     </div>
+    </>
   );
 }
 
@@ -130,6 +142,7 @@ export default function UserCenterPage() {
     hasPasscode: false,
     twofaEnabled: false,
   });
+  const [twoFactorModalOpen, setTwoFactorModalOpen] = useState(false);
   
   // Passcode states
   const [passcodeModalOpen, setPasscodeModalOpen] = useState(false);
@@ -891,7 +904,7 @@ export default function UserCenterPage() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => securityStatus.hasPasscode ? setVerifyPasscodeModalOpen(true) : setPasscodeModalOpen(true)} className={`rounded-xl px-3 py-1.5 text-xs font-semibold sm:px-4 sm:py-2 sm:text-sm ${securityStatus.twofaEnabled ? "border border-white/10 bg-white/5 text-white" : "bg-emerald-500 text-black"}`}>
+              <button onClick={() => { if (!securityStatus.twofaEnabled) setTwoFactorModalOpen(true); }} disabled={securityStatus.twofaEnabled} className={`rounded-xl px-3 py-1.5 text-xs font-semibold sm:px-4 sm:py-2 sm:text-sm ${securityStatus.twofaEnabled ? "border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 cursor-default" : "bg-emerald-500 text-black"}`}>
                 <Shield size={12} className="mr-1 inline sm:h-4 sm:w-4" />
                 {securityStatus.twofaEnabled ? "Disable" : "Enable"}
               </button>
