@@ -21,8 +21,9 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # This workflow is intentionally idempotent: once the source cleanup
-          # is applied, later runs make no changes and therefore create no loop.
+          # Idempotent source cleanup. This run is deliberately triggered again
+          # after the security/balance fixes so the remaining page-open polling
+          # is removed from the current master revision.
           trade = Path('frontend-user/src/pages/TradePage.jsx')
           text = trade.read_text(encoding='utf-8')
           old = '''  // Only open/history are synchronization data. Wallet and market requests were
