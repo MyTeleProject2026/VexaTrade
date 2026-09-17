@@ -569,16 +569,22 @@ export default function UserCenterPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
-      <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
       </div>
-
     );
   }
 
   return (
     <>
       <TwoFactorSetupModal
+        open={twoFactorModalOpen}
+        token={token}
+        onClose={() => setTwoFactorModalOpen(false)}
+        onCompleted={() => {
+          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
+          showSuccess("Authenticator 2FA enabled successfully");
+        }}
+      />
       {/* Header with Balance */}
       <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0e1a]/80 to-slate-950/80 p-4 shadow-xl sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
