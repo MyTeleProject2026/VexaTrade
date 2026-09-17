@@ -233,28 +233,24 @@ export default function ConvertPage() {
     }
   }
 
-  // ✅ FIX: Also refresh fee when page becomes visible
+  async function refreshConvertBalances() {
+    try {
+      const res = await userApi.getUserAssets(token);
+      const payload = res?.data || {};
+      const rows = Array.isArray(payload?.data?.assets)
+        ? payload.data.assets
+        : (Array.isArray(payload?.assets) ? payload.assets : []);
+      setAssetBalances(Object.fromEntries(rows.map((x) => [
+        String(x.coin || x.symbol || "").toUpperCase(),
+        Number(x.available_balance ?? x.available ?? x.balance ?? 0)
+      ])));
+    } catch (err) {
+      console.error("Failed to refresh convert balances:", err);
+    }
+  }
+
   useEffect(() => {
     loadData();
-
-    // ✅ FIX: Refresh every 30 seconds (instead of 10)
-    const interval = setInterval(() => {
-      loadData(true);
-    }, 30000);
-
-    // ✅ FIX: Refresh when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log("🔄 Tab visible, refreshing fee...");
-        loadData(true);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   const pairMap = useMemo(() => buildPairPriceMap(markets), [markets]);
@@ -443,8 +439,7 @@ export default function ConvertPage() {
         fromAmount: "",
       }));
 
-      localStorage.setItem("VexaTrade_assets_refresh", String(Date.now()));
-      await loadData(true);
+      await refreshConvertBalances();
     } catch (err) {
       showError(getApiErrorMessage(err));
       setSuccess("");

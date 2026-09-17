@@ -734,16 +734,26 @@ export default function FundsPage() {
     }
   }
 
+  async function refreshFundState() {
+    try {
+      const [summaryRes, activeRes, historyRes, latestRes] = await Promise.allSettled([
+        fundsApi.summary(token),
+        fundsApi.active(token),
+        fundsApi.history(token),
+        fundsApi.latestCompleted(token),
+      ]);
+      if (summaryRes.status === "fulfilled") setSummary(summaryRes.value?.data?.data || {});
+      if (activeRes.status === "fulfilled") setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);
+      if (historyRes.status === "fulfilled") setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);
+      if (latestRes.status === "fulfilled") setLatestCompleted(latestRes.value?.data?.data || null);
+    } catch (err) {
+      console.error("Failed to refresh fund state:", err);
+    }
+  }
+
   useEffect(() => {
     loadData();
     checkUserTarget();
-
-    const interval = setInterval(() => {
-      loadData(true);
-      refreshTargetProgress();
-    }, 15000);
-
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -831,7 +841,8 @@ export default function FundsPage() {
       });
 
       closeApplyModal();
-      await loadData(true);
+      await refreshFundState();
+      await refreshTargetProgress();
       setTab("active");
     } catch (err) {
       showError(getApiErrorMessage(err));
@@ -1163,7 +1174,7 @@ export default function FundsPage() {
       <ProfitWithdrawalModal
         isOpen={showProfitWithdrawalModal}
         onClose={() => setShowProfitWithdrawalModal(false)}
-        onSuccess={() => { refreshTargetProgress(); loadData(true); }}
+        onSuccess={async () => { await refreshFundState(); await refreshTargetProgress(); }}
         currentProfit={profitWithdrawalProfit}
         targetAmount={profitWithdrawalTarget}
       />

@@ -902,40 +902,41 @@ export default function AssetsPage() {
     }
   }
 
+  async function refreshPortfolioAssets() {
+    try {
+      await loadRealUserAssets();
+    } catch (err) {
+      console.error("Failed to refresh portfolio assets:", err);
+    }
+  }
+
   function handleTransferComplete() {
-    loadData(true);
+    refreshPortfolioAssets();
   }
 
   useEffect(() => {
     loadData();
 
-    // ✅ FIX: Changed refresh rate from 10s to 30s
-    const interval = setInterval(() => {
-      loadData(true);
-    }, 30000);
-
-    const onFocus = () => loadData(true);
-    const onStorage = (e) => {
-      if (e.key === "VexaTrade_assets_refresh") {
-        loadData(true);
+    const handleTransactionComplete = (event) => {
+      const action = String(event?.detail?.action || "").toLowerCase();
+      if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {
+        refreshPortfolioAssets();
       }
     };
 
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("storage", onStorage);
-    };
+    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
+    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
   }, []);
 
-  const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);
-  const totalBalance = displayBalance;
-  
-  // ✅ FIX: Use real holdings, not fallback
+  // Portfolio value is derived from the actual coin holdings. `wallet.balance`
+  // is the legacy USDT-only spendable balance and must not hide non-USDT assets.
   const normalizedHoldings = holdings.length > 0 ? holdings : [];
+  const portfolioValue = useMemo(() => normalizedHoldings.reduce(
+    (sum, item) => sum + Number(item.usdtValue || 0),
+    0
+  ), [normalizedHoldings]);
+  const displayBalance = combinedBalance !== null ? combinedBalance : portfolioValue;
+  const totalBalance = displayBalance;
 
   const totalSpotPnl = useMemo(() => {
     return normalizedHoldings.reduce(
