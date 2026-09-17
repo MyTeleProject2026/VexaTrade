@@ -51,7 +51,7 @@ const otp = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 const actionName = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 64) || 'transaction';
 const idempotencyKey = value => String(value || '').trim().slice(0, 128);
 
-async function createSecurityChallenge(req) {
+async function createSecurityChallenge(req, options = {}) {
   await ensureTable();
   const action = actionName(req.body?.action);
   const requestKey = idempotencyKey(req.body?.idempotencyKey || req.get('Idempotency-Key'));
@@ -61,14 +61,27 @@ async function createSecurityChallenge(req) {
     throw error;
   }
 
+  if (options.resend) {
+    const [recent] = await pool.execute(
+      'SELECT id,created_at FROM transaction_security_challenges WHERE user_id=? AND action=? AND idempotency_key=? ORDER BY created_at DESC LIMIT 1',
+      [req.user.id, action, requestKey]
+    );
+    if (recent.length) {
+      const age = Date.now() - new Date(recent[0].created_at).getTime();
+      if (age < 30000) {
+        const error = new Error(`Please wait ${Math.max(1, Math.ceil((30000 - age) / 1000))} seconds before requesting another code.`);
+        error.statusCode = 429;
+        throw error;
+      }
+    }
+  }
+
   const id = crypto.randomUUID();
   const code = otp();
   const expires = new Date(Date.now() + 10 * 60 * 1000);
   const [twofaRows] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [req.user.id]);
   const twoFactorRequired = Boolean(twofaRows[0] && Number(twofaRows[0].enabled) === 1);
 
-  // A resend for the same financial request replaces the previous pending
-  // challenge instead of accumulating multiple valid challenge rows.
   await pool.execute(
     'DELETE FROM transaction_security_challenges WHERE user_id=? AND action=? AND idempotency_key=?',
     [req.user.id, action, requestKey]
@@ -82,15 +95,18 @@ async function createSecurityChallenge(req) {
     [id, req.user.id, action, requestKey, hash(code), twoFactorRequired ? 1 : 0, expires]
   );
 
-  const delivered = await sendOtpEmail({
-    to: req.user.email,
-    code,
-    purpose: `${action} transaction authorization`,
-  });
-  if (!delivered) {
+  try {
+    const delivered = await sendOtpEmail({
+      to: req.user.email,
+      code,
+      purpose: `${action} transaction authorization`,
+    });
+    if (!delivered) throw new Error('Email provider did not accept the message');
+  } catch (mailError) {
     await pool.execute('DELETE FROM transaction_security_challenges WHERE id=?', [id]);
     const error = new Error('Security code could not be delivered. Please try again later.');
     error.statusCode = 503;
+    error.cause = mailError;
     throw error;
   }
 
@@ -100,6 +116,7 @@ async function createSecurityChallenge(req) {
     expiresAt: expires,
     twoFactorRequired,
     idempotencyKey: requestKey,
+    resendAfterSeconds: 30,
   };
 }
 
@@ -107,6 +124,16 @@ router.post('/security/transaction/start', authUser, async (req, res, next) => {
   try {
     const data = await createSecurityChallenge(req);
     res.json({ success: true, data });
+  } catch (e) {
+    if (e?.statusCode) return res.status(e.statusCode).json({ success: false, message: e.message });
+    next(e);
+  }
+});
+
+router.post('/security/transaction/resend', authUser, async (req, res, next) => {
+  try {
+    const data = await createSecurityChallenge(req, { resend: true });
+    res.json({ success: true, data, resent: true });
   } catch (e) {
     if (e?.statusCode) return res.status(e.statusCode).json({ success: false, message: e.message });
     next(e);
@@ -178,13 +205,13 @@ router.post('/security/transaction/authorize', authUser, async (req, res, next) 
     const requestKey = idempotencyKey(req.body?.idempotencyKey || req.get('Idempotency-Key'));
     const [rows] = await pool.execute('SELECT * FROM transaction_security_challenges WHERE id=? AND user_id=? LIMIT 1', [id, req.user.id]);
     if (!rows.length) return res.status(404).json({ success: false, message: 'Security challenge not found' });
-    const c = rows[0];
-    if (!requestKey || requestKey !== String(c.idempotency_key || '')) return res.status(401).json({ success: false, message: 'Transaction security request does not match the authorized operation' });
-    if (new Date(c.expires_at).getTime() < Date.now()) return res.status(401).json({ success: false, message: 'Security challenge expired' });
-    if (!Number(c.otp_verified) || !Number(c.passcode_verified) || (Number(c.two_factor_required) && !Number(c.two_factor_verified))) return res.status(409).json({ success: false, message: 'Transaction security steps are incomplete' });
-    const token = jwt.sign({ type: 'vexatrade_transaction_security', userId: req.user.id, action: c.action, challengeId: c.id, idempotencyKey: c.idempotency_key, emailOtp: true, twoFactorRequired: Boolean(c.two_factor_required), twoFactor: Boolean(c.two_factor_verified), passcode: true }, JWT_SECRET, { expiresIn: '5m' });
-    await pool.execute('DELETE FROM transaction_security_challenges WHERE id=?', [id]);
-    res.json({ success: true, data: { transactionSecurityToken: token, action: c.action, idempotencyKey: c.idempotency_key, expiresIn: 300 } });
+    const challenge = rows[0];
+    if (requestKey !== String(challenge.idempotency_key || '')) return res.status(409).json({ success: false, message: 'Security authorization does not match this transaction request' });
+    if (new Date(challenge.expires_at).getTime() < Date.now()) return res.status(400).json({ success: false, message: 'Security challenge expired' });
+    if (!Number(challenge.otp_verified) || (Number(challenge.two_factor_required) && !Number(challenge.two_factor_verified)) || !Number(challenge.passcode_verified)) return res.status(409).json({ success: false, message: 'Complete all transaction security steps first' });
+    const token = jwt.sign({ type:'vexatrade_transaction_security',userId:req.user.id,action:challenge.action,challengeId:challenge.id,idempotencyKey:challenge.idempotency_key,emailOtp:true,twoFactorRequired:Boolean(challenge.two_factor_required),twoFactor:Boolean(challenge.two_factor_verified),passcode:true },JWT_SECRET,{expiresIn:'5m'});
+    await pool.execute('DELETE FROM transaction_security_challenges WHERE id=?',[id]);
+    res.json({ success:true,data:{transactionSecurityToken:token,idempotencyKey:challenge.idempotency_key} });
   } catch (e) { next(e); }
 });
 
