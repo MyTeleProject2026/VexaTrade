@@ -1288,7 +1288,6 @@ export default function UserCenterPage() {
           </div>
         </div>
       )}
-    </div>
     </>
   );
 }
