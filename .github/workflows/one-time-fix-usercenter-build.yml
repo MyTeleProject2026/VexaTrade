@@ -1,0 +1,38 @@
+name: One-time UserCenter build repair
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/one-time-fix-usercenter-build.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - name: Remove extra UserCenter closing div
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = path.read_text()
+          old = '      )}\n    </div>\n    </div>\n    </>\n  );'
+          new = '      )}\n    </div>\n    </>\n  );'
+          if old not in text:
+              raise SystemExit('Expected UserCenter closing structure was not found; refusing unsafe edit.')
+          path.write_text(text.replace(old, new, 1))
+      - name: Commit repair and remove workflow
+        shell: bash
+        run: |
+          git config user.name "CryptoPulse"
+          git config user.email "267598483+MyTeleProject2026@users.noreply.github.com"
+          git add frontend-user/src/pages/UserCenterPage.jsx
+          git rm .github/workflows/one-time-fix-usercenter-build.yml
+          git commit -m "fix: close UserCenter fragment correctly"
+          git push origin master
