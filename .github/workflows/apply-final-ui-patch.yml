@@ -1,0 +1,61 @@
+name: Apply final UI repair once
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Apply source repairs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Remove duplicate 2FA modal body from UserCenter.
+          p = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = p.read_text(encoding='utf-8')
+          duplicate = '''        open={twoFactorModalOpen}\n        token={token}\n        onClose={() => setTwoFactorModalOpen(false)}\n        onCompleted={() => {\n          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));\n          showSuccess("Authenticator 2FA enabled successfully");\n        }}\n      />\n      {/* Header with Balance */}'''
+          text = text.replace(duplicate, '''      {/* Header with Balance */}''', 1)
+          p.write_text(text, encoding='utf-8')
+
+          # Add configured deposit QR support to the actual SecureDepositPage used by App routing.
+          p = Path('frontend-user/src/pages/SecureDepositPage.jsx')
+          text = p.read_text(encoding='utf-8')
+          old = "const rows=Array.isArray(w.value?.data?.data)?w.value.data.data:[];setWallets(rows);"
+          new = "const rows=(Array.isArray(w.value?.data?.data)?w.value.data.data:[]).map(row=>({...row,qr_image_url:row.qr_image_url||row.qr_url||row.qrCodeUrl||row.qr_code_url||row.qr_code||row.qr_image||row.qr||null}));setWallets(rows);"
+          text = text.replace(old, new, 1)
+          address_marker = '{selected?.address&&<div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">'
+          qr_card = '''{selected?.qr_image_url&&<div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4"><div className="flex items-center justify-between"><div><div className="text-xs font-semibold text-white">Scan to deposit</div><div className="mt-1 text-[11px] text-slate-500">Use only this VexaTrade address on the selected network.</div></div><span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-300">{form.network}</span></div><div className="mt-4 flex justify-center"><div className="rounded-2xl bg-white p-3 shadow-xl"><img src={selected.qr_image_url} alt={`${form.coin} ${form.network} deposit QR`} className="h-48 w-48 rounded-xl object-contain" /></div></div><div className="mt-3 text-center text-[11px] text-slate-500">Verify coin + network before sending.</div></div>}'''
+          if address_marker in text and 'Scan to deposit' not in text:
+              text = text.replace(address_marker, qr_card + address_marker, 1)
+          p.write_text(text, encoding='utf-8')
+
+          # Remove temporary self-mutating repair workflows so future pushes are not rewritten unexpectedly.
+          for wf in [
+              '.github/workflows/repair-deposit-qr-and-usercenter.yml',
+              '.github/workflows/finalize-ui-repair.yml',
+              '.github/workflows/repair-usercenter-once.yml',
+              '.github/workflows/one-time-user-transaction-flow-upgrade.yml',
+              '.github/workflows/one-time-2fa-ui-and-security-fix.yml',
+          ]:
+              Path(wf).unlink(missing_ok=True)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend-user/src/pages/UserCenterPage.jsx frontend-user/src/pages/SecureDepositPage.jsx .github/workflows
+          if git diff --cached --quiet; then
+            echo "No final source changes required"
+          else
+            git commit -m "fix: finalize deposit QR and UserCenter UI"
+            git push origin HEAD:master
+          fi
