@@ -50,6 +50,57 @@ async function ensureFinancialSchema() {
       await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND balance <> 0`);
     }
 
+    // Security migrations are SQL files and are not run automatically by Render.
+    // Keep their required additive schema in the startup bootstrap as well.
+    await addColumn(connection, 'users', 'passcode', 'VARCHAR(255) NULL');
+    await addColumn(connection, 'users', 'twofa_enabled', 'TINYINT(1) NOT NULL DEFAULT 0');
+    await addColumn(connection, 'users', 'passcode_failed_attempts', 'INT NOT NULL DEFAULT 0');
+    await addColumn(connection, 'users', 'passcode_locked_until', 'DATETIME NULL');
+    await addColumn(connection, 'users', 'passcode_verified_at', 'DATETIME NULL');
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_two_factor (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        secret_encrypted TEXT NOT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 0,
+        verified_at DATETIME NULL,
+        last_used_step BIGINT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_user_two_factor_user (user_id),
+        KEY idx_user_two_factor_enabled (user_id, enabled)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS two_factor_recovery_codes (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        code_hash VARCHAR(255) NOT NULL,
+        used_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_2fa_recovery_user (user_id, used_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS security_events (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        event_type VARCHAR(64) NOT NULL,
+        success TINYINT(1) NOT NULL DEFAULT 0,
+        ip_address VARCHAR(64) NULL,
+        user_agent VARCHAR(500) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_security_events_user_created (user_id, created_at),
+        KEY idx_security_events_type_created (event_type, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
     await addColumn(connection, 'deposits', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'deposits', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'deposits', 'uq_deposits_user_idempotency', ['user_id', 'idempotency_key']);
@@ -69,9 +120,6 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'user_transfers', 'uq_transfer_user_idempotency', ['sender_id', 'idempotency_key']);
 
-    // Trade/fund/loan submissions previously had frontend idempotency keys but
-    // no durable backend key. These additive fields make the one-click/one-
-    // operation contract enforceable at the database boundary too.
     await addColumn(connection, 'trades', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'trades', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'trades', 'uq_trades_user_idempotency', ['user_id', 'idempotency_key']);
@@ -103,7 +151,7 @@ async function ensureFinancialSchema() {
     `);
 
     await connection.commit();
-    console.log('[Schema] Financial compatibility schema is ready.');
+    console.log('[Schema] Financial and security compatibility schema is ready.');
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     console.error('[Schema] Financial schema bootstrap failed:', error.message);
