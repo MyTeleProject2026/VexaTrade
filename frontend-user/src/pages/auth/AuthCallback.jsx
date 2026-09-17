@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getAccountStatus, isFullyApprovedStatus } from '../../services/accountStatus';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://vexatrade-5ycu.onrender.com';
 
@@ -50,20 +49,11 @@ const AuthCallback = () => {
           localStorage.setItem('userData', JSON.stringify(data.user));
         }
 
-        // Resolve account access once after SSO. The shared status helper
-        // deduplicates concurrent requests and keeps the result for the
-        // current browser session so route remounts do not create a request loop.
-        setMessage('Checking your VexaTrade account access…');
-        let destination = isFullyApproved(data.user) ? '/dashboard' : '/account-verification';
-        try {
-          const status = await getAccountStatus(data.token);
-          if (status) {
-            const approved = isFullyApprovedStatus(status);
-            destination = approved ? '/dashboard' : '/account-verification';
-          }
-        } catch (statusError) {
-          console.warn('VexaTrade verification status check after SSO failed:', statusError);
-        }
+        // The SSO callback already returns the authoritative user status.
+        // Do not immediately call /verification-status again; that redundant
+        // database request was adding 8–12 seconds to login when the DB pool was busy.
+        setMessage('Opening your VexaTrade account…');
+        const destination = isFullyApproved(data.user) ? '/dashboard' : '/account-verification';
 
         if (cancelled) return;
         window.history.replaceState({}, document.title, window.location.pathname);
