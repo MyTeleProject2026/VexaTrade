@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, Copy, KeyRound, QrCode, ShieldCheck, X } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 function getToken(token) {
   return token || localStorage.getItem("userToken") || localStorage.getItem("token") || localStorage.getItem("accessToken") || "";
@@ -40,7 +40,8 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedSecret, setCopiedSecret] = useState(false);
+  const [copiedRecovery, setCopiedRecovery] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +51,9 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
     setRecoveryCodes([]);
     setLoading(false);
     setError("");
-    setCopied(false);
+    setCopiedSecret(false);
+    setCopiedRecovery(false);
+
     let cancelled = false;
     (async () => {
       try {
@@ -58,7 +61,9 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
         const data = await request("/api/user/2fa/setup", token);
         if (!cancelled) setSetup(data.data);
       } catch (err) {
-        if (!cancelled) setError(err?.name === "AbortError" ? "2FA setup timed out. Please try again." : err?.message || "Unable to start 2FA setup.");
+        if (!cancelled) {
+          setError(err?.name === "AbortError" ? "2FA setup timed out. Please try again." : err?.message || "Unable to start 2FA setup.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,6 +72,17 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
   }, [open, token]);
 
   if (!open) return null;
+
+  async function copySecret() {
+    if (!setup?.manualKey) return;
+    try {
+      await navigator.clipboard.writeText(setup.manualKey);
+      setCopiedSecret(true);
+      setTimeout(() => setCopiedSecret(false), 1500);
+    } catch (_) {
+      setError("Unable to copy the secret key. Please copy it manually.");
+    }
+  }
 
   async function verifyAndEnable() {
     const value = code.replace(/\D/g, "").slice(0, 6);
@@ -93,9 +109,11 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
   async function copyRecoveryCodes() {
     try {
       await navigator.clipboard.writeText(recoveryCodes.join("\n"));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (_) {}
+      setCopiedRecovery(true);
+      setTimeout(() => setCopiedRecovery(false), 1500);
+    } catch (_) {
+      setError("Unable to copy recovery codes. Please save them manually.");
+    }
   }
 
   return (
@@ -105,11 +123,11 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
           <div className="flex items-center gap-2">
             <div className="rounded-xl bg-emerald-500/10 p-2"><ShieldCheck className="h-5 w-5 text-emerald-400" /></div>
             <div>
-              <h2 className="text-sm font-bold text-white sm:text-base">Authenticator 2FA</h2>
+              <h2 className="text-sm font-bold text-white sm:text-base">Two-Factor Authentication</h2>
               <p className="text-[10px] text-slate-400 sm:text-xs">Secure your VexaTrade account</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} aria-label="Close" className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"><X size={18} /></button>
         </div>
 
         <div className="p-4 sm:p-5">
@@ -120,7 +138,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
               return (
                 <div key={item} className={`rounded-xl border px-2 py-2 text-center ${active ? "border-emerald-500/40 bg-emerald-500/10" : done ? "border-cyan-500/20 bg-cyan-500/5" : "border-white/10 bg-white/[0.02]"}`}>
                   <div className={`text-[10px] font-semibold uppercase ${active || done ? "text-emerald-300" : "text-slate-500"}`}>Step {index + 1}</div>
-                  <div className="mt-0.5 text-[10px] text-slate-400">{item === "setup" ? "Add app" : item === "verify" ? "Verify code" : "Complete"}</div>
+                  <div className="mt-0.5 text-[10px] text-slate-400">{item === "setup" ? "Set up 2FA" : item === "verify" ? "Verify code" : "Completed"}</div>
                 </div>
               );
             })}
@@ -134,42 +152,64 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
 
           {step === "setup" && (
             <div>
-              <h3 className="text-base font-semibold text-white">1. Add VexaTrade to your authenticator</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-400">Open Google Authenticator, Microsoft Authenticator, Authy, or another TOTP app and scan this QR code. If scanning is unavailable, enter the manual key.</p>
-              <div className="mt-4 flex justify-center rounded-2xl border border-white/10 bg-white p-4">
-                {loading ? <div className="h-56 w-56 animate-pulse rounded-xl bg-slate-200" /> : setup?.qrCode ? <img src={setup.qrCode} alt="VexaTrade authenticator QR code" className="h-56 w-56" /> : <QrCode className="h-24 w-24 text-slate-400" />}
+              <h3 className="text-base font-semibold text-white">Two-Factor Authentication</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Add an extra layer of security to your account.</p>
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="text-xs font-semibold text-white">Set Up 2FA</div>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-slate-400">
+                  <li>Install an authenticator app (Google Authenticator, Authy, or Microsoft Authenticator).</li>
+                  <li>Scan the QR code below.</li>
+                  <li>Enter the 6-digit code from your app.</li>
+                </ol>
               </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white p-4">
+                <div className="mb-3 text-center text-xs font-semibold text-slate-700">2FA QR Code</div>
+                <div className="flex justify-center">
+                  {loading ? <div className="h-56 w-56 animate-pulse rounded-xl bg-slate-200" /> : setup?.qrCode ? <img src={setup.qrCode} alt="VexaTrade 2FA QR Code" className="h-56 w-56" /> : <QrCode className="h-24 w-24 text-slate-400" />}
+                </div>
+                <p className="mt-3 text-center text-[10px] text-slate-500">Scan this QR code with your authenticator app</p>
+              </div>
+
               <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="flex items-center gap-2 text-xs text-slate-400"><KeyRound size={14} />Manual setup key</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-slate-400"><KeyRound size={14} />Secret Key (manual entry)</div>
+                  <button type="button" onClick={copySecret} disabled={!setup?.manualKey} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-slate-200 disabled:opacity-40"><Copy size={12} />{copiedSecret ? "Copied" : "Copy Secret Key"}</button>
+                </div>
                 <div className="mt-2 break-all rounded-lg bg-black/30 p-3 font-mono text-sm tracking-wider text-white">{setup?.manualKey || (loading ? "Generating…" : "—")}</div>
               </div>
-              <button disabled={loading || !setup} onClick={() => { setError(""); setStep("verify"); }} className="mt-4 w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">I added the account</button>
+
+              <button disabled={loading || !setup} onClick={() => { setError(""); setStep("verify"); }} className="mt-4 w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">Continue</button>
             </div>
           )}
 
           {step === "verify" && (
             <div>
-              <h3 className="text-base font-semibold text-white">2. Enter your authenticator code</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-400">Enter the current 6-digit code generated by your authenticator app. This confirms that the app was configured correctly.</p>
+              <h3 className="text-base font-semibold text-white">Verification Code</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-400">Enter the current 6-digit code generated by your authenticator app.</p>
               <div className="mt-5">
-                <label className="mb-2 block text-xs text-slate-400">6-digit authenticator code</label>
-                <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(e) => { if (e.key === "Enter") verifyAndEnable(); }} placeholder="000000" className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none focus:border-emerald-500" />
+                <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(e) => { if (e.key === "Enter") verifyAndEnable(); }} placeholder="000000" aria-label="Verification Code" className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none focus:border-emerald-500" />
               </div>
               <div className="mt-4 flex gap-2">
                 <button onClick={() => { setError(""); setStep("setup"); }} disabled={loading} className="flex-1 rounded-xl border border-white/10 py-2.5 text-xs text-white">Back</button>
-                <button onClick={verifyAndEnable} disabled={loading || code.length !== 6} className="flex-[2] rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Verifying…" : "Verify & Enable 2FA"}</button>
+                <button onClick={verifyAndEnable} disabled={loading || code.length !== 6} className="flex-[2] rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Enabling…" : "Enable 2FA"}</button>
               </div>
+              <button onClick={onClose} disabled={loading} className="mt-2 w-full rounded-xl border border-white/10 py-2 text-xs text-slate-400">Cancel</button>
             </div>
           )}
 
           {step === "complete" && (
             <div>
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <CheckCircle2 className="h-7 w-7 text-emerald-400" />
-                <div><h3 className="text-sm font-semibold text-white">2FA enabled successfully</h3><p className="text-xs text-slate-400">Your authenticator is now required for secured transactions.</p></div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
+                <h3 className="mt-2 text-base font-semibold text-white">2FA setup completed</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">Two-Factor Authentication is now enabled on your VexaTrade account.</p>
               </div>
               <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                <div className="flex items-center justify-between gap-2"><div><h4 className="text-xs font-semibold text-amber-200">Save your recovery codes</h4><p className="mt-1 text-[10px] text-amber-100/70">Store these offline. Each code is intended for one recovery use.</p></div><button onClick={copyRecoveryCodes} className="inline-flex items-center gap-1 rounded-lg border border-amber-300/20 px-2 py-1 text-[10px] text-amber-100"><Copy size={12} />{copied ? "Copied" : "Copy"}</button></div>
+                <div className="flex items-start justify-between gap-2">
+                  <div><h4 className="text-xs font-semibold text-amber-200">Save your recovery codes</h4><p className="mt-1 text-[10px] text-amber-100/70">Store these offline. Each code is intended for one recovery use.</p></div>
+                  <button onClick={copyRecoveryCodes} disabled={!recoveryCodes.length} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-300/20 px-2 py-1 text-[10px] text-amber-100 disabled:opacity-40"><Copy size={12} />{copiedRecovery ? "Copied" : "Copy"}</button>
+                </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">{recoveryCodes.map((item) => <div key={item} className="rounded-lg bg-black/20 px-2 py-1.5 text-center font-mono text-xs text-white">{item}</div>)}</div>
               </div>
               <button onClick={onClose} className="mt-4 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black">Done</button>
