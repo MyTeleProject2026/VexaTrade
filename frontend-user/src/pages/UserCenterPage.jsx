@@ -593,14 +593,6 @@ export default function UserCenterPage() {
           showSuccess("Authenticator 2FA enabled successfully");
         }}
       />
-        open={twoFactorModalOpen}
-        token={token}
-        onClose={() => setTwoFactorModalOpen(false)}
-        onCompleted={() => {
-          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
-          showSuccess("Authenticator 2FA enabled successfully");
-        }}
-      />
       {/* Header with Balance */}
       <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a0e1a]/80 to-slate-950/80 p-4 shadow-xl sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
