@@ -87,7 +87,6 @@ async function sendViaSmtp({ to, subject, html, text }) {
       } catch (error) {
         lastError = error;
         console.error(`[email] ${provider.name} failed to ${maskEmail(to)} port=${port}: ${formatError(error)}`);
-        // Authentication/rejection errors are not fixed by another SMTP port.
         if (!isRetryableNetworkError(error)) break;
       }
     }
@@ -119,7 +118,7 @@ async function sendViaBrevoApi({ to, subject, html, text }) {
 
 async function sendEmail({ to, subject, html, text }) {
   const recipient = trim(to).toLowerCase();
-  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) throw new Error('Valid recipient email is required');
+  if (!recipient || !/^\S+@\S+\.\S+$/.test(recipient)) throw new Error('Valid recipient email is required');
   const payload = { to: recipient, subject: trim(subject) || 'VexaTrade notification', html: String(html || ''), text: String(text || '') };
 
   let smtpError = null;
@@ -134,12 +133,16 @@ async function sendEmail({ to, subject, html, text }) {
   } catch (apiError) {
     const combined = new Error(`Email delivery failed: SMTP=${smtpError ? formatError(smtpError) : 'not configured'}; BrevoAPI=${formatError(apiError)}`);
     combined.code = 'EMAIL_SEND_FAILED';
+    combined.status = 503;
+    combined.statusCode = 503;
     combined.cause = apiError;
     throw combined;
   }
 
   const error = new Error('Email delivery is not configured. Configure Brevo SMTP/API or Gmail SMTP credentials.');
   error.code = 'EMAIL_PROVIDER_NOT_CONFIGURED';
+  error.status = 503;
+  error.statusCode = 503;
   throw error;
 }
 
