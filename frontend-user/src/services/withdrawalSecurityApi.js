@@ -1,11 +1,16 @@
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
+const APP_API_TIMEOUT_MS = 8000;
 const getToken = () => localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token") || "";
-const client = axios.create({ baseURL: API_BASE_URL, timeout: 20000, headers: { "Content-Type": "application/json" } });
+const makeKey = (action) => `${String(action).replace(/[^a-z0-9_-]/gi, "-")}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`.slice(0, 128);
+const client = axios.create({ baseURL: API_BASE_URL, timeout: APP_API_TIMEOUT_MS, headers: { "Content-Type": "application/json" } });
 client.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (["post", "put", "patch", "delete"].includes(String(config.method || "").toLowerCase()) && !config.headers["Idempotency-Key"]) {
+    config.headers["Idempotency-Key"] = config.data?.idempotencyKey || makeKey(config.url || "security");
+  }
   return config;
 });
 
