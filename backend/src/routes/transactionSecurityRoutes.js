@@ -51,26 +51,66 @@ const otp = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 const actionName = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 64) || 'transaction';
 const idempotencyKey = value => String(value || '').trim().slice(0, 128);
 
+async function createSecurityChallenge(req) {
+  await ensureTable();
+  const action = actionName(req.body?.action);
+  const requestKey = idempotencyKey(req.body?.idempotencyKey || req.get('Idempotency-Key'));
+  if (!requestKey) {
+    const error = new Error('Idempotency-Key is required for transaction security');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const id = crypto.randomUUID();
+  const code = otp();
+  const expires = new Date(Date.now() + 10 * 60 * 1000);
+  const [twofaRows] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [req.user.id]);
+  const twoFactorRequired = Boolean(twofaRows[0] && Number(twofaRows[0].enabled) === 1);
+
+  // A resend for the same financial request replaces the previous pending
+  // challenge instead of accumulating multiple valid challenge rows.
+  await pool.execute(
+    'DELETE FROM transaction_security_challenges WHERE user_id=? AND action=? AND idempotency_key=?',
+    [req.user.id, action, requestKey]
+  );
+  await pool.execute(
+    'DELETE FROM transaction_security_challenges WHERE user_id=? AND (expires_at<NOW() OR otp_verified=1)',
+    [req.user.id]
+  );
+  await pool.execute(
+    'INSERT INTO transaction_security_challenges(id,user_id,action,idempotency_key,otp_hash,two_factor_required,expires_at) VALUES(?,?,?,?,?,?,?)',
+    [id, req.user.id, action, requestKey, hash(code), twoFactorRequired ? 1 : 0, expires]
+  );
+
+  const delivered = await sendOtpEmail({
+    to: req.user.email,
+    code,
+    purpose: `${action} transaction authorization`,
+  });
+  if (!delivered) {
+    await pool.execute('DELETE FROM transaction_security_challenges WHERE id=?', [id]);
+    const error = new Error('Security code could not be delivered. Please try again later.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return {
+    challengeId: id,
+    email: String(req.user.email || '').replace(/^(.).+(@.*)$/, '$1***$2'),
+    expiresAt: expires,
+    twoFactorRequired,
+    idempotencyKey: requestKey,
+  };
+}
+
 router.post('/security/transaction/start', authUser, async (req, res, next) => {
   try {
-    await ensureTable();
-    const action = actionName(req.body?.action);
-    const requestKey = idempotencyKey(req.body?.idempotencyKey || req.get('Idempotency-Key'));
-    if (!requestKey) return res.status(400).json({ success: false, message: 'Idempotency-Key is required for transaction security' });
-    const id = crypto.randomUUID();
-    const code = otp();
-    const expires = new Date(Date.now() + 10 * 60 * 1000);
-    const [twofaRows] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [req.user.id]);
-    const twoFactorRequired = Boolean(twofaRows[0] && Number(twofaRows[0].enabled) === 1);
-    await pool.execute('DELETE FROM transaction_security_challenges WHERE user_id=? AND (expires_at<NOW() OR otp_verified=1)', [req.user.id]);
-    await pool.execute('INSERT INTO transaction_security_challenges(id,user_id,action,idempotency_key,otp_hash,two_factor_required,expires_at) VALUES(?,?,?,?,?,?,?)', [id, req.user.id, action, requestKey, hash(code), twoFactorRequired ? 1 : 0, expires]);
-    const delivered = await sendOtpEmail({ to: req.user.email, code, purpose: `${action} transaction authorization` });
-    if (!delivered) {
-      await pool.execute('DELETE FROM transaction_security_challenges WHERE id=?', [id]);
-      return res.status(503).json({ success: false, message: 'Security code could not be delivered. Please try again later.' });
-    }
-    res.json({ success: true, data: { challengeId: id, email: req.user.email.replace(/^(.).+(@.*)$/, '$1***$2'), expiresAt: expires, twoFactorRequired, idempotencyKey: requestKey } });
-  } catch (e) { next(e); }
+    const data = await createSecurityChallenge(req);
+    res.json({ success: true, data });
+  } catch (e) {
+    if (e?.statusCode) return res.status(e.statusCode).json({ success: false, message: e.message });
+    next(e);
+  }
 });
 
 router.post('/security/transaction/verify-email', authUser, async (req, res, next) => {
