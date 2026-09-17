@@ -246,14 +246,8 @@ export default function TradePage() {
 
   useEffect(() => { loadTradePage(); checkUserTarget(); }, []);
   useEffect(() => { if (hasTarget && targetProgress.targetAmount > 0) checkAndPromptNewTarget(); }, [hasTarget, targetProgress]);
-
-  // Only open/history are synchronization data. Wallet and market requests were
-  // previously repeated every 2.5s, which caused the 500 wallet endpoint to be
-  // hammered and made the whole terminal look like it was continuously loading.
-  useEffect(() => {
-    const interval = setInterval(() => syncTradeState(false), 5000);
-    return () => clearInterval(interval);
-  }, [token]);
+  // Trade state is loaded on entry and after intentional user actions only.
+  // Do not continuously poll financial endpoints while this page is open.
 
   useEffect(() => {
     if (!showRunningTradeModal || remainingSeconds <= 0) return;

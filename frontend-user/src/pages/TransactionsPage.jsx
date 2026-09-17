@@ -517,11 +517,15 @@ export default function TransactionsPage() {
       setRefreshing(false);
     }
   }
-
   useEffect(() => {
     load();
-    const interval = setInterval(() => load(true), 10000);
-    return () => clearInterval(interval);
+
+    const handleTransactionComplete = () => {
+      load(true);
+    };
+
+    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
+    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
   }, []);
 
   useEffect(() => {
