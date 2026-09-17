@@ -57,6 +57,99 @@ jobs:
             git push origin HEAD:master
           fi
 
+  targeted-refresh-cleanup:
+    name: Remove broad financial refresh loops
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply targeted refresh cleanup
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              if old not in text:
+                  print(f"SKIP {path}: pattern not found")
+                  return False
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+              print(f"UPDATED {path}")
+              return True
+
+          # Convert: initial load remains broad; post-conversion refresh only
+          # reloads the user's asset balances. Remove timer/visibility polling.
+          convert = Path("frontend-user/src/pages/ConvertPage.jsx")
+          text = convert.read_text(encoding="utf-8")
+          marker = "  // ✅ FIX: Also refresh fee when page becomes visible\n"
+          start = text.find(marker)
+          if start >= 0:
+              end_marker = "\n  const pairMap = useMemo(() => buildPairPriceMap(markets), [markets]);"
+              end = text.find(end_marker, start)
+              if end >= 0:
+                  replacement = '''  async function refreshConvertBalances() {\n    try {\n      const res = await userApi.getUserAssets(token);\n      const payload = res?.data || {};\n      const rows = Array.isArray(payload?.data?.assets)\n        ? payload.data.assets\n        : (Array.isArray(payload?.assets) ? payload.assets : []);\n      setAssetBalances(Object.fromEntries(rows.map((x) => [\n        String(x.coin || x.symbol || "").toUpperCase(),\n        Number(x.available_balance ?? x.available ?? x.balance ?? 0)\n      ])));\n    } catch (err) {\n      console.error("Failed to refresh convert balances:", err);\n    }\n  }\n\n  useEffect(() => {\n    loadData();\n  }, []);\n'''
+                  text = text[:start] + replacement + text[end:]
+                  convert.write_text(text, encoding="utf-8")
+                  print("UPDATED frontend-user/src/pages/ConvertPage.jsx")
+          replace_once(convert, '      localStorage.setItem("VexaTrade_assets_refresh", String(Date.now()));\n      await loadData(true);', '      await refreshConvertBalances();')
+
+          # Funds: keep explicit/manual refresh and initial load. After applying
+          # a plan, refresh only funds summary/active/history/latest. Remove the
+          # 15-second financial/target polling loop.
+          funds = Path("frontend-user/src/pages/FundsPage.jsx")
+          text = funds.read_text(encoding="utf-8")
+          marker = "  useEffect(() => {\n    loadData();\n    checkUserTarget();\n\n    const interval = setInterval(() => {\n      loadData(true);\n      refreshTargetProgress();\n    }, 15000);\n\n    return () => clearInterval(interval);\n  }, []);"
+          replacement = '''  async function refreshFundState() {\n    try {\n      const [summaryRes, activeRes, historyRes, latestRes] = await Promise.allSettled([\n        fundsApi.summary(token),\n        fundsApi.active(token),\n        fundsApi.history(token),\n        fundsApi.latestCompleted(token),\n      ]);\n      if (summaryRes.status === "fulfilled") setSummary(summaryRes.value?.data?.data || {});\n      if (activeRes.status === "fulfilled") setActiveFunds(Array.isArray(activeRes.value?.data?.data) ? activeRes.value.data.data : []);\n      if (historyRes.status === "fulfilled") setHistoryFunds(Array.isArray(historyRes.value?.data?.data) ? historyRes.value.data.data : []);\n      if (latestRes.status === "fulfilled") setLatestCompleted(latestRes.value?.data?.data || null);\n    } catch (err) {\n      console.error("Failed to refresh fund state:", err);\n    }\n  }\n\n  useEffect(() => {\n    loadData();\n    checkUserTarget();\n  }, []);'''
+          if marker in text:
+              text = text.replace(marker, replacement, 1)
+              print("UPDATED Funds polling")
+          else:
+              print("SKIP Funds polling: pattern not found")
+          text = text.replace('      await loadData(true);\n      setTab("active");', '      await refreshFundState();\n      await refreshTargetProgress();\n      setTab("active");', 1)
+          text = text.replace('onSuccess={() => { refreshTargetProgress(); loadData(true); }}', 'onSuccess={async () => { await refreshFundState(); await refreshTargetProgress(); }}', 1)
+          funds.write_text(text, encoding="utf-8")
+
+          # Assets: calculate the displayed total from real portfolio holdings,
+          # remove continuous/focus/storage broad reloads, and refresh only
+          # portfolio assets after a transaction-complete event.
+          assets = Path("frontend-user/src/pages/AssetsPage.jsx")
+          text = assets.read_text(encoding="utf-8")
+          marker = '  function handleTransferComplete() {\n    loadData(true);\n  }\n\n  useEffect(() => {\n    loadData();\n\n    // ✅ FIX: Changed refresh rate from 10s to 30s\n    const interval = setInterval(() => {\n      loadData(true);\n    }, 30000);\n\n    const onFocus = () => loadData(true);\n    const onStorage = (e) => {\n      if (e.key === "VexaTrade_assets_refresh") {\n        loadData(true);\n      }\n    };\n\n    window.addEventListener("focus", onFocus);\n    window.addEventListener("storage", onStorage);\n\n    return () => {\n      clearInterval(interval);\n      window.removeEventListener("focus", onFocus);\n      window.removeEventListener("storage", onStorage);\n    };\n  }, []);\n\n  const displayBalance = combinedBalance !== null ? combinedBalance : Number(wallet.balance || 0);\n  const totalBalance = displayBalance;\n  \n  // ✅ FIX: Use real holdings, not fallback\n  const normalizedHoldings = holdings.length > 0 ? holdings : [];'
+          replacement = '''  async function refreshPortfolioAssets() {\n    try {\n      await loadRealUserAssets();\n    } catch (err) {\n      console.error("Failed to refresh portfolio assets:", err);\n    }\n  }\n\n  function handleTransferComplete() {\n    refreshPortfolioAssets();\n  }\n\n  useEffect(() => {\n    loadData();\n\n    const handleTransactionComplete = (event) => {\n      const action = String(event?.detail?.action || "").toLowerCase();\n      if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {\n        refreshPortfolioAssets();\n      }\n    };\n\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n\n  // Portfolio value is derived from the actual coin holdings. `wallet.balance`\n  // is the legacy USDT-only spendable balance and must not hide non-USDT assets.\n  const normalizedHoldings = holdings.length > 0 ? holdings : [];\n  const portfolioValue = useMemo(() => normalizedHoldings.reduce(\n    (sum, item) => sum + Number(item.usdtValue || 0),\n    0\n  ), [normalizedHoldings]);\n  const displayBalance = combinedBalance !== null ? combinedBalance : portfolioValue;\n  const totalBalance = displayBalance;'''
+          if marker in text:
+              text = text.replace(marker, replacement, 1)
+              print("UPDATED Assets refresh/value")
+          else:
+              print("SKIP Assets: pattern not found")
+          assets.write_text(text, encoding="utf-8")
+
+          # Dashboard: remove automatic financial refresh timer. Keep the initial
+          # load and the user's explicit refresh button.
+          dashboard = Path("frontend-user/src/pages/DashboardPage.jsx")
+          text = dashboard.read_text(encoding="utf-8")
+          old = '    loadData();\n    const interval = setInterval(() => loadData(true), 30000);\n    return () => {\n      clearInterval(interval);\n    };'
+          new = '    loadData();\n  };'
+          # The component's existing effect is kept syntactically intact by a
+          # precise replacement below when the original pattern is present.
+          if old in text:
+              text = text.replace(old, '    loadData();\n    return undefined;', 1)
+              print("UPDATED Dashboard polling")
+          else:
+              print("SKIP Dashboard polling: pattern not found")
+          dashboard.write_text(text, encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend-user/src/pages/ConvertPage.jsx frontend-user/src/pages/FundsPage.jsx frontend-user/src/pages/AssetsPage.jsx frontend-user/src/pages/DashboardPage.jsx
+          if git diff --cached --quiet; then
+            echo "No targeted refresh changes needed."
+          else
+            git commit -m "fix: replace broad financial refreshes with targeted updates"
+            git push origin HEAD:master
+          fi
+
   backend:
     name: Backend validation
     runs-on: ubuntu-latest
@@ -108,8 +201,8 @@ jobs:
   frontend-user:
     name: Frontend user build
     runs-on: ubuntu-latest
-    needs: normalize-frontend
-    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') }}
+    needs: [normalize-frontend, targeted-refresh-cleanup]
+    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') && (needs.targeted-refresh-cleanup.result == 'success' || needs.targeted-refresh-cleanup.result == 'skipped') }}
     defaults:
       run:
         working-directory: frontend-user
@@ -128,15 +221,13 @@ jobs:
   frontend-admin:
     name: Frontend admin build
     runs-on: ubuntu-latest
-    needs: normalize-frontend
-    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') }}
+    needs: [normalize-frontend, targeted-refresh-cleanup]
+    if: ${{ always() && (needs.normalize-frontend.result == 'success' || needs.normalize-frontend.result == 'skipped') && (needs.targeted-refresh-cleanup.result == 'success' || needs.targeted-refresh-cleanup.result == 'skipped') }}
     defaults:
       run:
         working-directory: frontend-admin
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: master
       - uses: actions/setup-node@v4
         with:
           node-version: 22
