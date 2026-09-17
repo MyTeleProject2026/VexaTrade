@@ -15,40 +15,22 @@ jobs:
         with:
           ref: master
 
-      - name: Remove polling and unify user financial actions
+      - name: Apply transaction flow source cleanup
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          trade = Path('frontend-user/src/pages/TradePage.jsx')
-          text = trade.read_text(encoding='utf-8')
-          pattern = re.compile(r'''\n\s*// Only open/history are synchronization data\. Wallet and market requests were\n\s*// previously repeated every 2\.5s, which caused the 500 wallet endpoint to be\n\s*// hammered and made the whole terminal look like it was continuously loading\.\n\s*useEffect\(\(\) => \{\n\s*const interval = setInterval\(\(\) => syncTradeState\(false\), 5000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[token\]\);\n''')
-          text2, count = pattern.subn('\n  // Trade state is loaded on entry and after intentional user actions only.\n  // Do not continuously poll financial endpoints while this page is open.\n', text, count=1)
-          if count:
-              trade.write_text(text2, encoding='utf-8')
-              print('UPDATED TradePage polling')
-
-          tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
-          text = tx.read_text(encoding='utf-8')
-          pattern = re.compile(r'''\n\s*useEffect\(\(\) => \{\n\s*load\(\);\n\s*const interval = setInterval\(\(\) => load\(true\), 10000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[\]\);\n''')
-          new = '''\n  useEffect(() => {\n    load();\n    const handleTransactionComplete = () => load(true);\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n'''
-          tx2, count = pattern.subn(new, text, count=1)
-          if count:
-              tx.write_text(tx2, encoding='utf-8')
-              print('UPDATED TransactionsPage polling')
-
-          action_import = 'import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";'
-
           def add_import(path):
               p = Path(path)
               text = p.read_text(encoding='utf-8')
-              if 'from "../services/actionRequest"' not in text:
-                  marker = 'import { useNotification } from "../hooks/useNotification";'
+              marker = 'import { useNotification } from "../hooks/useNotification";'
+              imp = 'import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";'
+              if imp not in text:
                   if marker not in text:
                       raise SystemExit(f'Missing notification import in {path}')
-                  text = text.replace(marker, marker + '\n' + action_import, 1)
+                  text = text.replace(marker, marker + '\n' + imp, 1)
                   p.write_text(text, encoding='utf-8')
               return p
 
@@ -61,21 +43,35 @@ jobs:
               elif new in text:
                   print('ALREADY UPDATED', path)
               else:
-                  raise SystemExit(f'Expected transaction call not found in {path}')
+                  raise SystemExit(f'Expected source not found in {path}')
+
+          # Existing polling removal is idempotent: remove only the known financial interval.
+          trade = Path('frontend-user/src/pages/TradePage.jsx')
+          text = trade.read_text(encoding='utf-8')
+          pattern = re.compile(r'''\n\s*// Only open/history are synchronization data\. Wallet and market requests were\n\s*// previously repeated every 2\.5s, which caused the 500 wallet endpoint to be\n\s*// hammered and made the whole terminal look like it was continuously loading\.\n\s*useEffect\(\(\) => \{\n\s*const interval = setInterval\(\(\) => syncTradeState\(false\), 5000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[token\]\);\n''')
+          trade2, count = pattern.subn('\n  // Trade state is loaded on entry and after intentional user actions only.\n  // Do not continuously poll financial endpoints while this page is open.\n', text, count=1)
+          if count:
+              trade.write_text(trade2, encoding='utf-8')
+
+          tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
+          text = tx.read_text(encoding='utf-8')
+          pattern = re.compile(r'''\n\s*useEffect\(\(\) => \{\n\s*load\(\);\n\s*const interval = setInterval\(\(\) => load\(true\), 10000\);\n\s*return \(\) => clearInterval\(interval\);\n\s*\}, \[\]\);\n''')
+          new = '''\n  useEffect(() => {\n    load();\n    const handleTransactionComplete = () => load(true);\n    window.addEventListener("vexa:transaction-complete", handleTransactionComplete);\n    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);\n  }, []);\n'''
+          tx2, count = pattern.subn(new, text, count=1)
+          if count:
+              tx.write_text(tx2, encoding='utf-8')
 
           exact('frontend-user/src/pages/ConvertPage.jsx',
                 '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
                 '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(')
-
           p = Path('frontend-user/src/pages/ConvertPage.jsx')
           text = p.read_text(encoding='utf-8')
           old = '          fromAmount: amount,\n        },\n        token\n      );'
           new = '          fromAmount: amount,\n          idempotencyKey,\n        },\n        token\n      ));'
           if old in text:
               p.write_text(text.replace(old, new, 1), encoding='utf-8')
-              print('UPDATED Convert payload')
           elif new not in text:
-              raise SystemExit('Convert wrapper payload terminator not found')
+              raise SystemExit('Convert payload terminator not found')
 
           exact('frontend-user/src/pages/FundsPage.jsx',
                 '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
@@ -102,28 +98,20 @@ jobs:
           elif new not in text:
               raise SystemExit('Assets transfer payload terminator not found')
           assets.write_text(text, encoding='utf-8')
-          print('UPDATED Assets transfer')
 
-          # Existing syntax error: remove the unmatched JSX fragment closer.
-          user_center = Path('frontend-user/src/pages/UserCenterPage.jsx')
-          text = user_center.read_text(encoding='utf-8')
+          # Fix the existing unmatched JSX fragment closer in UserCenterPage.
+          uc = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = uc.read_text(encoding='utf-8')
           bad = '    </div>\n    </>\n  );\n}'
           good = '    </div>\n  );\n}'
           if bad in text:
-              user_center.write_text(text.replace(bad, good, 1), encoding='utf-8')
+              uc.write_text(text.replace(bad, good, 1), encoding='utf-8')
               print('FIXED UserCenterPage JSX syntax')
-          elif 'function StatusBadge' in text:
-              print('CHECK UserCenterPage: fragment closer already absent')
           PY
-
-          cd frontend-user
-          npm install --no-audit --no-fund
-          npm run build
-          cd ..
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend-user/src/pages frontend-user/package-lock.json
+          git add frontend-user/src/pages
           if git diff --cached --quiet; then
             echo "No remaining user transaction source changes required."
           else
