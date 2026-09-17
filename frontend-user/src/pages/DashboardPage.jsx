@@ -121,6 +121,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState({ balance: 0, walletLabel: "Main Wallet" });
+  const [portfolioValue, setPortfolioValue] = useState(0);
   const [markets, setMarkets] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [combinedBalanceData, setCombinedBalanceData] = useState(null);
@@ -153,13 +154,28 @@ export default function DashboardPage() {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
       // Wallet + markets are critical for the first paint. Secondary data never blocks it.
-      const [walletRes, marketRes] = await Promise.allSettled([
+      const [walletRes, marketRes, assetsRes] = await Promise.allSettled([
         withTimeout(userApi.getWalletSummary(token)),
         withTimeout(marketApi.home()),
+        withTimeout(userApi.getUserAssets(token)),
       ]);
       if (!mountedRef.current) return;
       if (walletRes.status === "fulfilled") setWallet(walletRes.value?.data?.data || { balance: 0, walletLabel: "Main Wallet" });
       if (marketRes.status === "fulfilled") setMarkets(Array.isArray(marketRes.value?.data?.data) ? marketRes.value.data.data : []);
+      if (assetsRes.status === "fulfilled") {
+        const payload = assetsRes.value?.data || {};
+        const rows = Array.isArray(payload?.data?.assets)
+          ? payload.data.assets
+          : (Array.isArray(payload?.assets) ? payload.assets : []);
+        const value = rows.reduce((sum, item) => {
+          const explicit = Number(item?.usdt_value ?? item?.value_usdt ?? item?.value);
+          if (Number.isFinite(explicit) && explicit !== 0) return sum + explicit;
+          const amount = Number(item?.amount ?? item?.available_balance ?? item?.balance ?? 0);
+          const price = Number(item?.current_price ?? item?.price_usdt ?? item?.price ?? 0);
+          return sum + (amount * price);
+        }, 0);
+        setPortfolioValue(Number.isFinite(value) ? value : 0);
+      }
       setLoading(false);
 
       // Run non-critical dashboard data independently after the critical paint.
@@ -186,7 +202,7 @@ export default function DashboardPage() {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const topMarkets = markets.slice(0, 8);
   const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
-  const displayBalance = hasJointAccount ? combinedBalanceData.combinedBalance : wallet.balance || 0;
+  const displayBalance = hasJointAccount ? combinedBalanceData.combinedBalance : portfolioValue;
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#050812]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" /></div>;
 
