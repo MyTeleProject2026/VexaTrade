@@ -178,10 +178,8 @@ export default function DashboardPage() {
   useEffect(() => {
     mountedRef.current = true;
     loadData();
-    const interval = setInterval(() => loadData(true), 30000);
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
     };
   }, []);
 
