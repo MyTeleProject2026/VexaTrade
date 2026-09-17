@@ -57,16 +57,6 @@ function formatMoney(value) {
 
 function StatusBadge({ verified, label }) {
   return (
-    <>
-      <TwoFactorSetupModal
-        open={twoFactorModalOpen}
-        token={token}
-        onClose={() => setTwoFactorModalOpen(false)}
-        onCompleted={() => {
-          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
-          showSuccess("Authenticator 2FA enabled successfully");
-        }}
-      />
     <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm ${
       verified 
         ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
@@ -75,7 +65,6 @@ function StatusBadge({ verified, label }) {
       {verified ? <CheckCircle size={14} /> : <XCircle size={14} />}
       <span>{label}</span>
     </div>
-    </>
   );
 }
 
@@ -579,6 +568,16 @@ export default function UserCenterPage() {
 
   if (loading) {
     return (
+    <>
+      <TwoFactorSetupModal
+        open={twoFactorModalOpen}
+        token={token}
+        onClose={() => setTwoFactorModalOpen(false)}
+        onCompleted={() => {
+          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
+          showSuccess("Authenticator 2FA enabled successfully");
+        }}
+      />
       <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
       </div>
@@ -906,7 +905,7 @@ export default function UserCenterPage() {
               </div>
               <button onClick={() => { if (!securityStatus.twofaEnabled) setTwoFactorModalOpen(true); }} disabled={securityStatus.twofaEnabled} className={`rounded-xl px-3 py-1.5 text-xs font-semibold sm:px-4 sm:py-2 sm:text-sm ${securityStatus.twofaEnabled ? "border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 cursor-default" : "bg-emerald-500 text-black"}`}>
                 <Shield size={12} className="mr-1 inline sm:h-4 sm:w-4" />
-                {securityStatus.twofaEnabled ? "Disable" : "Enable"}
+                {securityStatus.twofaEnabled ? "Enabled" : "Enable"}
               </button>
             </div>
           </div>
@@ -1291,5 +1290,6 @@ export default function UserCenterPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
