@@ -15,6 +15,10 @@ function transactionSecurity(action) {
       if (action && decoded.action !== action) {
         return res.status(401).json({ success: false, message: 'Transaction security verification does not match this action' });
       }
+      const requestIdempotencyKey = String(req.get('Idempotency-Key') || req.body?.idempotencyKey || '').trim();
+      if (!requestIdempotencyKey || !decoded.idempotencyKey || decoded.idempotencyKey !== requestIdempotencyKey) {
+        return res.status(401).json({ success: false, message: 'Transaction security verification does not match this request' });
+      }
       if (!decoded.emailOtp || !decoded.passcode || (decoded.twoFactorRequired && !decoded.twoFactor)) {
         return res.status(401).json({ success: false, message: 'Transaction security verification is incomplete' });
       }
