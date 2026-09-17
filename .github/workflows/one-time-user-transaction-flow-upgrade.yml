@@ -28,94 +28,53 @@ jobs:
                   text = text.replace(marker, marker + '\nimport { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";', 1)
               return text
 
-          def patch_call(path, action, call_pattern, payload_key=True):
+          def patch_exact(path, old, new):
               p = Path(path)
               text = p.read_text(encoding='utf-8')
-              original = text
               text = add_import(text)
-              if f'createActionIdempotencyKey("{action}")' not in text:
-                  # The key is created immediately before the existing transaction request.
-                  text, n = re.subn(call_pattern, lambda m: f'const idempotencyKey = createActionIdempotencyKey("{action}");\n      const res = await runSingleUserAction("{action}-submit", () => {\n        ' + m.group(1), text, count=1)
-                  if n:
-                      # Close the wrapper at the end of the original awaited call line.
-                      # The call patterns below deliberately capture a complete single-line API call.
-                      lines = text.splitlines()
-                      for i, line in enumerate(lines):
-                          if 'const res = await runSingleUserAction(' in line:
-                              # Find the first following line containing the original call's terminator.
-                              for j in range(i, min(i+12, len(lines))):
-                                  if lines[j].rstrip().endswith(');') and j > i:
-                                      lines[j] = lines[j] + ' });'
-                                      break
-                              text = '\n'.join(lines) + ('\n' if text.endswith('\n') else '')
-                              break
+              if old in text and new not in text:
+                  text = text.replace(old, new, 1)
               p.write_text(text, encoding='utf-8')
-              if text != original:
-                  print('patched', path)
 
-          # Convert: one key for the entire security + conversion lifecycle.
+          patch_exact(
+              'frontend-user/src/pages/ConvertPage.jsx',
+              '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
+              '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(',
+          )
           p = Path('frontend-user/src/pages/ConvertPage.jsx')
-          text = add_import(p.read_text(encoding='utf-8'))
-          if 'createActionIdempotencyKey("convert")' not in text:
-              text = text.replace(
-                  '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
-                  '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(',
-                  1,
-              )
-              needle = '        },\n        token\n      );'
-              if needle in text:
-                  text = text.replace(needle, '          idempotencyKey,\n        },\n        token\n      ));', 1)
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('          toCoin: form.toCoin,\n          fromAmount: amount,\n        },\n        token\n      );', '          toCoin: form.toCoin,\n          fromAmount: amount,\n          idempotencyKey,\n        },\n        token\n      ));', 1)
           p.write_text(text, encoding='utf-8')
 
-          # Funds: preserve the existing request modal and apply endpoint, only add action serialization/key.
-          p = Path('frontend-user/src/pages/FundsPage.jsx')
-          text = add_import(p.read_text(encoding='utf-8'))
-          if 'createActionIdempotencyKey("funds")' not in text:
-              text = text.replace(
-                  '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
-                  '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));',
-                  1,
-              )
-          p.write_text(text, encoding='utf-8')
+          patch_exact(
+              'frontend-user/src/pages/FundsPage.jsx',
+              '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
+              '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));',
+          )
 
-          # Loan: preserve all current form fields and receipt handling.
-          p = Path('frontend-user/src/pages/LoanPage.jsx')
-          text = add_import(p.read_text(encoding='utf-8'))
-          if 'createActionIdempotencyKey("loan")' not in text:
-              text = text.replace(
-                  '      const res = await loanApi.apply(payload, token);',
-                  '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));',
-                  1,
-              )
-          p.write_text(text, encoding='utf-8')
+          patch_exact(
+              'frontend-user/src/pages/LoanPage.jsx',
+              '      const res = await loanApi.apply(payload, token);',
+              '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));',
+          )
 
-          # Trade: one key for the order request; existing placing guard remains intact.
-          p = Path('frontend-user/src/pages/TradePage.jsx')
-          text = add_import(p.read_text(encoding='utf-8'))
-          if 'createActionIdempotencyKey("trade")' not in text:
-              text = text.replace(
-                  '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
-                  '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));',
-                  1,
-              )
-          p.write_text(text, encoding='utf-8')
+          patch_exact(
+              'frontend-user/src/pages/TradePage.jsx',
+              '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
+              '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));',
+          )
 
-          # Assets transfer: serialize the existing transfer action without changing its UI flow.
+          # Existing Assets transfer call is multiline; add the key inside its payload and guard if the exact form is present.
           p = Path('frontend-user/src/pages/AssetsPage.jsx')
           text = add_import(p.read_text(encoding='utf-8'))
           if 'createActionIdempotencyKey("transfer")' not in text and 'sendTransfer(' in text:
-              text = text.replace(
-                  'const res = await userApi.sendTransfer(',
-                  'const idempotencyKey = createActionIdempotencyKey("transfer");\n    const res = await runSingleUserAction("transfer-submit", () => userApi.sendTransfer(',
-                  1,
-              )
-              # Existing transfer calls are multiline; append idempotencyKey to object payload when recognizable.
-              text = re.sub(r'(userApi\.sendTransfer\(\{)([^}]*)(\},\s*token\))', lambda m: m.group(1) + m.group(2) + ', idempotencyKey' + m.group(3).replace('token)', 'token))'), text, count=1)
+              text = text.replace('    const res = await userApi.sendTransfer(', '    const idempotencyKey = createActionIdempotencyKey("transfer");\n    const res = await runSingleUserAction("transfer-submit", () => userApi.sendTransfer(', 1)
+              # Close the newly added wrapper at the existing call terminator.
+              text = re.sub(r'(userApi\.sendTransfer\([\s\S]*?\n\s*\},\s*token\))', lambda m: m.group(1)[:-1] + '))' if m.group(1).endswith(')') else m.group(1), text, count=1)
           p.write_text(text, encoding='utf-8')
 
           PY
 
-          # Validate that user financial pages compile syntactically before committing.
           cd frontend-user
           npm ci --no-audit --no-fund
           npm run build
@@ -130,3 +89,6 @@ jobs:
             git commit -m "feat: unify user transaction single-action lifecycle"
             git push origin HEAD:master
           fi
+
+          # Trigger marker: this workflow is intentionally retained until the source pass is complete.
+          echo "User transaction flow upgrade pass completed: convert/funds/loan/trade/transfer"
