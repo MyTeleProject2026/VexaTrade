@@ -15,64 +15,81 @@ jobs:
         with:
           ref: master
 
-      - name: Upgrade user financial actions without replacing existing pages
+      - name: Upgrade existing user financial actions
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
-          def add_import(text):
-              marker = 'import { useNotification } from "../hooks/useNotification";'
-              if marker in text and 'from "../services/actionRequest"' not in text:
-                  text = text.replace(marker, marker + '\nimport { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";', 1)
-              return text
-
-          def patch_exact(path, old, new):
+          def patch(path, replacements, import_marker=None):
               p = Path(path)
               text = p.read_text(encoding='utf-8')
-              text = add_import(text)
-              if old in text and new not in text:
+              original = text
+              if import_marker and 'from "../services/actionRequest"' not in text:
+                  marker = 'import { useNotification } from "../hooks/useNotification";'
+                  if marker not in text:
+                      raise SystemExit(f'Missing import marker in {path}')
+                  text = text.replace(marker, marker + '\n' + import_marker, 1)
+              for old, new in replacements:
+                  if old not in text:
+                      raise SystemExit(f'Expected source not found in {path}: {old}')
                   text = text.replace(old, new, 1)
-              p.write_text(text, encoding='utf-8')
+              if text != original:
+                  p.write_text(text, encoding='utf-8')
+                  print(f'updated {path}')
+              else:
+                  print(f'unchanged {path}')
 
-          patch_exact(
+          action_import = 'import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";'
+
+          patch(
               'frontend-user/src/pages/ConvertPage.jsx',
-              '      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
-              '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute(',
+              [
+                  ('      const amount = Number(form.fromAmount || 0);\n\n      const res = await convertApi.execute(',
+                   '      const amount = Number(form.fromAmount || 0);\n      const idempotencyKey = createActionIdempotencyKey("convert");\n\n      const res = await runSingleUserAction("convert-submit", () => convertApi.execute('),
+                  ('          fromAmount: amount,\n        },\n        token\n      );',
+                   '          fromAmount: amount,\n          idempotencyKey,\n        },\n        token\n      ));'),
+              ],
+              action_import,
           )
-          p = Path('frontend-user/src/pages/ConvertPage.jsx')
-          text = p.read_text(encoding='utf-8')
-          text = text.replace('          toCoin: form.toCoin,\n          fromAmount: amount,\n        },\n        token\n      );', '          toCoin: form.toCoin,\n          fromAmount: amount,\n          idempotencyKey,\n        },\n        token\n      ));', 1)
-          p.write_text(text, encoding='utf-8')
 
-          patch_exact(
+          patch(
               'frontend-user/src/pages/FundsPage.jsx',
-              '      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
-              '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));',
+              [
+                  ('      const res = await fundsApi.apply({ plan_id: applyModal.id, amount }, token);',
+                   '      const idempotencyKey = createActionIdempotencyKey("funds");\n      const res = await runSingleUserAction("funds-submit", () => fundsApi.apply({ plan_id: applyModal.id, amount, idempotencyKey }, token));'),
+              ],
+              action_import,
           )
 
-          patch_exact(
+          patch(
               'frontend-user/src/pages/LoanPage.jsx',
-              '      const res = await loanApi.apply(payload, token);',
-              '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));',
+              [
+                  ('      const res = await loanApi.apply(payload, token);',
+                   '      const idempotencyKey = createActionIdempotencyKey("loan");\n      const res = await runSingleUserAction("loan-submit", () => loanApi.apply({ ...payload, idempotencyKey }, token));'),
+              ],
+              action_import,
           )
 
-          patch_exact(
+          patch(
               'frontend-user/src/pages/TradePage.jsx',
-              '      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
-              '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));',
+              [
+                  ('      setPlacing(true);\n      const res = await tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount) }, token);',
+                   '      setPlacing(true);\n      const idempotencyKey = createActionIdempotencyKey("trade");\n      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));'),
+              ],
+              action_import,
           )
 
-          # Existing Assets transfer call is multiline; add the key inside its payload and guard if the exact form is present.
-          p = Path('frontend-user/src/pages/AssetsPage.jsx')
-          text = add_import(p.read_text(encoding='utf-8'))
-          if 'createActionIdempotencyKey("transfer")' not in text and 'sendTransfer(' in text:
-              text = text.replace('    const res = await userApi.sendTransfer(', '    const idempotencyKey = createActionIdempotencyKey("transfer");\n    const res = await runSingleUserAction("transfer-submit", () => userApi.sendTransfer(', 1)
-              # Close the newly added wrapper at the existing call terminator.
-              text = re.sub(r'(userApi\.sendTransfer\([\s\S]*?\n\s*\},\s*token\))', lambda m: m.group(1)[:-1] + '))' if m.group(1).endswith(')') else m.group(1), text, count=1)
-          p.write_text(text, encoding='utf-8')
-
+          patch(
+              'frontend-user/src/pages/AssetsPage.jsx',
+              [
+                  ('    try {\n      setLoading(true);\n      const res = await fetch(`${API_BASE_URL}/api/user/transfer`, {',
+                   '    try {\n      setLoading(true);\n      const idempotencyKey = createActionIdempotencyKey("transfer");\n      const res = await runSingleUserAction("transfer-submit", () => fetch(`${API_BASE_URL}/api/user/transfer`, {'),
+                  ('          note: note || null\n        })\n      });',
+                   '          note: note || null,\n          idempotencyKey,\n        })\n      }));'),
+              ],
+              action_import,
+          )
           PY
 
           cd frontend-user
@@ -89,6 +106,3 @@ jobs:
             git commit -m "feat: unify user transaction single-action lifecycle"
             git push origin HEAD:master
           fi
-
-          # Trigger marker: this workflow is intentionally retained until the source pass is complete.
-          echo "User transaction flow upgrade pass completed: convert/funds/loan/trade/transfer"
