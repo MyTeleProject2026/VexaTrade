@@ -1,0 +1,41 @@
+name: One-time UserCenter build repair
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/one-time-fix-usercenter-build.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - name: Repair exact fragment closing
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          path = Path('frontend-user/src/pages/UserCenterPage.jsx')
+          text = path.read_text()
+          pattern = r'\n[ \t]*</div>\n[ \t]*</div>\n[ \t]*</>\n[ \t]*\);[ \t]*$'
+          matches = list(re.finditer(pattern, text))
+          if len(matches) != 1:
+              raise SystemExit(f'Expected exactly one trailing double-div fragment pattern, found {len(matches)}; refusing unsafe edit.')
+          match = matches[0]
+          replacement = '\n    </div>\n    </>\n  );'
+          path.write_text(text[:match.start()] + replacement + text[match.end():])
+      - name: Verify and commit
+        shell: bash
+        run: |
+          set -e
+          git diff --check
+          git config user.name "CryptoPulse"
+          git config user.email "267598483+MyTeleProject2026@users.noreply.github.com"
+          git add frontend-user/src/pages/UserCenterPage.jsx
+          git rm .github/workflows/one-time-fix-usercenter-build.yml
+          git commit -m "fix: close UserCenter fragment correctly"
+          git push origin master
