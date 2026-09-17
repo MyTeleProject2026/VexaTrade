@@ -131,8 +131,6 @@ async function walletSummaryHandler(req, res, next) {
 
 router.get('/wallet/summary', authUser, walletSummaryHandler);
 router.get('/wallet/summaryGeneral', authUser, walletSummaryHandler);
-// Legacy clients use this exact endpoint name. Keep it as a compatibility alias
-// so older frontend builds do not fall into the backend's generic error handler.
 router.get('/wallet/summaryGeneralInitiator', authUser, walletSummaryHandler);
 
 async function buildAssets(userId) {
@@ -144,10 +142,14 @@ async function buildAssets(userId) {
       const [rows] = await pool.execute(
         `SELECT coin, balance, avg_price, available_balance, reserved_balance, pending_balance
          FROM user_assets
-         WHERE user_id = ? AND (available_balance > 0.000000000000000001
+         WHERE user_id = ? AND (
+           available_balance > 0.000000000000000001
            OR reserved_balance > 0.000000000000000001
-           OR pending_balance > 0.000000000000000001)
-         ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END, available_balance DESC`,
+           OR pending_balance > 0.000000000000000001
+           OR balance > 0.000000000000000001
+         )
+         ORDER BY CASE WHEN coin = 'USDT' THEN 0 ELSE 1 END,
+           GREATEST(COALESCE(available_balance,0), COALESCE(balance,0), COALESCE(reserved_balance,0), COALESCE(pending_balance,0)) DESC`,
         [userId]
       );
       assetRows = rows;
@@ -178,9 +180,14 @@ async function buildAssets(userId) {
 
   const assets = assetRows.map(asset => {
     const coin = String(asset.coin || 'USDT').toUpperCase();
-    const available = Number(asset.available_balance || 0);
+    const rawBalance = Number(asset.balance || 0);
+    const availableField = Number(asset.available_balance || 0);
     const reserved = Number(asset.reserved_balance || 0);
     const pending = Number(asset.pending_balance || 0);
+    // Older asset records may have the real balance in `balance` while the
+    // newer availability columns are still zero. Preserve that balance rather
+    // than silently rendering the asset as zero.
+    const available = availableField > 0 ? availableField : Math.max(rawBalance - reserved - pending, 0);
     const total = available + reserved + pending;
     const avgPrice = Number(asset.avg_price || 0);
     const currentPrice = coin === 'USDT' ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
