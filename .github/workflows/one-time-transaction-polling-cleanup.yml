@@ -21,11 +21,12 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Trade: open/history state must not be polled continuously while the
-          # page is open. Initial load and the explicit Refresh button remain.
+          # This workflow is intentionally idempotent: once the source cleanup
+          # is applied, later runs make no changes and therefore create no loop.
           trade = Path('frontend-user/src/pages/TradePage.jsx')
           text = trade.read_text(encoding='utf-8')
-          old = '''  // previously repeated every 2.5s, which caused the 500 wallet endpoint to be
+          old = '''  // Only open/history are synchronization data. Wallet and market requests were
+  // previously repeated every 2.5s, which caused the 500 wallet endpoint to be
   // hammered and made the whole terminal look like it was continuously loading.
   useEffect(() => {
     const interval = setInterval(() => syncTradeState(false), 5000);
@@ -41,9 +42,6 @@ jobs:
           else:
               print('SKIP TradePage.jsx: polling block not found')
 
-          # Transactions: keep initial/manual loading, but remove the 10-second
-          # page-open polling loop. Transaction completion events trigger one
-          # explicit refresh instead of a background request stream.
           tx = Path('frontend-user/src/pages/TransactionsPage.jsx')
           text = tx.read_text(encoding='utf-8')
           old = '''  useEffect(() => {
