@@ -51,6 +51,18 @@ const otp = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 const actionName = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 64) || 'transaction';
 const idempotencyKey = value => String(value || '').trim().slice(0, 128);
 
+async function readTwoFactorRequirement(userId) {
+  // 2FA is an optional security layer. A partially migrated database must not
+  // turn an otherwise valid transaction-security start into a generic 500.
+  try {
+    const [rows] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [userId]);
+    return Boolean(rows[0] && Number(rows[0].enabled) === 1);
+  } catch (error) {
+    console.warn('[TransactionSecurity] 2FA status lookup unavailable; treating 2FA as disabled:', error?.message || error);
+    return false;
+  }
+}
+
 async function createSecurityChallenge(req, options = {}) {
   await ensureTable();
   const action = actionName(req.body?.action);
@@ -79,8 +91,7 @@ async function createSecurityChallenge(req, options = {}) {
   const id = crypto.randomUUID();
   const code = otp();
   const expires = new Date(Date.now() + 10 * 60 * 1000);
-  const [twofaRows] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [req.user.id]);
-  const twoFactorRequired = Boolean(twofaRows[0] && Number(twofaRows[0].enabled) === 1);
+  const twoFactorRequired = await readTwoFactorRequirement(req.user.id);
 
   await pool.execute(
     'DELETE FROM transaction_security_challenges WHERE user_id=? AND action=? AND idempotency_key=?',
