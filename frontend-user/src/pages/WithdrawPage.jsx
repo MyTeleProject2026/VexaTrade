@@ -6,7 +6,6 @@ import {
   RefreshCw,
   ShieldCheck,
   AlertTriangle,
-  ChevronRight,
   Wallet,
   Lock,
   DollarSign,
@@ -16,6 +15,7 @@ import { withdrawalApi, userApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import JointWithdrawalAuthorization from "../components/JointWithdrawalAuthorization";
+import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 
 function formatAmount(v) {
   const num = Number(v || 0);
@@ -95,7 +95,11 @@ export default function WithdrawPage() {
       const res = await userApi.getUserTarget(token);
       if (res.data?.success && res.data.data.hasTarget) {
         const targetData = res.data.data.target;
+        setHasTarget(true);
         setTargetProgress({ currentProfit: Number(targetData.current_profit || 0), targetAmount: Number(targetData.target_amount || 0) });
+      } else {
+        setHasTarget(false);
+        setTargetProgress({ currentProfit: 0, targetAmount: 0 });
       }
     } catch (err) { console.error("Failed to refresh target:", err); }
   }
@@ -138,39 +142,60 @@ export default function WithdrawPage() {
   }
 
   useEffect(() => {
+    // Initial page data load only. There is intentionally no background polling.
+    // Manual refresh and completed user actions control subsequent network work.
     loadAll();
-    const interval = setInterval(() => { loadAll(true); refreshTargetProgress(); }, 12000);
-    return () => clearInterval(interval);
   }, []);
+
+  async function handleManualRefresh() {
+    return runSingleUserAction("withdraw-page-refresh", async () => {
+      await loadAll(true);
+    });
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (submitting) return;
     if (!isKycApproved) { showError("KYC verification is required before submitting a withdrawal request."); return; }
     if (isMainWithdrawDisabled) { showError("You have an active target that is not yet achieved. Please withdraw from profits only, or achieve your target first."); return; }
     if (!/^\d{4,12}$/.test(form.transactionPasscode)) { showError("Enter your 4–12 digit transaction passcode."); return; }
     if (!form.address.trim()) { showError("Please enter a valid wallet address."); return; }
     if (!form.amount || Number(form.amount) <= 0) { showError("Please enter a valid withdrawal amount."); return; }
     if (form.coin === "USDT" && Number(form.amount) > Number(walletBalance || 0)) { showError("Insufficient available balance."); return; }
+
+    const idempotencyKey = createActionIdempotencyKey("withdrawal");
+
     try {
       setSubmitting(true);
       setError("");
       setSuccess("");
-      const res = await withdrawalApi.request({ coin: form.coin, network: form.network, amount: Number(form.amount), wallet_address: form.address, transactionPasscode: form.transactionPasscode, twoFactorCode: form.twoFactorCode }, token);
+      const res = await runSingleUserAction("withdrawal-submit", () => withdrawalApi.request({
+        coin: form.coin,
+        network: form.network,
+        amount: Number(form.amount),
+        wallet_address: form.address,
+        transactionPasscode: form.transactionPasscode,
+        twoFactorCode: form.twoFactorCode,
+        idempotencyKey,
+      }, token));
       const responseData = res?.data?.data || {};
       const jointRequired = responseData.authorization === "joint_partner_email_otp";
       showSuccess(jointRequired ? "Withdrawal created. Your joint account holder must authorize it using the email OTP." : "Withdrawal authorized and queued for settlement.");
       showVoucher({ title: "Withdrawal Requested", type: "withdraw", transactionId: responseData.id, data: { id: responseData.id, coin: form.coin, network: form.network, amount: Number(form.amount), feeAmount: responseData.feeAmount || 0, netAmount: responseData.netAmount || Number(form.amount), status: responseData.status || "Pending", created_at: new Date().toISOString() } });
       setForm({ coin: "USDT", network: "TRC20", amount: "", address: "", transactionPasscode: "", twoFactorCode: "" });
       setTab("history");
+      // Only the affected history is refreshed after a successful withdrawal.
       await loadHistory(true);
-    } catch (err) { showError(getApiErrorMessage(err)); }
-    finally { setSubmitting(false); }
+      // Wallet/target are refreshed once because a successful withdrawal can change them.
+      await Promise.all([loadProfile(), refreshTargetProgress()]);
+    } catch (err) {
+      showError(getApiErrorMessage(err));
+    } finally { setSubmitting(false); }
   }
 
-  function handleProfitWithdrawalSuccess() {
+  async function handleProfitWithdrawalSuccess() {
     showSuccess("Profit withdrawal request submitted. Admin will review and approve.");
-    refreshTargetProgress();
-    loadHistory(true);
+    await Promise.all([refreshTargetProgress(), loadHistory(true)]);
   }
 
   const targetProgressPercent = useMemo(() => targetProgress.targetAmount <= 0 ? 0 : (targetProgress.currentProfit / targetProgress.targetAmount) * 100, [targetProgress]);
@@ -186,7 +211,7 @@ export default function WithdrawPage() {
 
   return (
     <div className="space-y-6 bg-[#050812] px-4 pb-28 pt-4 sm:px-6 xl:pb-8">
-      <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0a0a0a_0%,#050505_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-[0.32em] text-cyan-400">Withdraw</div><h1 className="mt-2 text-3xl font-bold text-white">Withdraw Funds</h1><p className="mt-2 text-sm text-slate-400">Transfer funds securely to your external wallet.</p></div><button type="button" onClick={() => loadAll(true)} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06]"><RefreshCw size={18} className={refreshing ? "animate-spin" : ""} /></button></div></section>
+      <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0a0a0a_0%,#050505_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-[0.32em] text-cyan-400">Withdraw</div><h1 className="mt-2 text-3xl font-bold text-white">Withdraw Funds</h1><p className="mt-2 text-sm text-slate-400">Transfer funds securely to your external wallet.</p></div><button type="button" onClick={handleManualRefresh} disabled={refreshing} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06] disabled:opacity-60"><RefreshCw size={18} className={refreshing ? "animate-spin" : ""} /></button></div></section>
       {renderKycCard()}
       {hasTarget && targetProgress.targetAmount > 0 && !targetChecking && <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Target size={16} className="text-cyan-400" /><span className="text-sm text-slate-300">Your Target Goal:</span><span className="text-sm font-semibold text-white">{targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT</span></div><div className="flex items-center gap-2"><div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} /></div><span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span></div></div>{isTargetAchieved ? <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center"><span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span></div> : <div className="mt-2 text-xs text-slate-400">{targetProgress.currentProfit > 0 ? <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. <button onClick={openProfitWithdrawal} className="ml-1 text-cyan-400 hover:text-cyan-300">Withdraw profits now →</button></span> : <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>}</div>}</div>}
       <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => setTab("request")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "request" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>Request</button><button type="button" onClick={() => setTab("history")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "history" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>History</button></div>
@@ -194,12 +219,12 @@ export default function WithdrawPage() {
         <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><ArrowUpToLine size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Withdrawal Request</h2></div></div>
           {isMainWithdrawDisabled && <div className="mx-5 mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"><div className="flex items-start gap-2"><Target size={16} className="text-amber-400 mt-0.5 shrink-0" /><div className="text-xs text-amber-300">You have an active target that is not yet achieved. Please use the <strong>"Withdraw Profits"</strong> button below to withdraw from your profits only. Main withdrawal is disabled until you achieve your target.</div></div></div>}
           <form onSubmit={handleSubmit} className="space-y-4 p-5">
-            <div className="grid grid-cols-2 gap-3"><div><FieldLabel>Coin</FieldLabel><select value={form.coin} onChange={(e) => setForm({ ...form, coin: e.target.value, network: NETWORK_OPTIONS[e.target.value][0] })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled}>{Object.keys(NETWORK_OPTIONS).map((c) => <option key={c}>{c}</option>)}</select></div>
-              <div><FieldLabel>Network</FieldLabel><select value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled}>{availableNetworks.map((n) => <option key={n}>{n}</option>)}</select></div></div>
-            <div><FieldLabel>Wallet Address</FieldLabel><input type="text" placeholder="Enter wallet address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
-            <div><FieldLabel>Transaction Passcode</FieldLabel><input type="password" inputMode="numeric" autoComplete="off" placeholder="4–12 digit transaction passcode" value={form.transactionPasscode} onChange={(e) => setForm({ ...form, transactionPasscode: e.target.value.replace(/\D/g, "").slice(0, 12) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
-            <div><FieldLabel>Authenticator Code (if 2FA is enabled)</FieldLabel><input type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit authenticator code" value={form.twoFactorCode} onChange={(e) => setForm({ ...form, twoFactorCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /><p className="mt-1 text-xs text-slate-500">Required only when Authenticator 2FA is enabled for your account.</p></div>
-            <div><FieldLabel>Amount</FieldLabel><input type="number" placeholder="Enter amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled} /></div>
+            <div className="grid grid-cols-2 gap-3"><div><FieldLabel>Coin</FieldLabel><select value={form.coin} onChange={(e) => setForm({ ...form, coin: e.target.value, network: NETWORK_OPTIONS[e.target.value][0] })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting}>{Object.keys(NETWORK_OPTIONS).map((c) => <option key={c}>{c}</option>)}</select></div>
+              <div><FieldLabel>Network</FieldLabel><select value={form.network} onChange={(e) => setForm({ ...form, network: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting}>{availableNetworks.map((n) => <option key={n}>{n}</option>)}</select></div></div>
+            <div><FieldLabel>Wallet Address</FieldLabel><input type="text" placeholder="Enter wallet address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting} /></div>
+            <div><FieldLabel>Transaction Passcode</FieldLabel><input type="password" inputMode="numeric" autoComplete="off" placeholder="4–12 digit transaction passcode" value={form.transactionPasscode} onChange={(e) => setForm({ ...form, transactionPasscode: e.target.value.replace(/\D/g, "").slice(0, 12) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting} /></div>
+            <div><FieldLabel>Authenticator Code (if 2FA is enabled)</FieldLabel><input type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit authenticator code" value={form.twoFactorCode} onChange={(e) => setForm({ ...form, twoFactorCode: e.target.value.replace(/\D/g, "").slice(0, 6) })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting} /><p className="mt-1 text-xs text-slate-500">Required only when Authenticator 2FA is enabled for your account.</p></div>
+            <div><FieldLabel>Amount</FieldLabel><input type="number" placeholder="Enter amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-white outline-none focus:border-cyan-500" disabled={!isKycApproved || isMainWithdrawDisabled || submitting} /></div>
             <ActionButton type="submit" disabled={submitting || !isKycApproved || isMainWithdrawDisabled} className="w-full">{submitting ? "Processing..." : isMainWithdrawDisabled ? "Withdraw Disabled (Target Active)" : isKycApproved ? "Withdraw" : "KYC Required"}</ActionButton>
           </form>
         </GlassCard>
