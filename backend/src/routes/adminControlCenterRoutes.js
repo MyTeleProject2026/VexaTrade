@@ -35,6 +35,42 @@ const CHECKS = [
   ['news', 'news'],
 ];
 
+// ─── Platform Settings Admin API ───────────────────────────────────
+const EDITABLE_PLATFORM_SETTINGS = new Set([
+  'wallet_label',
+  'default_convert_fee_percent',
+]);
+
+router.get('/admin/settings', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      "SELECT setting_key, setting_value FROM platform_settings ORDER BY setting_key ASC"
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.put('/admin/settings/:key', authAdmin, async (req, res, next) => {
+  try {
+    const key = String(req.params.key || '').trim();
+    if (!EDITABLE_PLATFORM_SETTINGS.has(key)) {
+      return res.status(400).json({ success: false, message: 'Unsupported platform setting' });
+    }
+    const value = String(req.body?.value ?? '').trim();
+    if (key === 'default_convert_fee_percent') {
+      const fee = Number(value);
+      if (!Number.isFinite(fee) || fee < 0 || fee > 100) {
+        return res.status(400).json({ success: false, message: 'Convert fee must be between 0 and 100 percent' });
+      }
+    }
+    await pool.execute(
+      "INSERT INTO platform_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+      [key, value]
+    );
+    res.json({ success: true, message: 'Platform setting updated', data: { setting_key: key, setting_value: value } });
+  } catch (error) { next(error); }
+});
+
 router.get('/admin/control-center/health', authAdmin, async (req, res, next) => {
   const startedAt = Date.now();
   try {
