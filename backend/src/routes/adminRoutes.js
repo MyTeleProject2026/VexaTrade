@@ -424,6 +424,29 @@ router.delete('/admin/audit-logs', authAdmin, async (req, res, next) => {
 });
 
 // ─── Admin Trade Rules ──────────────────────────────────────────────
+router.post('/admin/trade-rules', authAdmin, async (req, res, next) => {
+  try {
+    const timerSeconds = Number(req.body.timer_seconds);
+    const minAmount = Number(req.body.min_amount || 0);
+    const maxAmount = Number(req.body.max_amount || 0);
+    const payoutPercent = Number(req.body.payout_percent);
+    const status = String(req.body.status || "active").toLowerCase();
+    if (!Number.isInteger(timerSeconds) || timerSeconds <= 0 || timerSeconds > 86400) throw createError(400, "Timer must be a whole number of seconds between 1 and 86400");
+    if (minAmount < 0 || maxAmount < 0 || (maxAmount > 0 && maxAmount < minAmount)) throw createError(400, "Invalid trade amount limits");
+    if (!Number.isFinite(payoutPercent) || payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
+    if (!["active", "inactive"].includes(status)) throw createError(400, "Invalid status");
+    const [existing] = await pool.execute("SELECT id FROM trade_rules WHERE timer_seconds = ? LIMIT 1", [timerSeconds]);
+    if (existing.length) throw createError(409, "A trade rule for this duration already exists");
+    const [result] = await pool.execute(
+      "INSERT INTO trade_rules (timer_seconds, min_amount, max_amount, payout_percent, status, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
+      [timerSeconds, minAmount, maxAmount, payoutPercent, status]
+    );
+    await createAuditLog(pool, { adminId: req.admin.id, action: "create_trade_rule", referenceId: result.insertId, note: `Created trade rule ${timerSeconds}s` });
+    res.status(201).json({ success: true, message: "Trade rule created", data: { id: result.insertId, timer_seconds: timerSeconds, min_amount: minAmount, max_amount: maxAmount, payout_percent: payoutPercent, status } });
+  } catch (error) { next(error); }
+});
+
+// ─── Admin Trade Rules (read/update) ──────────────────────────────────────────────
 router.get('/admin/trade-rules', authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(`SELECT id, timer_seconds, payout_percent, status, created_at FROM trade_rules ORDER BY timer_seconds ASC`);
