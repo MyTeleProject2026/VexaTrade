@@ -30,6 +30,7 @@ const groups = [
     { label: "Private Fund Rules", to: "/admin/fund-rules", icon: Settings2 },
     { label: "Trades", to: "/admin/trades", icon: BarChart3 },
     { label: "Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
+    { label: "Spot / Long-Term Trade", to: "/admin/spot-trade", icon: CandlestickChart },
   ]},
   { label: "Platform", items: [
     { label: "General Settings", to: "/admin/platform-settings", icon: Settings2 },
