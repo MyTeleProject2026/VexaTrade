@@ -45,6 +45,8 @@ export default function AdminTradeRulesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [newRule, setNewRule] = useState({ timer_seconds: "", min_amount: "0", max_amount: "0", payout_percent: "0", status: "active" });
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     loadRules(true);
@@ -72,6 +74,33 @@ export default function AdminTradeRulesPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  async function handleCreateRule(e) {
+    e.preventDefault();
+    try {
+      setCreating(true);
+      setError("");
+      setSuccess("");
+      await adminApi.createTradeRule({
+        timer_seconds: Number(newRule.timer_seconds),
+        min_amount: Number(newRule.min_amount || 0),
+        max_amount: Number(newRule.max_amount || 0),
+        payout_percent: Number(newRule.payout_percent || 0),
+        status: newRule.status,
+      }, token);
+      const msg = `Rule ${Number(newRule.timer_seconds)}s created successfully.`;
+      setSuccess(msg);
+      addToast(msg, "success");
+      setNewRule({ timer_seconds: "", min_amount: "0", max_amount: "0", payout_percent: "0", status: "active" });
+      await loadRules(false);
+    } catch (err) {
+      const msg = getApiErrorMessage(err);
+      setError(msg);
+      addToast(msg, "error");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -205,6 +234,20 @@ export default function AdminTradeRulesPage() {
           {success}
         </div>
       ) : null}
+
+      <section className="rounded-[24px] border border-cyan-500/10 bg-[#0a0e1a] p-4 shadow-xl">
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-white">Create Trade Duration</h2>
+          <p className="mt-1 text-xs text-slate-500">Add another server-controlled duration. The user Trade page receives active rules automatically.</p>
+        </div>
+        <form onSubmit={handleCreateRule} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <input required min="1" max="86400" type="number" value={newRule.timer_seconds} onChange={e => setNewRule(v => ({...v, timer_seconds:e.target.value}))} placeholder="Duration (seconds)" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500" />
+          <input min="0" type="number" value={newRule.min_amount} onChange={e => setNewRule(v => ({...v, min_amount:e.target.value}))} placeholder="Min amount" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500" />
+          <input min="0" type="number" value={newRule.max_amount} onChange={e => setNewRule(v => ({...v, max_amount:e.target.value}))} placeholder="Max amount" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500" />
+          <input required min="0" max="100" type="number" value={newRule.payout_percent} onChange={e => setNewRule(v => ({...v, payout_percent:e.target.value}))} placeholder="Payout %" className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500" />
+          <button disabled={creating} className="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{creating ? "Creating..." : "Create Duration"}</button>
+        </form>
+      </section>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {rules.map((rule) => (
