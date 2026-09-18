@@ -33,7 +33,7 @@ async function request(path, token, body) {
   }
 }
 
-export default function TwoFactorSetupModal({ open, token, onClose, onCompleted }) {
+export default function TwoFactorSetupModal({ open, token, onClose, onCompleted, mode = "setup", twofaEnabled = false }) {
   const [step, setStep] = useState("setup");
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -45,7 +45,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
 
   useEffect(() => {
     if (!open) return;
-    setStep("setup");
+    setStep(mode === "manage" ? "manage" : "setup");
     setSetup(null);
     setCode("");
     setRecoveryCodes([]);
@@ -53,6 +53,8 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
     setError("");
     setCopiedSecret(false);
     setCopiedRecovery(false);
+
+    if (mode === "manage") return undefined;
 
     let cancelled = false;
     (async () => {
@@ -69,9 +71,48 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
       }
     })();
     return () => { cancelled = true; };
-  }, [open, token]);
+  }, [open, token, mode]);
 
   if (!open) return null;
+
+  async function manageRequest(path, body) {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await request(path, token, body);
+      return data;
+    } catch (err) {
+      setError(err?.name === "AbortError" ? "Security request timed out. Please try again." : err?.message || "Security request failed.");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function disableTwoFactor() {
+    const authenticatorCode = window.prompt("Enter the current 6-digit code from your authenticator app.");
+    if (!authenticatorCode) return;
+    const passcode = window.prompt("Enter your VexaTrade transaction passcode.");
+    if (!passcode) return;
+    const data = await manageRequest("/api/user/2fa/disable", { token: authenticatorCode.replace(/\\D/g, "").slice(0, 6), passcode });
+    if (data?.success) {
+      onCompleted?.({ disabled: true });
+      onClose?.();
+    }
+  }
+
+  async function regenerateRecoveryCodes() {
+    const authenticatorCode = window.prompt("Enter the current 6-digit code from your authenticator app.");
+    if (!authenticatorCode) return;
+    const passcode = window.prompt("Enter your VexaTrade transaction passcode.");
+    if (!passcode) return;
+    const data = await manageRequest("/api/user/2fa/recovery/regenerate", { token: authenticatorCode.replace(/\\D/g, "").slice(0, 6), passcode });
+    const codes = data?.data?.recoveryCodes || [];
+    if (codes.length) {
+      setRecoveryCodes(codes);
+      setStep("recovery");
+    }
+  }
 
   async function copySecret() {
     if (!setup?.manualKey) return;
@@ -147,6 +188,43 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted 
           {error && (
             <div className="mb-4 flex gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">
               <AlertCircle size={15} className="mt-0.5 shrink-0" />{error}
+            </div>
+          )}
+
+          {step === "manage" && (
+            <div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-7 w-7 text-emerald-400" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Authenticator 2FA is enabled</h3>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-400">Your authenticator app is protecting VexaTrade security and eligible sensitive actions.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <button type="button" onClick={regenerateRecoveryCodes} disabled={loading} className="w-full rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-left text-xs font-semibold text-cyan-200 disabled:opacity-50">
+                  Regenerate recovery codes
+                  <span className="mt-1 block text-[10px] font-normal text-slate-500">Requires your current authenticator code and transaction passcode. Old recovery codes become invalid.</span>
+                </button>
+                <button type="button" onClick={disableTwoFactor} disabled={loading} className="w-full rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-xs font-semibold text-red-200 disabled:opacity-50">
+                  Disable Authenticator 2FA
+                  <span className="mt-1 block text-[10px] font-normal text-red-100/50">Requires both your current authenticator code and transaction passcode.</span>
+                </button>
+              </div>
+              <button onClick={onClose} disabled={loading} className="mt-4 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Close</button>
+            </div>
+          )}
+
+          {step === "recovery" && (
+            <div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                <h3 className="text-sm font-semibold text-amber-100">New recovery codes generated</h3>
+                <p className="mt-1 text-[10px] leading-4 text-amber-100/70">These replace every previous recovery code. Save them offline and never share them.</p>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">{recoveryCodes.map((item) => <div key={item} className="rounded-lg bg-black/20 px-2 py-1.5 text-center font-mono text-xs text-white">{item}</div>)}</div>
+              <button onClick={copyRecoveryCodes} disabled={!recoveryCodes.length} className="mt-4 w-full rounded-xl border border-amber-300/20 py-2.5 text-xs text-amber-100 disabled:opacity-40"><Copy size={12} className="mr-1 inline" />{copiedRecovery ? "Copied" : "Copy recovery codes"}</button>
+              <button onClick={onClose} className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-semibold text-black">Done</button>
             </div>
           )}
 
