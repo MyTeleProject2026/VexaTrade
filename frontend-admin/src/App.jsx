@@ -14,7 +14,7 @@ import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 import AdminTradesPage from "./pages/admin/AdminTradesPage";
-import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";
+import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";import AdminSpotTradePage from "./pages/admin/AdminSpotTradePage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
 import AdminSupportPage from "./pages/admin/AdminSupportPage";
 import AdminPlatformSettingsPage from "./pages/admin/AdminPlatformSettingsPage";
@@ -59,7 +59,7 @@ export default function App() {
       <Route path="funds" element={<AdminFundsPage />} />
       <Route path="fund-rules" element={<AdminFundsRulesPage />} />
       <Route path="trades" element={<AdminTradesPage />} />
-      <Route path="trade-rules" element={<AdminTradeRulesPage />} />
+      <Route path="trade-rules" element={<AdminTradeRulesPage />} /><Route path="spot-trade" element={<AdminSpotTradePage />} />
       <Route path="audit-logs" element={<AdminAuditLogsPage />} />
       <Route path="support" element={<AdminSupportPage />} />
       <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
