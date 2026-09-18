@@ -449,7 +449,7 @@ router.post('/admin/trade-rules', authAdmin, async (req, res, next) => {
 // ─── Admin Trade Rules (read/update) ──────────────────────────────────────────────
 router.get('/admin/trade-rules', authAdmin, async (req, res, next) => {
   try {
-    const [rows] = await pool.execute(`SELECT id, timer_seconds, payout_percent, status, created_at FROM trade_rules ORDER BY timer_seconds ASC`);
+    const [rows] = await pool.execute(`SELECT id, timer_seconds, min_amount, max_amount, payout_percent, status, created_at FROM trade_rules ORDER BY timer_seconds ASC`);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
 });
@@ -483,7 +483,9 @@ router.post('/admin/trade-outcome-queue', authAdmin, async (req, res, next) => {
     const result = String(req.body.result || "").trim().toLowerCase();
     const quantity = Number(req.body.quantity || 1);
     if (!pair || !direction || !timerSeconds || !result) throw createError(400, "All fields required");
-    if (![60, 180, 300].includes(timerSeconds)) throw createError(400, "Invalid timer");
+    if (!Number.isInteger(timerSeconds) || timerSeconds <= 0 || timerSeconds > 86400) throw createError(400, "Invalid timer");
+    const [ruleRows] = await connection.execute("SELECT id FROM trade_rules WHERE timer_seconds = ? AND status = 'active' LIMIT 1", [timerSeconds]);
+    if (!ruleRows.length) throw createError(400, "No active trade rule exists for this timer");
     if (!["win", "loss"].includes(result)) throw createError(400, "Invalid result");
     await connection.beginTransaction();
     for (let i = 0; i < quantity; i++) {
