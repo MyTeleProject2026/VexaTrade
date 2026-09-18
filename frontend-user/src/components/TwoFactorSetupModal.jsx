@@ -42,6 +42,9 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
   const [error, setError] = useState("");
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedRecovery, setCopiedRecovery] = useState(false);
+  const [managementAction, setManagementAction] = useState("");
+  const [managementCode, setManagementCode] = useState("");
+  const [managementPasscode, setManagementPasscode] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +56,9 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     setError("");
     setCopiedSecret(false);
     setCopiedRecovery(false);
+    setManagementAction("");
+    setManagementCode("");
+    setManagementPasscode("");
 
     if (mode === "manage") return undefined;
 
@@ -89,27 +95,30 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     }
   }
 
-  async function disableTwoFactor() {
-    const authenticatorCode = window.prompt("Enter the current 6-digit code from your authenticator app.");
-    if (!authenticatorCode) return;
-    const passcode = window.prompt("Enter your VexaTrade transaction passcode.");
-    if (!passcode) return;
-    const data = await manageRequest("/api/user/2fa/disable", { token: authenticatorCode.replace(/\\D/g, "").slice(0, 6), passcode });
-    if (data?.success) {
+  async function submitManagementAction() {
+    const value = managementCode.replace(/\\D/g, "").slice(0, 6);
+    if (!/^\\d{6}$/.test(value)) {
+      setError("Enter the current 6-digit authenticator code.");
+      return;
+    }
+    if (!managementPasscode) {
+      setError("Enter your transaction passcode.");
+      return;
+    }
+    const path = managementAction === "disable" ? "/api/user/2fa/disable" : "/api/user/2fa/recovery/regenerate";
+    const data = await manageRequest(path, { token: value, passcode: managementPasscode });
+    if (!data) return;
+    if (managementAction === "disable") {
       onCompleted?.({ disabled: true });
       onClose?.();
+      return;
     }
-  }
-
-  async function regenerateRecoveryCodes() {
-    const authenticatorCode = window.prompt("Enter the current 6-digit code from your authenticator app.");
-    if (!authenticatorCode) return;
-    const passcode = window.prompt("Enter your VexaTrade transaction passcode.");
-    if (!passcode) return;
-    const data = await manageRequest("/api/user/2fa/recovery/regenerate", { token: authenticatorCode.replace(/\\D/g, "").slice(0, 6), passcode });
-    const codes = data?.data?.recoveryCodes || [];
+    const codes = data.data?.recoveryCodes || [];
     if (codes.length) {
       setRecoveryCodes(codes);
+      setManagementAction("");
+      setManagementCode("");
+      setManagementPasscode("");
       setStep("recovery");
     }
   }
@@ -202,16 +211,32 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
                   </div>
                 </div>
               </div>
-              <div className="mt-4 space-y-2">
-                <button type="button" onClick={regenerateRecoveryCodes} disabled={loading} className="w-full rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-left text-xs font-semibold text-cyan-200 disabled:opacity-50">
-                  Regenerate recovery codes
-                  <span className="mt-1 block text-[10px] font-normal text-slate-500">Requires your current authenticator code and transaction passcode. Old recovery codes become invalid.</span>
-                </button>
-                <button type="button" onClick={disableTwoFactor} disabled={loading} className="w-full rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-xs font-semibold text-red-200 disabled:opacity-50">
-                  Disable Authenticator 2FA
-                  <span className="mt-1 block text-[10px] font-normal text-red-100/50">Requires both your current authenticator code and transaction passcode.</span>
-                </button>
-              </div>
+              {!managementAction ? (
+                <div className="mt-4 space-y-2">
+                  <button type="button" onClick={() => setManagementAction("recovery")} disabled={loading} className="w-full rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-left text-xs font-semibold text-cyan-200 disabled:opacity-50">
+                    Regenerate recovery codes
+                    <span className="mt-1 block text-[10px] font-normal text-slate-500">Requires your current authenticator code and transaction passcode. Old recovery codes become invalid.</span>
+                  </button>
+                  <button type="button" onClick={() => setManagementAction("disable")} disabled={loading} className="w-full rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-xs font-semibold text-red-200 disabled:opacity-50">
+                    Disable Authenticator 2FA
+                    <span className="mt-1 block text-[10px] font-normal text-red-100/50">Requires both your current authenticator code and transaction passcode.</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="text-xs font-semibold text-white">{managementAction === "disable" ? "Disable Authenticator 2FA" : "Regenerate recovery codes"}</div>
+                  <p className="mt-1 text-[10px] leading-4 text-slate-500">This is a security-sensitive change. Confirm both factors below. The server validates them before changing your account.</p>
+                  <label className="mt-3 block text-[10px] font-medium text-slate-400">Current authenticator code</label>
+                  <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={managementCode} onChange={e => setManagementCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] text-white outline-none focus:border-cyan-500" placeholder="000000" />
+                  <label className="mt-3 block text-[10px] font-medium text-slate-400">Transaction passcode</label>
+                  <input type="password" inputMode="numeric" maxLength={12} value={managementPasscode} onChange={e => setManagementPasscode(e.target.value.replace(/\D/g, "").slice(0, 12))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-center font-mono text-lg tracking-[0.2em] text-white outline-none focus:border-cyan-500" placeholder="••••••" />
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => { setManagementAction(""); setManagementCode(""); setManagementPasscode(""); setError(""); }} disabled={loading} className="flex-1 rounded-xl border border-white/10 py-2.5 text-xs text-white">Back</button>
+                    <button type="button" onClick={submitManagementAction} disabled={loading || managementCode.length !== 6 || !managementPasscode} className={`flex-[2] rounded-xl py-2.5 text-xs font-semibold disabled:opacity-50 ${managementAction === "disable" ? "bg-red-500 text-white" : "bg-cyan-500 text-black"}`}>{loading ? "Processing..." : managementAction === "disable" ? "Disable 2FA" : "Regenerate Codes"}</button>
+                  </div>
+                </div>
+              )}
+
               <button onClick={onClose} disabled={loading} className="mt-4 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Close</button>
             </div>
           )}
