@@ -1,5 +1,6 @@
 // frontend-user/src/pages/TradePage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   CheckCircle2,
@@ -323,6 +324,7 @@ function Metric({ label, value }) {
 }
 
 export default function TradePage() {
+  const navigate = useNavigate();
   const token =
     localStorage.getItem("userToken") ||
     localStorage.getItem("token") ||
