@@ -1,6 +1,6 @@
 import appApiClient from "./api";
 import { requestTransactionSecurity } from "./transactionSecurity";
-const ACTIONS={"/api/deposits/request":["deposit","Deposit authorization"],"/api/withdrawals/request":["withdrawal","Withdrawal authorization"],"/api/convert/execute":["convert","Conversion authorization"],"/api/user/transfer":["transfer","Transfer authorization"],"/api/trades/place":["trade","Trade authorization"],"/api/funds/apply":["funds","Funds authorization"],"/api/loans/apply":["loan","Loan authorization"],"/api/withdraw/profit-request":["profit-withdrawal","Profit withdrawal authorization"]};
+const ACTIONS={"/api/deposits/request":["deposit","Deposit authorization"],"/api/withdrawals/request":["withdrawal","Withdrawal authorization"],"/api/convert/execute":["convert","Conversion authorization"],"/api/user/transfer":["transfer","Transfer authorization"],"/api/funds/apply":["funds","Funds authorization"],"/api/loans/apply":["loan","Loan authorization"],"/api/withdraw/profit-request":["profit-withdrawal","Profit withdrawal authorization"]};
 const actionFor=url=>ACTIONS[String(url||"").split("?")[0]]||null;
 const makeKey=action=>`${action}-${typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`}`.slice(0,128);
 let installed=false;
