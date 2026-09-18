@@ -12,7 +12,7 @@ function money(v){return Number(v||0).toLocaleString(undefined,{minimumFractionD
 export default function SpotTradingPage(){
  const auth=token(), {showSuccess,showError}=useNotification();
  const [pair,setPair]=useState("BTCUSDT"),[side,setSide]=useState("buy"),[quantity,setQuantity]=useState(""),[price,setPrice]=useState(0);
- const [settings,setSettings]=useState(null),[orders,setOrders]=useState([]),[loading,setLoading]=useState(true),[processing,setProcessing]=useState(false),[receipt,setReceipt]=useState(null),[error,setError]=useState("");
+ const [settings,setSettings]=useState(null),[orders,setOrders]=useState([]),[loading,setLoading]=useState(true),[processing,setProcessing]=useState(false),[receipt,setReceipt]=useState(null),[error,setError]=useState(""),[step,setStep]=useState("form");
  const actionKey=useRef(null),socketRef=useRef(null);
 
  useEffect(()=>{let alive=true;
@@ -31,6 +31,7 @@ export default function SpotTradingPage(){
  const max=Number(settings?.maxOrderUsdt||100000);
  const canSubmit=settings?.tradingEnabled!==false&&price>0&&Number(quantity)>0&&total<=max&&!processing;
 
+ function review(){ if(canSubmit) setStep("review"); }
  async function submit(){
   if(!canSubmit)return;
   const key=actionKey.current||(actionKey.current=createActionIdempotencyKey("spot-order"));
@@ -38,7 +39,7 @@ export default function SpotTradingPage(){
   try{
    const res=await runSingleUserAction("spot-market-order",()=>spotTradeApi.placeMarket({symbol:pair,side,quantity:Number(quantity),price,idempotencyKey:key},auth));
    const data=res.data?.data;if(!data)throw new Error(res.data?.message||"Spot order was not completed");
-   setReceipt(data);setOrders(prev=>[data,...prev].slice(0,50));setQuantity("");showSuccess?.("Spot order filled");
+   setReceipt(data);setOrders(prev=>[data,...prev].slice(0,50));setQuantity("");setStep("form");showSuccess?.("Spot order filled");
   }catch(e){const msg=getApiErrorMessage(e);setError(msg);showError?.(msg);}
   finally{setProcessing(false);actionKey.current=null;}
  }
@@ -70,9 +71,8 @@ export default function SpotTradingPage(){
     <div className="mt-3 flex justify-between text-xs"><span className="text-slate-500">Estimated total</span><span>{money(total)} USDT</span></div>
     <div className="mt-1 flex justify-between text-[10px] text-slate-600"><span>Maximum</span><span>{money(max)} USDT</span></div>
     {error&&<div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
-    <button disabled={!canSubmit} onClick={submit} className="mt-4 w-full rounded-2xl bg-cyan-400 py-3 text-sm font-bold text-black disabled:opacity-40">
-      {processing?"Processing...":`Review ${side==="buy"?"Buy":"Sell"} Order`}
-    </button>
+    {step==="form" ? <button disabled={!canSubmit} onClick={review} className="mt-4 w-full rounded-2xl bg-cyan-400 py-3 text-sm font-bold text-black disabled:opacity-40">Review {side==="buy"?"Buy":"Sell"} Order</button> : <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4"><div className="text-xs uppercase tracking-widest text-cyan-300">Order review</div><div className="mt-3 space-y-2 text-xs"><div className="flex justify-between"><span className="text-slate-500">Market</span><span>{pair}</span></div><div className="flex justify-between"><span className="text-slate-500">Side</span><span>{side.toUpperCase()}</span></div><div className="flex justify-between"><span className="text-slate-500">Quantity</span><span>{quantity}</span></div><div className="flex justify-between"><span className="text-slate-500">Live execution price</span><span>{money(price)}</span></div><div className="flex justify-between font-semibold"><span>Estimated total</span><span>{money(total)} USDT</span></div></div><button disabled={processing} onClick={submit} className="mt-4 w-full rounded-xl bg-emerald-400 py-3 text-sm font-bold text-black disabled:opacity-40">{processing?"Processing...":"Confirm Order"}</button><button disabled={processing} onClick={()=>setStep("form")} className="mt-2 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Back</button></div>}
+    
     <p className="mt-2 text-center text-[10px] text-slate-600">Your existing VexaTrade transaction-security layer may request additional verification before submission.</p>
    </section>
 
