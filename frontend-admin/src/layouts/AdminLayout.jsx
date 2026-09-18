@@ -24,6 +24,7 @@ const PAGE_META = {
   "/admin/fund-rules": ["Private Fund Rules", "Create, assign and manage private fund plans."],
   "/admin/trades": ["Trade Operations", "Monitor and operate active and historical trades."],
   "/admin/trade-rules": ["Trade Rules", "Trading timing, payout and rule configuration."],
+  "/admin/spot-trade": ["Spot / Long-Term Trade", "Independent spot trading execution controls."],
   "/admin/loans": ["Loan Operations", "Review and operate user loan requests."],
   "/admin/loan-settings": ["Loan Settings", "Loan rate and repayment configuration."],
   "/admin/platform-settings": ["Platform Settings", "Global application and platform configuration."],
