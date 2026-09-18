@@ -187,8 +187,11 @@ router.post('/user/verify-passcode', authUser, async (req, res, next) => {
 
 router.post('/user/2fa/setup', authUser, async (req, res, next) => {
   try {
-    const [users] = await pool.execute('SELECT uid FROM users WHERE id=?', [req.user.id]);
+    const [users] = await pool.execute('SELECT uid,email,email_verified FROM users WHERE id=?', [req.user.id]);
     if (!users.length) return res.status(404).json({ success: false, message: 'User not found' });
+    if (Number(users[0].email_verified || 0) !== 1) return res.status(403).json({ success: false, message: 'Verify your account email before enabling authenticator 2FA' });
+    const [existing] = await pool.execute('SELECT enabled FROM user_two_factor WHERE user_id=?', [req.user.id]);
+    if (existing.length && Number(existing[0].enabled) === 1) return res.status(409).json({ success: false, message: 'Authenticator 2FA is already enabled. Verify your current factor before changing it.' });
     const setup = generateSetup(users[0].uid);
     const encrypted = encryptSecret(setup.secret);
     await pool.execute(`INSERT INTO user_two_factor(user_id,secret_encrypted,enabled,created_at,updated_at) VALUES(?,?,0,NOW(),NOW()) ON DUPLICATE KEY UPDATE secret_encrypted=VALUES(secret_encrypted),enabled=0,verified_at=NULL,updated_at=NOW()`, [req.user.id, encrypted]);
@@ -249,15 +252,49 @@ router.post('/user/2fa/recovery', authUser, async (req, res, next) => {
 });
 
 router.post('/user/2fa/disable', authUser, async (req, res, next) => {
+  const c = await pool.getConnection();
   try {
-    const [rows] = await pool.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=?', [req.user.id]);
-    if (!rows.length || !rows[0].enabled) return res.status(400).json({ success: false, message: '2FA is not enabled' });
-    if (!verifyToken(decryptSecret(rows[0].secret_encrypted), req.body?.token)) return res.status(401).json({ success: false, message: 'Invalid authenticator code' });
-    await pool.execute('UPDATE user_two_factor SET enabled=0,updated_at=NOW() WHERE user_id=?', [req.user.id]);
-    await pool.execute('UPDATE users SET twofa_enabled=0,updated_at=NOW() WHERE id=?', [req.user.id]);
+    const authenticatorCode = String(req.body?.token || '').replace(/\s/g, '');
+    const passcode = String(req.body?.passcode || '').trim();
+    await c.beginTransaction();
+    const [rows] = await c.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=? FOR UPDATE', [req.user.id]);
+    if (!rows.length || !rows[0].enabled) throw Object.assign(new Error('2FA is not enabled'), { status: 400 });
+    if (!verifyToken(decryptSecret(rows[0].secret_encrypted), authenticatorCode)) throw Object.assign(new Error('Invalid authenticator code'), { status: 401 });
+    const [users] = await c.execute('SELECT passcode FROM users WHERE id=? FOR UPDATE', [req.user.id]);
+    if (!users.length || !users[0].passcode) throw Object.assign(new Error('Set a transaction passcode before disabling 2FA'), { status: 400 });
+    if (!/^\$2[aby]?\$\d{2}\$/.test(String(users[0].passcode)) || !(await bcrypt.compare(passcode, users[0].passcode))) {
+      throw Object.assign(new Error('Invalid transaction passcode'), { status: 401 });
+    }
+    await c.execute('UPDATE user_two_factor SET enabled=0,updated_at=NOW() WHERE user_id=?', [req.user.id]);
+    await c.execute('DELETE FROM two_factor_recovery_codes WHERE user_id=?', [req.user.id]);
+    await c.execute('UPDATE users SET twofa_enabled=0,updated_at=NOW() WHERE id=?', [req.user.id]);
+    await c.commit();
     await securityEvent(req.user.id, '2fa_disabled', true, req);
     res.json({ success: true, message: 'Authenticator 2FA disabled' });
-  } catch (e) { next(e); }
+  } catch (e) { try { await c.rollback(); } catch (_) {} next(e); } finally { c.release(); }
+});
+
+router.post('/user/2fa/recovery/regenerate', authUser, async (req, res, next) => {
+  const c = await pool.getConnection();
+  try {
+    const authenticatorCode = String(req.body?.token || '').replace(/\s/g, '');
+    const passcode = String(req.body?.passcode || '').trim();
+    await c.beginTransaction();
+    const [rows] = await c.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=? FOR UPDATE', [req.user.id]);
+    if (!rows.length || !rows[0].enabled) throw Object.assign(new Error('2FA is not enabled'), { status: 400 });
+    if (!verifyToken(decryptSecret(rows[0].secret_encrypted), authenticatorCode)) throw Object.assign(new Error('Invalid authenticator code'), { status: 401 });
+    const [users] = await c.execute('SELECT passcode FROM users WHERE id=? FOR UPDATE', [req.user.id]);
+    if (!users.length || !users[0].passcode || !/^\$2[aby]?\$\d{2}\$/.test(String(users[0].passcode)) || !(await bcrypt.compare(passcode, users[0].passcode))) {
+      throw Object.assign(new Error('Invalid transaction passcode'), { status: 401 });
+    }
+    const codes = recoveryCodes();
+    const hashes = await hashRecoveryCodes(codes);
+    await c.execute('DELETE FROM two_factor_recovery_codes WHERE user_id=?', [req.user.id]);
+    for (const hash of hashes) await c.execute('INSERT INTO two_factor_recovery_codes(user_id,code_hash,created_at) VALUES(?,?,NOW())', [req.user.id, hash]);
+    await c.commit();
+    await securityEvent(req.user.id, '2fa_recovery_regenerated', true, req);
+    res.json({ success: true, message: 'Recovery codes regenerated', data: { recoveryCodes: codes } });
+  } catch (e) { try { await c.rollback(); } catch (_) {} next(e); } finally { c.release(); }
 });
 
 module.exports = router;
