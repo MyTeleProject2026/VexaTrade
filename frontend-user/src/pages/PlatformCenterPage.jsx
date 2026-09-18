@@ -4,8 +4,6 @@ import { ArrowDownToLine, ArrowLeftRight, Bell, CandlestickChart, FileClock, Hel
 import { userApi } from "../services/api";
 import { getApiErrorMessage } from "../services/api";
 import PlatformModuleCard from "../components/platform/PlatformModuleCard";
-import { fetchMtp2026GuestManifest } from "../services/mtp2026GuestApi";
-
 
 const modules = [
   { title: "Wallet & Assets", description: "Review balances, supported assets and portfolio positions.", icon: WalletCards, to: "/assets", key: "assets", actionLabel: "Open wallet" },
@@ -22,7 +20,7 @@ const request = (promise, timeout = 7000) => Promise.race([promise, new Promise(
 
 export default function PlatformCenterPage() {
   const navigate = useNavigate();
-  const [state, setState] = useState({ loading: true, profile: null, wallet: null, assets: null, notifications: null, guestManifest: null, guestError: "" , error: "" });
+  const [state, setState] = useState({ loading: true, profile: null, wallet: null, assets: null, notifications: null, error: "" });
 
   const load = useCallback(async () => {
     setState((previous) => ({ ...previous, loading: true, error: "" }));
@@ -31,9 +29,8 @@ export default function PlatformCenterPage() {
       request(userApi.getWalletSummary()),
       request(userApi.getUserAssets()),
       request(userApi.getNotifications()),
-      request(fetchMtp2026GuestManifest()),
     ]);
-    const [profile, wallet, assets, notifications, guestManifest] = results;
+    const [profile, wallet, assets, notifications] = results;
     const failed = results.filter((result) => result.status === "rejected").length;
     setState({
       loading: false,
@@ -41,8 +38,6 @@ export default function PlatformCenterPage() {
       wallet: wallet.status === "fulfilled" ? wallet.value?.data : null,
       assets: assets.status === "fulfilled" ? assets.value?.data : null,
       notifications: notifications.status === "fulfilled" ? notifications.value?.data : null,
-      guestManifest: guestManifest.status === "fulfilled" ? guestManifest.value : null,
-      guestError: guestManifest.status === "rejected" ? (guestManifest.reason?.code || guestManifest.reason?.message || "Guest manifest unavailable") : "",
       error: failed ? `${failed} platform service${failed === 1 ? "" : "s"} did not respond.` : "",
     });
   }, []);
@@ -86,15 +81,6 @@ export default function PlatformCenterPage() {
         </div>
 
         {state.error ? <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-200">{state.error}</div> : null}
-
-        <div className="mt-5 rounded-2xl border border-cyan-400/10 bg-[#081223]/90 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">MTP2026 ARM64 Guest Profiles</div><div className="mt-1 text-xs text-slate-400">Ready-to-install guest firmware is supplied only when a verified URL and SHA-256 are present.</div></div>
-            <span className={state.guestManifest ? "text-[10px] font-semibold text-emerald-300" : "text-[10px] font-semibold text-amber-300"}>{state.guestManifest ? "READY" : "INCOMPLETE"}</span>
-          </div>
-          {state.guestError ? <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-[11px] text-amber-200">{state.guestError}</div> : null}
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{["mtp2026","android","windows11","gaming"].map((id) => { const g=state.guestManifest?.guests?.[id]; return <div key={id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><div className="text-xs font-semibold text-white">{g?.name || id}</div><div className="mt-1 text-[10px] text-slate-400">{g?.imageSource?.sha256 ? "SHA-256 verified source configured" : "Image source not configured"}</div></div>; })}</div>
-        </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {modules.map((item) => <PlatformModuleCard key={item.key} {...item} metric={metrics[item.key]} status={state.error && ["assets", "notifications"].includes(item.key) ? "warning" : "ready"} onAction={() => navigate(item.to)} />)}
         </div>
