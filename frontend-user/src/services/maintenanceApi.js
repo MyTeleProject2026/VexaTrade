@@ -56,19 +56,15 @@ export const maintenanceApi = {
         if (status?.success) writeCache(status);
         return status;
       })
-      .catch(() => {
-        const fallback = {
-          success: true,
-          data: {
-            maintenance: true,
-            message: "VexaTrade is currently undergoing maintenance. Please check back later.",
-            auto_triggered: true,
-          },
-        };
-        // Cache the fail-safe result too. Otherwise a remounted App would
-        // immediately retry the same unavailable endpoint over and over.
-        writeCache(fallback);
-        return fallback;
+      .catch((error) => {
+        // Do not convert an unavailable/slow status endpoint into fake maintenance.
+        // Maintenance is authoritative only when the backend explicitly returns
+        // data.maintenance=true. The app must remain usable during a transient
+        // network, cold-start, or backend status-request failure.
+        const statusError = Object.assign(error instanceof Error ? error : new Error("Maintenance status unavailable"), {
+          maintenanceStatusUnavailable: true,
+        });
+        throw statusError;
       })
       .finally(() => {
         inFlightPromise = null;
