@@ -10,6 +10,8 @@ const PROFILES = {
 };
 
 function bundleUrl(profile) {
+  const explicit = String(process.env[`MTP2026_GUEST_URL_${profile.id.toUpperCase()}`] || '').trim();
+  if (explicit) return explicit;
   const base = String(process.env.MTP2026_GUEST_RELEASE_BASE_URL || '').replace(/\/$/, '');
   return base ? `${base}/mtp2026-${profile.id}-arm64-guest.tar.gz` : null;
 }
