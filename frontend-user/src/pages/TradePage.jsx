@@ -188,7 +188,7 @@ function ResultModal({ result, tradeHistory = [], onClose }) {
     const payout = Number(t.payout_percent || t.payoutPercent || 0);
     return acc + (isWinTrade ? amt * payout / 100 : (String(t.result || t.status || "").toLowerCase() === "tie" ? 0 : -amt));
   }, 0);
-  const orderId = `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id || Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
+  const orderId = result?.id ? `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id).padStart(3, "0")}` : "VT-PENDING";
   const entryPrice = Number(result.entry_price || 0);
   const exitPrice = Number(result.exit_price || entryPrice);
   const changePercent = entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 : 0;
@@ -251,7 +251,7 @@ export default function TradePage() {
   const [targetChecking, setTargetChecking] = useState(true);
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
-  const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
+  const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);\n  const [orderBookData, setOrderBookData] = useState({ asks: [], bids: [] });
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
   const liveTradePriceRef = useRef({ pair: "", price: 0, receivedAt: 0 });
@@ -306,6 +306,35 @@ export default function TradePage() {
         try { ws.close(); } catch (_) {}
         ws = null;
       }
+    };
+  }, [pair]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let ws = null;
+    const safeSymbol = String(pair || "").trim().toLowerCase();
+    setOrderBookData({ asks: [], bids: [] });
+    if (!safeSymbol) return undefined;
+    try {
+      ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@depth20@1000ms`);
+      ws.onmessage = (event) => {
+        if (cancelled) return;
+        try {
+          const message = JSON.parse(event.data);
+          const normalize = (levels) => (Array.isArray(levels) ? levels : [])
+            .map(([price, amount]) => ({ price: Number(price), amount: Number(amount) }))
+            .filter(row => Number.isFinite(row.price) && row.price > 0 && Number.isFinite(row.amount) && row.amount > 0)
+            .map(row => ({ ...row, total: row.price * row.amount }));
+          setOrderBookData({
+            asks: normalize(message?.asks).sort((a,b) => a.price-b.price).slice(0, 6),
+            bids: normalize(message?.bids).sort((a,b) => b.price-a.price).slice(0, 6),
+          });
+        } catch (_) {}
+      };
+    } catch (_) {}
+    return () => {
+      cancelled = true;
+      if (ws) { try { ws.close(); } catch (_) {} ws = null; }
     };
   }, [pair]);
 
@@ -559,13 +588,7 @@ export default function TradePage() {
 }
 
 // ---------- helpers ----------
-function buildOrderBook(price = 0) {
-  const base = Number(price || 0);
-  if (!base) return { asks: [], bids: [] };
-  const asks = Array.from({ length: 6 }).map((_, i) => { const p = base + base * (0.0006 + i * 0.00035); const a = 8 + i * 2.15; return { price: p, amount: a, total: p * a }; });
-  const bids = Array.from({ length: 6 }).map((_, i) => { const p = base - base * (0.0006 + i * 0.00035); const a = 7.5 + i * 2.05; return { price: p, amount: a, total: p * a }; });
-  return { asks, bids };
-}
+
 function spread(orderBook) {
   if (!orderBook.asks.length || !orderBook.bids.length) return 0;
   const bestAsk = Math.min(...orderBook.asks.map(r => r.price));
