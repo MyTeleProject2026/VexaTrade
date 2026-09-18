@@ -163,8 +163,9 @@ router.post('/security/transaction/verify-email', authUser, async (req, res, nex
     if (new Date(challenge.expires_at).getTime() < Date.now()) return res.status(400).json({ success: false, message: 'Security code expired' });
     if (Number(challenge.attempts) >= 5) return res.status(429).json({ success: false, message: 'Too many security code attempts' });
     if (hash(code) !== challenge.otp_hash) {
-      await pool.execute('UPDATE transaction_security_challenges SET attempts=attempts+1 WHERE id=?', [id]);
-      return res.status(401).json({ success: false, message: 'Invalid email security code' });
+      const nextAttempts = Number(challenge.attempts || 0) + 1;
+      await pool.execute('UPDATE transaction_security_challenges SET attempts=attempts+1,updated_at=NOW() WHERE id=?', [id]);
+      return res.status(nextAttempts >= 5 ? 429 : 401).json({ success: false, message: nextAttempts >= 5 ? 'Too many security code attempts. Request a new code.' : 'Invalid email security code' });
     }
     await pool.execute('UPDATE transaction_security_challenges SET otp_verified=1,updated_at=NOW() WHERE id=?', [id]);
     res.json({ success: true, verified: true, twoFactorRequired: Boolean(challenge.two_factor_required) });
@@ -179,11 +180,16 @@ router.post('/security/transaction/verify-2fa', authUser, async (req, res, next)
     const [rows] = await pool.execute('SELECT * FROM transaction_security_challenges WHERE id=? AND user_id=? LIMIT 1', [id, req.user.id]);
     if (!rows.length) return res.status(404).json({ success: false, message: 'Security challenge not found' });
     if (!Number(rows[0].otp_verified)) return res.status(409).json({ success: false, message: 'Verify the email code first' });
+    if (Number(rows[0].attempts) >= 5) return res.status(429).json({ success: false, message: 'Too many security code attempts. Request a new code.' });
     if (!Number(rows[0].two_factor_required)) return res.json({ success: true, verified: true, required: false });
     if (!/^\d{6}$/.test(token)) return res.status(400).json({ success: false, message: 'A valid 6-digit authenticator code is required' });
     const [factors] = await pool.execute('SELECT secret_encrypted,enabled FROM user_two_factor WHERE user_id=? LIMIT 1', [req.user.id]);
     if (!factors.length || !Number(factors[0].enabled)) return res.status(400).json({ success: false, message: 'Authenticator 2FA is not enabled' });
-    if (!verifyToken(decryptSecret(factors[0].secret_encrypted), token)) return res.status(401).json({ success: false, message: 'Invalid authenticator code' });
+    if (!verifyToken(decryptSecret(factors[0].secret_encrypted), token)) {
+      const nextAttempts = Number(rows[0].attempts || 0) + 1;
+      await pool.execute('UPDATE transaction_security_challenges SET attempts=attempts+1,updated_at=NOW() WHERE id=?', [id]);
+      return res.status(nextAttempts >= 5 ? 429 : 401).json({ success: false, message: nextAttempts >= 5 ? 'Too many authenticator attempts. Request a new code.' : 'Invalid authenticator code' });
+    }
     await pool.execute('UPDATE transaction_security_challenges SET two_factor_verified=1,updated_at=NOW() WHERE id=?', [id]);
     res.json({ success: true, verified: true, required: true });
   } catch (e) { next(e); }
@@ -198,12 +204,17 @@ router.post('/security/transaction/verify-passcode', authUser, async (req, res, 
     if (!rows.length) return res.status(404).json({ success: false, message: 'Security challenge not found' });
     const challenge = rows[0];
     if (!Number(challenge.otp_verified) || (Number(challenge.two_factor_required) && !Number(challenge.two_factor_verified))) return res.status(409).json({ success: false, message: 'Complete the previous security steps first' });
+    if (Number(challenge.attempts) >= 5) return res.status(429).json({ success: false, message: 'Too many security attempts. Request a new code.' });
     if (!/^\d{4,12}$/.test(passcode)) return res.status(400).json({ success: false, message: 'Valid transaction passcode required' });
     const [users] = await pool.execute('SELECT passcode FROM users WHERE id=? LIMIT 1', [req.user.id]);
     if (!users.length || !users[0].passcode) return res.status(400).json({ success: false, message: 'Transaction passcode is not configured' });
     const stored = String(users[0].passcode);
     const valid = /^\$2[aby]?\$\d{2}\$/.test(stored) ? await bcrypt.compare(passcode, stored) : stored === passcode;
-    if (!valid) return res.status(401).json({ success: false, message: 'Invalid transaction passcode' });
+    if (!valid) {
+      const nextAttempts = Number(challenge.attempts || 0) + 1;
+      await pool.execute('UPDATE transaction_security_challenges SET attempts=attempts+1,updated_at=NOW() WHERE id=?', [id]);
+      return res.status(nextAttempts >= 5 ? 429 : 401).json({ success: false, message: nextAttempts >= 5 ? 'Too many passcode attempts. Request a new code.' : 'Invalid transaction passcode' });
+    }
     await pool.execute('UPDATE transaction_security_challenges SET passcode_verified=1,updated_at=NOW() WHERE id=?', [id]);
     res.json({ success: true, verified: true });
   } catch (e) { next(e); }

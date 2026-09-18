@@ -30,5 +30,9 @@ for (const route of ['/user/2fa/setup','/user/2fa/enable','/user/2fa/verify','/u
 const email=read('services/emailService.js');
 if (!email.includes('sendOtpEmail') || !email.includes('sendPasswordResetEmail')) throw new Error('[Email] delivery functions missing');
 const server=read('server.js');
-for (const route of ['tradeRoutes','depositRoutes','withdrawalRoutes','convertRoutes','transferRoutes','fundsRoutes','loanRoutes']) if (!server.includes(route)) throw new Error(`[Server] route wiring missing: ${route}`);
+for (const route of ['tradeRoutes','depositRoutes','withdrawalRoutes','convertRoutes','transferRoutes','fundsRoutes','loanRoutes','profitWithdrawalRoutes','walletRoutes','supportRoutes','chatRoutes']) if (!server.includes(route)) throw new Error(`[Server] route wiring missing: ${route}`);
+const admin=read('src/routes/adminControlCenterRoutes.js');
+for (const control of ['support','assets','assetLedger','loans']) if (!admin.includes(control)) throw new Error(`[Admin] control surface missing: ${control}`);
+const userApi=fs.readFileSync(path.join(root,'../frontend-user/src/services/api.js'),'utf8');
+for (const apiRoute of ['/api/deposits/request','/api/withdrawals/request','/api/convert/execute','/api/user/transfer','/api/funds/apply','/api/loans/apply','/api/withdraw/profit-request','/api/transactions']) if (!userApi.includes(apiRoute)) throw new Error(`[Frontend API] missing ${apiRoute}`);
 console.log('VexaTrade financial contract validation passed.');
