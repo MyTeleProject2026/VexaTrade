@@ -51,7 +51,10 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
   const setupStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setupStartedRef.current = false;
+      return;
+    }
     setStep(mode === "manage" ? "manage" : "setup");
     setSetup(null);
     setCode("");
@@ -63,8 +66,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     setManagementAction("");
     setManagementCode("");
     setManagementPasscode("");
-    setupStartedRef.current = false;
-    setupRequestKeyRef.current = makeIdempotencyKey("2fa-setup");
+    if (!setupRequestKeyRef.current) setupRequestKeyRef.current = makeIdempotencyKey("2fa-setup");
 
     if (mode === "manage") return undefined;
 
