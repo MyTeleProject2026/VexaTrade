@@ -1,14 +1,19 @@
 // frontend-user/src/pages/TradePage.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  RefreshCw,
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  History,
-  X,
-  Target,
   BarChart3,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Copy,
+  History,
+  RefreshCw,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  X,
+  Zap,
 } from "lucide-react";
 import MarketChart from "../components/MarketChart";
 import {
@@ -18,219 +23,303 @@ import {
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
-import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
+import {
+  createActionIdempotencyKey,
+  runSingleUserAction,
+} from "../services/actionRequest";
 import TargetModal from "../components/TargetModal";
 
-// ---------- constants & helpers ----------
 const DEFAULT_PAIRS = [
   "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
   "TONUSDT", "LTCUSDT",
 ];
+const TIMER_OPTIONS = [60, 180, 300];
 
-function formatAmount(v) { return Number(v || 0).toFixed(2); }
-function formatPrice(v) {
-  return Number(v || 0).toLocaleString(undefined, {
+function formatAmount(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+}
+function formatPrice(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 8,
   });
 }
-function formatPercent(v) { return Number(v || 0).toFixed(2); }
-function formatDateTime(d) {
-  if (!d) return "-";
-  try { return new Date(d).toLocaleString(); } catch { return d; }
+function formatPercent(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00";
 }
-function getCountdownSeconds(end) {
-  if (!end) return 0;
-  const diff = new Date(end).getTime() - Date.now();
-  return Math.max(0, Math.floor(diff / 1000));
+function formatDateTime(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString([], {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return String(value);
+  }
 }
-function formatCountdown(end) {
-  const total = getCountdownSeconds(end);
-  const m = Math.floor(total / 60), s = total % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+function secondsUntil(endTime) {
+  if (!endTime) return 0;
+  const end = new Date(endTime).getTime();
+  if (!Number.isFinite(end)) return 0;
+  return Math.max(0, Math.ceil((end - Date.now()) / 1000));
+}
+function formatCountdown(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+function normalizeDepth(levels) {
+  return (Array.isArray(levels) ? levels : [])
+    .map(([price, amount]) => ({
+      price: Number(price),
+      amount: Number(amount),
+    }))
+    .filter(
+      (row) =>
+        Number.isFinite(row.price) &&
+        row.price > 0 &&
+        Number.isFinite(row.amount) &&
+        row.amount > 0
+    )
+    .map((row) => ({ ...row, total: row.price * row.amount }));
+}
+function makeEmptyDepth() {
+  return { asks: [], bids: [] };
+}
+function depthSpread(depth) {
+  if (!depth?.asks?.length || !depth?.bids?.length) return 0;
+  return Math.max(0, Math.min(...depth.asks.map((r) => r.price)) - Math.max(...depth.bids.map((r) => r.price)));
+}
+function outcomeOf(trade) {
+  return String(trade?.result || trade?.status || "").toLowerCase();
+}
+function isSettled(trade) {
+  return ["win", "loss", "tie", "completed", "settled"].includes(outcomeOf(trade));
+}
+function resultLabel(trade) {
+  const outcome = outcomeOf(trade);
+  if (outcome === "win") return "WIN";
+  if (outcome === "loss") return "LOSS";
+  if (outcome === "tie") return "TIE";
+  if (["open", "pending"].includes(outcome)) return "OPEN";
+  return String(trade?.status || "PENDING").toUpperCase();
+}
+function resultTone(trade) {
+  const outcome = outcomeOf(trade);
+  if (outcome === "win") return "emerald";
+  if (outcome === "loss") return "red";
+  if (outcome === "tie") return "amber";
+  return "slate";
+}
+function tradeProfit(trade) {
+  const outcome = outcomeOf(trade);
+  const amount = Number(trade?.amount || 0);
+  const payout = Number(trade?.payout_percent || trade?.payoutPercent || 0);
+  if (outcome === "win") return amount * payout / 100;
+  if (outcome === "tie") return 0;
+  if (outcome === "loss") return -amount;
+  return 0;
 }
 
-// ---------- subcomponents ----------
-function StatusPill({ value }) {
-  const v = String(value || "").toLowerCase();
-  const cls = (bg, text) =>
-    `rounded-full border px-2.5 py-1 text-[11px] font-semibold ${bg} ${text}`;
-  if (["open", "pending"].includes(v))
-    return <span className={cls("border-amber-500/20 bg-amber-500/10", "text-amber-300")}>{value}</span>;
-  if (["win", "approved", "completed"].includes(v))
-    return <span className={cls("border-emerald-500/20 bg-emerald-500/10", "text-emerald-300")}>{value}</span>;
-  if (["loss", "rejected", "failed"].includes(v))
-    return <span className={cls("border-red-500/20 bg-red-500/10", "text-red-300")}>{value}</span>;
-  return <span className={cls("border-white/10 bg-white/5", "text-slate-300")}>{value || "-"}</span>;
-}
-
-function TradeSlipRow({ label, value, valueClassName = "text-white" }) {
+function StatusPill({ trade }) {
+  const tone = resultTone(trade);
+  const classes = {
+    emerald: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
+    red: "border-red-400/20 bg-red-400/10 text-red-300",
+    amber: "border-amber-400/20 bg-amber-400/10 text-amber-300",
+    slate: "border-white/10 bg-white/5 text-slate-300",
+  };
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className={`text-right text-sm font-medium ${valueClassName}`}>{value}</span>
-    </div>
+    <span className={`rounded-full border px-2 py-1 text-[10px] font-bold tracking-wide ${classes[tone]}`}>
+      {resultLabel(trade)}
+    </span>
   );
 }
 
-// ---------- Running Trade Modal (full-screen) ----------
-function RunningTradeModal({ runningTrade, remainingSeconds, onClose }) {
-  const [currentPrice, setCurrentPrice] = useState(runningTrade?.entryPrice || 0);
-  const [priceChange, setPriceChange] = useState(0);
-  const [isPositive, setIsPositive] = useState(true);
-
-  useEffect(() => {
-    if (!runningTrade?.pair) return;
-
-    let cancelled = false;
-    let ws = null;
-    const safeSymbol = String(runningTrade.pair || "").trim().toLowerCase();
-
-    const applyPrice = (nextValue) => {
-      const next = Number(nextValue);
-      if (cancelled || !Number.isFinite(next) || next <= 0) return;
-      setCurrentPrice(next);
-      const delta = next - Number(runningTrade.entryPrice || 0);
-      setPriceChange(delta);
-      setIsPositive(delta >= 0);
-    };
-
-    // The countdown is the trade expiry clock. Market pricing must be an
-    // independent real-time stream, not a 2-second polling loop.
-    try {
-      ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@trade`);
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          applyPrice(message?.p);
-        } catch (_) {}
-      };
-      ws.onerror = () => {
-        // One fallback snapshot is enough; do not start a retry/poll loop.
-        void marketApi.price(runningTrade.pair)
-          .then((res) => applyPrice(res.data?.data?.price || res.data?.data?.lastPrice))
-          .catch(() => {});
-      };
-    } catch (_) {
-      void marketApi.price(runningTrade.pair)
-        .then((res) => applyPrice(res.data?.data?.price || res.data?.data?.lastPrice))
-        .catch(() => {});
-    }
-
-    return () => {
-      cancelled = true;
-      if (ws) {
-        try { ws.close(); } catch (_) {}
-        ws = null;
-      }
-    };
-  }, [runningTrade]);
-
-  const safeTotal = Math.max(1, Number(runningTrade?.timer || 1));
-  const safeRemaining = Math.max(0, Number(remainingSeconds || 0));
-  const progress = safeRemaining / safeTotal;
-  const radius = 100;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - progress);
-  const ringColor = runningTrade?.direction === "bullish" ? "#06b6d4" : "#ef4444";
-
-  const mins = Math.floor(safeRemaining / 60);
-  const secs = safeRemaining % 60;
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4">
-      <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24} /></button>
-      <div className="w-full max-w-md text-center">
-        <div className="relative mx-auto h-56 w-56">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 240 240">
-            <circle cx="120" cy="120" r={radius} stroke="rgba(255,255,255,0.14)" strokeWidth="12" fill="none" />
-            <circle cx="120" cy="120" r={radius} stroke={ringColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: "stroke-dashoffset 1s linear" }} />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-6xl font-bold text-white">{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</div>
-            <div className="mt-1 text-sm text-slate-400">Trade Running</div>
-          </div>
-        </div>
-        <div className="mt-6">
-          <div className="text-3xl font-bold text-white">{formatPrice(currentPrice)}</div>
-          <div className={`text-sm font-semibold ${isPositive ? "text-emerald-300" : "text-red-300"}`}>
-            {isPositive ? "▲" : "▼"} {formatPrice(priceChange)} ({isPositive ? "+" : ""}{formatPercent((priceChange / (runningTrade?.entryPrice || 1)) * 100)}%)
-          </div>
-        </div>
-        <div className="mt-6 space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-slate-400">Pair</span><span className="text-white">{runningTrade?.pair}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Direction</span><span className={runningTrade?.direction === "bullish" ? "text-emerald-300" : "text-red-300"}>{runningTrade?.direction === "bullish" ? "Buy Long" : "Sell Short"}</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Amount</span><span className="text-white">{formatAmount(runningTrade?.amount)} USDT</span></div>
-          <div className="flex justify-between"><span className="text-slate-400">Expected Profit</span><span className="text-cyan-300">+{formatAmount(runningTrade?.expectedProfit)} USDT</span></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Result Modal (stats + receipt) ----------
-function ResultModal({ result, tradeHistory = [], onClose }) {
-  if (!result) return null;
-  const outcome = String(result.result || result.status || "").toLowerCase();
+function TradeReceipt({ trade, onClose }) {
+  if (!trade) return null;
+  const outcome = outcomeOf(trade);
+  const profit = tradeProfit(trade);
+  const entry = Number(trade.entry_price || trade.entryPrice || 0);
+  const exit = Number(trade.exit_price || trade.exitPrice || 0);
+  const movement = entry > 0 && exit > 0 ? ((exit - entry) / entry) * 100 : 0;
   const isWin = outcome === "win";
   const isTie = outcome === "tie";
-  const stake = Number(result.amount || 0);
-  const payoutPercent = Number(result.payout_percent || result.payoutPercent || 0);
-  const profit = isWin ? stake * payoutPercent / 100 : 0;
-  const totalTrades = tradeHistory.length;
-  const wins = tradeHistory.filter(t => String(t.result || t.status || "").toLowerCase().includes("win")).length;
-  const losses = totalTrades - wins;
-  const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
-  const netPnl = tradeHistory.reduce((acc, t) => {
-    const isWinTrade = String(t.result || t.status || "").toLowerCase().includes("win");
-    const amt = Number(t.amount || 0);
-    const payout = Number(t.payout_percent || t.payoutPercent || 0);
-    return acc + (isWinTrade ? amt * payout / 100 : (String(t.result || t.status || "").toLowerCase() === "tie" ? 0 : -amt));
-  }, 0);
-  const orderId = result?.id ? `VT-${new Date().toISOString().slice(0, 10)}-${String(result.id).padStart(3, "0")}` : "VT-PENDING";
-  const entryPrice = Number(result.entry_price || 0);
-  const exitPrice = Number(result.exit_price || entryPrice);
-  const changePercent = entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 : 0;
-  const directionDisplay = result.direction === "bullish" ? "BUY" : "SELL";
+  const receiptId = trade.id ? `VT-TRD-${String(trade.id).padStart(8, "0")}` : "VT-TRD-PENDING";
+
+  async function copyReceiptId() {
+    try {
+      await navigator.clipboard.writeText(receiptId);
+    } catch (_) {}
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050812] p-4 overflow-y-auto">
-      <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={24} /></button>
-      <div className="w-full max-w-md space-y-4">
-        <div className="text-center"><div className={`text-5xl font-bold ${isTie ? "text-amber-300" : (isWin ? "text-emerald-300" : "text-red-300")}`}>{isTie ? "Tie" : (isWin ? "Win" : "Loss")}</div><div className="mt-1 text-sm text-slate-400">Trade Result</div></div>
-        <div className="grid grid-cols-3 gap-2 rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
-          <div className="text-center"><div className="text-xs text-slate-400">Total Trades</div><div className="text-lg font-bold text-white">{totalTrades}</div></div>
-          <div className="text-center"><div className="text-xs text-slate-400">Wins</div><div className="text-lg font-bold text-emerald-300">{wins}</div></div>
-          <div className="text-center"><div className="text-xs text-slate-400">Losses</div><div className="text-lg font-bold text-red-300">{losses}</div></div>
-          <div className="text-center"><div className="text-xs text-slate-400">Win Rate</div><div className="text-lg font-bold text-cyan-300">{winRate.toFixed(1)}%</div></div>
-          <div className="text-center col-span-2"><div className="text-xs text-slate-400">Net P&L</div><div className={`text-lg font-bold ${netPnl >= 0 ? "text-emerald-300" : "text-red-300"}`}>{netPnl >= 0 ? "+" : ""}{formatAmount(netPnl)} USDT</div></div>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2"><span className="text-xs font-mono text-cyan-400">{orderId}</span><span className={`text-xs font-bold ${isWin ? "text-emerald-300" : "text-red-300"}`}>{directionDisplay}</span></div>
-          <div className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-400">Pair</span><span className="font-medium text-white">{result.pair}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Entry</span><span className="font-medium text-white">{formatPrice(entryPrice)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Exit</span><span className="font-medium text-white">{formatPrice(exitPrice)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Change</span><span className={`font-medium ${changePercent >= 0 ? "text-emerald-300" : "text-red-300"}`}>{changePercent >= 0 ? "+" : ""}{formatPercent(changePercent)}%</span></div>
-            <div className="flex justify-between border-t border-white/10 pt-2"><span className="text-slate-400">Profit / Loss</span><span className={`text-lg font-bold ${profit >= 0 ? "text-emerald-300" : "text-red-300"}`}>{profit >= 0 ? "+" : ""}{formatAmount(profit)} USDT</span></div>
-            <div className="flex justify-between text-xs text-slate-500"><span>{formatDateTime(result.updated_at || result.created_at)}</span><span>{result.timer || 60}s completed</span></div>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/10 bg-[#080d19] shadow-2xl sm:rounded-3xl">
+        <div className="sticky top-0 flex items-center justify-between border-b border-white/10 bg-[#080d19]/95 px-4 py-3 backdrop-blur">
+          <div>
+            <div className="text-sm font-semibold text-white">Trade receipt</div>
+            <div className="mt-0.5 text-[10px] text-slate-500">Final settlement record</div>
           </div>
+          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Close receipt">
+            <X size={18} />
+          </button>
         </div>
-        <button onClick={onClose} className="w-full rounded-xl bg-cyan-500 py-3 font-semibold text-black transition hover:bg-cyan-400">Close</button>
+
+        <div className="p-4">
+          <div className={`rounded-2xl border p-4 text-center ${isWin ? "border-emerald-400/20 bg-emerald-400/10" : isTie ? "border-amber-400/20 bg-amber-400/10" : "border-red-400/20 bg-red-400/10"}`}>
+            <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${isWin ? "bg-emerald-400/15" : isTie ? "bg-amber-400/15" : "bg-red-400/15"}`}>
+              {isWin || isTie ? <CheckCircle2 size={28} className={isWin ? "text-emerald-300" : "text-amber-300"} /> : <TrendingDown size={28} className="text-red-300" />}
+            </div>
+            <div className={`mt-3 text-3xl font-bold ${isWin ? "text-emerald-300" : isTie ? "text-amber-300" : "text-red-300"}`}>
+              {resultLabel(trade)}
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              {isWin ? "Stake returned + profit credited" : isTie ? "Stake returned" : "Trade stake settled"}
+            </div>
+            <div className={`mt-3 text-2xl font-bold ${profit >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {profit >= 0 ? "+" : ""}{formatAmount(profit)} USDT
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-white/10 bg-[#050812] p-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Receipt ID</div>
+                <div className="mt-1 font-mono text-xs text-cyan-300">{receiptId}</div>
+              </div>
+              <button onClick={copyReceiptId} className="rounded-lg border border-white/10 p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Copy receipt ID">
+                <Copy size={14} />
+              </button>
+            </div>
+            <div className="mt-3 space-y-2.5">
+              <ReceiptRow label="Pair" value={trade.pair || "—"} />
+              <ReceiptRow label="Side" value={trade.direction === "bullish" ? "BUY" : "SELL"} valueClassName={trade.direction === "bullish" ? "text-emerald-300" : "text-red-300"} />
+              <ReceiptRow label="Amount" value={`${formatAmount(trade.amount)} USDT`} />
+              <ReceiptRow label="Entry price" value={formatPrice(entry)} />
+              <ReceiptRow label="Exit price" value={formatPrice(exit)} />
+              <ReceiptRow label="Market movement" value={`${movement >= 0 ? "+" : ""}${formatPercent(movement)}%`} valueClassName={movement >= 0 ? "text-emerald-300" : "text-red-300"} />
+              <ReceiptRow label="Payout rate" value={`${formatPercent(trade.payout_percent || trade.payoutPercent)}%`} />
+              <ReceiptRow label="Completed" value={formatDateTime(trade.settled_at || trade.updated_at || trade.created_at)} />
+            </div>
+          </div>
+
+          <button onClick={onClose} className="mt-4 w-full rounded-2xl bg-cyan-400 py-3 text-sm font-bold text-[#031016] transition hover:bg-cyan-300">
+            Done
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ---------- main component ----------
+function ReceiptRow({ label, value, valueClassName = "text-white" }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-xs">
+      <span className="text-slate-500">{label}</span>
+      <span className={`text-right font-medium ${valueClassName}`}>{value}</span>
+    </div>
+  );
+}
+
+function RunningTradeModal({ trade, remainingSeconds, livePrice, onClose }) {
+  if (!trade) return null;
+  const total = Math.max(1, Number(trade.timer || trade.timer_seconds || 1));
+  const remaining = Math.max(0, Number(remainingSeconds || 0));
+  const progress = Math.min(1, remaining / total);
+  const entry = Number(trade.entryPrice || trade.entry_price || 0);
+  const current = Number(livePrice || entry);
+  const delta = entry > 0 && current > 0 ? ((current - entry) / entry) * 100 : 0;
+  const radius = 92;
+  const circumference = 2 * Math.PI * radius;
+  const directionUp = trade.direction === "bullish";
+  const timerColor = directionUp ? "#34d399" : "#f87171";
+
+  return (
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#030712]/95 p-4 backdrop-blur-md">
+      <div className="mx-auto flex min-h-full w-full max-w-md items-center justify-center">
+        <div className="w-full rounded-3xl border border-white/10 bg-[#080d19] p-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-cyan-300">Live position</div>
+              <div className="mt-1 text-sm font-semibold text-white">{trade.pair} · {trade.direction === "bullish" ? "BUY" : "SELL"}</div>
+            </div>
+            <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Hide live position">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="mt-5 flex justify-center">
+            <div className="relative h-52 w-52">
+              <svg className="h-full w-full -rotate-90" viewBox="0 0 220 220">
+                <circle cx="110" cy="110" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
+                <circle cx="110" cy="110" r={radius} fill="none" stroke={timerColor} strokeWidth="10" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} style={{ transition: "stroke-dashoffset 1s linear" }} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <Clock3 size={16} className="text-slate-500" />
+                <div className="mt-1 text-4xl font-bold tabular-nums text-white">{formatCountdown(remaining)}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">settling at expiry</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-[#050812] p-4 text-center">
+            <div className="text-[10px] uppercase tracking-widest text-slate-500">Live market price</div>
+            <div className="mt-1 text-2xl font-bold tabular-nums text-white">{formatPrice(current)}</div>
+            <div className={`mt-1 text-xs font-semibold ${delta >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {delta >= 0 ? "+" : ""}{formatPercent(delta)}% vs entry
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <Metric label="Entry" value={formatPrice(entry)} />
+            <Metric label="Stake" value={`${formatAmount(trade.amount)} USDT`} />
+            <Metric label="Payout" value={`${formatPercent(trade.payoutPercent || trade.payout_percent)}%`} />
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] leading-5 text-slate-400">
+            The live price is informational during the countdown. Final WIN/LOSS/TIE and settlement are determined by the backend settlement process at expiry.
+          </div>
+
+          <button onClick={onClose} className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white hover:bg-white/10">
+            Hide live view
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-center">
+      <div className="text-[9px] uppercase tracking-wider text-slate-500">{label}</div>
+      <div className="mt-1 truncate text-xs font-semibold text-white">{value}</div>
+    </div>
+  );
+}
+
 export default function TradePage() {
-  const token = localStorage.getItem("userToken") || localStorage.getItem("token") || "";
+  const token =
+    localStorage.getItem("userToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    "";
   const { showSuccess, showError } = useNotification();
+
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [priceFlash, setPriceFlash] = useState(false);
   const [wallet, setWallet] = useState({ balance: 0 });
   const [rules, setRules] = useState([]);
   const [marketRows, setMarketRows] = useState([]);
@@ -241,49 +330,67 @@ export default function TradePage() {
   const [timer, setTimer] = useState(60);
   const [amount, setAmount] = useState("");
   const [timeframe, setTimeframe] = useState("5m");
-  const [bottomTab, setBottomTab] = useState("orders");
-  const [showRunningTradeModal, setShowRunningTradeModal] = useState(false);
+  const [activeSection, setActiveSection] = useState("trade");
   const [runningTrade, setRunningTrade] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [resultModal, setResultModal] = useState(null);
+  const [livePrice, setLivePrice] = useState(0);
+  const [resultReceipt, setResultReceipt] = useState(null);
+  const [settlementPending, setSettlementPending] = useState(false);
   const [hasTarget, setHasTarget] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
-  const [targetChecking, setTargetChecking] = useState(true);
-  const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
-  const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);\n  const [orderBookData, setOrderBookData] = useState({ asks: [], bids: [] });
+  const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
+  const [orderBookData, setOrderBookData] = useState(makeEmptyDepth());
+
+  const liveTradePriceRef = useRef({ pair: "", price: 0, receivedAt: 0 });
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
-  const liveTradePriceRef = useRef({ pair: "", price: 0, receivedAt: 0 });
+  const expirySyncStartedRef = useRef(false);
 
   const marketMap = useMemo(() => {
     const map = {};
-    marketRows.forEach(item => { if (item?.symbol) map[item.symbol] = item; });
+    marketRows.forEach((item) => {
+      if (item?.symbol) map[String(item.symbol).toUpperCase()] = item;
+    });
     return map;
   }, [marketRows]);
-  const selectedMarket = useMemo(() => marketMap[pair] || null, [marketMap, pair]);
-  const activeRule = useMemo(() => rules.find(item => Number(item.timer_seconds) === Number(timer)) || null, [rules, timer]);
-  const pairList = useMemo(() => marketRows.length > 0 ? marketRows.map(item => item.symbol).filter(Boolean) : DEFAULT_PAIRS, [marketRows]);
-  const priceChange = Number(selectedMarket?.priceChangePercent || 0);
-  const isPositive = priceChange >= 0;
-  const estimatedProfit = useMemo(() => Number(amount || 0) * Number(activeRule?.payout_percent || 0) / 100, [amount, activeRule]);
-  const estimatedPayout = useMemo(() => Number(amount || 0) + estimatedProfit, [amount, estimatedProfit]);
-  const targetProgressPercent = useMemo(() => targetProgress.targetAmount <= 0 ? 0 : (targetProgress.currentProfit / targetProgress.targetAmount) * 100, [targetProgress]);
-  const orderBookData = useMemo(() => buildOrderBook(selectedMarket?.lastPrice || selectedMarket?.price || 0), [selectedMarket]);
-  const maxTotal = useMemo(() => Math.max(...[...orderBookData.asks, ...orderBookData.bids].map(row => row.total), 1), [orderBookData]);
+  const selectedMarket = marketMap[String(pair).toUpperCase()] || null;
+  const activeRule = useMemo(
+    () => rules.find((item) => Number(item.timer_seconds) === Number(timer)) || null,
+    [rules, timer]
+  );
+  const pairList = useMemo(() => {
+    const symbols = marketRows.map((item) => String(item?.symbol || "").toUpperCase()).filter(Boolean);
+    return symbols.length ? [...new Set(symbols)] : DEFAULT_PAIRS;
+  }, [marketRows]);
 
-  useEffect(() => { loadTradePage(); checkUserTarget(); }, []);
-  useEffect(() => { if (hasTarget && targetProgress.targetAmount > 0) checkAndPromptNewTarget(); }, [hasTarget, targetProgress]);
+  const displayPrice = Number(livePrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
+  const priceChange = Number(selectedMarket?.priceChangePercent || 0);
+  const estimatedProfit = Number(amount || 0) * Number(activeRule?.payout_percent || 0) / 100;
+  const estimatedReturn = Number(amount || 0) + estimatedProfit;
+  const targetPercent =
+    Number(targetProgress.targetAmount) > 0
+      ? Math.min(100, Math.max(0, Number(targetProgress.currentProfit) / Number(targetProgress.targetAmount) * 100))
+      : 0;
+  const maxDepthTotal = useMemo(
+    () => Math.max(1, ...orderBookData.asks.concat(orderBookData.bids).map((row) => row.total)),
+    [orderBookData]
+  );
+
+  useEffect(() => {
+    loadTradePage();
+    checkUserTarget();
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let ws = null;
     const safeSymbol = String(pair || "").trim().toLowerCase();
+    liveTradePriceRef.current = { pair: "", price: 0, receivedAt: 0 };
+    setLivePrice(0);
     if (!safeSymbol) return undefined;
 
     try {
-      // This stream is the source of truth for the price captured at the
-      // instant BUY/SELL is clicked. No synthetic price generation and no
-      // polling loop are used.
       ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@trade`);
       ws.onmessage = (event) => {
         if (cancelled) return;
@@ -291,11 +398,13 @@ export default function TradePage() {
           const message = JSON.parse(event.data);
           const price = Number(message?.p);
           if (!Number.isFinite(price) || price <= 0) return;
+          const normalizedPair = String(pair).toUpperCase();
           liveTradePriceRef.current = {
-            pair: String(pair || "").toUpperCase(),
+            pair: normalizedPair,
             price,
-            receivedAt: Date.now(),
+            receivedAt: Number(message?.T || Date.now()),
           };
+          setLivePrice(price);
         } catch (_) {}
       };
     } catch (_) {}
@@ -304,7 +413,6 @@ export default function TradePage() {
       cancelled = true;
       if (ws) {
         try { ws.close(); } catch (_) {}
-        ws = null;
       }
     };
   }, [pair]);
@@ -313,285 +421,696 @@ export default function TradePage() {
     let cancelled = false;
     let ws = null;
     const safeSymbol = String(pair || "").trim().toLowerCase();
-    setOrderBookData({ asks: [], bids: [] });
+    setOrderBookData(makeEmptyDepth());
     if (!safeSymbol) return undefined;
+
     try {
       ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@depth20@1000ms`);
       ws.onmessage = (event) => {
         if (cancelled) return;
         try {
           const message = JSON.parse(event.data);
-          const normalize = (levels) => (Array.isArray(levels) ? levels : [])
-            .map(([price, amount]) => ({ price: Number(price), amount: Number(amount) }))
-            .filter(row => Number.isFinite(row.price) && row.price > 0 && Number.isFinite(row.amount) && row.amount > 0)
-            .map(row => ({ ...row, total: row.price * row.amount }));
           setOrderBookData({
-            asks: normalize(message?.asks).sort((a,b) => a.price-b.price).slice(0, 6),
-            bids: normalize(message?.bids).sort((a,b) => b.price-a.price).slice(0, 6),
+            asks: normalizeDepth(message?.asks).sort((a, b) => a.price - b.price).slice(0, 8),
+            bids: normalizeDepth(message?.bids).sort((a, b) => b.price - a.price).slice(0, 8),
           });
         } catch (_) {}
       };
     } catch (_) {}
+
     return () => {
       cancelled = true;
-      if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+      }
     };
   }, [pair]);
 
-  // Trade state is loaded on entry and after intentional user actions only.
-  // Do not continuously poll financial endpoints while this page is open.
+  useEffect(() => {
+    if (!runningTrade) return;
+    setRemainingSeconds(secondsUntil(runningTrade.endTime || runningTrade.endsAt));
+    setSettlementPending(false);
+    expirySyncStartedRef.current = false;
+  }, [runningTrade]);
 
   useEffect(() => {
-    if (!showRunningTradeModal || remainingSeconds <= 0) return;
+    if (!runningTrade) return undefined;
     const interval = setInterval(() => {
-      setRemainingSeconds(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
+      setRemainingSeconds(secondsUntil(runningTrade.endTime || runningTrade.endsAt));
     }, 1000);
     return () => clearInterval(interval);
-  }, [showRunningTradeModal, remainingSeconds]);
+  }, [runningTrade]);
 
   useEffect(() => {
-    if (!showRunningTradeModal || remainingSeconds > 0) return;
-    setShowRunningTradeModal(false);
-    syncTradeState(false);
-    refreshTargetProgress();
-    refreshWallet();
-  }, [remainingSeconds, showRunningTradeModal]);
-
-  useEffect(() => {
-    if (!selectedMarket) return;
-    setPriceFlash(true);
-    const timeout = setTimeout(() => setPriceFlash(false), 300);
-    return () => clearTimeout(timeout);
-  }, [selectedMarket?.lastPrice, selectedMarket?.price]);
+    if (!runningTrade || remainingSeconds > 0 || expirySyncStartedRef.current) return;
+    expirySyncStartedRef.current = true;
+    setSettlementPending(true);
+    setRunningTrade(null);
+    void finalizeExpiredTrade();
+  }, [remainingSeconds, runningTrade]);
 
   async function refreshWallet() {
     try {
-      const walletRes = await userApi.getWalletSummary(token);
-      if (walletRes.status === 200) {
-        const data = walletRes.data?.data || {};
+      const res = await userApi.getWalletSummary(token);
+      if (res.status === 200) {
+        const data = res.data?.data || {};
         setWallet({ balance: Number(data.balance || 0) });
       }
     } catch (_) {}
   }
 
   async function loadTradePage() {
-    try {
-      setLoading(true);
-      const [walletRes, rulesRes, marketRes, openRes, historyRes] = await Promise.allSettled([
-        userApi.getWalletSummary(token),
-        tradeApi.rules(token),
-        marketApi.home(),
-        tradeApi.open(token),
-        tradeApi.history(token),
-      ]);
-      if (walletRes.status === "fulfilled") {
-        const data = walletRes.value.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0) });
-      }
-      if (rulesRes.status === "fulfilled") setRules(Array.isArray(rulesRes.value.data?.data) ? rulesRes.value.data.data : []);
-      if (marketRes.status === "fulfilled") {
-        const rows = Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : [];
-        setMarketRows(rows);
-        if (rows.length > 0 && !rows.some(item => item.symbol === pair)) setPair(rows[0]?.symbol || "BTCUSDT");
-      }
-      if (openRes.status === "fulfilled") setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
-      if (historyRes.status === "fulfilled") setTradeHistory(Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : []);
-    } catch (err) {
-      showError(getApiErrorMessage(err) || "Failed to load trading terminal");
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const [walletRes, rulesRes, marketRes, openRes, historyRes] = await Promise.allSettled([
+      userApi.getWalletSummary(token),
+      tradeApi.rules(token),
+      marketApi.home(),
+      tradeApi.open(token),
+      tradeApi.history(token),
+    ]);
+
+    if (walletRes.status === "fulfilled") {
+      const data = walletRes.value.data?.data || {};
+      setWallet({ balance: Number(data.balance || 0) });
     }
+    if (rulesRes.status === "fulfilled") {
+      setRules(Array.isArray(rulesRes.value.data?.data) ? rulesRes.value.data.data : []);
+    }
+    if (marketRes.status === "fulfilled") {
+      const rows = Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : [];
+      setMarketRows(rows);
+      if (rows.length && !rows.some((item) => String(item?.symbol).toUpperCase() === String(pair).toUpperCase())) {
+        setPair(String(rows[0]?.symbol || "BTCUSDT").toUpperCase());
+      }
+    }
+    if (openRes.status === "fulfilled") {
+      setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
+    }
+    if (historyRes.status === "fulfilled") {
+      const history = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
+      setTradeHistory(history);
+      revealSettledTrade(history);
+    }
+    if (walletRes.status === "rejected" && rulesRes.status === "rejected" && marketRes.status === "rejected") {
+      showError("Trading terminal could not load. Please check your connection.");
+    }
+    setLoading(false);
   }
 
   async function syncTradeState(showSpinner = false) {
+    if (showSpinner) setRefreshing(true);
     try {
-      if (showSpinner) setRefreshing(true);
       const [openRes, historyRes] = await Promise.allSettled([
         tradeApi.open(token),
         tradeApi.history(token),
       ]);
-      let latestHistory = tradeHistory;
-      if (openRes.status === "fulfilled") setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
+      if (openRes.status === "fulfilled") {
+        setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
+      }
       if (historyRes.status === "fulfilled") {
-        latestHistory = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
-        setTradeHistory(latestHistory);
+        const history = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
+        setTradeHistory(history);
+        revealSettledTrade(history);
       }
-      const latestPlacedId = lastPlacedTradeIdRef.current;
-      if (latestPlacedId) {
-        const settledTrade = latestHistory.find(item => Number(item.id) === Number(latestPlacedId) && ["win", "loss", "settled", "completed"].includes(String(item.status || item.result || "").toLowerCase()));
-        if (settledTrade && shownSettledTradeIdRef.current !== settledTrade.id) {
-          shownSettledTradeIdRef.current = settledTrade.id;
-          setResultModal(settledTrade);
-          refreshTargetProgress();
-        }
-      }
-    } catch (_) {} finally {
+    } catch (_) {
+      // Read-only sync failure is intentionally silent; the action itself has already ended.
+    } finally {
       if (showSpinner) setRefreshing(false);
+    }
+  }
+
+  function revealSettledTrade(history) {
+    const id = Number(lastPlacedTradeIdRef.current || 0);
+    if (!id || !Array.isArray(history)) return;
+    const settled = history.find((item) => Number(item?.id) === id && isSettled(item));
+    if (!settled || shownSettledTradeIdRef.current === id) return;
+    shownSettledTradeIdRef.current = id;
+    setSettlementPending(false);
+    setResultReceipt(settled);
+    setActiveSection("history");
+  }
+
+  async function finalizeExpiredTrade() {
+    const id = Number(lastPlacedTradeIdRef.current || 0);
+    if (!id) {
+      setSettlementPending(false);
+      return;
+    }
+    try {
+      await syncTradeState(false);
+      // A single controlled read is enough to catch a settlement completed at the same
+      // moment as expiry. There is deliberately no financial polling/retry loop here.
+      if (shownSettledTradeIdRef.current !== id) {
+        setSettlementPending(true);
+      }
+      await refreshWallet();
+      await refreshTargetProgress();
+    } catch (_) {
+      setSettlementPending(true);
     }
   }
 
   async function checkUserTarget() {
     try {
-      setTargetChecking(true);
       const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const targetData = res.data.data.target;
-        setHasTarget(true);
-        setUserTarget(targetData);
-        setTargetProgress({ currentProfit: Number(targetData.current_profit || 0), targetAmount: Number(targetData.target_amount || 0) });
+      const has = Boolean(res.data?.success && res.data?.data?.hasTarget);
+      setHasTarget(has);
+      if (has) {
+        const target = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(target?.current_profit || 0),
+          targetAmount: Number(target?.target_amount || 0),
+        });
         setTargetAchievedNotified(false);
-      } else {
-        setHasTarget(false);
-        setUserTarget(null);
       }
-    } catch (err) { console.error(err); } finally { setTargetChecking(false); }
+    } catch (_) {}
   }
 
   async function refreshTargetProgress() {
     try {
       const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const targetData = res.data.data.target;
-        setTargetProgress({ currentProfit: Number(targetData.current_profit || 0), targetAmount: Number(targetData.target_amount || 0) });
+      if (res.data?.success && res.data?.data?.hasTarget) {
+        const target = res.data.data.target;
+        setTargetProgress({
+          currentProfit: Number(target?.current_profit || 0),
+          targetAmount: Number(target?.target_amount || 0),
+        });
       }
-    } catch (err) { console.error(err); }
+    } catch (_) {}
   }
 
-  async function checkAndPromptNewTarget() {
-    try {
-      const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data.data.hasTarget) {
-        const target = res.data.data.target;
-        if (Number(target.current_profit) >= Number(target.target_amount) && !targetAchievedNotified) {
-          setTargetAchievedNotified(true);
-          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
-          setShowTargetModal(true);
-        }
-      }
-    } catch (err) { console.error(err); }
-  }
+  useEffect(() => {
+    if (
+      hasTarget &&
+      targetProgress.targetAmount > 0 &&
+      targetProgress.currentProfit >= targetProgress.targetAmount &&
+      !targetAchievedNotified
+    ) {
+      setTargetAchievedNotified(true);
+      showSuccess(`Target achieved: ${Number(targetProgress.currentProfit).toFixed(2)} / ${Number(targetProgress.targetAmount).toFixed(2)} USDT`);
+    }
+  }, [hasTarget, targetProgress, targetAchievedNotified, showSuccess]);
 
   async function handleQuickAmount(percent) {
     try {
       const res = await tradeApi.quickAmount({ percentage: percent }, token);
-      setAmount(String(res.data?.data?.amount || ""));
-    } catch (err) { showError(getApiErrorMessage(err)); }
+      setAmount(String(res.data?.data?.amount ?? ""));
+    } catch (err) {
+      showError(getApiErrorMessage(err) || "Unable to calculate amount.");
+    }
   }
 
-  async function handlePlaceTrade(e) {
-    e.preventDefault();
-    if (!hasTarget) { setShowTargetModal(true); return; }
-    if (!pair || !direction || ![60, 180, 300].includes(Number(timer))) { showError("Please select pair, direction and timer"); return; }
-    if (!amount || Number(amount) <= 0) { showError("Enter a valid trade amount"); return; }
+  async function handlePlaceTrade(event) {
+    event.preventDefault();
+    if (placing) return;
+
+    if (!hasTarget) {
+      setShowTargetModal(true);
+      return;
+    }
+    if (!pair || !TIMER_OPTIONS.includes(Number(timer))) {
+      showError("Select a valid market and duration.");
+      return;
+    }
+
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      showError("Enter a valid USDT amount.");
+      return;
+    }
+    if (numericAmount > Number(wallet.balance || 0)) {
+      showError("Insufficient available USDT balance.");
+      return;
+    }
+
+    const liveSnapshot = liveTradePriceRef.current;
+    const normalizedPair = String(pair).toUpperCase();
+    const entryPrice = liveSnapshot.pair === normalizedPair ? Number(liveSnapshot.price) : 0;
+    if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+      showError("Live market price is not ready yet. Wait for the price to appear and try again.");
+      return;
+    }
+
+    const idempotencyKey = createActionIdempotencyKey("trade");
     try {
       setPlacing(true);
-      const idempotencyKey = createActionIdempotencyKey("trade");
-      const liveSnapshot = liveTradePriceRef.current.pair === String(pair || "").toUpperCase() ? liveTradePriceRef.current : null;
-      const clickedEntryPrice = Number(liveSnapshot?.price || 0);
-      if (!Number.isFinite(clickedEntryPrice) || clickedEntryPrice <= 0) throw new Error("Live market price is not available yet. Please wait for the selected pair price to appear and try again.");
-      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), entryPrice: clickedEntryPrice, entryPriceAt: liveSnapshot?.receivedAt || Date.now(), idempotencyKey }, token));
-      const data = res.data?.data || {};
-      const tradeId = Number(data.tradeId || 0);
-      if (tradeId) { lastPlacedTradeIdRef.current = tradeId; shownSettledTradeIdRef.current = null; }
-      const placedAmount = Number(data.amount || amount);
-      const payoutPercent = Number(data.payoutPercent || activeRule?.payout_percent || 0);
-      const entryPrice = Number(data.entryPrice || selectedMarket?.lastPrice || selectedMarket?.price || 0);
-      const expectedProfit = (placedAmount * payoutPercent) / 100;
-      showSuccess("Trade placed!");
+      const response = await runSingleUserAction("trade-submit", () =>
+        tradeApi.place(
+          {
+            pair: normalizedPair,
+            direction,
+            timer: Number(timer),
+            amount: numericAmount,
+            entryPrice,
+            entryPriceAt: liveSnapshot.receivedAt || Date.now(),
+            idempotencyKey,
+          },
+          token
+        )
+      );
+      const data = response.data?.data || {};
+      const tradeId = Number(data.tradeId || data.id || 0);
+      if (!tradeId) throw new Error("Trade was submitted but no trade reference was returned.");
+
+      lastPlacedTradeIdRef.current = tradeId;
+      shownSettledTradeIdRef.current = null;
+
+      const placedTrade = {
+        id: tradeId,
+        pair: normalizedPair,
+        direction,
+        timer: Number(data.timer || timer),
+        amount: Number(data.amount || numericAmount),
+        entryPrice: Number(data.entryPrice || entryPrice),
+        payoutPercent: Number(data.payoutPercent || activeRule?.payout_percent || 0),
+        endTime: data.endTime || null,
+        status: "open",
+      };
+
       setAmount("");
-      setRunningTrade({ tradeId, pair, direction, timer: Number(timer), amount: placedAmount, entryPrice, payoutPercent, expectedProfit, endsAt: data.endTime || null });
-      setRemainingSeconds(Number(timer));
-      setShowRunningTradeModal(true);
+      setRunningTrade(placedTrade);
+      setSettlementPending(false);
+      setActiveSection("orders");
       await Promise.all([syncTradeState(false), refreshWallet()]);
-      setBottomTab("orders");
-    } catch (err) { showError(getApiErrorMessage(err)); }
-    finally { setPlacing(false); }
+      showSuccess(`Trade #${tradeId} placed at ${formatPrice(placedTrade.entryPrice)}.`);
+    } catch (err) {
+      showError(getApiErrorMessage(err) || "Trade could not be placed.");
+    } finally {
+      setPlacing(false);
+    }
   }
 
   function handleTargetSet(targetAmount) {
     setHasTarget(true);
     setTargetProgress({ currentProfit: 0, targetAmount: Number(targetAmount) });
     setTargetAchievedNotified(false);
-    showSuccess(`Target set to ${targetAmount} USDT!`);
   }
 
-  if (loading) return <div className="p-4"><div className="rounded-3xl border border-white/10 bg-[#0a0e1a] p-6 text-slate-300">Loading terminal...</div></div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#050812] p-4 text-slate-300">
+        <div className="mx-auto max-w-6xl animate-pulse rounded-3xl border border-white/10 bg-[#0a0e1a] p-5 text-sm">
+          Loading trading terminal…
+        </div>
+      </div>
+    );
+  }
+
+  const liveStreamReady = liveTradePriceRef.current.pair === String(pair).toUpperCase() && displayPrice > 0;
+  const bestAsk = orderBookData.asks[0]?.price || 0;
+  const bestBid = orderBookData.bids[0]?.price || 0;
+  const spread = depthSpread(orderBookData);
 
   return (
-    <div className="min-h-screen bg-[#050812] pb-20 sm:pb-6">
+    <div className="min-h-screen bg-[#050812] pb-20 text-white sm:pb-6">
       {hasTarget && targetProgress.targetAmount > 0 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#050812]/90 px-3 py-2 text-sm backdrop-blur-sm border-b border-cyan-500/20">
-          <Target size={14} className="text-cyan-400" /><span className="text-slate-300">Goal:</span>
-          <span className="font-semibold text-white">{targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT</span>
-          <div className="h-1.5 w-24 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} /></div>
-          <span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span>
+        <div className="sticky top-0 z-20 border-b border-cyan-400/15 bg-[#050812]/90 px-3 py-2 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-2">
+            <Target size={14} className="shrink-0 text-cyan-300" />
+            <span className="text-[10px] uppercase tracking-wider text-slate-500">Goal</span>
+            <span className="text-xs font-semibold text-white">
+              {formatAmount(targetProgress.currentProfit)} / {formatAmount(targetProgress.targetAmount)} USDT
+            </span>
+            <div className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-white/10 sm:max-w-48">
+              <div className="h-full rounded-full bg-cyan-400 transition-all" style={{ width: `${targetPercent}%` }} />
+            </div>
+            <span className="text-[10px] font-semibold text-cyan-300">{targetPercent.toFixed(0)}%</span>
+          </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <select value={pair} onChange={(e) => setPair(e.target.value)} className="bg-transparent text-lg font-bold text-white outline-none">{pairList.map(p => <option key={p} value={p}>{p}</option>)}</select>
-          <span className={`text-xl font-bold ${isPositive ? "text-emerald-300" : "text-red-300"} ${priceFlash ? "scale-105 transition" : ""}`}>{selectedMarket ? formatPrice(selectedMarket.lastPrice || selectedMarket.price) : "0.00"}</span>
-          <span className={`text-sm font-semibold ${isPositive ? "text-emerald-300" : "text-red-300"}`}>{isPositive ? "+" : ""}{formatPercent(priceChange)}%</span>
-        </div>
-        <div className="flex items-center gap-2"><span className="rounded-full border border-white/10 bg-[#0a0e1a] px-3 py-1 text-xs font-medium text-white">{formatAmount(wallet.balance)} USDT</span><button onClick={() => syncTradeState(true)} className="rounded-full border border-white/10 bg-[#0a0e1a] p-2 text-white transition hover:bg-white/5"><RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /></button></div>
-      </div>
-
-      <div className="border-b border-white/10 bg-[#0a0e1a] p-2">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap items-center gap-1">{["1m", "5m", "15m", "1h"].map(tf => <button key={tf} type="button" onClick={() => setTimeframe(tf)} className={`rounded-md px-2 py-1 text-xs font-medium transition ${timeframe === tf ? "bg-cyan-500 text-black" : "text-slate-400 hover:text-white"}`}>{tf}</button>)}</div><span className="text-[10px] text-slate-500">Live</span></div>
-        <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#050812]"><MarketChart symbol={pair} interval={timeframe} height={280} /></div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2 shadow-xl">
-          <div className="flex items-center justify-between mb-1"><h3 className="text-[10px] font-semibold text-white">Order Book</h3><span className="text-[8px] text-slate-500">Depth</span></div>
-          <div className="flex gap-0.5">
-            <div className="flex-1 space-y-0">{orderBookData.asks.slice(0, 5).map((row, idx) => <div key={`ask-${idx}`} className="relative flex items-center justify-between text-[9px] px-0.5 py-0 leading-tight hover:bg-white/5"><span className="w-1/3 font-medium text-red-300 truncate">{formatPrice(row.price)}</span><span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span><span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span><div className="absolute right-0 top-0 h-full rounded-r-sm bg-red-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} /></div>)}</div>
-            <div className="flex min-w-[40px] items-center justify-center border-x border-white/10 bg-[#050812] px-0.5 text-center text-[7px] text-slate-400">{formatPrice(spread(orderBookData))}</div>
-            <div className="flex-1 space-y-0">{orderBookData.bids.slice(0, 5).map((row, idx) => <div key={`bid-${idx}`} className="relative flex items-center justify-between text-[9px] px-0.5 py-0 leading-tight hover:bg-white/5"><span className="w-1/3 font-medium text-emerald-300 truncate">{formatPrice(row.price)}</span><span className="w-1/3 text-center text-slate-300 truncate">{formatAmount(row.amount)}</span><span className="w-1/3 text-right text-slate-400 truncate">{formatPrice(row.total)}</span><div className="absolute left-0 top-0 h-full rounded-l-sm bg-emerald-500/20" style={{ width: `${Math.min(100, (row.total / maxTotal) * 100)}%` }} /></div>)}</div>
+      <header className="border-b border-white/10 bg-[#070c17]">
+        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={pair}
+                    onChange={(e) => setPair(e.target.value)}
+                    className="appearance-none rounded-xl border border-white/10 bg-[#0a0e1a] py-2 pl-3 pr-8 text-sm font-bold text-white outline-none focus:border-cyan-400/50"
+                    aria-label="Trading pair"
+                  >
+                    {pairList.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-3.5 text-slate-500" />
+                </div>
+                <span className={`hidden text-[10px] font-semibold sm:inline ${liveStreamReady ? "text-emerald-300" : "text-amber-300"}`}>
+                  {liveStreamReady ? "● LIVE" : "○ CONNECTING"}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-xl font-bold tabular-nums sm:text-2xl">{formatPrice(displayPrice)}</span>
+                <span className={`text-xs font-semibold ${priceChange >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                  {priceChange >= 0 ? "+" : ""}{formatPercent(priceChange)}%
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="hidden rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-right sm:block">
+                <div className="text-[9px] uppercase tracking-wider text-slate-500">Available</div>
+                <div className="text-xs font-bold text-white">{formatAmount(wallet.balance)} USDT</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => syncTradeState(true)}
+                disabled={refreshing}
+                className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 text-slate-300 hover:text-white disabled:opacity-60"
+                aria-label="Refresh orders"
+              >
+                <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
+              </button>
+            </div>
           </div>
         </div>
+      </header>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
-          <form onSubmit={handlePlaceTrade} className="space-y-3">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#050812] p-1"><button type="button" onClick={() => setDirection("bullish")} className={`rounded-lg py-2 text-sm font-semibold transition ${direction === "bullish" ? "bg-emerald-500 text-black" : "text-slate-400 hover:text-white"}`}><TrendingUp size={14} className="inline mr-1" /> Buy</button><button type="button" onClick={() => setDirection("bearish")} className={`rounded-lg py-2 text-sm font-semibold transition ${direction === "bearish" ? "bg-red-500 text-black" : "text-slate-400 hover:text-white"}`}><TrendingDown size={14} className="inline mr-1" /> Sell</button></div>
-            <div><label className="mb-1 block text-xs text-slate-400">Timer</label><div className="grid grid-cols-3 gap-2">{[60, 180, 300].map(t => <button key={t} type="button" onClick={() => setTimer(t)} className={`rounded-xl py-1.5 text-xs font-semibold transition ${Number(timer) === t ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>{t}s</button>)}</div></div>
-            <div><label className="mb-1 block text-xs text-slate-400">Amount (USDT)</label><input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500" /><div className="mt-1 grid grid-cols-4 gap-1">{[25, 50, 75, 100].map(p => <button key={p} type="button" onClick={() => handleQuickAmount(p)} className="rounded-xl border border-white/10 bg-[#0a0e1a] py-1 text-xs font-medium text-slate-300 hover:bg-white/5">{p}%</button>)}</div></div>
-            <div className="flex justify-between text-xs text-slate-400"><span>Available</span><span className="text-white">{formatAmount(wallet.balance)} USDT</span></div>
-            <div className="rounded-xl border border-white/10 bg-[#050812] p-2 text-xs"><div className="grid grid-cols-3 gap-1"><div><span className="text-slate-500">Payout</span> <span className="font-semibold text-white">{formatPercent(activeRule?.payout_percent || 0)}%</span></div><div><span className="text-slate-500">Profit</span> <span className="font-semibold text-emerald-300">+{formatAmount(estimatedProfit)}</span></div><div><span className="text-slate-500">Return</span> <span className="font-semibold text-cyan-300">{formatAmount(estimatedPayout)}</span></div></div></div>
-            <button type="submit" disabled={placing || showRunningTradeModal} className={`w-full rounded-xl py-2.5 text-sm font-bold text-black transition hover:scale-[1.02] disabled:opacity-60 ${direction === "bullish" ? "bg-gradient-to-r from-emerald-400 to-emerald-600" : "bg-gradient-to-r from-red-400 to-red-600"}`}>{placing ? "Placing..." : showRunningTradeModal ? "Trade Running..." : `${direction === "bullish" ? "Buy" : "Sell"} ${pair}`}</button>
-          </form>
+      <main className="mx-auto max-w-6xl">
+        <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
+          <div className="flex gap-1 overflow-x-auto pb-2">
+            {["trade", "orders", "history"].map((section) => (
+              <button
+                key={section}
+                type="button"
+                onClick={() => setActiveSection(section)}
+                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${activeSection === section ? "bg-cyan-400 text-[#031016]" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+              >
+                {section === "trade" ? "Trade" : section === "orders" ? `Open Orders ${openTrades.length ? `(${openTrades.length})` : ""}` : "Trade History"}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {activeSection === "trade" && (
+          <>
+            <section className="border-b border-white/10 p-3 sm:p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Market</div>
+                <div className="flex gap-1">
+                  {["1m", "5m", "15m", "1h"].map((tf) => (
+                    <button key={tf} type="button" onClick={() => setTimeframe(tf)} className={`rounded-md px-2 py-1 text-[10px] font-medium ${timeframe === tf ? "bg-white/10 text-white" : "text-slate-500 hover:text-white"}`}>
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <MarketChart symbol={pair} interval={timeframe} height={270} />
+            </section>
+
+            <section className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[1.25fr_.75fr]">
+              <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2.5">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <div>
+                    <div className="text-xs font-semibold text-white">Order book</div>
+                    <div className="text-[9px] text-slate-500">{liveStreamReady ? "Live market depth" : "Waiting for depth"}</div>
+                  </div>
+                  <div className="text-right text-[9px] text-slate-500">
+                    Spread <span className="text-slate-300">{formatPrice(spread)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1 border-b border-white/10 pb-1 text-[9px] uppercase tracking-wider text-slate-600">
+                  <div className="flex justify-between px-1"><span>Price</span><span>Amount</span></div>
+                  <div className="flex justify-between px-1"><span>Price</span><span>Amount</span></div>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="space-y-0.5 py-1">
+                    {orderBookData.asks.slice(0, 6).map((row, index) => (
+                      <DepthRow key={`ask-${row.price}-${index}`} row={row} maxTotal={maxDepthTotal} side="ask" />
+                    ))}
+                  </div>
+                  <div className="space-y-0.5 border-l border-white/10 py-1">
+                    {orderBookData.bids.slice(0, 6).map((row, index) => (
+                      <DepthRow key={`bid-${row.price}-${index}`} row={row} maxTotal={maxDepthTotal} side="bid" />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between border-y border-white/10 bg-[#050812] px-2 py-2 text-[10px]">
+                  <span className="text-slate-500">Best bid</span><span className="text-emerald-300">{formatPrice(bestBid)}</span>
+                  <span className="text-slate-500">Best ask</span><span className="text-red-300">{formatPrice(bestAsk)}</span>
+                </div>
+              </div>
+
+              <form onSubmit={handlePlaceTrade} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 shadow-xl">
+                <div className="mb-3">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Place trade</div>
+                  <div className="mt-1 text-xs text-slate-400">One action → one order → one receipt</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#050812] p-1">
+                  <button type="button" onClick={() => setDirection("bullish")} className={`rounded-lg py-2.5 text-xs font-bold ${direction === "bullish" ? "bg-emerald-400 text-[#031016]" : "text-slate-400 hover:text-white"}`}>
+                    <TrendingUp size={14} className="mr-1 inline" /> BUY
+                  </button>
+                  <button type="button" onClick={() => setDirection("bearish")} className={`rounded-lg py-2.5 text-xs font-bold ${direction === "bearish" ? "bg-red-400 text-[#180406]" : "text-slate-400 hover:text-white"}`}>
+                    <TrendingDown size={14} className="mr-1 inline" /> SELL
+                  </button>
+                </div>
+
+                <div className="mt-3">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-[10px] uppercase tracking-wider text-slate-500">Duration</label>
+                    <span className="text-[10px] text-slate-500">Auto-settlement</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {TIMER_OPTIONS.map((seconds) => (
+                      <button key={seconds} type="button" onClick={() => setTimer(seconds)} className={`rounded-xl border py-2 text-xs font-semibold ${Number(timer) === seconds ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-white/10 bg-[#050812] text-slate-400 hover:text-white"}`}>
+                        {seconds < 60 ? `${seconds}s` : `${seconds / 60}m`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label htmlFor="trade-amount" className="text-[10px] uppercase tracking-wider text-slate-500">Amount</label>
+                    <span className="text-[10px] text-slate-500">USDT</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="trade-amount"
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-3 pr-16 text-sm font-semibold text-white outline-none focus:border-cyan-400/50"
+                    />
+                    <span className="absolute right-3 top-3 text-xs font-semibold text-slate-500">USDT</span>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-4 gap-1">
+                    {[25, 50, 75, 100].map((percent) => (
+                      <button key={percent} type="button" onClick={() => handleQuickAmount(percent)} className="rounded-lg border border-white/10 bg-[#050812] py-1.5 text-[10px] font-semibold text-slate-400 hover:bg-white/5 hover:text-white">
+                        {percent}%
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-1.5 flex justify-between text-[10px]">
+                    <span className="text-slate-500">Available</span>
+                    <span className="font-semibold text-slate-300">{formatAmount(wallet.balance)} USDT</span>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-1.5">
+                  <Quote label="Payout" value={`${formatPercent(activeRule?.payout_percent)}%`} />
+                  <Quote label="Profit" value={`+${formatAmount(estimatedProfit)}`} valueClassName="text-emerald-300" />
+                  <Quote label="Return" value={formatAmount(estimatedReturn)} valueClassName="text-cyan-300" />
+                </div>
+
+                <div className="mt-3 rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[10px] leading-4 text-slate-400">
+                  Entry price is captured from the live market stream at the exact BUY/SELL action. Final settlement uses the backend expiry process.
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={placing || !liveStreamReady}
+                  className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${direction === "bullish" ? "bg-emerald-400 text-[#031016] hover:bg-emerald-300" : "bg-red-400 text-[#180406] hover:bg-red-300"}`}
+                >
+                  <Zap size={15} />
+                  {placing ? "Placing trade…" : !liveStreamReady ? "Waiting for live price…" : `${direction === "bullish" ? "Buy" : "Sell"} ${pair}`}
+                </button>
+              </form>
+            </section>
+          </>
+        )}
+
+        {activeSection === "orders" && (
+          <section className="p-3 sm:p-4">
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <div className="text-sm font-semibold text-white">Open orders</div>
+                <div className="text-[10px] text-slate-500">Active positions currently awaiting expiry</div>
+              </div>
+              <button type="button" onClick={() => syncTradeState(true)} className="text-[10px] text-cyan-300 hover:text-cyan-200">Refresh</button>
+            </div>
+            {settlementPending && (
+              <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] text-amber-200">
+                <Clock3 size={14} />
+                Trade expiry reached. Settlement is still being processed by the backend. Refresh Orders/History when the final receipt is available.
+              </div>
+            )}
+            <div className="space-y-2">
+              {openTrades.length ? openTrades.map((trade) => (
+                <OpenTradeCard key={trade.id} trade={trade} onOpen={() => {
+                  lastPlacedTradeIdRef.current = Number(trade.id);
+                  setRunningTrade({
+                    ...trade,
+                    entryPrice: Number(trade.entry_price || 0),
+                    payoutPercent: Number(trade.payout_percent || 0),
+                    endTime: trade.end_time,
+                    timer: Number(trade.timer_seconds || trade.timer || 60),
+                  });
+                }} />
+              )) : (
+                <EmptyState icon={BarChart3} title="No open trades" body="Your active positions will appear here after a successful BUY or SELL." />
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeSection === "history" && (
+          <section className="p-3 sm:p-4">
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <div className="text-sm font-semibold text-white">Trade history</div>
+                <div className="text-[10px] text-slate-500">Completed settlement records</div>
+              </div>
+              <div className="text-[10px] text-slate-500">{tradeHistory.length} records</div>
+            </div>
+            <div className="space-y-2">
+              {tradeHistory.length ? tradeHistory.slice(0, 50).map((trade) => (
+                <HistoryCard
+                  key={trade.id}
+                  trade={trade}
+                  onReceipt={() => setResultReceipt(trade)}
+                />
+              )) : (
+                <EmptyState icon={History} title="No trade history" body="Completed trades will appear here with their settlement details." />
+              )}
+            </div>
+          </section>
+        )}
+      </main>
+
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
+        <div className="mx-auto flex max-w-lg justify-around">
+          <BottomNavButton active={activeSection === "trade"} icon={TrendingUp} label="Trade" onClick={() => setActiveSection("trade")} />
+          <BottomNavButton active={activeSection === "orders"} icon={BarChart3} label="Orders" onClick={() => setActiveSection("orders")} />
+          <BottomNavButton active={activeSection === "history"} icon={History} label="History" onClick={() => setActiveSection("history")} />
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-white/10 bg-[#0a0e1a] px-2 py-1 sm:static sm:mt-4 sm:border-t-0 sm:px-0 sm:py-0">
-        <div className="flex justify-around sm:justify-start sm:gap-8">
-          <button type="button" onClick={() => setBottomTab("orders")} className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "orders" ? "text-cyan-400" : "text-slate-500"}`}><BarChart3 size={18} /><span>Orders ({openTrades.length})</span></button>
-          <button type="button" onClick={() => setBottomTab("assets")} className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "assets" ? "text-cyan-400" : "text-slate-500"}`}><Wallet size={18} /><span>Assets</span></button>
-          <button type="button" onClick={() => setBottomTab("history")} className={`flex flex-col items-center py-2 text-xs font-medium transition ${bottomTab === "history" ? "text-cyan-400" : "text-slate-500"}`}><History size={18} /><span>History</span></button>
-        </div>
-        <div className="mt-2 max-h-60 overflow-y-auto border-t border-white/10 pt-2 sm:max-h-none sm:border-0 sm:pt-0">
-          {bottomTab === "orders" && <div className="space-y-2 px-2">{openTrades.length ? openTrades.map(trade => <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5"><div className="flex justify-between text-sm"><span className="font-semibold text-white">{trade.pair}</span><StatusPill value={trade.status} /></div><div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400"><span>{trade.direction} • {trade.timer || trade.timer_seconds}s</span><span>{formatAmount(trade.amount)} USDT</span><span className="text-amber-300">{formatCountdown(trade.end_time)}</span></div></div>) : <div className="py-4 text-center text-sm text-slate-400">No open orders.</div>}</div>}
-          {bottomTab === "assets" && <div className="px-2 py-4 text-center text-sm text-slate-400"><div className="text-white">{formatAmount(wallet.balance)} USDT</div><div className="text-xs text-slate-500">Available Balance</div></div>}
-          {bottomTab === "history" && <div className="space-y-2 px-2">{tradeHistory.length ? tradeHistory.slice(0, 10).map(trade => <div key={trade.id} className="rounded-xl border border-white/10 bg-[#050812] p-2.5"><div className="flex justify-between text-sm"><span className="font-semibold text-white">{trade.pair}</span><StatusPill value={trade.result || trade.status} /></div><div className="mt-1 flex flex-wrap justify-between text-xs text-slate-400"><span>{trade.direction}</span><span>{formatAmount(trade.amount)} USDT</span><span>{formatDateTime(trade.created_at)}</span></div></div>) : <div className="py-4 text-center text-sm text-slate-400">No history.</div>}</div>}
-        </div>
-      </div>
-
-      {showRunningTradeModal && runningTrade && <RunningTradeModal runningTrade={runningTrade} remainingSeconds={remainingSeconds} onClose={() => setShowRunningTradeModal(false)} />}
-      {resultModal && <ResultModal result={resultModal} tradeHistory={tradeHistory} onClose={() => setResultModal(null)} />}
-      <TargetModal isOpen={showTargetModal} onClose={() => setShowTargetModal(false)} onTargetSet={handleTargetSet} requiredFor="trade" />
+      {runningTrade && (
+        <RunningTradeModal
+          trade={runningTrade}
+          remainingSeconds={remainingSeconds}
+          livePrice={livePrice}
+          onClose={() => setRunningTrade(null)}
+        />
+      )}
+      {resultReceipt && <TradeReceipt trade={resultReceipt} onClose={() => setResultReceipt(null)} />}
+      <TargetModal
+        isOpen={showTargetModal}
+        onClose={() => setShowTargetModal(false)}
+        onTargetSet={handleTargetSet}
+        requiredFor="trade"
+      />
     </div>
   );
 }
 
-// ---------- helpers ----------
+function Quote({ label, value, valueClassName = "text-white" }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#050812] p-2 text-center">
+      <div className="text-[9px] uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`mt-1 text-xs font-bold ${valueClassName}`}>{value}</div>
+    </div>
+  );
+}
 
-function spread(orderBook) {
-  if (!orderBook.asks.length || !orderBook.bids.length) return 0;
-  const bestAsk = Math.min(...orderBook.asks.map(r => r.price));
-  const bestBid = Math.max(...orderBook.bids.map(r => r.price));
-  return bestAsk - bestBid;
+function DepthRow({ row, maxTotal, side }) {
+  const width = Math.min(100, Math.max(3, (Number(row.total) / Number(maxTotal || 1)) * 100));
+  return (
+    <div className="relative flex items-center justify-between gap-1 overflow-hidden rounded px-1 py-1 text-[9px]">
+      <div className={`absolute inset-y-0 ${side === "ask" ? "right-0 bg-red-500/10" : "left-0 bg-emerald-500/10"}`} style={{ width: `${width}%` }} />
+      <span className={`relative z-10 w-1/2 truncate font-medium ${side === "ask" ? "text-red-300" : "text-emerald-300"}`}>{formatPrice(row.price)}</span>
+      <span className="relative z-10 w-1/2 truncate text-right text-slate-400">{formatAmount(row.amount)}</span>
+    </div>
+  );
+}
+
+function OpenTradeCard({ trade, onOpen }) {
+  const end = trade.end_time || trade.endTime;
+  const remaining = secondsUntil(end);
+  return (
+    <button type="button" onClick={onOpen} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-left transition hover:border-cyan-400/20 hover:bg-[#0b1120]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={`rounded-lg p-2 ${trade.direction === "bullish" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>
+            {trade.direction === "bullish" ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-xs font-bold text-white">{trade.pair}</div>
+            <div className="text-[10px] text-slate-500">{trade.direction === "bullish" ? "BUY" : "SELL"} · {trade.timer_seconds || trade.timer}s</div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-bold tabular-nums text-white">{formatCountdown(remaining)}</div>
+          <div className="text-[9px] text-amber-300">remaining</div>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-2">
+        <Metric label="Stake" value={`${formatAmount(trade.amount)} USDT`} />
+        <Metric label="Entry" value={formatPrice(trade.entry_price)} />
+        <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-center">
+          <div className="text-[9px] uppercase tracking-wider text-slate-500">Status</div>
+          <div className="mt-1"><StatusPill trade={trade} /></div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function HistoryCard({ trade, onReceipt }) {
+  const profit = tradeProfit(trade);
+  return (
+    <button type="button" onClick={onReceipt} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-left hover:border-white/15">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className={`rounded-lg p-2 ${trade.direction === "bullish" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>
+            {trade.direction === "bullish" ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">{trade.pair}</div>
+            <div className="text-[10px] text-slate-500">{trade.direction === "bullish" ? "BUY" : "SELL"} · {trade.timer_seconds || trade.timer}s</div>
+          </div>
+        </div>
+        <StatusPill trade={trade} />
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 border-t border-white/10 pt-2">
+        <Metric label="Amount" value={`${formatAmount(trade.amount)} USDT`} />
+        <Metric label="Entry" value={formatPrice(trade.entry_price)} />
+        <Metric label="P&L" value={`${profit >= 0 ? "+" : ""}${formatAmount(profit)} USDT`} />
+      </div>
+    </button>
+  );
+}
+
+function EmptyState({ icon: Icon, title, body }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-white/10 bg-[#0a0e1a] p-8 text-center">
+      <Icon size={24} className="mx-auto text-slate-600" />
+      <div className="mt-3 text-sm font-semibold text-slate-300">{title}</div>
+      <div className="mx-auto mt-1 max-w-sm text-[10px] leading-5 text-slate-500">{body}</div>
+    </div>
+  );
+}
+
+function BottomNavButton({ active, icon: Icon, label, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex min-w-[74px] flex-col items-center gap-0.5 py-1.5 text-[10px] font-semibold ${active ? "text-cyan-300" : "text-slate-500"}`}>
+      <Icon size={16} />
+      <span>{label}</span>
+    </button>
+  );
 }
