@@ -7,16 +7,19 @@ export function useMaintenance() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const checkMaintenance = async () => {
+  const checkMaintenance = async ({ force = false } = {}) => {
     try {
-      const response = await maintenanceApi.getStatus();
+      const response = await maintenanceApi.getStatus({ force });
       if (response.success) {
         setMaintenance(response.data.maintenance);
         setMessage(response.data.message);
       }
     } catch (_) {
-      setMaintenance(true);
-      setMessage('VexaTrade is currently undergoing maintenance. Please check back later.');
+      // A status endpoint/network failure is not evidence that maintenance is enabled.
+      // Keep the platform accessible and let the normal authenticated routes report
+      // their own availability. Only an explicit maintenance=true response may block.
+      setMaintenance(false);
+      setMessage('');
     } finally {
       setLoading(false);
     }
