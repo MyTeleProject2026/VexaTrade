@@ -579,10 +579,17 @@ export default function UserCenterPage() {
       <TwoFactorSetupModal
         open={twoFactorModalOpen}
         token={token}
+        mode={securityStatus.twofaEnabled ? "manage" : "setup"}
+        twofaEnabled={securityStatus.twofaEnabled}
         onClose={() => setTwoFactorModalOpen(false)}
-        onCompleted={() => {
-          setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
-          showSuccess("Authenticator 2FA enabled successfully");
+        onCompleted={(result) => {
+          if (result?.disabled) {
+            setSecurityStatus(prev => ({ ...prev, twofaEnabled: false }));
+            showSuccess("Authenticator 2FA disabled successfully");
+          } else {
+            setSecurityStatus(prev => ({ ...prev, twofaEnabled: true }));
+            showSuccess("Authenticator 2FA enabled successfully");
+          }
         }}
       />
       {/* Header with Balance */}
@@ -712,6 +719,10 @@ export default function UserCenterPage() {
               <div className="flex justify-between border-b border-white/5 pb-2">
                 <span className="text-slate-400">UID</span>
                 <span className="text-white">{profile.uid || "--"}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Email</span>
+                <span className="max-w-[65%] break-all text-right text-white">{profile.email || "--"}</span>
               </div>
               <div className="flex justify-between border-b border-white/5 pb-2">
                 <span className="text-slate-400">Email verification</span>
@@ -902,9 +913,9 @@ export default function UserCenterPage() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => { if (!securityStatus.twofaEnabled) setTwoFactorModalOpen(true); }} disabled={securityStatus.twofaEnabled} className={`rounded-xl px-3 py-1.5 text-xs font-semibold sm:px-4 sm:py-2 sm:text-sm ${securityStatus.twofaEnabled ? "border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 cursor-default" : "bg-emerald-500 text-black"}`}>
+              <button onClick={() => setTwoFactorModalOpen(true)} className={`rounded-xl px-3 py-1.5 text-xs font-semibold sm:px-4 sm:py-2 sm:text-sm ${securityStatus.twofaEnabled ? "border border-emerald-500/20 bg-emerald-500/5 text-emerald-300" : "bg-emerald-500 text-black"}`}>
                 <Shield size={12} className="mr-1 inline sm:h-4 sm:w-4" />
-                {securityStatus.twofaEnabled ? "Enabled" : "Enable"}
+                {securityStatus.twofaEnabled ? "Manage" : "Set up"}
               </button>
             </div>
           </div>
