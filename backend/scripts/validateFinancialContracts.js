@@ -26,7 +26,7 @@ if (!trade.includes('requestedEntryPrice') || !trade.includes('entryPrice')) thr
 const ledger=read('services/assetLedgerService.js');
 for (const fn of ['debitAvailableAsset','creditAssetBalance','reserveAssetBalance','moveAvailableToPending']) if (!ledger.includes(`function ${fn}`)) throw new Error(`[Ledger] missing ${fn}`);
 const security=read('src/routes/securityRoutes.js');
-for (const route of ['/user/2fa/setup','/user/2fa/enable','/user/2fa/verify','/user/2fa/recovery','/user/2fa/disable']) if (!security.includes(route)) throw new Error(`[2FA] missing ${route}`);
+for (const route of ['/user/2fa/setup','/user/2fa/enable','/user/2fa/verify','/user/2fa/recovery','/user/2fa/recovery/regenerate','/user/2fa/disable']) if (!security.includes(route)) throw new Error(`[2FA] missing ${route}`);
 const email=read('services/emailService.js');
 if (!email.includes('sendOtpEmail') || !email.includes('sendPasswordResetEmail')) throw new Error('[Email] delivery functions missing');
 const server=read('server.js');
