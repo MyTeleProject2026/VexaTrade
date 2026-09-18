@@ -373,9 +373,13 @@ export default function TradePage() {
     const configured = rules
       .filter((rule) => String(rule.status || "active").toLowerCase() === "active")
       .map((rule) => Number(rule.timer_seconds))
-      .filter((seconds) => Number.isInteger(seconds) && seconds > 0);
+      .filter((seconds) => Number.isInteger(seconds) && seconds > 0 && seconds <= 86400);
     return [...new Set([...DEFAULT_TIMER_OPTIONS, ...configured])].sort((a, b) => a - b);
   }, [rules]);
+
+  useEffect(() => {
+    if (!timerOptions.includes(Number(timer))) setTimer(timerOptions[0] || 60);
+  }, [timerOptions, timer]);
   const activeRule = useMemo(
     () => rules.find((item) => Number(item.timer_seconds) === Number(timer)) || null,
     [rules, timer]
