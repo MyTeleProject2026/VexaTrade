@@ -35,6 +35,20 @@ const DEFAULT_PAIRS = [
 ];
 const TIMER_OPTIONS = [60, 180, 300];
 
+function withReadTimeout(promise, timeoutMs = 7000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      const timer = setTimeout(() => {
+        clearTimeout(timer);
+        const error = new Error("Trading data request timed out");
+        error.code = "TRADE_PAGE_READ_TIMEOUT";
+        reject(error);
+      }, timeoutMs);
+    }),
+  ]);
+}
+
 function formatAmount(value) {
   const n = Number(value || 0);
   return Number.isFinite(n) ? n.toFixed(2) : "0.00";
@@ -483,13 +497,15 @@ export default function TradePage() {
 
   async function loadTradePage() {
     setLoading(true);
-    const [walletRes, rulesRes, marketRes, openRes, historyRes] = await Promise.allSettled([
-      userApi.getWalletSummary(token),
-      tradeApi.rules(token),
-      marketApi.home(),
-      tradeApi.open(token),
-      tradeApi.history(token),
+    const results = await Promise.allSettled([
+      withReadTimeout(userApi.getWalletSummary(token)),
+      withReadTimeout(tradeApi.rules(token)),
+      withReadTimeout(marketApi.home()),
+      withReadTimeout(tradeApi.open(token)),
+      withReadTimeout(tradeApi.history(token)),
     ]);
+
+    const [walletRes, rulesRes, marketRes, openRes, historyRes] = results;
 
     if (walletRes.status === "fulfilled") {
       const data = walletRes.value.data?.data || {};
@@ -513,9 +529,14 @@ export default function TradePage() {
       setTradeHistory(history);
       revealSettledTrade(history);
     }
-    if (walletRes.status === "rejected" && rulesRes.status === "rejected" && marketRes.status === "rejected") {
-      showError("Trading terminal could not load. Please check your connection.");
+
+    const successfulReads = results.filter((result) => result.status === "fulfilled").length;
+    if (successfulReads === 0) {
+      showError("Trading terminal data is temporarily unavailable. You can retry from Refresh.");
     }
+    // The terminal must never remain blocked behind one unavailable read endpoint.
+    // Missing optional data is represented by its empty state while the live market
+    // stream continues independently.
     setLoading(false);
   }
 
