@@ -19,7 +19,6 @@ import MarketChart from "../components/MarketChart";
 import {
   tradeApi,
   userApi,
-  marketApi,
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
@@ -332,6 +331,7 @@ export default function TradePage() {
   const [timeframe, setTimeframe] = useState("5m");
   const [activeSection, setActiveSection] = useState("trade");
   const [runningTrade, setRunningTrade] = useState(null);
+  const [showRunningTrade, setShowRunningTrade] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [livePrice, setLivePrice] = useState(0);
   const [resultReceipt, setResultReceipt] = useState(null);
@@ -449,6 +449,7 @@ export default function TradePage() {
   useEffect(() => {
     if (!runningTrade) return;
     setRemainingSeconds(secondsUntil(runningTrade.endTime || runningTrade.endsAt));
+    setShowRunningTrade(true);
     setSettlementPending(false);
     expirySyncStartedRef.current = false;
   }, [runningTrade]);
@@ -465,6 +466,7 @@ export default function TradePage() {
     if (!runningTrade || remainingSeconds > 0 || expirySyncStartedRef.current) return;
     expirySyncStartedRef.current = true;
     setSettlementPending(true);
+    setShowRunningTrade(false);
     setRunningTrade(null);
     void finalizeExpiredTrade();
   }, [remainingSeconds, runningTrade]);
@@ -689,6 +691,7 @@ export default function TradePage() {
 
       setAmount("");
       setRunningTrade(placedTrade);
+      setShowRunningTrade(true);
       setSettlementPending(false);
       setActiveSection("orders");
       await Promise.all([syncTradeState(false), refreshWallet()]);
@@ -960,6 +963,7 @@ export default function TradePage() {
                     endTime: trade.end_time,
                     timer: Number(trade.timer_seconds || trade.timer || 60),
                   });
+                  setShowRunningTrade(true);
                 }} />
               )) : (
                 <EmptyState icon={BarChart3} title="No open trades" body="Your active positions will appear here after a successful BUY or SELL." />
@@ -1000,12 +1004,12 @@ export default function TradePage() {
         </div>
       </div>
 
-      {runningTrade && (
+      {runningTrade && showRunningTrade && (
         <RunningTradeModal
           trade={runningTrade}
           remainingSeconds={remainingSeconds}
           livePrice={livePrice}
-          onClose={() => setRunningTrade(null)}
+          onClose={() => setShowRunningTrade(false)}
         />
       )}
       {resultReceipt && <TradeReceipt trade={resultReceipt} onClose={() => setResultReceipt(null)} />}
