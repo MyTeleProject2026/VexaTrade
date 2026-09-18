@@ -461,7 +461,7 @@ export default function TradePage() {
       setPlacing(true);
       const idempotencyKey = createActionIdempotencyKey("trade");
       const liveSnapshot = liveTradePriceRef.current.pair === String(pair || "").toUpperCase() ? liveTradePriceRef.current : null;
-      const clickedEntryPrice = Number(liveSnapshot?.price || selectedMarket?.lastPrice || selectedMarket?.price || 0);
+      const clickedEntryPrice = Number(liveSnapshot?.price || 0);
       if (!Number.isFinite(clickedEntryPrice) || clickedEntryPrice <= 0) throw new Error("Live market price is not available yet. Please wait for the selected pair price to appear and try again.");
       const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), entryPrice: clickedEntryPrice, entryPriceAt: liveSnapshot?.receivedAt || Date.now(), idempotencyKey }, token));
       const data = res.data?.data || {};
