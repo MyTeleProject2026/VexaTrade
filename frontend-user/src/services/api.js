@@ -241,6 +241,17 @@ export const tradeApi = {
   history: (token) => appApiClient.get("/api/trades/history", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
 };
 
+export const spotTradeApi = {
+  settings: (token) => appApiClient.get("/api/spot/settings", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  orders: (token) => appApiClient.get("/api/spot/orders", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  placeMarket: (payload, token) => {
+    const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("spot-order");
+    return appApiClient.post("/api/spot/orders", { ...payload, orderType: "market", idempotencyKey }, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}`, "Idempotency-Key": idempotencyKey }
+    });
+  },
+};
+
 export const fundsApi = {
   plans: (token) => appApiClient.get("/api/funds/plans", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   summary: (token) => appApiClient.get("/api/funds/summary", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
