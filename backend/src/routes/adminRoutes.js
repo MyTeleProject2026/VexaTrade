@@ -466,6 +466,30 @@ router.put('/admin/trade-rules/:id', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── Admin Spot / Long-Term Trade Controls ─────────────────────────
+router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
+  try{
+    const [rows]=await pool.execute("SELECT setting_key,setting_value,status,updated_at FROM spot_trade_settings ORDER BY setting_key ASC");
+    const settings=Object.fromEntries(rows.map(r=>[r.setting_key,r.setting_value]));
+    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),rows}});
+  }catch(e){next(e)}
+});
+router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
+  const db=await pool.getConnection();
+  try{
+    const enabled=req.body.trading_enabled!==false;
+    const max=Number(req.body.max_order_usdt||100000);
+    if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order amount");
+    await db.beginTransaction();
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)]]){
+      await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
+        ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
+    }
+    await createAuditLog(db,{adminId:req.admin.id,action:"update_spot_trade_settings",note:`Spot trading ${enabled?"enabled":"disabled"}; max order ${max} USDT`});
+    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max}});
+  }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
+});
+
 // ─── Admin Trade Outcome Queue ────────────────────────────────────
 router.get('/admin/trade-outcome-queue', authAdmin, async (req, res, next) => {
   try {
