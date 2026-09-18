@@ -86,6 +86,7 @@ export const adminApi = {
   getTrades: (token) => api.get("/api/admin/trades", authHeaders(token)),
   overrideTrade: (id, payload, token) => api.post(`/api/admin/trades/${id}/override`, payload, authHeaders(token)),
   getTradeRules: (token) => api.get("/api/admin/trade-rules", authHeaders(token)),
+  createTradeRule: (payload, token) => api.post("/api/admin/trade-rules", payload, authHeaders(token)),
   updateTradeRule: (id, payload, token) => api.put(`/api/admin/trade-rules/${id}`, payload, authHeaders(token)),
   getTradeOutcomeQueue: (token) => api.get("/api/admin/trade-outcome-queue", authHeaders(token)),
   createTradeOutcomeQueue: (payload, token) => api.post("/api/admin/trade-outcome-queue", payload, authHeaders(token)),
