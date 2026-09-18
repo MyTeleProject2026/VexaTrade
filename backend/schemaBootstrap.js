@@ -133,6 +133,26 @@ async function ensureFinancialSchema() {
     await ensureUniqueIndex(connection, 'loans', 'uq_loans_user_idempotency', ['user_id', 'idempotency_key']);
 
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS spot_orders (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
+        symbol VARCHAR(32) NOT NULL, side VARCHAR(8) NOT NULL, order_type VARCHAR(16) NOT NULL DEFAULT 'market',
+        quantity DECIMAL(36,18) NOT NULL, requested_price DECIMAL(36,18) NULL, execution_price DECIMAL(36,18) NULL,
+        quote_amount DECIMAL(36,18) NULL, status VARCHAR(24) NOT NULL DEFAULT 'pending',
+        idempotency_key VARCHAR(128) NOT NULL, request_hash CHAR(64) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        filled_at DATETIME NULL, PRIMARY KEY (id), UNIQUE KEY uq_spot_orders_user_idempotency (user_id,idempotency_key),
+        KEY idx_spot_orders_user_status (user_id,status,created_at), KEY idx_spot_orders_symbol_status (symbol,status,created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS spot_trade_settings (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, setting_key VARCHAR(64) NOT NULL, setting_value VARCHAR(255) NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'active', updated_by BIGINT UNSIGNED NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id),
+        UNIQUE KEY uq_spot_trade_setting_key (setting_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS asset_ledger_entries (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT NOT NULL,
