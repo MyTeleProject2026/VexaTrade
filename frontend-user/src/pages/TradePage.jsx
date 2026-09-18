@@ -254,6 +254,7 @@ export default function TradePage() {
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
+  const liveTradePriceRef = useRef({ pair: "", price: 0, receivedAt: 0 });
 
   const marketMap = useMemo(() => {
     const map = {};
@@ -273,6 +274,41 @@ export default function TradePage() {
 
   useEffect(() => { loadTradePage(); checkUserTarget(); }, []);
   useEffect(() => { if (hasTarget && targetProgress.targetAmount > 0) checkAndPromptNewTarget(); }, [hasTarget, targetProgress]);
+  useEffect(() => {
+    let cancelled = false;
+    let ws = null;
+    const safeSymbol = String(pair || "").trim().toLowerCase();
+    if (!safeSymbol) return undefined;
+
+    try {
+      // This stream is the source of truth for the price captured at the
+      // instant BUY/SELL is clicked. No synthetic price generation and no
+      // polling loop are used.
+      ws = new WebSocket(`wss://stream.binance.com:9443/ws/${safeSymbol}@trade`);
+      ws.onmessage = (event) => {
+        if (cancelled) return;
+        try {
+          const message = JSON.parse(event.data);
+          const price = Number(message?.p);
+          if (!Number.isFinite(price) || price <= 0) return;
+          liveTradePriceRef.current = {
+            pair: String(pair || "").toUpperCase(),
+            price,
+            receivedAt: Date.now(),
+          };
+        } catch (_) {}
+      };
+    } catch (_) {}
+
+    return () => {
+      cancelled = true;
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+        ws = null;
+      }
+    };
+  }, [pair]);
+
   // Trade state is loaded on entry and after intentional user actions only.
   // Do not continuously poll financial endpoints while this page is open.
 
@@ -424,7 +460,10 @@ export default function TradePage() {
     try {
       setPlacing(true);
       const idempotencyKey = createActionIdempotencyKey("trade");
-      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), idempotencyKey }, token));
+      const liveSnapshot = liveTradePriceRef.current.pair === String(pair || "").toUpperCase() ? liveTradePriceRef.current : null;
+      const clickedEntryPrice = Number(liveSnapshot?.price || selectedMarket?.lastPrice || selectedMarket?.price || 0);
+      if (!Number.isFinite(clickedEntryPrice) || clickedEntryPrice <= 0) throw new Error("Live market price is not available yet. Please wait for the selected pair price to appear and try again.");
+      const res = await runSingleUserAction("trade-submit", () => tradeApi.place({ pair, direction, timer: Number(timer), amount: Number(amount), entryPrice: clickedEntryPrice, entryPriceAt: liveSnapshot?.receivedAt || Date.now(), idempotencyKey }, token));
       const data = res.data?.data || {};
       const tradeId = Number(data.tradeId || 0);
       if (tradeId) { lastPlacedTradeIdRef.current = tradeId; shownSettledTradeIdRef.current = null; }
