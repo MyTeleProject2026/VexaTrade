@@ -89,7 +89,15 @@ async function getWalletSummary(req) {
          FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
         [req.user.id]
       );
-      availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+      const ledgerUsdt = Number(assetRows[0]?.available_usdt || 0);
+      // The multi-asset ledger is authoritative when it contains a usable USDT
+      // position. If no usable USDT position exists, retain the legacy balance
+      // as a compatibility fallback for accounts created before the ledger.
+      availableUsdt = ledgerUsdt;
+      if (ledgerUsdt <= 0) {
+        const legacyBalance = Number(user.balance || 0);
+        if (legacyBalance > 0) availableUsdt = legacyBalance;
+      }
     } else if (columns.has('balance')) {
       const [assetRows] = await pool.execute(
         `SELECT COALESCE(SUM(balance),0) AS available_usdt
