@@ -192,7 +192,7 @@ function ActiveFundCard({ item }) {
   const status = item.status || "active";
   const isPaused = String(status).toLowerCase() === "paused";
   const isPrivate = item.is_private === 1 || item.plan?.is_private === 1 || item.plan_is_private === 1;
-  const fundId = item.fund_id || item.id || Math.floor(Math.random() * 10000);
+  const fundId = item.fund_id || item.id || "pending";
   const fundRef = `#FP-${new Date(startedAt).toISOString().slice(0,10)}-${String(fundId).slice(-6).padStart(6, "0")}`;
   const dailyDollar = (principal * dailyPercent) / 100;
   const apy = dailyPercent * 365;
@@ -648,26 +648,6 @@ export default function FundsPage() {
     }
   }
 
-  async function checkAndPromptNewTarget() {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com"}/api/user/target`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success && data.data.hasTarget) {
-        const target = data.data.target;
-        const isAchieved = Number(target.current_profit) >= Number(target.target_amount);
-        if (isAchieved && !targetAchievedNotified) {
-          setTargetAchievedNotified(true);
-          showSuccess(`🎉 Target achieved! ${Number(target.current_profit).toFixed(2)} / ${Number(target.target_amount).toFixed(2)} USDT`);
-          setShowTargetModal(true);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to check target status:", err);
-    }
-  }
-
   const isTargetAchieved = useMemo(() => {
     if (!hasTarget) return false;
     return targetProgress.currentProfit >= targetProgress.targetAmount;
@@ -758,10 +738,13 @@ export default function FundsPage() {
   }, []);
 
   useEffect(() => {
-    if (hasTarget && targetProgress.targetAmount > 0) {
-      checkAndPromptNewTarget();
+    if (!hasTarget || targetProgress.targetAmount <= 0 || targetAchievedNotified) return;
+    if (targetProgress.currentProfit >= targetProgress.targetAmount) {
+      setTargetAchievedNotified(true);
+      showSuccess(`🎉 Target achieved! ${targetProgress.currentProfit.toFixed(2)} / ${targetProgress.targetAmount.toFixed(2)} USDT`);
+      setShowTargetModal(true);
     }
-  }, [hasTarget, targetProgress]);
+  }, [hasTarget, targetProgress.currentProfit, targetProgress.targetAmount, targetAchievedNotified, showSuccess]);
 
   useEffect(() => {
     if (plans.length && !selectedPlanId) {
