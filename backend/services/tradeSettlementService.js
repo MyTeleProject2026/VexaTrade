@@ -102,6 +102,24 @@ async function settleExpiredTrades(limit = 100) {
       }
 
       const result = tied ? 'tie' : (won ? 'win' : 'loss');
+
+      // Keep the user's profit goal synchronized with actual settled trade
+      // profit. This runs inside the same settlement transaction, so the
+      // target cannot advance unless the financial settlement succeeds.
+      if (won && profit > 0) {
+        await connection.execute(
+          `UPDATE user_targets
+           SET current_profit = LEAST(target_amount, current_profit + ?),
+               status = CASE
+                 WHEN current_profit + ? >= target_amount THEN 'achieved'
+                 ELSE 'active'
+               END,
+               updated_at = NOW()
+           WHERE user_id=? AND status='active'`,
+          [profit, profit, current.user_id]
+        );
+      }
+
       await connection.execute(
         `UPDATE trades SET status='completed',result=?,exit_price=?,settled_at=NOW() WHERE id=?`,
         [result, exitPrice, current.id]
