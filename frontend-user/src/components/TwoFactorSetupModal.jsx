@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Copy, KeyRound, QrCode, ShieldCheck, X } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 10000;
+const makeIdempotencyKey = (action) => `${action}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`.slice(0, 128);
 
 function getToken(token) {
   return token || localStorage.getItem("userToken") || localStorage.getItem("token") || localStorage.getItem("accessToken") || "";
 }
 
-async function request(path, token, body) {
+async function request(path, token, body, idempotencyKey) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -18,6 +19,7 @@ async function request(path, token, body) {
         Accept: "application/json",
         "Content-Type": "application/json",
         Authorization: `Bearer ${getToken(token)}`,
+        "Idempotency-Key": idempotencyKey || makeIdempotencyKey(path.replace(/[^a-z0-9]+/gi, "-")),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -45,6 +47,8 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
   const [managementAction, setManagementAction] = useState("");
   const [managementCode, setManagementCode] = useState("");
   const [managementPasscode, setManagementPasscode] = useState("");
+  const setupRequestKeyRef = useRef(null);
+  const setupStartedRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -59,14 +63,18 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     setManagementAction("");
     setManagementCode("");
     setManagementPasscode("");
+    setupStartedRef.current = false;
+    setupRequestKeyRef.current = makeIdempotencyKey("2fa-setup");
 
     if (mode === "manage") return undefined;
 
     let cancelled = false;
+    if (setupStartedRef.current) return () => { cancelled = true; };
+    setupStartedRef.current = true;
     (async () => {
       try {
         setLoading(true);
-        const data = await request("/api/user/2fa/setup", token);
+        const data = await request("/api/user/2fa/setup", token, undefined, setupRequestKeyRef.current);
         if (!cancelled) setSetup(data.data);
       } catch (err) {
         if (!cancelled) {
@@ -85,7 +93,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     try {
       setLoading(true);
       setError("");
-      const data = await request(path, token, body);
+      const data = await request(path, token, body, makeIdempotencyKey(path.replace(/[^a-z0-9]+/gi, "-")));
       return data;
     } catch (err) {
       setError(err?.name === "AbortError" ? "Security request timed out. Please try again." : err?.message || "Security request failed.");
@@ -96,7 +104,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
   }
 
   async function submitManagementAction() {
-    const value = managementCode.replace(/\\D/g, "").slice(0, 6);
+    const value = managementCode.replace(/\D/g, "").slice(0, 6);
     if (!/^\\d{6}$/.test(value)) {
       setError("Enter the current 6-digit authenticator code.");
       return;
@@ -144,7 +152,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
     try {
       setLoading(true);
       setError("");
-      const data = await request("/api/user/2fa/enable", token, { token: value });
+      const data = await request("/api/user/2fa/enable", token, { token: value }, makeIdempotencyKey("2fa-enable"));
       const codes = data.data?.recoveryCodes || [];
       setRecoveryCodes(codes);
       setStep("complete");
