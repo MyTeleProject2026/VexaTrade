@@ -33,7 +33,7 @@ const DEFAULT_PAIRS = [
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "LINKUSDT",
   "TONUSDT", "LTCUSDT",
 ];
-const TIMER_OPTIONS = [60, 180, 300];
+const DEFAULT_TIMER_OPTIONS = [60, 180, 300];
 
 function withReadTimeout(promise, timeoutMs = 7000) {
   return Promise.race([
@@ -369,6 +369,13 @@ export default function TradePage() {
     return map;
   }, [marketRows]);
   const selectedMarket = marketMap[String(pair).toUpperCase()] || null;
+  const timerOptions = useMemo(() => {
+    const configured = rules
+      .filter((rule) => String(rule.status || "active").toLowerCase() === "active")
+      .map((rule) => Number(rule.timer_seconds))
+      .filter((seconds) => Number.isInteger(seconds) && seconds > 0);
+    return [...new Set([...DEFAULT_TIMER_OPTIONS, ...configured])].sort((a, b) => a - b);
+  }, [rules]);
   const activeRule = useMemo(
     () => rules.find((item) => Number(item.timer_seconds) === Number(timer)) || null,
     [rules, timer]
@@ -654,7 +661,7 @@ export default function TradePage() {
       setShowTargetModal(true);
       return;
     }
-    if (!pair || !TIMER_OPTIONS.includes(Number(timer))) {
+    if (!pair || !timerOptions.includes(Number(timer))) {
       showError("Select a valid market and duration.");
       return;
     }
@@ -898,7 +905,7 @@ export default function TradePage() {
                     <span className="text-[10px] text-slate-500">Auto-settlement</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {TIMER_OPTIONS.map((seconds) => (
+                    {timerOptions.map((seconds) => (
                       <button key={seconds} type="button" onClick={() => setTimer(seconds)} className={`rounded-xl border py-2 text-xs font-semibold ${Number(timer) === seconds ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-white/10 bg-[#050812] text-slate-400 hover:text-white"}`}>
                         {seconds < 60 ? `${seconds}s` : `${seconds / 60}m`}
                       </button>
