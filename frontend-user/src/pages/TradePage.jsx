@@ -496,48 +496,51 @@ export default function TradePage() {
   }
 
   async function loadTradePage() {
-    setLoading(true);
-    const results = await Promise.allSettled([
-      withReadTimeout(userApi.getWalletSummary(token)),
-      withReadTimeout(tradeApi.rules(token)),
-      withReadTimeout(marketApi.home()),
-      withReadTimeout(tradeApi.open(token)),
-      withReadTimeout(tradeApi.history(token)),
-    ]);
+    // Never gate the trading terminal on a batch of API reads. Render the shell
+    // immediately and hydrate each independent section as its own read completes.
+    // This prevents one slow/cold Render endpoint from leaving the whole page on
+    // "Loading trading terminal..." indefinitely.
+    setLoading(false);
 
-    const [walletRes, rulesRes, marketRes, openRes, historyRes] = results;
+    const reads = [
+      ["wallet", () => withReadTimeout(userApi.getWalletSummary(token), 5000)],
+      ["rules", () => withReadTimeout(tradeApi.rules(token), 5000)],
+      ["market", () => withReadTimeout(marketApi.home(), 5000)],
+      ["open", () => withReadTimeout(tradeApi.open(token), 5000)],
+      ["history", () => withReadTimeout(tradeApi.history(token), 5000)],
+    ];
 
-    if (walletRes.status === "fulfilled") {
-      const data = walletRes.value.data?.data || {};
-      setWallet({ balance: Number(data.balance || 0) });
-    }
-    if (rulesRes.status === "fulfilled") {
-      setRules(Array.isArray(rulesRes.value.data?.data) ? rulesRes.value.data.data : []);
-    }
-    if (marketRes.status === "fulfilled") {
-      const rows = Array.isArray(marketRes.value.data?.data) ? marketRes.value.data.data : [];
-      setMarketRows(rows);
-      if (rows.length && !rows.some((item) => String(item?.symbol).toUpperCase() === String(pair).toUpperCase())) {
-        setPair(String(rows[0]?.symbol || "BTCUSDT").toUpperCase());
+    const results = await Promise.allSettled(reads.map(([, read]) => read()));
+    results.forEach((result, index) => {
+      const key = reads[index][0];
+      if (result.status !== "fulfilled") return;
+      const response = result.value;
+      if (key === "wallet") {
+        const data = response.data?.data || {};
+        setWallet({ balance: Number(data.balance || 0) });
+      } else if (key === "rules") {
+        setRules(Array.isArray(response.data?.data) ? response.data.data : []);
+      } else if (key === "market") {
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        setMarketRows(rows);
+        if (rows.length && !rows.some((item) => String(item?.symbol).toUpperCase() === String(pair).toUpperCase())) {
+          setPair(String(rows[0]?.symbol || "BTCUSDT").toUpperCase());
+        }
+      } else if (key === "open") {
+        setOpenTrades(Array.isArray(response.data?.data) ? response.data.data : []);
+      } else if (key === "history") {
+        const history = Array.isArray(response.data?.data) ? response.data.data : [];
+        setTradeHistory(history);
+        revealSettledTrade(history);
       }
-    }
-    if (openRes.status === "fulfilled") {
-      setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
-    }
-    if (historyRes.status === "fulfilled") {
-      const history = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
-      setTradeHistory(history);
-      revealSettledTrade(history);
-    }
+    });
 
+    // These are optional hydration reads. A failure does not replace the terminal
+    // with an error screen and is intentionally not retried automatically.
     const successfulReads = results.filter((result) => result.status === "fulfilled").length;
     if (successfulReads === 0) {
-      showError("Trading terminal data is temporarily unavailable. You can retry from Refresh.");
+      showError("Trading data is temporarily unavailable. Use Refresh to try again.");
     }
-    // The terminal must never remain blocked behind one unavailable read endpoint.
-    // Missing optional data is represented by its empty state while the live market
-    // stream continues independently.
-    setLoading(false);
   }
 
   async function syncTradeState(showSpinner = false) {
