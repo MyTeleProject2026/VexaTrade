@@ -10,10 +10,11 @@ export default function MaintenanceScreen({ message, onRefresh }) {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const response = await maintenanceApi.getStatus();
+      const response = await maintenanceApi.getStatus({ force: true });
       if (response.success && !response.data.maintenance) {
-        // Maintenance is over, reload the page
-        window.location.reload();
+        // Maintenance is over; let AppContent leave the maintenance screen
+        // without a hard reload or a second bootstrap cycle.
+        onRefresh?.({ force: true });
       } else if (response.success && response.data.message) {
         setStatusMessage(response.data.message);
       }
