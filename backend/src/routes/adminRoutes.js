@@ -471,7 +471,7 @@ router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
   try{
     const [rows]=await pool.execute("SELECT setting_key,setting_value,status,updated_at FROM spot_trade_settings ORDER BY setting_key ASC");
     const settings=Object.fromEntries(rows.map(r=>[r.setting_key,r.setting_value]));
-    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),rows}});
+    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),min_order_usdt:Number(settings.min_order_usdt||10),max_slippage_bps:Number(settings.max_slippage_bps||100),rows}});
   }catch(e){next(e)}
 });
 router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
@@ -481,7 +481,12 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     const max=Number(req.body.max_order_usdt||100000);
     if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order amount");
     await db.beginTransaction();
-    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)]]){
+    const min=Number(req.body.min_order_usdt);
+    const slippage=Number(req.body.max_slippage_bps);
+    if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order limit");
+    if(!Number.isFinite(min)||min<=0||min>max) throw createError(400,"Invalid minimum order limit");
+    if(!Number.isFinite(slippage)||slippage<=0||slippage>10000) throw createError(400,"Invalid slippage limit");
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)]]){
       await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
     }
