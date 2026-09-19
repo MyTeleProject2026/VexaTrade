@@ -174,6 +174,10 @@ async function ensureFinancialSchema() {
         ('settlement_model','market_execution','active'),
         ('settlement_price_source','binance_public_market','active'),
         ('settlement_receipt_required','true','active'),
+        ('pnl_enabled','true','active'),
+        ('pnl_reference','live_market','active'),
+        ('pnl_refresh_seconds','5','active'),
+        ('realized_pnl_on_sell','true','active'),
         ('manual_outcome_override','false','active')
       ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
     `);
