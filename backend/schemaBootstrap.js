@@ -217,6 +217,9 @@ async function ensureFinancialSchema() {
         KEY idx_spot_settlement_profile_status (status, updated_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    await addColumn(connection, 'spot_trade_settlement_profiles', 'win_threshold_bps', 'DECIMAL(18,6) NOT NULL DEFAULT 1');
+    await addColumn(connection, 'spot_trade_settlement_profiles', 'loss_threshold_bps', 'DECIMAL(18,6) NOT NULL DEFAULT 1');
+
     await connection.execute(`
       INSERT INTO spot_trade_settlement_profiles
         (name,status,settlement_model,price_source,min_order_usdt,max_order_usdt,max_slippage_bps,trading_fee_bps,quote_ttl_seconds,max_orders_per_day,pnl_enabled,pnl_reference,pnl_refresh_seconds,realized_pnl_on_sell,settlement_receipt_required)
