@@ -51,6 +51,7 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   }
   if(Number(req.body.quoteAgeSeconds||0)>quoteTtl)throw createError(409,"The review quote expired. Please review the order again."); if(Number(cfg.max_orders_per_day||0)>0){const [daily]=await db.execute("SELECT COUNT(*) AS count FROM spot_orders WHERE user_id=? AND created_at>=CURDATE() FOR UPDATE",[req.user.id]);if(Number(daily[0]?.count||0)>=Number(cfg.max_orders_per_day))throw createError(429,"Your daily Spot order limit has been reached.");} const feeAmount=quoteAmount*feeBps/10000; const base=symbol.endsWith("USDT")?symbol.slice(0,-4):""; if(!base)throw createError(400,"Unsupported quote asset");
   const usdt=await ensureAssetRow(db,req.user.id,"USDT"),baseAsset=await ensureAssetRow(db,req.user.id,base);
+  let realizedPnl=null,realizedPnlPct=null,outcome=null;
   if(side==="buy"){
    if(Number(usdt.available_balance)<quoteAmount+feeAmount)throw createError(400,"Insufficient USDT available balance including trading fee");
    await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin='USDT' AND available_balance>=?",[quoteAmount+feeAmount,req.user.id,quoteAmount+feeAmount]);
@@ -64,10 +65,10 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   }else{
    if(Number(baseAsset.available_balance)<quantity)throw createError(400,`Insufficient ${base} available balance`);
    const costBasisPrice=Number(baseAsset.avg_price||0);
-   const realizedPnl=(costBasisPrice>0&&cfg.realized_pnl_on_sell!=="false")?((price-costBasisPrice)*quantity-feeAmount):null;
-   const realizedPnlPct=(costBasisPrice>0&&realizedPnl!==null)?(realizedPnl/(costBasisPrice*quantity))*100:null;
+   realizedPnl=(costBasisPrice>0&&cfg.realized_pnl_on_sell!=="false")?((price-costBasisPrice)*quantity-feeAmount):null;
+   realizedPnlPct=(costBasisPrice>0&&realizedPnl!==null)?(realizedPnl/(costBasisPrice*quantity))*100:null;
    const pnlBps=(costBasisPrice>0&&realizedPnl!==null)?(realizedPnl/(costBasisPrice*quantity))*10000:0;
-   const outcome=realizedPnl===null?null:(pnlBps>=winThresholdBps?"win":pnlBps<=-lossThresholdBps?"loss":"breakeven");
+   outcome=realizedPnl===null?null:(pnlBps>=winThresholdBps?"win":pnlBps<=-lossThresholdBps?"loss":"breakeven");
    await db.execute("UPDATE user_assets SET available_balance=available_balance-?,avg_price=CASE WHEN available_balance-? <= 0 THEN 0 ELSE avg_price END WHERE user_id=? AND coin=? AND available_balance>=?",[quantity,quantity,req.user.id,base,quantity]);
    await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin='USDT'",[quoteAmount-feeAmount,req.user.id]);
    await syncTotal(db,req.user.id,base);await syncTotal(db,req.user.id,"USDT");
