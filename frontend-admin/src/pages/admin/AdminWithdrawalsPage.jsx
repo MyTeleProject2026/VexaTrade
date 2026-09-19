@@ -82,15 +82,7 @@ export default function AdminWithdrawalsPage() {
     fetchWithdrawals(true);
   }, [token]);
 
-  useEffect(() => {
-    if (!token) return;
 
-    const interval = setInterval(() => {
-      fetchWithdrawals(false, true);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [token]);
 
   async function fetchWithdrawals(isInitial = false, silentRefresh = false) {
     try {
