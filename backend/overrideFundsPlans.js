@@ -11,7 +11,7 @@ router.get("/", authUser, async (req, res, next) => {
   let connection;
   try {
     // ✅ Use req.localUserId (local table ID)
-    const userId = req.localUserId || req.userId;
+    const userId = req.user?.id || req.localUserId || req.userId;
     console.log(`[override] User ${userId} requested plans.`);
 
     connection = await pool.getConnection();
