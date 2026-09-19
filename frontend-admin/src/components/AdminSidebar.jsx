@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
 
 const groups = [
   { label: "Command", items: [
