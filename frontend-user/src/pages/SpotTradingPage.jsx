@@ -19,7 +19,7 @@ function assetRows(payload){
 
 export default function SpotTradingPage(){
  const navigate=useNavigate(), auth=token(), {showSuccess,showError}=useNotification();
- const [pair,setPair]=useState("BTCUSDT"),[side,setSide]=useState("buy"),[quantity,setQuantity]=useState(""),[price,setPrice]=useState(0);
+ const [pair,setPair]=useState("BTCUSDT"),[side,setSide]=useState("buy"),[inputMode,setInputMode]=useState("quantity"),[quantity,setQuantity]=useState(""),[price,setPrice]=useState(0);
  const [settings,setSettings]=useState(null),[orders,setOrders]=useState([]),[assets,setAssets]=useState([]),[wallet,setWallet]=useState({balance:0});
  const [quoteAt,setQuoteAt]=useState(0);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[processing,setProcessing]=useState(false),[receipt,setReceipt]=useState(null),[error,setError]=useState(""),[step,setStep]=useState("form");
@@ -56,8 +56,18 @@ export default function SpotTradingPage(){
  const min=Number(settings?.minOrderUsdt||10);
  const maxSlippageBps=Number(settings?.maxSlippageBps||100);
  const maxByBalance=side==="buy"?usdtBalance:(baseBalance*Number(price||0));
- const canReview=settings?.tradingEnabled!==false&&price>0&&Number(quantity)>0&&total>=min&&total<=max&&total<=maxByBalance&&!processing;
+ const canReview=settings?.tradingEnabled!==false&&quoteFresh&&price>0&&Number(quantity)>0&&total>=min&&total<=max&&total<=maxByBalance&&!processing;
  const quoteAgeSeconds=quoteAt?Math.max(0,Math.floor((Date.now()-quoteAt)/1000)):null;
+ const quoteFresh=quoteAgeSeconds!==null&&quoteAgeSeconds<=15;
+ function setInputValue(value){
+  const clean=String(value||"").replace(/[^0-9.]/g,"");
+  if(inputMode==="quantity")setQuantity(clean);
+  else setQuantity(price>0?String(Number((Number(clean||0)/price).toFixed(8))):"");
+ }
+ function clearOrder(){if(processing)return;setQuantity("");setError("");setStep("form");}
+ function useMaximum(){setPercent(100);}
+ function refreshQuote(){socketRef.current?.close();setPrice(0);setQuoteAt(0);setError("");const event=new Event("vexa:spot-refresh-quote");window.dispatchEvent(event);}
+
 
  function setPercent(percent){
   const availableQuote=side==="buy"?usdtBalance:(baseBalance*Number(price||0));
@@ -70,6 +80,7 @@ export default function SpotTradingPage(){
  function review(){
   if(!canReview){
    if(!price){setError("Live market price is not connected.");return}
+   if(!quoteFresh){setError("Live quote is stale. Refresh the market quote before reviewing.");return}
    if(total<min){setError(`Minimum order value is ${money(min)} USDT.`);return}
    if(total>max){setError(`Maximum order value is ${money(max)} USDT.`);return}
    if(total>maxByBalance){setError(side==="buy"?"Insufficient USDT available balance.":"Insufficient asset balance.");return}
@@ -105,7 +116,7 @@ export default function SpotTradingPage(){
    <header className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3">
     <div className="flex items-start justify-between gap-3">
      <div><div className="text-[10px] uppercase tracking-[0.28em] text-cyan-300">Trade · Option 2</div><h1 className="mt-1 text-lg font-bold">Spot / Long-Term</h1><p className="mt-1 text-[10px] leading-4 text-slate-500">Market orders exchange USDT and supported assets. The acquired asset remains in your VexaTrade wallet until you sell or convert it.</p></div>
-     <button type="button" onClick={()=>loadData(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 disabled:opacity-50" aria-label="Refresh spot data"><RefreshCw size={15} className={refreshing?"animate-spin":""}/></button>
+     <button type="button" onClick={()=>loadData(true)} disabled={refreshing className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 disabled:opacity-50" aria-label="Refresh spot data"><RefreshCw size={15} className={refreshing?"animate-spin":""}/></button>
     </div>
     <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-[#050812] p-1">
      <button type="button" onClick={()=>navigate("/trade")} className="rounded-lg py-2 text-[11px] font-semibold text-slate-400">Short-Term</button>
@@ -138,18 +149,20 @@ export default function SpotTradingPage(){
       <div className="rounded-xl border border-white/10 bg-[#050812] p-2"><div className="text-[9px] text-slate-500">USDT available</div><div className="mt-1 text-xs font-bold">{money(usdtBalance)}</div></div>
       <div className="rounded-xl border border-white/10 bg-[#050812] p-2"><div className="text-[9px] text-slate-500">{base} available</div><div className="mt-1 text-xs font-bold">{money(baseBalance)}</div></div>
      </div>
-     <label className="mt-3 block text-[10px] uppercase tracking-wider text-slate-500">Quantity ({base})</label>
-     <input value={quantity} disabled={step==="review"} onChange={e=>setQuantity(e.target.value.replace(/[^0-9.]/g,""))} inputMode="decimal" placeholder="0.00" className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm outline-none focus:border-cyan-400"/>
+     <div className="mt-3 flex items-center justify-between"><label className="text-[10px] uppercase tracking-wider text-slate-500">{inputMode==="quantity"?`Quantity (${base})`:"Order value (USDT)"}</label><div className="grid grid-cols-2 gap-1 rounded-lg bg-[#050812] p-1"><button type="button" onClick={()=>setInputMode("quantity")} className={`rounded-md px-2 py-1 text-[9px] ${inputMode==="quantity"?"bg-white/10 text-white":"text-slate-500"}`}>Quantity</button><button type="button" onClick={()=>setInputMode("quote")} className={`rounded-md px-2 py-1 text-[9px] ${inputMode==="quote"?"bg-white/10 text-white":"text-slate-500"}`}>USDT</button></div></div>
+     <input value={inputMode==="quantity"?quantity:(price?Number((Number(quantity||0)*price).toFixed(2)):"")} disabled={step==="review"} onChange={e=>setInputValue(e.target.value)} inputMode="decimal" placeholder={inputMode==="quantity"?"0.00":"0.00"} className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm outline-none focus:border-cyan-400"/>
      <div className="mt-2 flex justify-between text-xs"><span className="text-slate-500">Estimated total</span><span>{money(total)} USDT</span></div>
      <div className="mt-1 flex justify-between text-[10px] text-slate-600"><span>Order limits</span><span>{money(min)} – {money(max)} USDT</span></div>
-     <div className="mt-2 grid grid-cols-4 gap-1">
-      {[25,50,75,100].map(pct=><button key={pct} type="button" disabled={!price||processing} onClick={()=>setPercent(pct)} className="rounded-lg border border-white/10 bg-white/5 py-1.5 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{pct}%</button>)}
+     <div className="mt-2 grid grid-cols-5 gap-1">
+      {[25,50,75].map(pct=><button key={pct} type="button" disabled={!price||processing} onClick={()=>setPercent(pct)} className="rounded-lg border border-white/10 bg-white/5 py-1.5 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{pct}%</button>)}
+      <button type="button" disabled={!price||processing} onClick={useMaximum} className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 py-1.5 text-[10px] font-semibold text-cyan-300 disabled:opacity-40">Max</button>
+      <button type="button" disabled={processing||!quantity} onClick={clearOrder} className="rounded-lg border border-white/10 bg-white/5 py-1.5 text-[10px] font-semibold text-slate-400 disabled:opacity-40">Clear</button>
      </div>
      <div className="mt-2 flex items-center justify-between text-[9px] text-slate-600"><span>Price quote {quoteAgeSeconds===null?"not connected":`${quoteAgeSeconds}s ago`}</span><span>Max slippage {maxSlippageBps} bps</span></div>
      {error&&<div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-[11px] text-red-300">{error}</div>}
      {step==="form"&&<button disabled={!canReview} onClick={review} className="mt-4 w-full rounded-2xl bg-cyan-400 py-3 text-sm font-bold text-black disabled:opacity-40">Review {side==="buy"?"Buy":"Sell"} Order</button>}
      {step==="review"&&<div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3"><div className="text-[10px] uppercase tracking-widest text-cyan-300">Step 2 · Confirm</div><div className="mt-3 space-y-2 text-xs"><div className="flex justify-between"><span className="text-slate-500">Market</span><span>{pair}</span></div><div className="flex justify-between"><span className="text-slate-500">Side</span><span>{side.toUpperCase()}</span></div><div className="flex justify-between"><span className="text-slate-500">Quantity</span><span>{quantity} {base}</span></div><div className="flex justify-between"><span className="text-slate-500">Observed price</span><span>{money(price)}</span></div><div className="flex justify-between font-semibold"><span>Estimated total</span><span>{money(total)} USDT</span></div>
-<div className="flex justify-between text-[10px]"><span className="text-slate-500">Quote age</span><span>{quoteAgeSeconds===null?"—":`${quoteAgeSeconds}s`}</span></div></div><div className="mt-3 rounded-xl border border-amber-400/10 bg-amber-400/5 p-2 text-[10px] leading-4 text-slate-500">The backend obtains the live execution price when the single Confirm action is submitted, so the final fill can differ from this observed quote.</div><button disabled={processing} onClick={submit} className="mt-3 w-full rounded-xl bg-emerald-400 py-3 text-sm font-bold text-black disabled:opacity-40">{processing?"Processing...":"Confirm & Execute"}</button><button disabled={processing} onClick={()=>setStep("form")} className="mt-2 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Back</button></div>}
+<div className="flex justify-between text-[10px]"><span className="text-slate-500">Quote age</span><span>{quoteAgeSeconds===null?"—":`${quoteAgeSeconds}s`}</span></div><div className="flex justify-between text-[10px]"><span className="text-slate-500">Available to use</span><span>{money(Math.min(max,maxByBalance))} USDT</span></div></div><div className="mt-3 rounded-xl border border-amber-400/10 bg-amber-400/5 p-2 text-[10px] leading-4 text-slate-500">The backend obtains the live execution price when the single Confirm action is submitted, so the final fill can differ from this observed quote.</div><button disabled={processing} onClick={submit} className="mt-3 w-full rounded-xl bg-emerald-400 py-3 text-sm font-bold text-black disabled:opacity-40">{processing?"Processing...":"Confirm & Execute"}</button><button disabled={processing} onClick={()=>setStep("form")} className="mt-2 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Back</button></div>}
     </section>
    </section>
 
