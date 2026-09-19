@@ -357,6 +357,7 @@ export default function TradePage() {
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
   const [targetAchievedNotified, setTargetAchievedNotified] = useState(false);
   const [orderBookData, setOrderBookData] = useState(makeEmptyDepth());
+  const [tradeReview, setTradeReview] = useState(null);
 
   const liveTradePriceRef = useRef({ pair: "", price: 0, receivedAt: 0 });
   const lastPlacedTradeIdRef = useRef(null);
@@ -690,22 +691,25 @@ export default function TradePage() {
       return;
     }
 
+    setTradeReview({
+      pair: normalizedPair,
+      direction,
+      timer: Number(timer),
+      amount: numericAmount,
+      entryPrice,
+      entryPriceAt: liveSnapshot.receivedAt || Date.now(),
+      payoutPercent: Number(activeRule?.payout_percent || 0),
+    });
+  }
+
+  async function confirmTrade() {
+    if (!tradeReview || placing) return;
+    const review = tradeReview;
     const idempotencyKey = createActionIdempotencyKey("trade");
     try {
       setPlacing(true);
       const response = await runSingleUserAction("trade-submit", () =>
-        tradeApi.place(
-          {
-            pair: normalizedPair,
-            direction,
-            timer: Number(timer),
-            amount: numericAmount,
-            entryPrice,
-            entryPriceAt: liveSnapshot.receivedAt || Date.now(),
-            idempotencyKey,
-          },
-          token
-        )
+        tradeApi.place({ ...review, idempotencyKey }, token)
       );
       const data = response.data?.data || {};
       const tradeId = Number(data.tradeId || data.id || 0);
@@ -713,19 +717,18 @@ export default function TradePage() {
 
       lastPlacedTradeIdRef.current = tradeId;
       shownSettledTradeIdRef.current = null;
-
       const placedTrade = {
         id: tradeId,
-        pair: normalizedPair,
-        direction,
-        timer: Number(data.timer || timer),
-        amount: Number(data.amount || numericAmount),
-        entryPrice: Number(data.entryPrice || entryPrice),
-        payoutPercent: Number(data.payoutPercent || activeRule?.payout_percent || 0),
+        pair: review.pair,
+        direction: review.direction,
+        timer: Number(data.timer || review.timer),
+        amount: Number(data.amount || review.amount),
+        entryPrice: Number(data.entryPrice || review.entryPrice),
+        payoutPercent: Number(data.payoutPercent || review.payoutPercent || 0),
         endTime: data.endTime || null,
         status: "open",
       };
-
+      setTradeReview(null);
       setAmount("");
       setRunningTrade(placedTrade);
       setShowRunningTrade(true);
@@ -824,6 +827,21 @@ export default function TradePage() {
           </div>
         </div>
       </header>
+
+      <section className="border-b border-white/10 bg-[#050812] px-3 py-3 sm:px-4">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#0a0e1a] p-1.5">
+          <button type="button" onClick={() => navigate("/trade")} className="rounded-xl bg-cyan-400 px-3 py-2.5 text-left text-[#031016]">
+            <div className="text-[9px] font-bold uppercase tracking-wider">Option 1</div>
+            <div className="mt-0.5 text-xs font-bold">Short-Term</div>
+            <div className="mt-0.5 text-[9px] opacity-70">Timed BUY/SELL with backend settlement</div>
+          </button>
+          <button type="button" onClick={() => navigate("/trade/spot")} className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-left text-slate-300 hover:bg-white/5">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-cyan-300">Option 2</div>
+            <div className="mt-0.5 text-xs font-bold text-white">Spot / Long-Term</div>
+            <div className="mt-0.5 text-[9px] text-slate-500">Own supported assets at market execution</div>
+          </button>
+        </div>
+      </section>
 
       <main className="mx-auto max-w-6xl">
         <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
@@ -1049,6 +1067,14 @@ export default function TradePage() {
           onClose={() => setShowRunningTrade(false)}
         />
       )}
+      {tradeReview && (
+        <TradeReviewModal
+          review={tradeReview}
+          placing={placing}
+          onBack={() => setTradeReview(null)}
+          onConfirm={confirmTrade}
+        />
+      )}
       {resultReceipt && <TradeReceipt trade={resultReceipt} onClose={() => setResultReceipt(null)} />}
       <TargetModal
         isOpen={showTargetModal}
@@ -1056,6 +1082,32 @@ export default function TradePage() {
         onTargetSet={handleTargetSet}
         requiredFor="trade"
       />
+    </div>
+  );
+}
+
+function TradeReviewModal({ review, placing, onBack, onConfirm }) {
+  const isBuy = review.direction === "bullish";
+  return (
+    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-3xl border border-white/10 bg-[#080d19] p-4 shadow-2xl sm:rounded-3xl">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-300">Step 2 of 3</div>
+        <h2 className="mt-1 text-lg font-bold text-white">Review Short-Term Trade</h2>
+        <p className="mt-1 text-[10px] text-slate-500">The backend will create exactly one timed position after you confirm.</p>
+        <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-[#050812] p-4 text-xs">
+          <ReceiptRow label="Pair" value={review.pair} />
+          <ReceiptRow label="Side" value={isBuy ? "BUY" : "SELL"} valueClassName={isBuy ? "text-emerald-300" : "text-red-300"} />
+          <ReceiptRow label="Duration" value={review.timer < 60 ? `${review.timer}s` : `${review.timer / 60}m`} />
+          <ReceiptRow label="Stake" value={`${formatAmount(review.amount)} USDT`} />
+          <ReceiptRow label="Captured entry" value={formatPrice(review.entryPrice)} />
+          <ReceiptRow label="Payout" value={`${formatPercent(review.payoutPercent)}%`} />
+          <div className="border-t border-white/10 pt-2 text-[10px] leading-4 text-slate-500">Final settlement is performed by the backend at expiry. No secure-transaction page is inserted between review and placement.</div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" disabled={placing} onClick={onBack} className="rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 disabled:opacity-50">Back</button>
+          <button type="button" disabled={placing} onClick={onConfirm} className={`rounded-2xl py-3 text-sm font-bold disabled:opacity-50 ${isBuy ? "bg-emerald-400 text-[#031016]" : "bg-red-400 text-[#180406]"}`}>{placing ? "Submitting…" : "Confirm & Place"}</button>
+        </div>
+      </div>
     </div>
   );
 }
