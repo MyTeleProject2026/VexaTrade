@@ -697,7 +697,7 @@ router.post('/admin/spot-settlement-rules', authAdmin, async (req, res, next) =>
     await db.beginTransaction();
     if (status === 'active') await db.execute("UPDATE spot_trade_settlement_profiles SET status='draft' WHERE status='active'");
     const [result] = await db.execute(
-      "INSERT INTO spot_trade_settlement_profiles (name,status,settlement_model,price_source,min_order_usdt,max_order_usdt,max_slippage_bps,trading_fee_bps,quote_ttl_seconds,max_orders_per_day,pnl_enabled,pnl_reference,pnl_refresh_seconds,realized_pnl_on_sell,win_threshold_bps,loss_threshold_bps,settlement_receipt_required,trading_enabled,buy_enabled,sell_enabled,supported_pairs,maintenance_message,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO spot_trade_settlement_profiles (name,status,settlement_model,price_source,min_order_usdt,max_order_usdt,max_slippage_bps,trading_fee_bps,quote_ttl_seconds,max_orders_per_day,pnl_enabled,pnl_reference,pnl_refresh_seconds,realized_pnl_on_sell,win_threshold_bps,loss_threshold_bps,settlement_receipt_required,trading_enabled,buy_enabled,sell_enabled,supported_pairs,maintenance_message,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [name,status,'market_execution','binance_public_market',min,max,slippage,fee,ttl,daily,req.body?.pnl_enabled===false?0:1,'live_market',pnlRefresh,req.body?.realized_pnl_on_sell===false?0:1,winThresholdBps,lossThresholdBps,1,tradingEnabled,buyEnabled,sellEnabled,supportedPairs.join(','),maintenanceMessage||null,req.admin.id,req.admin.id]
     );
     await createAuditLog(db,{adminId:req.admin.id,action:'create_spot_settlement_rule',note:'Created Spot settlement rule '+name});
