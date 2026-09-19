@@ -23,13 +23,12 @@ android {
     buildFeatures { buildConfig true }
 }
 
-// AGP 8+ exposes release variants through Android Components. Assign the
-// existing flavor-specific signing configs directly to the generated variants.
-androidComponents {
-    onVariants(selector().withName('userRelease')) { variant ->
-        variant.signingConfig.set(android.signingConfigs.getByName('userRelease'))
-    }
-    onVariants(selector().withName('adminRelease')) { variant ->
-        variant.signingConfig.set(android.signingConfigs.getByName('adminRelease'))
+// Keep flavor-specific release signing explicit. The legacy variant API is
+// still supported by AGP 8.x and exposes a writable signingConfig.
+applicationVariants.all { variant ->
+    if (variant.name == 'userRelease') {
+        variant.signingConfig = signingConfigs.userRelease
+    } else if (variant.name == 'adminRelease') {
+        variant.signingConfig = signingConfigs.adminRelease
     }
 }
