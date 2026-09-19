@@ -483,15 +483,26 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     await db.beginTransaction();
     const min=Number(req.body.min_order_usdt);
     const slippage=Number(req.body.max_slippage_bps);
+    const feeBps=Number(req.body.trading_fee_bps||0);
+    const quoteTtl=Number(req.body.quote_ttl_seconds||15);
+    const maxOrdersPerDay=Number(req.body.max_orders_per_day||0);
+    const buyEnabled=req.body.buy_enabled!==false;
+    const sellEnabled=req.body.sell_enabled!==false;
+    const supportedPairs=String(req.body.supported_pairs||"BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT,LINKUSDT").split(",").map(v=>v.trim().toUpperCase()).filter(Boolean);
+    const maintenanceMessage=String(req.body.maintenance_message||"").trim().slice(0,255);
     if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order limit");
     if(!Number.isFinite(min)||min<=0||min>max) throw createError(400,"Invalid minimum order limit");
     if(!Number.isFinite(slippage)||slippage<=0||slippage>10000) throw createError(400,"Invalid slippage limit");
-    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)]]){
+    if(!Number.isFinite(feeBps)||feeBps<0||feeBps>1000) throw createError(400,"Invalid trading fee limit");
+    if(!Number.isInteger(quoteTtl)||quoteTtl<5||quoteTtl>120) throw createError(400,"Quote TTL must be 5-120 seconds");
+    if(!Number.isInteger(maxOrdersPerDay)||maxOrdersPerDay<0||maxOrdersPerDay>10000) throw createError(400,"Invalid daily order limit");
+    if(!supportedPairs.length) throw createError(400,"At least one supported pair is required");
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage]]){
       await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
     }
     await createAuditLog(db,{adminId:req.admin.id,action:"update_spot_trade_settings",note:`Spot trading ${enabled?"enabled":"disabled"}; max order ${max} USDT`});
-    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max}});
+    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage}});
   }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
 });
 
