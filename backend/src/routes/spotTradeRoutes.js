@@ -50,15 +50,15 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
    await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin='USDT' AND available_balance>=?",[quoteAmount+feeAmount,req.user.id,quoteAmount+feeAmount]);
    await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin=?",[quantity,req.user.id,base]);
    await syncTotal(db,req.user.id,"USDT");await syncTotal(db,req.user.id,base);
-   await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_buy_debit",amount:quoteAmount,referenceType:"spot_order",note:`${symbol} market buy`});
-   await recordLedger(db,{userId:req.user.id,coin:base,network:"INTERNAL",bucket:"available",entryType:"spot_buy_credit",amount:quantity,referenceType:"spot_order",note:`${symbol} market buy`});
+   await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_buy_debit",amount:quoteAmount+feeAmount,referenceType:"spot_order",note:`${symbol} market buy`});
+   await recordLedger(db,{userId:req.user.id,coin:base,network:"INTERNAL",bucket:"available",entryType:"spot_buy_credit",amount:quantity,referenceType:"spot_order",note:`${symbol} market buy`}); if(feeAmount>0)await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_trading_fee",amount:feeAmount,referenceType:"spot_order",note:`${symbol} trading fee`});
   }else{
    if(Number(baseAsset.available_balance)<quantity)throw createError(400,`Insufficient ${base} available balance`);
    await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin=? AND available_balance>=?",[quantity,req.user.id,base,quantity]);
    await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin='USDT'",[quoteAmount-feeAmount,req.user.id]);
    await syncTotal(db,req.user.id,base);await syncTotal(db,req.user.id,"USDT");
    await recordLedger(db,{userId:req.user.id,coin:base,network:"INTERNAL",bucket:"available",entryType:"spot_sell_debit",amount:quantity,referenceType:"spot_order",note:`${symbol} market sell`});
-   await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_sell_credit",amount:quoteAmount,referenceType:"spot_order",note:`${symbol} market sell`});
+   await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_sell_credit",amount:quoteAmount-feeAmount,referenceType:"spot_order",note:`${symbol} market sell`}); if(feeAmount>0)await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_trading_fee",amount:feeAmount,referenceType:"spot_order",note:`${symbol} trading fee`});
   }
   const [result]=await db.execute(`INSERT INTO spot_orders(user_id,symbol,side,order_type,quantity,requested_price,execution_price,quote_amount,status,idempotency_key,request_hash,filled_at) VALUES(?,?,?,?,?,?,?,?, 'filled',?,?,NOW())`,[req.user.id,symbol,side,type,quantity,Number.isFinite(requestedPrice)&&requestedPrice>0?requestedPrice:null,price,quoteAmount,idempotencyKey,requestHash]);
   await createTransactionLog(db,{userId:req.user.id,type:side==="buy"?"spot_buy":"spot_sell",amount:quoteAmount,status:"completed",referenceId:result.insertId,note:`${symbol} ${side} market order filled at ${price}`});
