@@ -15,7 +15,7 @@ router.get("/spot/settings",authUser,async(req,res,next)=>{
  try{
   const [rows]=await pool.execute("SELECT setting_key,setting_value FROM spot_trade_settings WHERE status='active'");
   const settings=Object.fromEntries(rows.map(r=>[r.setting_key,r.setting_value]));
-  res.json({success:true,data:{tradingEnabled:settings.trading_enabled!=="false",maxOrderUsdt:Number(settings.max_order_usdt||100000),supportedOrderTypes:["market"]}});
+  res.json({success:true,data:{tradingEnabled:settings.trading_enabled!=="false",maxOrderUsdt:Number(settings.max_order_usdt||100000),minOrderUsdt:Number(settings.min_order_usdt||10),maxSlippageBps:Number(settings.max_slippage_bps||100),supportedOrderTypes:["market"],supportedPairs:["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT"]}});
  }catch(e){next(e)}
 });
 router.get("/spot/orders",authUser,async(req,res,next)=>{
@@ -36,7 +36,13 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   const [settings]=await db.execute("SELECT setting_key,setting_value FROM spot_trade_settings WHERE status='active'");
   const cfg=Object.fromEntries(settings.map(r=>[r.setting_key,r.setting_value])); if(cfg.trading_enabled==="false")throw createError(403,"Spot trading is temporarily disabled");
   const price=await getBinancePrice(symbol); if(!Number.isFinite(price)||price<=0)throw createError(503,"Live market price is unavailable. Please try again.");
-  const quoteAmount=quantity*price,max=Number(cfg.max_order_usdt||100000); if(quoteAmount>max)throw createError(400,`Order exceeds the current ${max} USDT maximum`);
+  const quoteAmount=quantity*price,max=Number(cfg.max_order_usdt||100000),min=Number(cfg.min_order_usdt||10),slippageBps=Number(cfg.max_slippage_bps||100);
+  if(quoteAmount<min)throw createError(400,`Order is below the current ${min} USDT minimum`);
+  if(quoteAmount>max)throw createError(400,`Order exceeds the current ${max} USDT maximum`);
+  if(Number.isFinite(requestedPrice)&&requestedPrice>0){
+    const deviationBps=Math.abs(price-requestedPrice)/requestedPrice*10000;
+    if(deviationBps>slippageBps)throw createError(409,`Market price moved beyond the allowed ${slippageBps} bps limit. Review the order again.`);
+  }
   const base=symbol.endsWith("USDT")?symbol.slice(0,-4):""; if(!base)throw createError(400,"Unsupported quote asset");
   const usdt=await ensureAssetRow(db,req.user.id,"USDT"),baseAsset=await ensureAssetRow(db,req.user.id,base);
   if(side==="buy"){
