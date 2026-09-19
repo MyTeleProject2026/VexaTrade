@@ -108,9 +108,6 @@ export default function AdminDepositsPage() {
   useEffect(() => {
     if (!token) return;
 
-    const interval = setInterval(() => {
-      fetchDeposits(false, true);
-    }, 5000);
 
     return () => clearInterval(interval);
   }, [token]);
