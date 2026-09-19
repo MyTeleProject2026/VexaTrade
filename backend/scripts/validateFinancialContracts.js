@@ -20,6 +20,14 @@ for (const [label,file,route,secure] of contracts) {
   if (secure && !source.includes('transactionSecurity(')) throw new Error(`[${label}] transaction-security gate missing`);
   if (label !== 'Trade' && !source.includes('Idempotency-Key')) throw new Error(`[${label}] idempotency contract missing`);
 }
+const spot=read('src/routes/spotTradeRoutes.js');
+for (const route of ['/spot/settings','/spot/orders']) if (!spot.includes(route)) throw new Error('[Spot] missing route '+route);
+if (!spot.includes('transactionSecurity("spot-trade")')) throw new Error('[Spot] transaction-security gate missing');
+if (!spot.includes('Idempotency-Key')) throw new Error('[Spot] idempotency contract missing');
+if (!spot.includes('getBinancePrice')) throw new Error('[Spot] live market price source missing');
+if (!spot.includes('spot_buy_debit') || !spot.includes('spot_sell_debit')) throw new Error('[Spot] asset-ledger settlement missing');
+if (spot.includes('manualOutcomeOverride') && spot.includes('manualOutcomeOverride=true')) throw new Error('[Spot] manual outcome override must remain disabled');
+
 const trade=read('src/routes/tradeRoutes.js');
 if (trade.includes("transactionSecurity('trade')")) throw new Error('[Trade] secure transaction gate must remain removed');
 if (!trade.includes('requestedEntryPrice') || !trade.includes('entryPrice')) throw new Error('[Trade] live clicked entry-price contract missing');
