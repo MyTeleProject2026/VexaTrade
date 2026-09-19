@@ -145,6 +145,16 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     await connection.execute(`
+      INSERT INTO spot_trade_settings(setting_key,setting_value,status)
+      VALUES
+        ('trading_enabled','true','active'),
+        ('max_order_usdt','100000','active'),
+        ('min_order_usdt','10','active'),
+        ('max_slippage_bps','100','active')
+      ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
+    `);
+
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS spot_trade_settings (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, setting_key VARCHAR(64) NOT NULL, setting_value VARCHAR(255) NOT NULL,
         status VARCHAR(16) NOT NULL DEFAULT 'active', updated_by BIGINT UNSIGNED NULL,
