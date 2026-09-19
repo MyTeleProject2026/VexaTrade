@@ -21,9 +21,9 @@ android {
     }
     buildTypes { release { minifyEnabled false } }
     buildFeatures { buildConfig true }
-}
 
-// Each release flavor carries its own signing configuration. Product flavors
-// are part of the Android DSL and remain supported by current AGP 8.x.
-productFlavors.user.signingConfig = signingConfigs.userRelease
-productFlavors.admin.signingConfig = signingConfigs.adminRelease
+    // Each release flavor carries its own signing configuration. Product
+    // flavors are part of the Android DSL and remain supported by AGP 8.x.
+    productFlavors.user.signingConfig = signingConfigs.userRelease
+    productFlavors.admin.signingConfig = signingConfigs.adminRelease
+}
