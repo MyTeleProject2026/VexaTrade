@@ -486,6 +486,10 @@ router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
       settlement_model:String(settings.settlement_model||"market_execution"),
       settlement_price_source:String(settings.settlement_price_source||"binance_public_market"),
       settlement_receipt_required:settings.settlement_receipt_required!=="false",
+      pnl_enabled:settings.pnl_enabled!=="false",
+      pnl_reference:String(settings.pnl_reference||"live_market"),
+      pnl_refresh_seconds:Number(settings.pnl_refresh_seconds||5),
+      realized_pnl_on_sell:settings.realized_pnl_on_sell!=="false",
       manual_outcome_override:false,
       rows
     }});
@@ -510,12 +514,18 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     const settlementModel=String(req.body.settlement_model||"market_execution").trim().toLowerCase();
     const settlementPriceSource=String(req.body.settlement_price_source||"binance_public_market").trim().toLowerCase();
     const settlementReceiptRequired=req.body.settlement_receipt_required!==false;
+    const pnlEnabled=req.body.pnl_enabled!==false;
+    const pnlReference=String(req.body.pnl_reference||"live_market").trim().toLowerCase();
+    const pnlRefreshSeconds=Number(req.body.pnl_refresh_seconds||5);
+    const realizedPnlOnSell=req.body.realized_pnl_on_sell!==false;
     // Spot is an immediate market execution product. It does not expose a
     // per-user or per-order forced WIN/LOSS switch. Outcomes/valuation are
     // derived from the public market execution price.
     if(settlementModel!=="market_execution") throw createError(400,"Spot settlement model must be market_execution");
     if(settlementPriceSource!=="binance_public_market") throw createError(400,"Unsupported settlement price source");
     if(!settlementReceiptRequired) throw createError(400,"Settlement receipt must remain enabled");
+    if(pnlReference!=="live_market") throw createError(400,"Unsupported P/L reference");
+    if(!Number.isInteger(pnlRefreshSeconds)||pnlRefreshSeconds<1||pnlRefreshSeconds>60) throw createError(400,"P/L refresh must be 1-60 seconds");
     if(req.body.manual_outcome_override===true) throw createError(400,"Per-user WIN/LOSS outcome overrides are not supported");
     if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order limit");
     if(!Number.isFinite(min)||min<=0||min>max) throw createError(400,"Invalid minimum order limit");
@@ -524,12 +534,12 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     if(!Number.isInteger(quoteTtl)||quoteTtl<5||quoteTtl>120) throw createError(400,"Quote TTL must be 5-120 seconds");
     if(!Number.isInteger(maxOrdersPerDay)||maxOrdersPerDay<0||maxOrdersPerDay>10000) throw createError(400,"Invalid daily order limit");
     if(!supportedPairs.length) throw createError(400,"At least one supported pair is required");
-    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage],["settlement_model",settlementModel],["settlement_price_source",settlementPriceSource],["settlement_receipt_required",settlementReceiptRequired?"true":"false"],["manual_outcome_override","false"]]){
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage],["settlement_model",settlementModel],["settlement_price_source",settlementPriceSource],["settlement_receipt_required",settlementReceiptRequired?"true":"false"],["pnl_enabled",pnlEnabled?"true":"false"],["pnl_reference",pnlReference],["pnl_refresh_seconds",String(pnlRefreshSeconds)],["realized_pnl_on_sell",realizedPnlOnSell?"true":"false"],["manual_outcome_override","false"]]){
       await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
     }
     await createAuditLog(db,{adminId:req.admin.id,action:"update_spot_trade_settings",note:`Spot trading ${enabled?"enabled":"disabled"}; max order ${max} USDT`});
-    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage,settlement_model:settlementModel,settlement_price_source:settlementPriceSource,settlement_receipt_required:settlementReceiptRequired,manual_outcome_override:false}});
+    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage,settlement_model:settlementModel,settlement_price_source:settlementPriceSource,settlement_receipt_required:settlementReceiptRequired,pnl_enabled:pnlEnabled,pnl_reference:pnlReference,pnl_refresh_seconds:pnlRefreshSeconds,realized_pnl_on_sell:realizedPnlOnSell,manual_outcome_override:false}});
   }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
 });
 
