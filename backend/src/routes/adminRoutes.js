@@ -471,7 +471,7 @@ router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
   try{
     const [rows]=await pool.execute("SELECT setting_key,setting_value,status,updated_at FROM spot_trade_settings ORDER BY setting_key ASC");
     const settings=Object.fromEntries(rows.map(r=>[r.setting_key,r.setting_value]));
-    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),min_order_usdt:Number(settings.min_order_usdt||10),max_slippage_bps:Number(settings.max_slippage_bps||100),rows}});
+    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),min_order_usdt:Number(settings.min_order_usdt||10),max_slippage_bps:Number(settings.max_slippage_bps||100),trading_fee_bps:Number(settings.trading_fee_bps||0),quote_ttl_seconds:Number(settings.quote_ttl_seconds||15),max_orders_per_day:Number(settings.max_orders_per_day||0),buy_enabled:settings.buy_enabled!=="false",sell_enabled:settings.sell_enabled!=="false",supported_pairs:String(settings.supported_pairs||""),maintenance_message:String(settings.maintenance_message||""),rows}});
   }catch(e){next(e)}
 });
 router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
