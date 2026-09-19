@@ -14,7 +14,7 @@ const defaults={
 
 export default function AdminSpotTradePage(){
  const t=token(),{addToast}=useToast();
- const [form,setForm]=useState(defaults),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[refreshing,setRefreshing]=useState(false);
+ const [form,setForm]=useState(defaults),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[refreshing,setRefreshing]=useState(false),[previewSide,setPreviewSide]=useState("buy"),[previewAmount,setPreviewAmount]=useState("100"),[previewPrice,setPreviewPrice]=useState("100");
 
  async function load(initial=true){
   if(initial)setLoading(true);else setRefreshing(true);
@@ -110,6 +110,25 @@ export default function AdminSpotTradePage(){
      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Settlement price source</span><select value={form.priceSource} onChange={e=>set("priceSource",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-xs text-white"><option value="binance_public_market">Public Binance market price</option></select></label>
     </div>
     <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Settlement receipt required</b><span className="text-[9px] text-slate-500">Keeps execution price, fee, quantity and order ID visible to the user.</span></span><input type="checkbox" checked={form.receipt} onChange={e=>set("receipt",e.target.checked)}/></label>
+   </section>
+
+   <section className="rounded-2xl border border-violet-400/15 bg-violet-400/5 p-4 space-y-3">
+    <div className="flex items-center gap-2 text-xs font-semibold text-violet-300"><SlidersHorizontal size={15}/>Settlement & P/L preview</div>
+    <p className="text-[10px] leading-4 text-slate-400">This preview uses the same configured market-execution fee model shown to users. It is a calculator only; it never changes a user's result or creates an order.</p>
+    <div className="grid gap-2 md:grid-cols-3">
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Scenario</span><select value={previewSide} onChange={e=>setPreviewSide(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Quantity</span><input inputMode="decimal" value={previewAmount} onChange={e=>setPreviewAmount(e.target.value.replace(/[^0-9.]/g,""))} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/></label>
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Market price</span><input inputMode="decimal" value={previewPrice} onChange={e=>setPreviewPrice(e.target.value.replace(/[^0-9.]/g,""))} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/></label>
+    </div>
+    {(() => {
+      const q=Number(previewAmount)||0,p=Number(previewPrice)||0,notional=q*p,feeAmount=notional*(Number(form.fee)||0)/10000,net=previewSide==="buy"?notional+feeAmount:notional-feeAmount;
+      return <div className="grid grid-cols-3 gap-2 text-[10px]">
+        <div className="rounded-xl bg-[#050812] p-3"><span className="text-slate-500">Notional</span><b className="mt-1 block text-white">{notional.toLocaleString(undefined,{maximumFractionDigits:8})} USDT</b></div>
+        <div className="rounded-xl bg-[#050812] p-3"><span className="text-slate-500">Fee</span><b className="mt-1 block text-white">{feeAmount.toLocaleString(undefined,{maximumFractionDigits:8})} USDT</b></div>
+        <div className="rounded-xl bg-[#050812] p-3"><span className="text-slate-500">{previewSide==="buy"?"Total debit":"Net credit"}</span><b className="mt-1 block text-cyan-300">{net.toLocaleString(undefined,{maximumFractionDigits:8})} USDT</b></div>
+      </div>
+    })()}
+    <div className="rounded-xl border border-violet-400/10 bg-violet-400/5 p-3 text-[10px] leading-4 text-slate-500">P/L for a held asset is mark-to-market against the live public market price and becomes realized only through a later market sell. Admin cannot force a WIN or LOSS result for an individual user.</div>
    </section>
 
    <section className="rounded-2xl border border-amber-400/15 bg-amber-400/5 p-4">
