@@ -182,6 +182,40 @@ async function ensureFinancialSchema() {
       ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
     `);
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS spot_trade_settlement_profiles (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        name VARCHAR(120) NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'draft',
+        settlement_model VARCHAR(64) NOT NULL DEFAULT 'market_execution',
+        price_source VARCHAR(64) NOT NULL DEFAULT 'binance_public_market',
+        min_order_usdt DECIMAL(36,18) NOT NULL DEFAULT 10,
+        max_order_usdt DECIMAL(36,18) NOT NULL DEFAULT 100000,
+        max_slippage_bps DECIMAL(18,6) NOT NULL DEFAULT 100,
+        trading_fee_bps DECIMAL(18,6) NOT NULL DEFAULT 0,
+        quote_ttl_seconds INT NOT NULL DEFAULT 15,
+        max_orders_per_day INT NOT NULL DEFAULT 0,
+        pnl_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        pnl_reference VARCHAR(32) NOT NULL DEFAULT 'live_market',
+        pnl_refresh_seconds INT NOT NULL DEFAULT 5,
+        realized_pnl_on_sell TINYINT(1) NOT NULL DEFAULT 1,
+        settlement_receipt_required TINYINT(1) NOT NULL DEFAULT 1,
+        created_by BIGINT UNSIGNED NULL,
+        updated_by BIGINT UNSIGNED NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_spot_settlement_profile_name (name),
+        KEY idx_spot_settlement_profile_status (status, updated_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await connection.execute(`
+      INSERT INTO spot_trade_settlement_profiles
+        (name,status,settlement_model,price_source,min_order_usdt,max_order_usdt,max_slippage_bps,trading_fee_bps,quote_ttl_seconds,max_orders_per_day,pnl_enabled,pnl_reference,pnl_refresh_seconds,realized_pnl_on_sell,settlement_receipt_required)
+      VALUES ('Default Market Settlement','active','market_execution','binance_public_market',10,100000,100,0,15,0,1,'live_market',5,1,1)
+      ON DUPLICATE KEY UPDATE name=VALUES(name)
+    `);
+
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS asset_ledger_entries (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT NOT NULL,
