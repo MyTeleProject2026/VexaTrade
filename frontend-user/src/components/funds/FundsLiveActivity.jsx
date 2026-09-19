@@ -15,8 +15,12 @@ function LiveFund({fund,now,serverOffsetMs}){
  const elapsed=Math.max(0,effectiveNow-started)/1000;
  const status=String(fund.status||"active").toLowerCase();
  const liveState=status==="active"||status==="processing"?"running":status;
- const liveProfit=liveState==="running"?baseProfit+(principal*rate/100)*(elapsed/86400):baseProfit;
- const current=principal+liveProfit;
+ const projectedCurrentDayProfit=liveState==="running"?(principal*rate/100)*(elapsed/86400):0;
+ const liveProfit=baseProfit+projectedCurrentDayProfit;
+ // locked_principal already includes any previously compounded profit. Do not add
+ // earned_profit again here or compounded profit would be double-counted in the
+ // displayed fund position. The current-day projection is the only unsettled part.
+ const current=principal+projectedCurrentDayProfit;
  const total=n(fund.total_days),day=n(fund.current_day);
  return <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.045] p-3">
   <div className="flex items-start justify-between gap-3">
