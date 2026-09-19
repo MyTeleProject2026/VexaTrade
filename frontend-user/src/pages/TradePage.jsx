@@ -651,7 +651,15 @@ export default function TradePage() {
       showError("Enter a valid USDT amount.");
       return;
     }
-    if (activeRule?.min_amount && numericAmount < Number(activeRule.min_amount)) {\n      showError(`Minimum trade amount is ${formatAmount(activeRule.min_amount)} USDT.`);\n      return;\n    }\n    if (activeRule?.max_amount && numericAmount > Number(activeRule.max_amount)) {\n      showError(`Maximum trade amount is ${formatAmount(activeRule.max_amount)} USDT.`);\n      return;\n    }\n    if (numericAmount > Number(wallet.balance || 0)) {
+    if (activeRule?.min_amount && numericAmount < Number(activeRule.min_amount)) {
+      showError(`Minimum trade amount is ${formatAmount(activeRule.min_amount)} USDT.`);
+      return;
+    }
+    if (activeRule?.max_amount && numericAmount > Number(activeRule.max_amount)) {
+      showError(`Maximum trade amount is ${formatAmount(activeRule.max_amount)} USDT.`);
+      return;
+    }
+    if (numericAmount > Number(wallet.balance || 0)) {
       showError("Insufficient available USDT balance.");
       return;
     }
