@@ -667,4 +667,73 @@ router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
 });
 
+// ─── Spot / Long-Term Settlement Rule Profiles ─────────────────────
+router.get('/admin/spot-settlement-rules', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute("SELECT * FROM spot_trade_settlement_profiles ORDER BY status='active' DESC, updated_at DESC, id DESC");
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+router.post('/admin/spot-settlement-rules', authAdmin, async (req, res, next) => {
+  const db = await pool.getConnection();
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 120);
+    const min = Number(req.body?.min_order_usdt), max = Number(req.body?.max_order_usdt);
+    const slippage = Number(req.body?.max_slippage_bps), fee = Number(req.body?.trading_fee_bps);
+    const ttl = Number(req.body?.quote_ttl_seconds), daily = Number(req.body?.max_orders_per_day), pnlRefresh = Number(req.body?.pnl_refresh_seconds);
+    if (!name || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max < min) throw createError(400, 'Invalid settlement order limits');
+    if (!Number.isFinite(slippage) || slippage <= 0 || slippage > 10000 || !Number.isFinite(fee) || fee < 0 || fee > 1000) throw createError(400, 'Invalid settlement risk controls');
+    if (!Number.isInteger(ttl) || ttl < 5 || ttl > 120 || !Number.isInteger(daily) || daily < 0 || daily > 10000 || !Number.isInteger(pnlRefresh) || pnlRefresh < 1 || pnlRefresh > 60) throw createError(400, 'Invalid settlement timing limits');
+    const status = String(req.body?.status || 'draft') === 'active' ? 'active' : 'draft';
+    await db.beginTransaction();
+    if (status === 'active') await db.execute("UPDATE spot_trade_settlement_profiles SET status='draft' WHERE status='active'");
+    const [result] = await db.execute(
+      "INSERT INTO spot_trade_settlement_profiles (name,status,settlement_model,price_source,min_order_usdt,max_order_usdt,max_slippage_bps,trading_fee_bps,quote_ttl_seconds,max_orders_per_day,pnl_enabled,pnl_reference,pnl_refresh_seconds,realized_pnl_on_sell,settlement_receipt_required,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      [name,status,'market_execution','binance_public_market',min,max,slippage,fee,ttl,daily,req.body?.pnl_enabled===false?0:1,'live_market',pnlRefresh,req.body?.realized_pnl_on_sell===false?0:1,1,req.admin.id,req.admin.id]
+    );
+    await createAuditLog(db,{adminId:req.admin.id,action:'create_spot_settlement_rule',note:'Created Spot settlement rule '+name});
+    await db.commit();
+    res.status(201).json({success:true,message:'Spot settlement rule created',data:{id:result.insertId}});
+  } catch(error){try{await db.rollback();}catch(_){}next(error);}finally{db.release();}
+});
+router.put('/admin/spot-settlement-rules/:id', authAdmin, async (req,res,next)=>{
+  const db=await pool.getConnection();
+  try{
+    const id=Number(req.params.id), name=String(req.body?.name||'').trim().slice(0,120);
+    const min=Number(req.body?.min_order_usdt),max=Number(req.body?.max_order_usdt),slippage=Number(req.body?.max_slippage_bps),fee=Number(req.body?.trading_fee_bps),ttl=Number(req.body?.quote_ttl_seconds),daily=Number(req.body?.max_orders_per_day),pnlRefresh=Number(req.body?.pnl_refresh_seconds);
+    if(!Number.isInteger(id)||id<=0||!name||!Number.isFinite(min)||!Number.isFinite(max)||min<=0||max<min)throw createError(400,'Invalid settlement rule');
+    if(!Number.isFinite(slippage)||slippage<=0||slippage>10000||!Number.isFinite(fee)||fee<0||fee>1000)throw createError(400,'Invalid settlement risk controls');
+    if(!Number.isInteger(ttl)||ttl<5||ttl>120||!Number.isInteger(daily)||daily<0||daily>10000||!Number.isInteger(pnlRefresh)||pnlRefresh<1||pnlRefresh>60)throw createError(400,'Invalid settlement timing limits');
+    const status=String(req.body?.status||'draft')==='active'?'active':'draft';
+    await db.beginTransaction();
+    if(status==='active')await db.execute("UPDATE spot_trade_settlement_profiles SET status='draft' WHERE status='active' AND id<>?",[id]);
+    const [result]=await db.execute("UPDATE spot_trade_settlement_profiles SET name=?,status=?,min_order_usdt=?,max_order_usdt=?,max_slippage_bps=?,trading_fee_bps=?,quote_ttl_seconds=?,max_orders_per_day=?,pnl_enabled=?,pnl_refresh_seconds=?,realized_pnl_on_sell=?,updated_by=? WHERE id=?",[name,status,min,max,slippage,fee,ttl,daily,req.body?.pnl_enabled===false?0:1,pnlRefresh,req.body?.realized_pnl_on_sell===false?0:1,req.admin.id,id]);
+    if(!result.affectedRows){await db.rollback();return res.status(404).json({success:false,message:'Settlement rule not found'});}
+    await createAuditLog(db,{adminId:req.admin.id,action:'update_spot_settlement_rule',note:'Updated Spot settlement rule #'+id});
+    await db.commit();res.json({success:true,message:'Spot settlement rule updated'});
+  }catch(error){try{await db.rollback();}catch(_){}next(error);}finally{db.release();}
+});
+router.post('/admin/spot-settlement-rules/:id/activate',authAdmin,async(req,res,next)=>{
+  const db=await pool.getConnection();
+  try{
+    const id=Number(req.params.id);await db.beginTransaction();
+    const [rows]=await db.execute("SELECT * FROM spot_trade_settlement_profiles WHERE id=? FOR UPDATE",[id]);
+    if(!rows.length){await db.rollback();return res.status(404).json({success:false,message:'Settlement rule not found'});}
+    const p=rows[0];await db.execute("UPDATE spot_trade_settlement_profiles SET status='draft' WHERE status='active'");
+    await db.execute("UPDATE spot_trade_settlement_profiles SET status='active',updated_by=? WHERE id=?",[req.admin.id,id]);
+    const settings=[['min_order_usdt',p.min_order_usdt],['max_order_usdt',p.max_order_usdt],['max_slippage_bps',p.max_slippage_bps],['trading_fee_bps',p.trading_fee_bps],['quote_ttl_seconds',p.quote_ttl_seconds],['max_orders_per_day',p.max_orders_per_day],['settlement_model',p.settlement_model],['settlement_price_source',p.price_source],['settlement_receipt_required','true'],['pnl_enabled',p.pnl_enabled?'true':'false'],['pnl_reference',p.pnl_reference],['pnl_refresh_seconds',p.pnl_refresh_seconds],['realized_pnl_on_sell',p.realized_pnl_on_sell?'true':'false'],['manual_outcome_override','false']];
+    for(const [key,value] of settings)await db.execute("INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)",[key,String(value),req.admin.id]);
+    await createAuditLog(db,{adminId:req.admin.id,action:'activate_spot_settlement_rule',note:'Activated Spot settlement rule #'+id+': '+p.name});
+    await db.commit();res.json({success:true,message:'Spot settlement rule activated',data:{id,name:p.name}});
+  }catch(error){try{await db.rollback();}catch(_){}next(error);}finally{db.release();}
+});
+router.delete('/admin/spot-settlement-rules/:id',authAdmin,async(req,res,next)=>{
+  try{
+    const id=Number(req.params.id);const [rows]=await pool.execute('SELECT status FROM spot_trade_settlement_profiles WHERE id=?',[id]);
+    if(!rows.length)return res.status(404).json({success:false,message:'Settlement rule not found'});
+    if(rows[0].status==='active')return res.status(400).json({success:false,message:'Active settlement rule cannot be deleted'});
+    await pool.execute('DELETE FROM spot_trade_settlement_profiles WHERE id=?',[id]);res.json({success:true,message:'Spot settlement rule deleted'});
+  }catch(error){next(error);}
+});
+
 module.exports = router;
