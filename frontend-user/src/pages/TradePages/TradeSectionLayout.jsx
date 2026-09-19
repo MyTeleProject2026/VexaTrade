@@ -20,7 +20,7 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
     ["/trade/spot/long-term/assets","Assets",Wallet],
   ];
   const items = mode==="spot" ? spot : short;
-  return <div className="min-h-screen bg-[#050812] text-white pb-24">
+  return <div className="min-h-screen bg-[#050812] text-white pb-[4.75rem] md:pb-0">
     <div className="mx-auto min-h-screen max-w-7xl">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/95 px-3 py-2.5 backdrop-blur">
         <div className="flex items-center gap-2">
@@ -29,12 +29,12 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
           <div className="rounded-full border border-cyan-400/15 bg-cyan-400/5 px-2 py-1 text-[8px] text-cyan-300">{mode==="spot"?"SPOT / LONG-TERM":"SHORT-TERM"}</div>
         </div>
       </header>
-      <main className="p-2.5 sm:p-3">{children}</main>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#081223]/95 px-1.5 py-1.5 backdrop-blur sm:static sm:mx-auto sm:mb-3 sm:max-w-3xl sm:rounded-2xl sm:border">
+      <main className="p-2.5 pb-4 sm:p-3 sm:pb-5">{children}</main>
+      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#081223]/98 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:static sm:mx-auto sm:mt-1 sm:max-w-3xl sm:rounded-2xl sm:border sm:p-1.5 sm:shadow-none">
         <div className="grid grid-cols-5 gap-1">
           {items.slice(0,5).map(([path,label,Icon])=>{
             const active=location.pathname===path;
-            return <button key={path} onClick={()=>navigate(path)} className={`flex min-h-12 flex-col items-center justify-center rounded-xl ${active?"bg-cyan-400/10 text-cyan-300":"text-slate-500 hover:bg-white/5 hover:text-white"}`}>
+            return <button key={path} onClick={()=>navigate(path)} className={`flex min-h-12 touch-manipulation flex-col items-center justify-center rounded-xl px-1 transition-colors active:scale-[0.98] ${active?"bg-cyan-400/10 text-cyan-300":"text-slate-500 hover:bg-white/5 hover:text-white"}`}>
               <Icon size={16}/><span className="mt-0.5 text-[9px]">{label}</span>
             </button>
           })}
