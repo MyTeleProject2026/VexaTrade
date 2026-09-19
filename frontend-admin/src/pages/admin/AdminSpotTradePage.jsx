@@ -75,7 +75,7 @@ export default function AdminSpotTradePage(){
    </div>
   </section>
 
-  <form onSubmit={save} className="space-y-4 rounded-3xl border border-white/10 bg-[#0a0e1a] p-5">
+  <form onSubmit={save} className="space-y-3 rounded-3xl border border-white/10 bg-[#0a0e1a] p-3 sm:p-4">
    <section className="space-y-3">
     <div className="flex items-center gap-2 text-xs font-semibold text-white"><SlidersHorizontal size={15} className="text-cyan-300"/>Execution controls</div>
     <label className="flex items-center justify-between rounded-2xl bg-[#050812] p-4">
@@ -83,12 +83,12 @@ export default function AdminSpotTradePage(){
      <input type="checkbox" checked={form.enabled} onChange={e=>set("enabled",e.target.checked)} className="h-5 w-5"/>
     </label>
     <div className="grid gap-3 md:grid-cols-3">
-     <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Trading fee (bps)</span><input type="number" min="0" max="1000" step="1" value={form.fee} onChange={e=>set("fee",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-sm text-white"/><span className="mt-1 block text-[9px] text-slate-600">100 bps = 1%</span></label>
+     <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Trading fee (bps)</span><input type="number" min="0" max="1000" step="1" value={form.fee} onChange={e=>set("fee",e.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0a0e1a] px-2.5 py-2 text-[11px] text-white"/><span className="mt-1 block text-[9px] text-slate-600">100 bps = 1%</span></label>
      <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Quote TTL (seconds)</span><input type="number" min="5" max="120" value={form.ttl} onChange={e=>set("ttl",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-sm text-white"/></label>
      <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Daily order limit</span><input type="number" min="0" max="10000" value={form.daily} onChange={e=>set("daily",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-sm text-white"/><span className="mt-1 block text-[9px] text-slate-600">0 = unlimited</span></label>
     </div>
     <div className="grid gap-3 md:grid-cols-2">
-     <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Supported pairs</span><input value={form.pairs} onChange={e=>set("pairs",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-xs text-white"/><span className="mt-1 block text-[9px] text-slate-600">Comma-separated symbols.</span></label>
+     <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Supported pairs</span><input value={form.pairs} onChange={e=>set("pairs",e.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0a0e1a] px-2.5 py-2 text-[10px] text-white"/><span className="mt-1 block text-[9px] text-slate-600">Comma-separated symbols.</span></label>
      <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Disabled-state message</span><input value={form.message} onChange={e=>set("message",e.target.value)} maxLength="255" className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-xs text-white"/></label>
     </div>
     <div className="grid grid-cols-2 gap-2">
@@ -117,7 +117,7 @@ export default function AdminSpotTradePage(){
     <p className="text-[10px] leading-4 text-slate-400">These controls define how objective market P/L is displayed and refreshed. They cannot force a user's WIN or LOSS.</p>
     <div className="grid gap-3 md:grid-cols-3">
       <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Live P/L enabled</b><span className="text-[9px] text-slate-500">Show unrealized market P/L.</span></span><input type="checkbox" checked={form.pnlEnabled} onChange={e=>set("pnlEnabled",e.target.checked)}/></label>
-      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Reference</span><select value={form.pnlReference} onChange={e=>set("pnlReference",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"><option value="live_market">Live public market</option></select></label>
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Reference</span><select value={form.pnlReference} onChange={e=>set("pnlReference",e.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0a0e1a] px-2.5 py-2 text-[10px] text-white"><option value="live_market">Live public market</option></select></label>
       <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Refresh interval (sec)</span><input type="number" min="1" max="60" value={form.pnlRefreshSeconds} onChange={e=>set("pnlRefreshSeconds",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/></label>
     </div>
     <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Realize P/L on market sell</b><span className="text-[9px] text-slate-500">Realized result is based on actual execution price.</span></span><input type="checkbox" checked={form.realizedPnlOnSell} onChange={e=>set("realizedPnlOnSell",e.target.checked)}/></label>
