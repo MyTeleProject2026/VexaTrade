@@ -1,2 +1,44 @@
 import { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
-export default function FundHelpPage(){return <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5"><div className="mx-auto max-w-3xl"><a href="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400"><ArrowLeft size={13}/> Funds Center</a><div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="flex items-center gap-2"><HelpCircle className="text-cyan-300" size={18}/><div><h1 className="text-lg font-bold text-white">Funds Help</h1><p className="text-[10px] text-slate-500">How the VexaTrade funding lifecycle works.</p></div></div><div className="mt-4 space-y-3 text-[11px] text-slate-300"><div><b className="text-white">1. Apply</b><p className="mt-1 text-slate-400">Choose an eligible plan and submit an amount within its limits.</p></div><div><b className="text-white">2. Secure processing</b><p className="mt-1 text-slate-400">The backend validates the plan, balance, authorization and idempotency before locking the principal.</p></div><div><b className="text-white">3. Active</b><p className="mt-1 text-slate-400">Your active fund is synchronized from the server. The live screen is a continuously updated display projection; ledger settlement remains server-authoritative.</p></div><div><b className="text-white">4. Daily settlement</b><p className="mt-1 text-slate-400">Configured daily settlement records actual profit and any compounded amount in the ledger.</p></div><div><b className="text-white">5. Completion</b><p className="mt-1 text-slate-400">At maturity, the backend returns the applicable principal and records the completed fund and transaction history.</p></div></div><div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-[10px] text-emerald-300"><ShieldCheck size={12} className="mr-1 inline"/> Live display does not independently credit funds or change balances.</div></div></div>}
+
+export default function FundHelpPage() {
+  const steps = [
+    ["1. Apply", "Choose an eligible plan and submit an amount within its configured limits."],
+    ["2. Secure processing", "The backend validates the plan, balance, authorization and idempotency before locking the principal."],
+    ["3. Active", "Your active Fund is synchronized from the server. The live screen is a continuously updated display projection; ledger settlement remains server-authoritative."],
+    ["4. Daily settlement", "Configured daily settlement records actual profit and any compounded amount in the ledger."],
+    ["5. Completion", "At maturity, the backend returns the applicable principal and records the completed Fund and transaction history."],
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5">
+      <div className="mx-auto max-w-3xl">
+        <a href="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
+          <ArrowLeft size={13} /> Funds Center
+        </a>
+        <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="text-cyan-300" size={18} />
+            <div>
+              <h1 className="text-lg font-bold text-white">Funds Help</h1>
+              <p className="text-[10px] text-slate-500">How the VexaTrade funding lifecycle works.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3 text-[11px] text-slate-300">
+            {steps.map(([title, description]) => (
+              <div key={title}>
+                <b className="text-white">{title}</b>
+                <p className="mt-1 text-slate-400">{description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-[10px] text-emerald-300">
+            <ShieldCheck size={12} className="mr-1 inline" />
+            Live display does not independently credit funds or change balances.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
