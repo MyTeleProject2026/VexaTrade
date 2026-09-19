@@ -164,16 +164,8 @@ export default function AdminTradesPage() {
     loadInitialData();
   }, [token]);
 
-  useEffect(() => {
-    if (!token) return;
-
-    const interval = setInterval(() => {
-      refreshLiveData();
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [token]);
-
+  // Trade data is refreshed only on initial load or an explicit user action.
+  // The admin UI does not continuously poll the API.
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((prev) => prev + 1);
@@ -433,7 +425,7 @@ export default function AdminTradesPage() {
                   refreshing ? "animate-pulse bg-cyan-400" : "bg-emerald-400"
                 }`}
               />
-              {refreshing ? "Refreshing..." : "Live Monitoring"}
+              {refreshing ? "Refreshing..." : "Manual monitoring"}
             </span>
 
             <button
