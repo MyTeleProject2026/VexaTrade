@@ -747,7 +747,7 @@ export default function TradePage() {
   const spread = depthSpread(orderBookData);
 
   return (
-    <div className="min-h-screen bg-[#050812] pb-20 text-white sm:pb-6">
+    <div className="min-h-screen bg-[#050812] pb-18 text-white sm:pb-4">
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="sticky top-0 z-20 border-b border-cyan-400/15 bg-[#050812]/90 px-3 py-2 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
@@ -765,7 +765,7 @@ export default function TradePage() {
       )}
 
       <header className="border-b border-white/10 bg-[#070c17]">
-        <div className="mx-auto max-w-6xl px-3 py-3 sm:px-4">
+        <div className="mx-auto max-w-5xl px-2.5 py-2.5 sm:px-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -785,7 +785,7 @@ export default function TradePage() {
                 </span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-xl font-bold tabular-nums sm:text-2xl">{formatPrice(displayPrice)}</span>
+                <span className="text-lg font-bold tabular-nums sm:text-xl">{formatPrice(displayPrice)}</span>
                 <span className={`text-xs font-semibold ${priceChange >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                   {priceChange >= 0 ? "+" : ""}{formatPercent(priceChange)}%
                 </span>
@@ -811,7 +811,7 @@ export default function TradePage() {
       </header>
 
       <section className="border-b border-white/10 bg-[#050812] px-3 py-3 sm:px-4">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#0a0e1a] p-1.5">
+        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
           <button type="button" onClick={() => navigate("/trade")} className="rounded-xl bg-cyan-400 px-3 py-2.5 text-left text-[#031016]">
             <div className="text-[9px] font-bold uppercase tracking-wider">Option 1</div>
             <div className="mt-0.5 text-xs font-bold">Short-Term</div>
@@ -825,7 +825,7 @@ export default function TradePage() {
         </div>
       </section>
 
-      <main className="mx-auto max-w-6xl">
+      <main className="mx-auto max-w-5xl">
         <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
           <div className="flex gap-1 overflow-x-auto pb-2">
             {["trade", "orders", "history"].map((section) => (
@@ -843,7 +843,7 @@ export default function TradePage() {
 
         {activeSection === "trade" && (
           <>
-            <section className="border-b border-white/10 p-3 sm:p-4">
+            <section className="border-b border-white/10 p-2.5 sm:p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Market</div>
                 <div className="flex gap-1">
@@ -857,7 +857,7 @@ export default function TradePage() {
               <MarketChart symbol={pair} interval={timeframe} height={270} />
             </section>
 
-            <section className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[1.25fr_.75fr]">
+            <section className="grid gap-2.5 p-2.5 sm:p-3 lg:grid-cols-[1.25fr_.75fr]">
               <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-2.5">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <div>
@@ -975,7 +975,7 @@ export default function TradePage() {
         )}
 
         {activeSection === "orders" && (
-          <section className="p-3 sm:p-4">
+          <section className="p-2.5 sm:p-3">
             <div className="mb-3 flex items-end justify-between">
               <div>
                 <div className="text-sm font-semibold text-white">Open orders</div>
