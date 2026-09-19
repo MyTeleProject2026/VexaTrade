@@ -27,6 +27,7 @@ if (!spot.includes('Idempotency-Key')) throw new Error('[Spot] idempotency contr
 if (!spot.includes('getBinancePrice')) throw new Error('[Spot] live market price source missing');
 if (!spot.includes('spot_buy_debit') || !spot.includes('spot_sell_debit')) throw new Error('[Spot] asset-ledger settlement missing');
 if (spot.includes('manualOutcomeOverride') && spot.includes('manualOutcomeOverride=true')) throw new Error('[Spot] manual outcome override must remain disabled');
+if (!spot.includes('realized_pnl') || !spot.includes('outcome')) throw new Error('[Spot] realized P/L outcome settlement missing');
 
 const trade=read('src/routes/tradeRoutes.js');
 if (trade.includes("transactionSecurity('trade')")) throw new Error('[Trade] secure transaction gate must remain removed');
@@ -42,5 +43,5 @@ for (const route of ['tradeRoutes','depositRoutes','withdrawalRoutes','convertRo
 const admin=read('src/routes/adminControlCenterRoutes.js');
 for (const control of ['support','assets','assetLedger','loans']) if (!admin.includes(control)) throw new Error(`[Admin] control surface missing: ${control}`);
 const userApi=fs.readFileSync(path.join(root,'../frontend-user/src/services/api.js'),'utf8');
-for (const apiRoute of ['/api/deposits/request','/api/withdrawals/request','/api/convert/execute','/api/user/transfer','/api/funds/apply','/api/loans/apply','/api/withdraw/profit-request','/api/transactions']) if (!userApi.includes(apiRoute)) throw new Error(`[Frontend API] missing ${apiRoute}`);
+for (const apiRoute of ['/api/spot/orders','/api/deposits/request','/api/withdrawals/request','/api/convert/execute','/api/user/transfer','/api/funds/apply','/api/loans/apply','/api/withdraw/profit-request','/api/transactions']) if (!userApi.includes(apiRoute)) throw new Error(`[Frontend API] missing ${apiRoute}`);
 console.log('VexaTrade financial contract validation passed.');
