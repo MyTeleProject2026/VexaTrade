@@ -27,10 +27,11 @@ router.get("/", authUser, async (req, res, next) => {
         html_content, created_at, updated_at
       FROM fund_plans
       WHERE is_active = 1
+        AND (is_private = 0 OR EXISTS (SELECT 1 FROM user_plan_assignments upa WHERE upa.user_id = ? AND upa.plan_id = fund_plans.id))
       ORDER BY duration_days ASC, id ASC
     `;
 
-    const [rows] = await connection.execute(query);
+    const [rows] = await connection.execute(query, [userId]);
     
     console.log(`[override] ✅ Query returned ${rows.length} rows.`);
 
