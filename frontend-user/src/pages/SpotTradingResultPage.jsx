@@ -7,9 +7,10 @@ const KEY="vexa_spot_long_term_receipt";
 const token=()=>localStorage.getItem("userToken")||localStorage.getItem("token")||localStorage.getItem("accessToken")||"";
 const money=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:8});
 export default function SpotTradingResultPage(){
- const navigate=useNavigate(),[receipt,setReceipt]=useState(null),[copied,setCopied]=useState(false),[orders,setOrders]=useState([]),[price,setPrice]=useState(0),[assets,setAssets]=useState([]),[refreshing,setRefreshing]=useState(false),[error,setError]=useState("");
+ const navigate=useNavigate(),[receipt,setReceipt]=useState(null),[copied,setCopied]=useState(false),[orders,setOrders]=useState([]),[price,setPrice]=useState(0),[assets,setAssets]=useState([]),[settings,setSettings]=useState(null),[refreshing,setRefreshing]=useState(false),[error,setError]=useState("");
  const refresh=async()=>{setRefreshing(true);try{const [o,a]=await Promise.allSettled([spotTradeApi.orders(token()),userApi.getUserAssets(token())]);if(o.status==="fulfilled")setOrders(Array.isArray(o.value.data?.data)?o.value.data.data:[]);if(a.status==="fulfilled")setAssets(Array.isArray(a.value.data?.data?.assets)?a.value.data.data.assets:Array.isArray(a.value.data?.data)?a.value.data.data:[])}catch(e){setError(e?.message||"Unable to refresh order data")}finally{setRefreshing(false)}};
  useEffect(()=>{try{const r=JSON.parse(sessionStorage.getItem(KEY)||"null");if(!r){navigate("/trade/spot",{replace:true});return}setReceipt(r)}catch{navigate("/trade/spot",{replace:true})};refresh()},[navigate]);
+ useEffect(()=>{spotTradeApi.settings(token()).then(r=>setSettings(r.data?.data||null)).catch(()=>{})},[]);
  useEffect(()=>{if(!receipt?.symbol)return;let closed=false;let ws=null;try{ws=new WebSocket("wss://stream.binance.com:9443/ws/"+String(receipt.symbol).toLowerCase()+"@ticker");ws.onmessage=e=>{try{const p=Number(JSON.parse(e.data)?.c);if(!closed&&p>0)setPrice(p)}catch{}}}catch{}return()=>{closed=true;try{ws?.close()}catch{}}},[receipt]);
  if(!receipt)return <div className="min-h-screen bg-[#050812] p-4 text-white">Loading execution result...</div>;
  const id=receipt.orderId||receipt.id||"—",execution=Number(receipt.executionPrice||receipt.execution_price||0),qty=Number(receipt.quantity||0),side=String(receipt.side||"buy").toLowerCase();
