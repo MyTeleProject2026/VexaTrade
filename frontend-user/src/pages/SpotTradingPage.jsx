@@ -21,7 +21,7 @@ export default function SpotTradingPage(){
  const navigate=useNavigate(), auth=token(), {showSuccess,showError}=useNotification();
  const [pair,setPair]=useState("BTCUSDT"),[side,setSide]=useState("buy"),[inputMode,setInputMode]=useState("quantity"),[quantity,setQuantity]=useState(""),[price,setPrice]=useState(0);
  const [settings,setSettings]=useState(null),[orders,setOrders]=useState([]),[assets,setAssets]=useState([]),[wallet,setWallet]=useState({balance:0});
- const [quoteAt,setQuoteAt]=useState(0);
+ const [quoteAt,setQuoteAt]=useState(0),[quoteRefreshKey,setQuoteRefreshKey]=useState(0);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[processing,setProcessing]=useState(false),[receipt,setReceipt]=useState(null),[error,setError]=useState(""),[step,setStep]=useState("form");
  const actionKey=useRef(null),socketRef=useRef(null);
 
@@ -43,7 +43,7 @@ export default function SpotTradingPage(){
    ws.onmessage=e=>{try{const d=JSON.parse(e.data);const p=Number(d.c);if(!closed&&p>0){setPrice(p);setQuoteAt(Date.now())}}catch{}};
   }catch{}
   return()=>{closed=true;try{ws?.close()}catch{}if(socketRef.current===ws)socketRef.current=null};
- },[pair]);
+ },[pair,quoteRefreshKey]);
 
  const base=baseOf(pair);
  const baseBalance=useMemo(()=>{
@@ -66,7 +66,7 @@ export default function SpotTradingPage(){
  }
  function clearOrder(){if(processing)return;setQuantity("");setError("");setStep("form");}
  function useMaximum(){setPercent(100);}
- function refreshQuote(){socketRef.current?.close();setPrice(0);setQuoteAt(0);setError("");const event=new Event("vexa:spot-refresh-quote");window.dispatchEvent(event);}
+ function refreshQuote(){socketRef.current?.close();setPrice(0);setQuoteAt(0);setError("");setQuoteRefreshKey(v=>v+1);}
 
 
  function setPercent(percent){
