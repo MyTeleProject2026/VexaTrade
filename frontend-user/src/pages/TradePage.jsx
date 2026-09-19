@@ -810,18 +810,20 @@ export default function TradePage() {
         </div>
       </header>
 
-      <section className="border-b border-white/10 bg-[#050812] px-3 py-3 sm:px-4">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
-          <button type="button" onClick={() => navigate("/trade")} className="rounded-xl bg-cyan-400 px-3 py-2.5 text-left text-[#031016]">
-            <div className="text-[9px] font-bold uppercase tracking-wider">Option 1</div>
-            <div className="mt-0.5 text-xs font-bold">Short-Term</div>
-            <div className="mt-0.5 text-[9px] opacity-70">Timed BUY/SELL with backend settlement</div>
-          </button>
-          <button type="button" onClick={() => navigate("/trade/spot")} className="rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-left text-slate-300 hover:bg-white/5">
-            <div className="text-[9px] font-bold uppercase tracking-wider text-cyan-300">Option 2</div>
-            <div className="mt-0.5 text-xs font-bold text-white">Spot / Long-Term</div>
-            <div className="mt-0.5 text-[9px] text-slate-500">Own supported assets at market execution</div>
-          </button>
+      <section className="border-b border-white/10 bg-[#050812]/90 px-2.5 py-2 backdrop-blur-xl sm:px-4">
+        <div className="mx-auto max-w-5xl rounded-xl border border-white/10 bg-white/[0.025] p-1 shadow-lg shadow-black/20">
+          <div className="grid grid-cols-2 gap-1">
+            <button type="button" onClick={() => navigate("/trade")} aria-current="page" className="min-h-0 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-left text-cyan-100 shadow-inner shadow-cyan-400/5 transition active:scale-[0.99]">
+              <div className="flex items-center justify-between gap-2"><span className="text-[8px] font-bold uppercase tracking-[0.14em] text-cyan-300">01 · Active</span><span className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-1.5 py-0.5 text-[7px] text-cyan-200">FAST</span></div>
+              <div className="mt-0.5 text-[11px] font-bold leading-4">Short-Term</div>
+              <div className="text-[8px] leading-3 text-cyan-100/55">Timed BUY / SELL · live quote</div>
+            </button>
+            <button type="button" onClick={() => navigate("/trade/spot")} className="min-h-0 rounded-lg border border-white/8 bg-[#050812]/70 px-2 py-1.5 text-left text-slate-300 transition hover:border-cyan-300/15 hover:bg-white/[0.04] active:scale-[0.99]">
+              <div className="flex items-center justify-between gap-2"><span className="text-[8px] font-bold uppercase tracking-[0.14em] text-cyan-300/80">02 · Market</span><span className="rounded-full border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[7px] text-slate-500">HOLD</span></div>
+              <div className="mt-0.5 text-[11px] font-bold leading-4 text-white">Spot / Long-Term</div>
+              <div className="text-[8px] leading-3 text-slate-500">Own assets · market execution</div>
+            </button>
+          </div>
         </div>
       </section>
 
