@@ -31,7 +31,9 @@ const groups = [
     { label: "Short-Term Trades", to: "/admin/trades", icon: BarChart3 },
     { label: "Short-Term Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Market", to: "/admin/spot-trade", icon: CandlestickChart },
+    { label: "Spot / Long-Term Trading Control", to: "/admin/spots/long-term-trading", icon: SlidersHorizontal },
     { label: "Spot / Long-Term Settlement Rules", to: "/admin/spot-settlement-rules", icon: Settings2 },
+    { label: "Spot / Long-Term Trade Rules", to: "/admin/spots/long-term-trade-rules", icon: Settings2 },
   ]},
   { label: "Platform", items: [
     { label: "General Settings", to: "/admin/platform-settings", icon: Settings2 },
