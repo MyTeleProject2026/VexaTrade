@@ -121,10 +121,8 @@ export default function UserLayout() {
     }
 
     loadUnreadStatus();
-    interval = window.setInterval(loadUnreadStatus, 30000);
     return () => {
       ignore = true;
-      window.clearInterval(interval);
       if (timeoutId) window.clearTimeout(timeoutId);
     };
   }, [location.pathname]);
