@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, CheckCircle2, RefreshCw, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, RefreshCw, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MarketChart from "../components/MarketChart";
 import OrderBook from "../components/OrderBook";
@@ -67,7 +67,14 @@ export default function SpotTradingPage(){
    const res=await runSingleUserAction("spot-market-order",()=>spotTradeApi.placeMarket({symbol:pair,side,quantity:Number(quantity),price,idempotencyKey:key},auth));
    const data=res.data?.data;if(!data)throw new Error(res.data?.message||"Spot order was not completed");
    setReceipt(data);setOrders(prev=>[data,...prev].slice(0,50));setQuantity("");setStep("form");
-   await loadData(false);
+   const quote=Number(data.quoteAmount||0);
+   if(side==="buy"){
+     setWallet(prev=>({...prev,balance:Math.max(0,Number(prev.balance||0)-quote)}));
+     setAssets(prev=>prev.map(a=>String(a?.coin||a?.symbol||"").toUpperCase()===base.toUpperCase()?{...a,available_balance:Number(a?.available_balance??a?.availableBalance??a?.balance??0)+Number(data.quantity||quantity)}:a));
+   }else{
+     setWallet(prev=>({...prev,balance:Number(prev.balance||0)+quote}));
+     setAssets(prev=>prev.map(a=>String(a?.coin||a?.symbol||"").toUpperCase()===base.toUpperCase()?{...a,available_balance:Math.max(0,Number(a?.available_balance??a?.availableBalance??a?.balance??0)-Number(data.quantity||quantity))}:a));
+   }
    showSuccess?.("Spot order filled");
   }catch(e){const msg=getApiErrorMessage(e);setError(msg);showError?.(msg);}
   finally{setProcessing(false);actionKey.current=null;}
