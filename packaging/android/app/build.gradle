@@ -27,9 +27,9 @@ android {
 // existing flavor-specific signing configs directly to the generated variants.
 androidComponents {
     onVariants(selector().withName('userRelease')) { variant ->
-        variant.signingConfig = android.signingConfigs.getByName('userRelease')
+        variant.signingConfig.set(android.signingConfigs.getByName('userRelease'))
     }
     onVariants(selector().withName('adminRelease')) { variant ->
-        variant.signingConfig = android.signingConfigs.getByName('adminRelease')
+        variant.signingConfig.set(android.signingConfigs.getByName('adminRelease'))
     }
 }
