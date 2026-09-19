@@ -21,6 +21,7 @@ export default function SpotTradingPage(){
  const navigate=useNavigate(), auth=token(), {showSuccess,showError}=useNotification();
  const [pair,setPair]=useState("BTCUSDT"),[side,setSide]=useState("buy"),[quantity,setQuantity]=useState(""),[price,setPrice]=useState(0);
  const [settings,setSettings]=useState(null),[orders,setOrders]=useState([]),[assets,setAssets]=useState([]),[wallet,setWallet]=useState({balance:0});
+ const [quoteAt,setQuoteAt]=useState(0);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[processing,setProcessing]=useState(false),[receipt,setReceipt]=useState(null),[error,setError]=useState(""),[step,setStep]=useState("form");
  const actionKey=useRef(null),socketRef=useRef(null);
 
@@ -39,7 +40,7 @@ export default function SpotTradingPage(){
  useEffect(()=>{let closed=false;setPrice(0);socketRef.current?.close();
   let ws=null;
   try{ws=new WebSocket(`wss://stream.binance.com:9443/ws/${pair.toLowerCase()}@ticker`);socketRef.current=ws;
-   ws.onmessage=e=>{try{const d=JSON.parse(e.data);const p=Number(d.c);if(!closed&&p>0)setPrice(p)}catch{}};
+   ws.onmessage=e=>{try{const d=JSON.parse(e.data);const p=Number(d.c);if(!closed&&p>0){setPrice(p);setQuoteAt(Date.now())}}catch{}};
   }catch{}
   return()=>{closed=true;try{ws?.close()}catch{}if(socketRef.current===ws)socketRef.current=null};
  },[pair]);
@@ -52,11 +53,28 @@ export default function SpotTradingPage(){
  const usdtBalance=Number(wallet?.balance||assets.find(a=>String(a?.coin||"").toUpperCase()==="USDT")?.available_balance||0);
  const total=Number(quantity||0)*Number(price||0);
  const max=Number(settings?.maxOrderUsdt||100000);
+ const min=Number(settings?.minOrderUsdt||10);
+ const maxSlippageBps=Number(settings?.maxSlippageBps||100);
  const maxByBalance=side==="buy"?usdtBalance:(baseBalance*Number(price||0));
- const canReview=settings?.tradingEnabled!==false&&price>0&&Number(quantity)>0&&total>0&&total<=max&&total<=maxByBalance&&!processing;
+ const canReview=settings?.tradingEnabled!==false&&price>0&&Number(quantity)>0&&total>=min&&total<=max&&total<=maxByBalance&&!processing;
+ const quoteAgeSeconds=quoteAt?Math.max(0,Math.floor((Date.now()-quoteAt)/1000)):null;
 
+ function setPercent(percent){
+  const availableQuote=side==="buy"?usdtBalance:(baseBalance*Number(price||0));
+  if(!Number.isFinite(availableQuote)||availableQuote<=0||!price)return;
+  const quote=Math.min(max,availableQuote)*percent/100;
+  if(quote<min){setError(`Selected amount is below the ${money(min)} USDT minimum.`);return}
+  setQuantity(String(Number((quote/price).toFixed(8))));
+  setError("");setStep("form");
+ }
  function review(){
-  if(!canReview){setError(side==="buy"?"Check your USDT balance, quantity and order limit.":"Check your asset balance, quantity and order limit.");return}
+  if(!canReview){
+   if(!price){setError("Live market price is not connected.");return}
+   if(total<min){setError(`Minimum order value is ${money(min)} USDT.`);return}
+   if(total>max){setError(`Maximum order value is ${money(max)} USDT.`);return}
+   if(total>maxByBalance){setError(side==="buy"?"Insufficient USDT available balance.":"Insufficient asset balance.");return}
+   setError("Check the order values and try again.");return
+  }
   setError("");setStep("review");
  }
  async function submit(){
@@ -123,10 +141,15 @@ export default function SpotTradingPage(){
      <label className="mt-3 block text-[10px] uppercase tracking-wider text-slate-500">Quantity ({base})</label>
      <input value={quantity} disabled={step==="review"} onChange={e=>setQuantity(e.target.value.replace(/[^0-9.]/g,""))} inputMode="decimal" placeholder="0.00" className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-3 text-sm outline-none focus:border-cyan-400"/>
      <div className="mt-2 flex justify-between text-xs"><span className="text-slate-500">Estimated total</span><span>{money(total)} USDT</span></div>
-     <div className="mt-1 flex justify-between text-[10px] text-slate-600"><span>Maximum order</span><span>{money(max)} USDT</span></div>
+     <div className="mt-1 flex justify-between text-[10px] text-slate-600"><span>Order limits</span><span>{money(min)} – {money(max)} USDT</span></div>
+     <div className="mt-2 grid grid-cols-4 gap-1">
+      {[25,50,75,100].map(pct=><button key={pct} type="button" disabled={!price||processing} onClick={()=>setPercent(pct)} className="rounded-lg border border-white/10 bg-white/5 py-1.5 text-[10px] font-semibold text-slate-300 disabled:opacity-40">{pct}%</button>)}
+     </div>
+     <div className="mt-2 flex items-center justify-between text-[9px] text-slate-600"><span>Price quote {quoteAgeSeconds===null?"not connected":`${quoteAgeSeconds}s ago`}</span><span>Max slippage {maxSlippageBps} bps</span></div>
      {error&&<div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-[11px] text-red-300">{error}</div>}
      {step==="form"&&<button disabled={!canReview} onClick={review} className="mt-4 w-full rounded-2xl bg-cyan-400 py-3 text-sm font-bold text-black disabled:opacity-40">Review {side==="buy"?"Buy":"Sell"} Order</button>}
-     {step==="review"&&<div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3"><div className="text-[10px] uppercase tracking-widest text-cyan-300">Step 2 · Confirm</div><div className="mt-3 space-y-2 text-xs"><div className="flex justify-between"><span className="text-slate-500">Market</span><span>{pair}</span></div><div className="flex justify-between"><span className="text-slate-500">Side</span><span>{side.toUpperCase()}</span></div><div className="flex justify-between"><span className="text-slate-500">Quantity</span><span>{quantity} {base}</span></div><div className="flex justify-between"><span className="text-slate-500">Observed price</span><span>{money(price)}</span></div><div className="flex justify-between font-semibold"><span>Estimated total</span><span>{money(total)} USDT</span></div></div><div className="mt-3 rounded-xl border border-amber-400/10 bg-amber-400/5 p-2 text-[10px] leading-4 text-slate-500">The backend obtains the live execution price when the single Confirm action is submitted, so the final fill can differ from this observed quote.</div><button disabled={processing} onClick={submit} className="mt-3 w-full rounded-xl bg-emerald-400 py-3 text-sm font-bold text-black disabled:opacity-40">{processing?"Processing...":"Confirm & Execute"}</button><button disabled={processing} onClick={()=>setStep("form")} className="mt-2 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Back</button></div>}
+     {step==="review"&&<div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3"><div className="text-[10px] uppercase tracking-widest text-cyan-300">Step 2 · Confirm</div><div className="mt-3 space-y-2 text-xs"><div className="flex justify-between"><span className="text-slate-500">Market</span><span>{pair}</span></div><div className="flex justify-between"><span className="text-slate-500">Side</span><span>{side.toUpperCase()}</span></div><div className="flex justify-between"><span className="text-slate-500">Quantity</span><span>{quantity} {base}</span></div><div className="flex justify-between"><span className="text-slate-500">Observed price</span><span>{money(price)}</span></div><div className="flex justify-between font-semibold"><span>Estimated total</span><span>{money(total)} USDT</span></div>
+<div className="flex justify-between text-[10px]"><span className="text-slate-500">Quote age</span><span>{quoteAgeSeconds===null?"—":`${quoteAgeSeconds}s`}</span></div></div><div className="mt-3 rounded-xl border border-amber-400/10 bg-amber-400/5 p-2 text-[10px] leading-4 text-slate-500">The backend obtains the live execution price when the single Confirm action is submitted, so the final fill can differ from this observed quote.</div><button disabled={processing} onClick={submit} className="mt-3 w-full rounded-xl bg-emerald-400 py-3 text-sm font-bold text-black disabled:opacity-40">{processing?"Processing...":"Confirm & Execute"}</button><button disabled={processing} onClick={()=>setStep("form")} className="mt-2 w-full rounded-xl border border-white/10 py-2.5 text-xs text-slate-300">Back</button></div>}
     </section>
    </section>
 
