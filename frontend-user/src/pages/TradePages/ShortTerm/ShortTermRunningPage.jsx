@@ -1,0 +1,11 @@
+import { useEffect,useState } from "react";
+import { Clock3, RefreshCw } from "lucide-react";
+import { tradeApi } from "../../../services/api";
+import TradeSectionLayout from "../TradeSectionLayout";
+const token=()=>localStorage.getItem("userToken")||localStorage.getItem("token")||localStorage.getItem("accessToken")||"";
+export default function ShortTermRunningPage(){
+ const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const load=async()=>{setLoading(true);try{const r=await tradeApi.open(token());setRows(Array.isArray(r.data?.data)?r.data.data:[]);setError("")}catch(e){setError(e?.message||"Unable to load running trades")}finally{setLoading(false)}};
+ useEffect(()=>{load()},[]);
+ return <TradeSectionLayout title="Running Trades" subtitle="Active Short-Term contracts" mode="short"><section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xs font-semibold"><Clock3 size={15} className="text-cyan-300"/>Active contracts</div><button onClick={load} disabled={loading} className="rounded-lg border border-white/10 p-2 text-slate-400"><RefreshCw size={13} className={loading?"animate-spin":""}/></button></div>{error&&<div className="mt-3 rounded-xl bg-red-500/10 p-3 text-[10px] text-red-300">{error}</div>}<div className="mt-3 space-y-2">{!loading&&!rows.length&&<div className="py-10 text-center text-[10px] text-slate-600">No running trades.</div>}{rows.map((r,i)=><div key={r.id||i} className="grid grid-cols-2 gap-2 rounded-xl bg-[#050812] p-3 text-[10px]"><div><div className="font-semibold">{r.pair||"—"}</div><div className="mt-1 text-slate-500">{String(r.direction||r.side||"").toUpperCase()}</div></div><div className="text-right"><div className="text-cyan-300">{r.status||"OPEN"}</div><div className="mt-1 text-slate-500">{r.end_time||r.ends_at||r.expires_at||"Running"}</div></div></div>)}</div></section></TradeSectionLayout>;
+}
