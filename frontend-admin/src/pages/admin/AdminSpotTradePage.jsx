@@ -9,7 +9,7 @@ const token=()=>localStorage.getItem("adminToken")||localStorage.getItem("admin_
 const defaults={
   enabled:true,min:"10",max:"100000",slippage:"100",fee:"0",ttl:"15",daily:"0",
   buy:true,sell:true,pairs:DEFAULT_PAIRS,message:"",
-  settlementModel:"market_execution",priceSource:"binance_public_market",receipt:true
+  settlementModel:"market_execution",priceSource:"binance_public_market",receipt:true,pnlEnabled:true,pnlReference:"live_market",pnlRefreshSeconds:"5",realizedPnlOnSell:true
 };
 
 export default function AdminSpotTradePage(){
@@ -29,7 +29,7 @@ export default function AdminSpotTradePage(){
     pairs:String(d.supported_pairs||DEFAULT_PAIRS),message:String(d.maintenance_message||""),
     settlementModel:String(d.settlement_model||"market_execution"),
     priceSource:String(d.settlement_price_source||"binance_public_market"),
-    receipt:d.settlement_receipt_required!==false
+    receipt:d.settlement_receipt_required!==false,pnlEnabled:d.pnl_enabled!==false,pnlReference:String(d.pnl_reference||"live_market"),pnlRefreshSeconds:String(d.pnl_refresh_seconds??5),realizedPnlOnSell:d.realized_pnl_on_sell!==false
    });
   }catch(e){addToast(getApiErrorMessage(e),"error")}
   finally{setLoading(false);setRefreshing(false)}
@@ -53,7 +53,7 @@ export default function AdminSpotTradePage(){
     trading_fee_bps:fee,quote_ttl_seconds:ttl,max_orders_per_day:daily,buy_enabled:form.buy,
     sell_enabled:form.sell,supported_pairs:pairs.join(","),maintenance_message:form.message,
     settlement_model:form.settlementModel,settlement_price_source:form.priceSource,
-    settlement_receipt_required:form.receipt,manual_outcome_override:false
+    settlement_receipt_required:form.receipt,pnl_enabled:form.pnlEnabled,pnl_reference:form.pnlReference,pnl_refresh_seconds:Number(form.pnlRefreshSeconds),realized_pnl_on_sell:form.realizedPnlOnSell,manual_outcome_override:false
    },t);
    addToast("Spot / Long-Term controls and settlement policy saved.","success");
    await load(true);
@@ -110,6 +110,17 @@ export default function AdminSpotTradePage(){
      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Settlement price source</span><select value={form.priceSource} onChange={e=>set("priceSource",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-3 text-xs text-white"><option value="binance_public_market">Public Binance market price</option></select></label>
     </div>
     <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Settlement receipt required</b><span className="text-[9px] text-slate-500">Keeps execution price, fee, quantity and order ID visible to the user.</span></span><input type="checkbox" checked={form.receipt} onChange={e=>set("receipt",e.target.checked)}/></label>
+   </section>
+
+   <section className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-4 space-y-3">
+    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300"><SlidersHorizontal size={15}/>P/L settlement display controls</div>
+    <p className="text-[10px] leading-4 text-slate-400">These controls define how objective market P/L is displayed and refreshed. They cannot force a user's WIN or LOSS.</p>
+    <div className="grid gap-3 md:grid-cols-3">
+      <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Live P/L enabled</b><span className="text-[9px] text-slate-500">Show unrealized market P/L.</span></span><input type="checkbox" checked={form.pnlEnabled} onChange={e=>set("pnlEnabled",e.target.checked)}/></label>
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Reference</span><select value={form.pnlReference} onChange={e=>set("pnlReference",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"><option value="live_market">Live public market</option></select></label>
+      <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Refresh interval (sec)</span><input type="number" min="1" max="60" value={form.pnlRefreshSeconds} onChange={e=>set("pnlRefreshSeconds",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/></label>
+    </div>
+    <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Realize P/L on market sell</b><span className="text-[9px] text-slate-500">Realized result is based on actual execution price.</span></span><input type="checkbox" checked={form.realizedPnlOnSell} onChange={e=>set("realizedPnlOnSell",e.target.checked)}/></label>
    </section>
 
    <section className="rounded-2xl border border-violet-400/15 bg-violet-400/5 p-4 space-y-3">
