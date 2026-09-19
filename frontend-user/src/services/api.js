@@ -261,7 +261,7 @@ export const fundsApi = {
   profits: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/profits`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   transactions: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/transactions`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getById: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
-  apply: (payload, token) => appApiClient.post("/api/funds/apply", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  apply: (payload, token) => { const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("funds-apply"); return appApiClient.post("/api/funds/apply", { ...payload, idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, "Idempotency-Key": idempotencyKey } }); },
 };
 
 export const convertApi = {
