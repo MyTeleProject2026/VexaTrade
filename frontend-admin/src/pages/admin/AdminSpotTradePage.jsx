@@ -63,10 +63,10 @@ export default function AdminSpotTradePage(){
 
  if(loading)return <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-5 text-sm text-slate-300">Loading Spot / Long-Term controls...</div>;
 
- return <div className="space-y-5">
-  <section className="rounded-3xl border border-white/10 bg-[#0a0e1a] p-5">
+ return <div className="space-y-3">
+  <section className="rounded-3xl border border-white/10 bg-[#0a0e1a] p-4">
    <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-300">Trading Control Center</div>
-   <h1 className="mt-1 text-2xl font-bold text-white">Spot / Long-Term Trade</h1>
+   <h1 className="mt-1 text-xl font-bold text-white">Spot / Long-Term Trade</h1>
    <p className="mt-2 text-sm text-slate-500">Independent controls for the user Spot terminal. Existing Short-Term Trade Rules remain separate and unchanged.</p>
    <div className="mt-4 grid gap-2 sm:grid-cols-3">
     <div className="rounded-2xl bg-[#050812] p-3"><div className="text-[9px] uppercase text-slate-500">Execution</div><b className="text-xs text-white">Live market</b></div>
@@ -129,6 +129,16 @@ export default function AdminSpotTradePage(){
       </div>
     })()}
     <div className="rounded-xl border border-violet-400/10 bg-violet-400/5 p-3 text-[10px] leading-4 text-slate-500">P/L for a held asset is mark-to-market against the live public market price and becomes realized only through a later market sell. Admin cannot force a WIN or LOSS result for an individual user.</div>
+   </section>
+
+   <section className="rounded-2xl border border-violet-400/15 bg-violet-400/5 p-4">
+    <div className="flex items-center gap-2 text-xs font-semibold text-violet-300"><SlidersHorizontal size={15}/>Transparent P/L & settlement controls</div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="rounded-xl bg-[#050812] p-3"><div className="text-[9px] uppercase text-slate-600">Valuation</div><b className="text-[11px] text-white">Live mark-to-market</b><p className="mt-1 text-[9px] leading-4 text-slate-600">Unrealized P/L follows the public market price.</p></div>
+      <div className="rounded-xl bg-[#050812] p-3"><div className="text-[9px] uppercase text-slate-600">Realization</div><b className="text-[11px] text-white">On market sell</b><p className="mt-1 text-[9px] leading-4 text-slate-600">Realized P/L is produced by the actual execution price.</p></div>
+      <div className="rounded-xl bg-[#050812] p-3"><div className="text-[9px] uppercase text-slate-600">Reference</div><b className="text-[11px] text-white">Public market source</b><p className="mt-1 text-[9px] leading-4 text-slate-600">Execution remains server-validated and receipt-backed.</p></div>
+    </div>
+    <div className="mt-3 rounded-xl border border-violet-400/10 bg-[#050812] p-3 text-[9px] leading-4 text-slate-500">Administrators can configure trading availability, supported pairs, minimum/maximum order size, slippage, fees, quote lifetime and daily limits. Individual user WIN/LOSS forcing is not part of Spot/Long-Term settlement.</div>
    </section>
 
    <section className="rounded-2xl border border-amber-400/15 bg-amber-400/5 p-4">
