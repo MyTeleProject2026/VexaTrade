@@ -31,6 +31,7 @@ const groups = [
     { label: "Trades", to: "/admin/trades", icon: BarChart3 },
     { label: "Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Trade", to: "/admin/spot-trade", icon: CandlestickChart },
+    { label: "Spot Settlement Rules", to: "/admin/spot-settlement-rules", icon: Settings2 },
   ]},
   { label: "Platform", items: [
     { label: "General Settings", to: "/admin/platform-settings", icon: Settings2 },
