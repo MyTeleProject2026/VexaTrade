@@ -46,7 +46,7 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   if(Number(req.body.quoteAgeSeconds||0)>quoteTtl)throw createError(409,"The review quote expired. Please review the order again."); if(Number(cfg.max_orders_per_day||0)>0){const [daily]=await db.execute("SELECT COUNT(*) AS count FROM spot_orders WHERE user_id=? AND created_at>=CURDATE() FOR UPDATE",[req.user.id]);if(Number(daily[0]?.count||0)>=Number(cfg.max_orders_per_day))throw createError(429,"Your daily Spot order limit has been reached.");} const feeAmount=quoteAmount*feeBps/10000; const base=symbol.endsWith("USDT")?symbol.slice(0,-4):""; if(!base)throw createError(400,"Unsupported quote asset");
   const usdt=await ensureAssetRow(db,req.user.id,"USDT"),baseAsset=await ensureAssetRow(db,req.user.id,base);
   if(side==="buy"){
-   if(Number(usdt.available_balance)<quoteAmount)throw createError(400,"Insufficient USDT available balance");
+   if(Number(usdt.available_balance)<quoteAmount+feeAmount)throw createError(400,"Insufficient USDT available balance including trading fee");
    await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin='USDT' AND available_balance>=?",[quoteAmount+feeAmount,req.user.id,quoteAmount+feeAmount]);
    await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin=?",[quantity,req.user.id,base]);
    await syncTotal(db,req.user.id,"USDT");await syncTotal(db,req.user.id,base);
