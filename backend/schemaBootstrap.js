@@ -128,6 +128,10 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'user_funds', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'user_funds', 'uq_user_funds_user_idempotency', ['user_id', 'idempotency_key']);
 
+    // Fund settlement is service-owned. Remove the legacy database trigger that
+    // also credited compound profit to pending, which would double-apply ledger movement.
+    await connection.execute('DROP TRIGGER IF EXISTS trg_user_funds_compound_pending');
+
     await addColumn(connection, 'loans', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'loans', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'loans', 'uq_loans_user_idempotency', ['user_id', 'idempotency_key']);
