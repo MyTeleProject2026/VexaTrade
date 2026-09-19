@@ -34,7 +34,7 @@ function LiveFund({fund,now,serverOffsetMs}){
  </div>
 }
 
-export default function FundsLiveActivity({compact=false,onCountChange}){
+export default function FundsLiveActivity({compact=false,onCountChange,onFundClick}){
  const [funds,setFunds]=useState([]),[lastSync,setLastSync]=useState(null),[error,setError]=useState(""),[now,setNow]=useState(Date.now()),[refreshing,setRefreshing]=useState(false),[serverOffsetMs,setServerOffsetMs]=useState(0);
  const mounted=useRef(true),inFlight=useRef(false),timer=useRef(null);
  const token=tokenFromStorage();
