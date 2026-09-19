@@ -323,7 +323,7 @@ function Metric({ label, value }) {
   );
 }
 
-export default function TradePage() {
+export default function TradePage({ embedded = false }) {
   const navigate = useNavigate();
   const token =
     localStorage.getItem("userToken") ||
@@ -747,7 +747,7 @@ export default function TradePage() {
   const spread = depthSpread(orderBookData);
 
   return (
-    <div className="min-h-screen bg-[#050812] pb-18 text-white sm:pb-4">
+    <div className={"min-h-screen bg-[#050812] text-white " + (embedded ? "pb-0 sm:pb-0" : "pb-18 sm:pb-4")}>
       {hasTarget && targetProgress.targetAmount > 0 && (
         <div className="sticky top-0 z-20 border-b border-cyan-400/15 bg-[#050812]/90 px-3 py-2 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
@@ -1035,7 +1035,7 @@ export default function TradePage() {
         )}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
+      {!embedded && <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg justify-around">
           <BottomNavButton active={activeSection === "trade"} icon={TrendingUp} label="Trade" onClick={() => setActiveSection("trade")} />
           <BottomNavButton active={activeSection === "orders"} icon={BarChart3} label="Orders" onClick={() => setActiveSection("orders")} />
