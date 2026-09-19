@@ -150,7 +150,14 @@ async function ensureFinancialSchema() {
         ('trading_enabled','true','active'),
         ('max_order_usdt','100000','active'),
         ('min_order_usdt','10','active'),
-        ('max_slippage_bps','100','active')
+        ('max_slippage_bps','100','active'),
+        ('trading_fee_bps','0','active'),
+        ('quote_ttl_seconds','15','active'),
+        ('max_orders_per_day','0','active'),
+        ('buy_enabled','true','active'),
+        ('sell_enabled','true','active'),
+        ('supported_pairs','BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT,LINKUSDT','active'),
+        ('maintenance_message','','active')
       ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
     `);
 
