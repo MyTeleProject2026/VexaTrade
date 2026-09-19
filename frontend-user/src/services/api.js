@@ -260,6 +260,7 @@ export const fundsApi = {
   latestCompleted: (token) => appApiClient.get("/api/funds/completed-latest", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   profits: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/profits`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   transactions: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/transactions`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  getById: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   apply: (payload, token) => appApiClient.post("/api/funds/apply", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
 };
 
