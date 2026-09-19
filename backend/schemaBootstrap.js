@@ -145,6 +145,19 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS spot_trade_settings (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, setting_key VARCHAR(64) NOT NULL, setting_value VARCHAR(255) NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'active', updated_by BIGINT UNSIGNED NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id),
+        UNIQUE KEY uq_spot_trade_setting_key (setting_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Safe defaults for Spot / Long-Term execution and settlement policy.
+    // Spot orders are market executions, not win/loss contracts. Any outcome
+    // must be derived from the objective execution/market price; per-user
+    // forced WIN/LOSS overrides are deliberately not supported.
+    await connection.execute(`
       INSERT INTO spot_trade_settings(setting_key,setting_value,status)
       VALUES
         ('trading_enabled','true','active'),
@@ -157,17 +170,12 @@ async function ensureFinancialSchema() {
         ('buy_enabled','true','active'),
         ('sell_enabled','true','active'),
         ('supported_pairs','BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT,LINKUSDT','active'),
-        ('maintenance_message','','active')
+        ('maintenance_message','','active'),
+        ('settlement_model','market_execution','active'),
+        ('settlement_price_source','binance_public_market','active'),
+        ('settlement_receipt_required','true','active'),
+        ('manual_outcome_override','false','active')
       ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
-    `);
-
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS spot_trade_settings (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, setting_key VARCHAR(64) NOT NULL, setting_value VARCHAR(255) NOT NULL,
-        status VARCHAR(16) NOT NULL DEFAULT 'active', updated_by BIGINT UNSIGNED NULL,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id),
-        UNIQUE KEY uq_spot_trade_setting_key (setting_key)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS asset_ledger_entries (
