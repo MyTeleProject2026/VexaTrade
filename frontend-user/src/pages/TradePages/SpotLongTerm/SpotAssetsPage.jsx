@@ -1,4 +1,5 @@
-import { useEffect,useState } from "react";\nimport { useNavigate } from "react-router-dom";
+import { useEffect,useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Wallet, RefreshCw, ArrowRight } from "lucide-react";
 import { userApi } from "../../../services/api";
 import TradeSectionLayout from "../TradeSectionLayout";
