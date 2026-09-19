@@ -144,6 +144,11 @@ async function ensureFinancialSchema() {
         KEY idx_spot_orders_user_status (user_id,status,created_at), KEY idx_spot_orders_symbol_status (symbol,status,created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    await addColumn(connection, 'spot_orders', 'cost_basis_price', 'DECIMAL(36,18) NULL');
+    await addColumn(connection, 'spot_orders', 'realized_pnl', 'DECIMAL(36,18) NULL');
+    await addColumn(connection, 'spot_orders', 'realized_pnl_pct', 'DECIMAL(18,8) NULL');
+    await addColumn(connection, 'spot_orders', 'outcome', "VARCHAR(16) NULL");
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS spot_trade_settings (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, setting_key VARCHAR(64) NOT NULL, setting_value VARCHAR(255) NOT NULL,
@@ -178,6 +183,8 @@ async function ensureFinancialSchema() {
         ('pnl_reference','live_market','active'),
         ('pnl_refresh_seconds','5','active'),
         ('realized_pnl_on_sell','true','active'),
+        ('win_threshold_bps','1','active'),
+        ('loss_threshold_bps','1','active'),
         ('manual_outcome_override','false','active')
       ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)
     `);
@@ -198,6 +205,8 @@ async function ensureFinancialSchema() {
         pnl_reference VARCHAR(32) NOT NULL DEFAULT 'live_market',
         pnl_refresh_seconds INT NOT NULL DEFAULT 5,
         realized_pnl_on_sell TINYINT(1) NOT NULL DEFAULT 1,
+        win_threshold_bps DECIMAL(18,6) NOT NULL DEFAULT 1,
+        loss_threshold_bps DECIMAL(18,6) NOT NULL DEFAULT 1,
         settlement_receipt_required TINYINT(1) NOT NULL DEFAULT 1,
         created_by BIGINT UNSIGNED NULL,
         updated_by BIGINT UNSIGNED NULL,
