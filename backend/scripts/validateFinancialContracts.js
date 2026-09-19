@@ -22,7 +22,7 @@ for (const [label,file,route,secure] of contracts) {
 }
 const spot=read('src/routes/spotTradeRoutes.js');
 for (const route of ['/spot/settings','/spot/orders']) if (!spot.includes(route)) throw new Error('[Spot] missing route '+route);
-if (!spot.includes('transactionSecurity("spot-trade")')) throw new Error('[Spot] transaction-security gate missing');
+if (!spot.includes('transactionSecurity("spot-trade")') && !spot.includes("transactionSecurity('spot-trade')")) throw new Error('[Spot] transaction-security gate missing');
 if (!spot.includes('Idempotency-Key')) throw new Error('[Spot] idempotency contract missing');
 if (!spot.includes('getBinancePrice')) throw new Error('[Spot] live market price source missing');
 if (!spot.includes('spot_buy_debit') || !spot.includes('spot_sell_debit')) throw new Error('[Spot] asset-ledger settlement missing');
