@@ -17,6 +17,7 @@ const SECTION_TAGS = [
   ["/admin/trades", "Trade Operations"],
   ["/admin/trade-rules", "Rule Management"],
   ["/admin/spot-trade", "Spot Trading Control"],
+  ["/admin/spot-settlement-rules", "Spot Settlement Rules"],
   ["/admin/joint-account-requests", "Account Requests"],
   ["/admin/joint-accounts", "Joint Accounts"],
   ["/admin/loans", "Loan Control"],
