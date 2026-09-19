@@ -36,6 +36,7 @@ jobs:
           node --check src/routes/convertRoutes.js
           node --check src/routes/transferRoutes.js
           node --check src/routes/tradeRoutes.js
+          node --check src/routes/spotTradeRoutes.js
           node --check src/routes/fundsRoutes.js
           node --check src/routes/loanRoutes.js
           node --check src/routes/profitWithdrawalRoutes.js
