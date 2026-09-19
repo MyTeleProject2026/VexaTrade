@@ -56,9 +56,9 @@ export default function SpotTradingPage(){
  const min=Number(settings?.minOrderUsdt||10);
  const maxSlippageBps=Number(settings?.maxSlippageBps||100);
  const maxByBalance=side==="buy"?usdtBalance:(baseBalance*Number(price||0));
- const canReview=settings?.tradingEnabled!==false&&quoteFresh&&price>0&&Number(quantity)>0&&total>=min&&total<=max&&total<=maxByBalance&&!processing;
  const quoteAgeSeconds=quoteAt?Math.max(0,Math.floor((Date.now()-quoteAt)/1000)):null;
  const quoteFresh=quoteAgeSeconds!==null&&quoteAgeSeconds<=15;
+ const canReview=settings?.tradingEnabled!==false&&quoteFresh&&price>0&&Number(quantity)>0&&total>=min&&total<=max&&total<=maxByBalance&&!processing;
  function setInputValue(value){
   const clean=String(value||"").replace(/[^0-9.]/g,"");
   if(inputMode==="quantity")setQuantity(clean);
