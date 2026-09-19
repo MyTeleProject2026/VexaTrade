@@ -14,7 +14,9 @@ import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
 import AdminTradesPage from "./pages/admin/AdminTradesPage";
-import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";import AdminSpotTradePage from "./pages/admin/AdminSpotTradePage";import AdminSpotSettlementRulesPage from "./pages/admin/AdminSpotSettlementRulesPage";
+import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";import AdminSpotTradePage from "./pages/admin/AdminSpotTradePage";
+import LongTermTradingPage from "./pages/admin/AdminSpots/LongTermTradingPage";
+import LongTermTradeRulesPage from "./pages/admin/AdminSpots/LongTermTradeRulesPage";import AdminSpotSettlementRulesPage from "./pages/admin/AdminSpotSettlementRulesPage";
 import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage";
 import AdminSupportPage from "./pages/admin/AdminSupportPage";
 import AdminPlatformSettingsPage from "./pages/admin/AdminPlatformSettingsPage";
@@ -61,6 +63,8 @@ export default function App() {
       <Route path="trades" element={<AdminTradesPage />} />
       <Route path="trade-rules" element={<AdminTradeRulesPage />} /><Route path="spot-trade" element={<AdminSpotTradePage />} />
       <Route path="spot-settlement-rules" element={<AdminSpotSettlementRulesPage />} />
+      <Route path="spots/long-term-trading" element={<LongTermTradingPage />} />
+      <Route path="spots/long-term-trade-rules" element={<LongTermTradeRulesPage />} />
       <Route path="audit-logs" element={<AdminAuditLogsPage />} />
       <Route path="support" element={<AdminSupportPage />} />
       <Route path="platform-settings" element={<AdminPlatformSettingsPage />} />
