@@ -793,7 +793,7 @@ export default function TradePage() {
                 onClick={() => refreshTradeHistory(true)}
                 disabled={refreshing}
                 className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 text-slate-300 hover:text-white disabled:opacity-60"
-                aria-label="Refresh orders"
+                aria-label="Refresh trade history"
               >
                 <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
               </button>
