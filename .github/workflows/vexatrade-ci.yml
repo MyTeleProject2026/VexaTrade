@@ -50,7 +50,8 @@ jobs:
           node --check src/routes/supportedAssetRoutes.js
           node --check src/routes/legalRoutes.js
           node --check src/routes/supportRoutes.js
-          node --check services/assetLedgerService.js\n          node scripts/validateFinancialContracts.js
+          node --check services/assetLedgerService.js
+          node scripts/validateFinancialContracts.js
       - name: Validate runtime dependency graph
         run: |
           node -e "require('./cloudinaryStorage'); console.log('Cloudinary storage dependency graph loaded')"
