@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { userApi } from "../services/api";
 
-const POLL_INTERVAL_MS = 30000;
 const REQUEST_TIMEOUT_MS = 5000;
 
 export default function NotificationBell() {
@@ -36,14 +35,14 @@ export default function NotificationBell() {
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchNotifications();
-
-    const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
     return () => {
       mountedRef.current = false;
-      clearInterval(interval);
     };
-  }, [fetchNotifications]);
+  }, []);
+
+  useEffect(() => {
+    if (open) fetchNotifications();
+  }, [open, fetchNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
