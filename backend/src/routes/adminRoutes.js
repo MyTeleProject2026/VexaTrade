@@ -471,7 +471,24 @@ router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
   try{
     const [rows]=await pool.execute("SELECT setting_key,setting_value,status,updated_at FROM spot_trade_settings ORDER BY setting_key ASC");
     const settings=Object.fromEntries(rows.map(r=>[r.setting_key,r.setting_value]));
-    res.json({success:true,data:{trading_enabled:settings.trading_enabled!=="false",max_order_usdt:Number(settings.max_order_usdt||100000),min_order_usdt:Number(settings.min_order_usdt||10),max_slippage_bps:Number(settings.max_slippage_bps||100),trading_fee_bps:Number(settings.trading_fee_bps||0),quote_ttl_seconds:Number(settings.quote_ttl_seconds||15),max_orders_per_day:Number(settings.max_orders_per_day||0),buy_enabled:settings.buy_enabled!=="false",sell_enabled:settings.sell_enabled!=="false",supported_pairs:String(settings.supported_pairs||""),maintenance_message:String(settings.maintenance_message||""),rows}});
+    res.json({success:true,data:{
+      trading_enabled:settings.trading_enabled!=="false",
+      max_order_usdt:Number(settings.max_order_usdt||100000),
+      min_order_usdt:Number(settings.min_order_usdt||10),
+      max_slippage_bps:Number(settings.max_slippage_bps||100),
+      trading_fee_bps:Number(settings.trading_fee_bps||0),
+      quote_ttl_seconds:Number(settings.quote_ttl_seconds||15),
+      max_orders_per_day:Number(settings.max_orders_per_day||0),
+      buy_enabled:settings.buy_enabled!=="false",
+      sell_enabled:settings.sell_enabled!=="false",
+      supported_pairs:String(settings.supported_pairs||""),
+      maintenance_message:String(settings.maintenance_message||""),
+      settlement_model:String(settings.settlement_model||"market_execution"),
+      settlement_price_source:String(settings.settlement_price_source||"binance_public_market"),
+      settlement_receipt_required:settings.settlement_receipt_required!=="false",
+      manual_outcome_override:false,
+      rows
+    }});
   }catch(e){next(e)}
 });
 router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
@@ -490,6 +507,16 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     const sellEnabled=req.body.sell_enabled!==false;
     const supportedPairs=String(req.body.supported_pairs||"BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT,LINKUSDT").split(",").map(v=>v.trim().toUpperCase()).filter(Boolean);
     const maintenanceMessage=String(req.body.maintenance_message||"").trim().slice(0,255);
+    const settlementModel=String(req.body.settlement_model||"market_execution").trim().toLowerCase();
+    const settlementPriceSource=String(req.body.settlement_price_source||"binance_public_market").trim().toLowerCase();
+    const settlementReceiptRequired=req.body.settlement_receipt_required!==false;
+    // Spot is an immediate market execution product. It does not expose a
+    // per-user or per-order forced WIN/LOSS switch. Outcomes/valuation are
+    // derived from the public market execution price.
+    if(settlementModel!=="market_execution") throw createError(400,"Spot settlement model must be market_execution");
+    if(settlementPriceSource!=="binance_public_market") throw createError(400,"Unsupported settlement price source");
+    if(!settlementReceiptRequired) throw createError(400,"Settlement receipt must remain enabled");
+    if(req.body.manual_outcome_override===true) throw createError(400,"Per-user WIN/LOSS outcome overrides are not supported");
     if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order limit");
     if(!Number.isFinite(min)||min<=0||min>max) throw createError(400,"Invalid minimum order limit");
     if(!Number.isFinite(slippage)||slippage<=0||slippage>10000) throw createError(400,"Invalid slippage limit");
@@ -497,12 +524,12 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     if(!Number.isInteger(quoteTtl)||quoteTtl<5||quoteTtl>120) throw createError(400,"Quote TTL must be 5-120 seconds");
     if(!Number.isInteger(maxOrdersPerDay)||maxOrdersPerDay<0||maxOrdersPerDay>10000) throw createError(400,"Invalid daily order limit");
     if(!supportedPairs.length) throw createError(400,"At least one supported pair is required");
-    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage]]){
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage],["settlement_model",settlementModel],["settlement_price_source",settlementPriceSource],["settlement_receipt_required",settlementReceiptRequired?"true":"false"],["manual_outcome_override","false"]]){
       await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
     }
     await createAuditLog(db,{adminId:req.admin.id,action:"update_spot_trade_settings",note:`Spot trading ${enabled?"enabled":"disabled"}; max order ${max} USDT`});
-    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage}});
+    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage,settlement_model:settlementModel,settlement_price_source:settlementPriceSource,settlement_receipt_required:settlementReceiptRequired,manual_outcome_override:false}});
   }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
 });
 
