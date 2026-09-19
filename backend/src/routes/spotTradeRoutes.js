@@ -6,6 +6,7 @@ const { authUser } = require("../middleware/auth");
 const { createError, createTransactionLog } = require("../utils/helpers");
 const { getBinancePrice } = require("../../services/tradeService");
 const { ensureAssetRow, syncTotal, recordLedger } = require("../../services/assetLedgerService");
+const { transactionSecurity } = require("../middleware/transactionSecurity");
 
 const keyOf = req => String(req.get("Idempotency-Key") || req.body?.idempotencyKey || "").trim().slice(0,128);
 const hashOf = (symbol,side,type,quantity,price) => crypto.createHash("sha256").update([symbol,side,type,quantity,price||""].join("|")).digest("hex");
@@ -20,7 +21,7 @@ router.get("/spot/settings",authUser,async(req,res,next)=>{
 router.get("/spot/orders",authUser,async(req,res,next)=>{
  try{const [rows]=await pool.execute("SELECT * FROM spot_orders WHERE user_id=? ORDER BY id DESC LIMIT 200",[req.user.id]);res.json({success:true,data:rows})}catch(e){next(e)}
 });
-router.post("/spot/orders",authUser,async(req,res,next)=>{
+router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,res,next)=>{
  const db=await pool.getConnection();
  try{
   const symbol=String(req.body.symbol||"").trim().toUpperCase(),side=String(req.body.side||"").trim().toLowerCase(),type=String(req.body.orderType||"market").trim().toLowerCase(),quantity=Number(req.body.quantity),requestedPrice=Number(req.body.price),idempotencyKey=keyOf(req);
