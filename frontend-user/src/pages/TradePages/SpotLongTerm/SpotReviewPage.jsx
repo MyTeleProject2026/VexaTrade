@@ -1,2 +1,10 @@
 import SpotTradingReviewPage from "../../SpotTradingReviewPage";
-export default function SpotReviewPage(){return <SpotTradingReviewPage/>;}
+import TradeSectionLayout from "../TradeSectionLayout";
+
+export default function SpotReviewPage() {
+  return (
+    <TradeSectionLayout title="Spot Order Review" subtitle="Fresh quote and server-side execution checks" mode="spot">
+      <SpotTradingReviewPage />
+    </TradeSectionLayout>
+  );
+}
