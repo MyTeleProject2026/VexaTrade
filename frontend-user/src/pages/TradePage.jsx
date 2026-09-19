@@ -499,16 +499,6 @@ export default function TradePage() {
     void finalizeExpiredTrade();
   }, [remainingSeconds, runningTrade]);
 
-  async function refreshWallet() {
-    try {
-      const res = await userApi.getWalletSummary(token);
-      if (res.status === 200) {
-        const data = res.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0) });
-      }
-    } catch (_) {}
-  }
-
   async function loadTradePage() {
     // Never gate the trading terminal on a batch of API reads. Render the shell
     // immediately and hydrate each independent section as its own read completes.
@@ -557,23 +547,27 @@ export default function TradePage() {
     }
   }
 
-  async function syncTradeState(showSpinner = false) {
+  async function refreshOpenTrades(showSpinner = false) {
     if (showSpinner) setRefreshing(true);
     try {
-      const [openRes, historyRes] = await Promise.allSettled([
-        tradeApi.open(token),
-        tradeApi.history(token),
-      ]);
-      if (openRes.status === "fulfilled") {
-        setOpenTrades(Array.isArray(openRes.value.data?.data) ? openRes.value.data.data : []);
-      }
-      if (historyRes.status === "fulfilled") {
-        const history = Array.isArray(historyRes.value.data?.data) ? historyRes.value.data.data : [];
-        setTradeHistory(history);
-        revealSettledTrade(history);
-      }
+      const response = await tradeApi.open(token);
+      setOpenTrades(Array.isArray(response.data?.data) ? response.data.data : []);
     } catch (_) {
-      // Read-only sync failure is intentionally silent; the action itself has already ended.
+      if (showSpinner) showError("Open orders could not be refreshed. Try again when your connection is stable.");
+    } finally {
+      if (showSpinner) setRefreshing(false);
+    }
+  }
+
+  async function refreshTradeHistory(showSpinner = false) {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const response = await tradeApi.history(token);
+      const history = Array.isArray(response.data?.data) ? response.data.data : [];
+      setTradeHistory(history);
+      revealSettledTrade(history);
+    } catch (_) {
+      if (showSpinner) showError("Trade history could not be refreshed. Try again when your connection is stable.");
     } finally {
       if (showSpinner) setRefreshing(false);
     }
@@ -596,18 +590,10 @@ export default function TradePage() {
       setSettlementPending(false);
       return;
     }
-    try {
-      await syncTradeState(false);
-      // A single controlled read is enough to catch a settlement completed at the same
-      // moment as expiry. There is deliberately no financial polling/retry loop here.
-      if (shownSettledTradeIdRef.current !== id) {
-        setSettlementPending(true);
-      }
-      await refreshWallet();
-      await refreshTargetProgress();
-    } catch (_) {
-      setSettlementPending(true);
-    }
+    // One controlled history read at expiry. No polling/retry loop and no broad
+    // wallet/target refresh is triggered automatically.
+    await refreshTradeHistory(false);
+    if (shownSettledTradeIdRef.current !== id) setSettlementPending(true);
   }
 
   async function checkUserTarget() {
@@ -622,19 +608,6 @@ export default function TradePage() {
           targetAmount: Number(target?.target_amount || 0),
         });
         setTargetAchievedNotified(false);
-      }
-    } catch (_) {}
-  }
-
-  async function refreshTargetProgress() {
-    try {
-      const res = await userApi.getUserTarget(token);
-      if (res.data?.success && res.data?.data?.hasTarget) {
-        const target = res.data.data.target;
-        setTargetProgress({
-          currentProfit: Number(target?.current_profit || 0),
-          targetAmount: Number(target?.target_amount || 0),
-        });
       }
     } catch (_) {}
   }
@@ -734,7 +707,8 @@ export default function TradePage() {
       setShowRunningTrade(true);
       setSettlementPending(false);
       setActiveSection("orders");
-      await Promise.all([syncTradeState(false), refreshWallet()]);
+      setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
+      setWallet(prev => ({ ...prev, balance: Math.max(0, Number(prev.balance || 0) - Number(placedTrade.amount || 0)) }));
       showSuccess(`Trade #${tradeId} placed at ${formatPrice(placedTrade.entryPrice)}.`);
     } catch (err) {
       showError(getApiErrorMessage(err) || "Trade could not be placed.");
@@ -816,7 +790,7 @@ export default function TradePage() {
               </div>
               <button
                 type="button"
-                onClick={() => syncTradeState(true)}
+                onClick={() => refreshTradeHistory(true)}
                 disabled={refreshing}
                 className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5 text-slate-300 hover:text-white disabled:opacity-60"
                 aria-label="Refresh orders"
@@ -999,7 +973,7 @@ export default function TradePage() {
                 <div className="text-sm font-semibold text-white">Open orders</div>
                 <div className="text-[10px] text-slate-500">Active positions currently awaiting expiry</div>
               </div>
-              <button type="button" onClick={() => syncTradeState(true)} className="text-[10px] text-cyan-300 hover:text-cyan-200">Refresh</button>
+              <button type="button" onClick={() => refreshOpenTrades(true)} className="text-[10px] text-cyan-300 hover:text-cyan-200">Refresh</button>
             </div>
             {settlementPending && (
               <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] text-amber-200">
@@ -1034,7 +1008,7 @@ export default function TradePage() {
                 <div className="text-sm font-semibold text-white">Trade history</div>
                 <div className="text-[10px] text-slate-500">Completed settlement records</div>
               </div>
-              <div className="text-[10px] text-slate-500">{tradeHistory.length} records</div>
+              <button type="button" onClick={() => refreshTradeHistory(true)} disabled={refreshing} className="text-[10px] text-cyan-300 hover:text-cyan-200 disabled:opacity-50">{refreshing ? "Refreshing…" : `Refresh · ${tradeHistory.length}`}</button>
             </div>
             <div className="space-y-2">
               {tradeHistory.length ? tradeHistory.slice(0, 50).map((trade) => (
