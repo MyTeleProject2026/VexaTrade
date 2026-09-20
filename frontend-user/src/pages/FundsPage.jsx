@@ -349,7 +349,7 @@ function ActiveFundCard({ item }) {
       {/* Footer */}
       <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-xs text-slate-200 flex items-center justify-between">
         <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
-        <span className="font-mono text-cyan-400">{item.wallet_address || '0xE7A...2D4B'}</span>
+        <span className="font-mono text-cyan-400">{item.wallet_address || 'Not provided'}</span>
       </div>
       <div className="mt-0.5 text-right text-[9px] text-slate-500">Secured</div>
 
@@ -510,7 +510,7 @@ function FundConfirmationModal({ data, onClose }) {
           <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
             <div className="flex items-center justify-between">
               <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
-              <span className="font-mono text-cyan-400">{data.wallet_address || '0x71C...3F2A'}</span>
+              <span className="font-mono text-cyan-400">{data.wallet_address || 'Not provided'}</span>
             </div>
             <div className="mt-1 text-right text-slate-500">Secured</div>
           </div>
