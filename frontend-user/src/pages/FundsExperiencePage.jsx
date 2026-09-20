@@ -22,6 +22,6 @@ export default function FundsExperiencePage(){
    {showMonitor&&<div className="mb-2"><FundsLiveActivity/></div>}
   </div>
   <FundsPage/>
-  <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-5"><div className="rounded-xl border border-white/10 bg-white/[0.02] p-2 text-[9px] text-slate-500">VexaTrade Funds uses the existing protected application, wallet ledger, idempotency, transaction-security and daily settlement flow. The live monitor never mutates balances.</div></div>
+  <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-5"><div className="rounded-xl border border-white/10 bg-white/[0.02] p-2 text-[9px] text-slate-500">VexaTrade Funds operates through the Vexa Blockchain Ecosystem financial and settlement framework. The live monitor never mutates balances.</div></div>
  </div>
 }
