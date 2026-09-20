@@ -8,7 +8,7 @@ export default function FundsExperiencePage(){
  const [showMonitor,setShowMonitor]=useState(true);
  const links=[
   ["/funds","Funds Center",LayoutDashboard],
-  ["/funds","Fund Plans",ListChecks],
+  ["/funds?tab=plans","Fund Plans",ListChecks],
   ["/funds/active","Active Funds",PlayCircle],
   ["/funds/history","History & Vouchers",History],
   ["/funds/help","Funds Help",BookOpen],
