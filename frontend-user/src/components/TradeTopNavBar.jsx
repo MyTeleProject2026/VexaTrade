@@ -21,6 +21,8 @@ const SPOT_ITEMS = [
 export default function TradeTopNavBar() {
   const location = useLocation();
   const navigate = useNavigate();
+  if (!location.pathname.startsWith("/trade")) return null;
+
   const isSpot = location.pathname.startsWith("/trade/spot/long-term");
   const items = isSpot ? SPOT_ITEMS : SHORT_ITEMS;
 
