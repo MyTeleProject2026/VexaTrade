@@ -101,6 +101,7 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    await addColumn(connection, 'deposits', 'address', 'VARCHAR(255) NULL');
     await addColumn(connection, 'deposits', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'deposits', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'deposits', 'uq_deposits_user_idempotency', ['user_id', 'idempotency_key']);
