@@ -96,6 +96,6 @@ export default function SpotPositionPage(){
         </section>
       </div>
     </section>
-    <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[8px] leading-4 text-slate-500"><Activity size={11} className="mr-1 inline text-cyan-300"/>Live market value uses the public market stream. Realized P/L and balances remain server-controlled by the existing Spot ledger.</div>
+    <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[8px] leading-4 text-slate-500"><Activity size={11} className="mr-1 inline text-cyan-300"/>Live market value uses the public market stream. Realized P/L and balances remain governed by the Vexa Blockchain Ecosystem financial and settlement framework.</div>
   </div></TradeSectionLayout>;
 }
