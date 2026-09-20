@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import TradeSectionLayout from "../TradeSectionLayout";
 
 const DURATIONS = [
-  { seconds: 60, label: "60 sec", detail: "1 minute", badge: "FAST" },
-  { seconds: 180, label: "3 min", detail: "Balanced", badge: "3M" },
-  { seconds: 300, label: "5 min", detail: "Extended", badge: "5M" },
+  { seconds: 60, label: "60-Second", detail: "1 minute", badge: "FAST" },
+  { seconds: 180, label: "180-Second", detail: "3 minutes", badge: "3M" },
+  { seconds: 300, label: "300-Second", detail: "5 minutes", badge: "5M" },
 ];
 
 export default function ShortTermHomePage() {
@@ -33,6 +33,11 @@ export default function ShortTermHomePage() {
             <div className="hidden rounded-2xl border border-white/10 bg-white/[0.04] p-2.5 sm:block"><Zap size={18} className="text-cyan-300" /></div>
           </div>
           <button type="button" onClick={() => navigate("/trade/short-term/trade")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/20 bg-cyan-300 py-3 text-xs font-bold text-[#031016] shadow-[0_8px_25px_rgba(34,211,238,0.16)] transition hover:bg-cyan-200 active:scale-[0.99]">Open Trading Terminal <ArrowRight size={14} /></button>
+        </section>
+
+        <section className="rounded-3xl border border-violet-300/15 bg-gradient-to-br from-violet-300/10 via-[#0a0e1a] to-[#050812] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+          <div className="flex items-start justify-between gap-3"><div><div className="text-[8px] font-bold uppercase tracking-[0.28em] text-violet-300">VexaTrade · Spot</div><h2 className="mt-1 text-lg font-bold tracking-tight">Spot / Long-Term Trading</h2><p className="mt-1 text-[10px] leading-4 text-slate-400">Use the dedicated market, order, review, result, orders, assets and position flow connected to the existing Spot APIs.</p></div></div>
+          <button type="button" onClick={() => navigate("/trade/spot/long-term")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-200/20 bg-violet-300 py-3 text-xs font-bold text-[#080412] shadow-[0_8px_25px_rgba(167,139,250,0.14)] transition hover:bg-violet-200 active:scale-[0.99]">Open Spot / Long-Term Trading <ArrowRight size={14} /></button>
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-[#0a0e1a]/90 p-3 shadow-[0_12px_35px_rgba(0,0,0,0.2)]">
