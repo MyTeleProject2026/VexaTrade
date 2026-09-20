@@ -44,8 +44,12 @@ async function getUserUsdtAvailable(connection, userId) {
     [userId]
   );
   if (assets.length) return Number(assets[0].available_balance || 0);
-  const [users] = await connection.execute("SELECT balance FROM users WHERE id=? LIMIT 1", [userId]);
-  return Number(users[0]?.balance || 0);
+
+  // Legacy accounts can still have their authoritative starting USDT in
+  // users.balance. Materialize that value into the asset ledger before any
+  // balance-sensitive operation so every downstream feature reads the same
+  // source of truth. Existing ledger rows are never overwritten.
+  return ensureLegacyUsdtAvailable(connection, userId);
 }
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
 async function recordLedger(connection,{userId,coin,network,bucket,entryType,amount,referenceType,referenceId,note}){
