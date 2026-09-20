@@ -5,6 +5,7 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminControlCenterPage from "./pages/admin/AdminControlCenterPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminUserDetailsControlPage from "./pages/admin/AdminUserDetailsControlPage";
+import AdminAccountVerificationPage from "./pages/admin/AdminAccountVerificationPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
@@ -45,6 +46,7 @@ export default function App() {
       <Route path="control-center" element={<AdminControlCenterPage />} />
       <Route path="users" element={<AdminUsersPage />} />
       <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
+      <Route path="account-verification" element={<AdminAccountVerificationPage />} />
       <Route path="kyc" element={<AdminKycPage />} />
       <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
       <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
