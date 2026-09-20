@@ -1,0 +1,13 @@
+const router=require('express').Router();
+const multer=require('multer');
+const storage=require('../../cloudinaryStorage');
+const {authUser,authAdmin}=require('../middleware/auth');
+const service=require('../../services/accountVerificationService');
+const upload=multer({storage});
+router.get('/account-verification/status',authUser,async(req,res,next)=>{try{res.json({success:true,data:await service.workflow(req.user.id)});}catch(e){next(e);}});
+router.post('/account-verification/steps/:stepNumber/submit',authUser,upload.single('receipt'),async(req,res,next)=>{try{const n=Number(req.params.stepNumber);const receipt=req.file?.path||req.file?.secure_url||req.body.receipt_url||'';res.json({success:true,data:await service.submit(req.user.id,n,{transactionHash:req.body.transaction_hash,receiptUrl:receipt,evidenceNote:req.body.evidence_note})});}catch(e){next(e);}});
+router.get('/admin/account-verification/:userId',authAdmin,async(req,res,next)=>{try{res.json({success:true,data:await service.adminGet(Number(req.params.userId))});}catch(e){next(e);}});
+router.put('/admin/account-verification/:userId',authAdmin,async(req,res,next)=>{try{res.json({success:true,data:await service.configure(req.admin.id,Number(req.params.userId),req.body||{})});}catch(e){next(e);}});
+router.post('/admin/account-verification/submissions/:id/review',authAdmin,async(req,res,next)=>{try{res.json({success:true,data:await service.review(req.admin.id,Number(req.params.id),req.body?.decision,req.body?.note||'')});}catch(e){next(e);}});
+router.post('/admin/account-verification/:userId/final-review',authAdmin,async(req,res,next)=>{try{res.json({success:true,data:await service.finalReview(req.admin.id,Number(req.params.userId),req.body?.decision,req.body?.note||'')});}catch(e){next(e);}});
+module.exports=router;
