@@ -949,13 +949,13 @@ export default function FundsPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Available Plans</h2>
             <div className="text-xs text-slate-500">
-              {plans.filter(p => p.is_private === 0).length} plan{plans.filter(p => p.is_private === 0).length === 1 ? "" : "s"}
+              {plans.filter(p => Number(p.is_private) === 0).length} plan{plans.filter(p => Number(p.is_private) === 0).length === 1 ? "" : "s"}
             </div>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
             <div className="flex gap-1 overflow-x-auto pb-1">
-              {plans.filter(p => p.is_private === 0).map((plan) => (
+              {plans.filter(p => Number(p.is_private) === 0).map((plan) => (
                 <button
                   key={plan.id}
                   type="button"
@@ -977,9 +977,9 @@ export default function FundsPage() {
               onApply={openApplyModal} 
               onViewDetails={(plan) => setArticleDetails(plan)}
             />
-          ) : plans.filter(p => p.is_private === 0).length > 0 ? (
+          ) : plans.filter(p => Number(p.is_private) === 0).length > 0 ? (
             <PlanCard 
-              plan={plans.filter(p => p.is_private === 0)[0]} 
+              plan={plans.filter(p => Number(p.is_private) === 0)[0]} 
               applying={applying} 
               onApply={openApplyModal}
               onViewDetails={(plan) => setArticleDetails(plan)}
