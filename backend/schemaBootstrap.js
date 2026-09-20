@@ -54,6 +54,16 @@ async function ensureUniqueIndex(connection, table, indexName, columns) {
   }
 }
 
+async function ensureIndex(connection, table, indexName, columns) {
+  if (!(await tableExists(connection, table))) {
+    throw new Error(`Required table ${table} does not exist; cannot create index ${indexName} safely.`);
+  }
+  if (!(await indexExists(connection, table, indexName))) {
+    await connection.execute(`CREATE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(c => \`${c}\`).join(',')})`);
+    console.log(`[Schema] Added index ${table}.${indexName}`);
+  }
+}
+
 async function ensureFinancialSchema() {
   const connection = await pool.getConnection();
   try {
@@ -143,6 +153,7 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'deposits', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'deposits', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'deposits', 'uq_deposits_user_idempotency', ['user_id', 'idempotency_key']);
+    await ensureIndex(connection, 'deposits', 'idx_deposits_request_hash', ['user_id', 'request_hash']);
 
     await addColumn(connection, 'withdrawals', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'withdrawals', 'request_hash', 'CHAR(64) NULL');
@@ -150,14 +161,17 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'withdrawals', 'joint_authorization_id', 'BIGINT UNSIGNED NULL');
     await addColumn(connection, 'withdrawals', 'two_factor_verified_at', 'DATETIME NULL');
     await ensureUniqueIndex(connection, 'withdrawals', 'uq_withdrawals_user_idempotency', ['user_id', 'idempotency_key']);
+    await ensureIndex(connection, 'withdrawals', 'idx_withdrawals_user_id_id', ['user_id', 'id']);
 
     await addColumn(connection, 'convert_transactions', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'convert_transactions', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'convert_transactions', 'uq_convert_user_idempotency', ['user_id', 'idempotency_key']);
+    await ensureIndex(connection, 'convert_transactions', 'idx_convert_request_hash', ['user_id', 'request_hash']);
 
     await addColumn(connection, 'user_transfers', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'user_transfers', 'uq_transfer_user_idempotency', ['sender_id', 'idempotency_key']);
+    await ensureIndex(connection, 'user_transfers', 'idx_user_transfers_sender_request_hash', ['sender_id', 'request_hash']);
 
     await addColumn(connection, 'trades', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'trades', 'request_hash', 'CHAR(64) NULL');
