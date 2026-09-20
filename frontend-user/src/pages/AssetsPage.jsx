@@ -1062,12 +1062,7 @@ export default function AssetsPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white sm:text-3xl">Portfolio</h2>
 
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.06]"
-          >
-            <SlidersHorizontal size={17} />
-          </button>
+          <button type="button" onClick={() => navigate("/assets/select")} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.06] sm:text-sm"><SlidersHorizontal size={17} />Manage assets</button>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
