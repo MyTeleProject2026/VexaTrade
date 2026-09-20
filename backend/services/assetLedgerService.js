@@ -12,30 +12,22 @@ async function ensureAssetRow(connection, userId, coin) {
   return created[0];
 }
 async function ensureLegacyUsdtAvailable(connection, userId) {
-  // Legacy accounts may still hold their wallet balance in users.balance.
-  // The asset ledger becomes authoritative once a USDT position has funds.
-  // Never overwrite a position that already contains available/reserved/pending funds.
-  const [users] = await connection.execute('SELECT balance FROM users WHERE id=? FOR UPDATE', [userId]);
-  const legacyBalance = Number(users[0]?.balance || 0);
-  if (!Number.isFinite(legacyBalance) || legacyBalance <= 0) return 0;
-
+  // The asset ledger is authoritative once a USDT row exists. Legacy users.balance
+  // is materialized only when no USDT ledger row exists yet.
   const [assets] = await connection.execute(
     "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1 FOR UPDATE",
     [userId]
   );
+  if (assets.length) return Number(assets[0].available_balance || 0);
 
-  if (!assets.length) {
-    await connection.execute(
-      "INSERT INTO user_assets (user_id,coin,balance,avg_price,available_balance,reserved_balance,pending_balance) VALUES (?, 'USDT', ?, 1, ?, 0, 0)",
-      [userId, legacyBalance, legacyBalance]
-    );
-    return legacyBalance;
-  }
-
-  // A USDT asset row means the ledger has taken ownership of the balance.
-  // Never rehydrate it from users.balance: the legacy column may be stale after
-  // a legitimate spend, withdrawal, or trade.
-  return Number(assets[0].available_balance || 0);
+  const [users] = await connection.execute('SELECT balance FROM users WHERE id=? FOR UPDATE', [userId]);
+  const legacyBalance = Number(users[0]?.balance || 0);
+  if (!Number.isFinite(legacyBalance) || legacyBalance <= 0) return 0;
+  await connection.execute(
+    "INSERT INTO user_assets (user_id,coin,balance,avg_price,available_balance,reserved_balance,pending_balance) VALUES (?, 'USDT', ?, 1, ?, 0, 0)",
+    [userId, legacyBalance, legacyBalance]
+  );
+  return legacyBalance;
 }
 
 async function getUserUsdtAvailable(connection, userId) {
