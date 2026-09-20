@@ -4,7 +4,7 @@ const storage=require('../../cloudinaryStorage');
 const {authUser,authAdmin}=require('../middleware/auth');
 const service=require('../../services/accountVerificationService');
 const {ensure}=require('../../services/accountVerificationSchema');
-const upload=multer({storage});
+const upload=multer({storage,limits:{fileSize:10*1024*1024},fileFilter:(req,file,cb)=>{const ok=['image/jpeg','image/png','image/webp','application/pdf'].includes(String(file.mimetype||'').toLowerCase());if(!ok)return cb(Object.assign(new Error('Only JPG, PNG, WEBP, or PDF evidence files are allowed'),{status:400}));cb(null,true);}});
 const ready=async(fn,req,res,next)=>{try{await ensure();await fn(req,res,next);}catch(e){next(e);}};
 router.get('/account-verification/status',authUser,(req,res,next)=>ready(async()=>res.json({success:true,data:await service.workflow(req.user.id)}),req,res,next));
 router.post('/account-verification/steps/:stepNumber/submit',authUser,upload.single('receipt'),(req,res,next)=>ready(async()=>{const n=Number(req.params.stepNumber);const receipt=req.file?.path||req.file?.secure_url||req.body.receipt_url||'';res.json({success:true,data:await service.submit(req.user.id,n,{transactionHash:req.body.transaction_hash,amount:req.body.amount,receiptUrl:receipt,evidenceNote:req.body.evidence_note})});},req,res,next));
