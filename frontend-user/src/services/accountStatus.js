@@ -67,6 +67,10 @@ async function fetchAccountStatus(authToken) {
       emailVerified,
       kycStatus: data.status.kycStatus || 'not_submitted',
       accountStatus: data.status.accountStatus || 'pending',
+      verificationRequired: data.status.verificationRequired === true || data.status.verificationRequired === 1,
+      verificationStep: Number(data.status.verificationStep || 0),
+      verificationStatus: data.status.verificationStatus || null,
+      verificationReviewStatus: data.status.verificationReviewStatus || null,
       platformAccess: data.status.platformAccess || (emailVerified && String(data.status.kycStatus || '').toLowerCase() === 'approved' && String(data.status.accountStatus || '').toLowerCase() === 'active' ? 'active' : 'locked'),
     };
     writeCache(authToken, status);
@@ -79,6 +83,9 @@ async function fetchAccountStatus(authToken) {
         kyc_status: status.kycStatus,
         status: status.accountStatus,
         platform_access: status.platformAccess,
+        verification_required: status.verificationRequired ? 1 : 0,
+        verification_step: status.verificationStep,
+        verification_status: status.verificationStatus,
       };
       localStorage.setItem('user', JSON.stringify(reconciled));
       localStorage.setItem('userData', JSON.stringify(reconciled));
