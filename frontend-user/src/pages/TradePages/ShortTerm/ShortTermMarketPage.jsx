@@ -18,7 +18,7 @@ export default function ShortTermMarketPage(){
    <div className="mt-2 grid grid-cols-3 gap-1.5">{[["60","60 sec"],["180","3 min"],["300","5 min"]].map(([v,label])=><button key={v} onClick={()=>chooseDuration(v)} className={"rounded-xl border p-2 text-[9px] font-semibold transition "+(duration===v?"border-cyan-300/25 bg-cyan-300/10 text-cyan-200":"border-white/10 bg-[#050812] text-slate-500 hover:border-cyan-300/15")}>{label}</button>)}</div>
   </section>
   <MarketChart symbol={pair} interval="5m" height={300}/>
-  <OrderBook symbol={pair} currentPrice={0}/>
+  <OrderBook symbol={pair} currentPrice={price}/>
   <button onClick={()=>navigate("/trade/short-term/trade?duration="+duration)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 py-3 text-xs font-bold text-black"><Zap size={14}/> Trade {pair}</button>
  </div></TradeSectionLayout>;
 }
