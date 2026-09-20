@@ -22,7 +22,7 @@
   .vexa-icon-button:hover { background: rgba(34,211,238,.08); border-color: rgba(103,232,249,.24); color: #cffafe; }
   .vexa-icon-button:active { transform: scale(.97); }
   .vexa-topbar { box-shadow: 0 10px 35px rgba(0,0,0,.20); }
-  .vexa-scroll-shell { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+  .vexa-scroll-shell { overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   .vexa-mobile-nav {
     border-top: 1px solid rgba(255,255,255,.09);
     background: rgba(8,13,25,.94);
