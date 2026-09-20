@@ -33,6 +33,7 @@ import { createActionIdempotencyKey, runSingleUserAction } from "../services/act
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
+import FundsLiveActivity from "../components/funds/FundsLiveActivity";
 
 // ---------- helpers ----------
 function formatMoney(value) {
@@ -995,43 +996,19 @@ export default function FundsPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Private Funds</h2>
-            <div className="text-xs text-slate-500">
-              {plans.filter(p => p.is_private === 1).length} private plan{plans.filter(p => p.is_private === 1).length === 1 ? "" : "s"}
-            </div>
+            <div className="text-xs text-slate-500">{plans.filter(p => Number(p.is_private) === 1).length} assigned plan{plans.filter(p => Number(p.is_private) === 1).length === 1 ? "" : "s"}</div>
           </div>
-
-          <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              {plans.filter(p => p.is_private === 1).map((plan) => (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => setSelectedPlanId(plan.id)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    selectedPlanId === plan.id ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
-                  }`}
-                >
-                  {plan.duration_days} Day
-                </button>
+          {plans.filter(p => Number(p.is_private) === 1).length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {plans.filter(p => Number(p.is_private) === 1).map((plan) => (
+                <PlanCard key={plan.id} plan={plan} applying={applying} onApply={openApplyModal} onViewDetails={(item) => setArticleDetails(item)} />
               ))}
             </div>
-          </div>
-
-          {selectedPlan && selectedPlan.is_private === 1 ? (
-            <PlanCard 
-              plan={selectedPlan} 
-              applying={applying} 
-              onApply={openApplyModal}
-              onViewDetails={(plan) => setArticleDetails(plan)}
-            />
-          ) : plans.filter(p => p.is_private === 1).length > 0 ? (
-            <PlanCard 
-              plan={plans.filter(p => p.is_private === 1)[0]} 
-              applying={applying} 
-              onApply={openApplyModal}
-              onViewDetails={(plan) => setArticleDetails(plan)}
-            />
-          ) : null}
+          ) : (
+            <div className="rounded-xl border border-amber-400/20 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
+              No private fund plans are assigned to this account yet.
+            </div>
+          )}
         </section>
       )}
 
