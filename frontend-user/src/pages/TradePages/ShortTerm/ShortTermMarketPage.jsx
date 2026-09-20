@@ -4,7 +4,8 @@ import { BarChart3, ChevronDown, Zap, Clock3, RefreshCw } from "lucide-react";
 import MarketChart from "../../../components/MarketChart";
 import OrderBook from "../../../components/OrderBook";
 import TradeSectionLayout from "../TradeSectionLayout";
-const PAIRS=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","TRXUSDT","AVAXUSDT","LINKUSDT","TONUSDT","LTCUSDT"];\nconst DURATION_OPTIONS=[[60,"60-second","60S"],[180,"180-Second","180S"],[300,"300-Second","300S"]];
+const PAIRS=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","TRXUSDT","AVAXUSDT","LINKUSDT","TONUSDT","LTCUSDT"];
+const DURATION_OPTIONS=[[60,"60-second","60S"],[180,"180-Second","180S"],[300,"300-Second","300S"]];
 export default function ShortTermMarketPage(){
  const [pair,setPair]=useState("BTCUSDT"); const [price,setPrice]=useState(0); const [duration,setDuration]=useState(sessionStorage.getItem("vexa_short_term_duration")||"60"); const navigate=useNavigate();
  useEffect(()=>{let closed=false,ws;try{ws=new WebSocket("wss://stream.binance.com:9443/ws/"+pair.toLowerCase()+"@ticker");ws.onmessage=e=>{try{const p=Number(JSON.parse(e.data)?.c);if(!closed&&p>0)setPrice(p)}catch{}}}catch{}return()=>{closed=true;try{ws?.close()}catch{}}},[pair]);
