@@ -509,6 +509,7 @@ export default function TradePage({ embedded = false } = {}) {
 
     const reads = [
       ["wallet", () => withReadTimeout(userApi.getWalletSummary(token), 5000)],
+      ["assets", () => withReadTimeout(userApi.getUserAssets(token), 5000)],
       ["rules", () => withReadTimeout(tradeApi.rules(token), 5000)],
       ["market", () => withReadTimeout(marketApi.home(), 5000)],
       ["open", () => withReadTimeout(tradeApi.open(token), 5000)],
@@ -522,7 +523,16 @@ export default function TradePage({ embedded = false } = {}) {
       const response = result.value;
       if (key === "wallet") {
         const data = response.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0) });
+        setWallet((previous) => ({ ...previous, balance: Number(data.balance || 0) }));
+      } else if (key === "assets") {
+        const assets = Array.isArray(response.data?.data?.assets) ? response.data.data.assets : [];
+        const usdt = assets.find((asset) => String(asset?.symbol || asset?.coin || "").toUpperCase() === "USDT");
+        if (usdt) {
+          const assetBalance = Number(usdt?.available_balance ?? usdt?.amount ?? usdt?.balance ?? 0);
+          if (Number.isFinite(assetBalance) && assetBalance > 0) {
+            setWallet((previous) => ({ ...previous, balance: assetBalance }));
+          }
+        }
       } else if (key === "rules") {
         setRules(Array.isArray(response.data?.data) ? response.data.data : []);
       } else if (key === "market") {
