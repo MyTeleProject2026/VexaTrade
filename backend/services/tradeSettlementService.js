@@ -1,9 +1,8 @@
 // backend/services/tradeSettlementService.js
 const pool = require('../db');
-const crypto = require('crypto');
 const { getBinancePrice } = require('./tradeService');
 const { createUserNotification, createTransactionLog } = require('../src/utils/helpers');
-const { movePendingToAvailable, creditAssetBalance, consumePendingAsset, recordLedger } = require('./assetLedgerService');
+const { movePendingToAvailable, creditAssetBalance, consumePendingAsset } = require('./assetLedgerService');
 
 async function settleExpiredTrades(limit = 100) {
   // TiDB/MySQL prepared statements can reject a parameter marker in LIMIT
