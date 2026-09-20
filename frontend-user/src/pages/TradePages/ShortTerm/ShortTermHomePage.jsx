@@ -14,7 +14,7 @@ export default function ShortTermHomePage() {
     ["/trade/short-term/market", "Live Market", "Charts, live price and order-book depth", BarChart3],
     ["/trade/short-term/trade", "Trading Terminal", "Configure BUY / SELL, amount and duration", Zap],
     ["/trade/short-term/running", "Running Trades", "Monitor active timed contracts", Clock3],
-    ["/trade/short-term/history", "Trade History", "Review completed settlement records", History],
+    ["/trade/short-term/history", "Trade History", "Review completed Blockchain Ecosystem settlement records", History],
   ];
   const chooseDuration = (seconds) => {
     sessionStorage.setItem("vexa_short_term_duration", String(seconds));
@@ -28,7 +28,7 @@ export default function ShortTermHomePage() {
             <div>
               <div className="text-[8px] font-bold uppercase tracking-[0.28em] text-cyan-300">VexaTrade · Short-Term</div>
               <h1 className="mt-1 text-xl font-bold tracking-tight">Choose your trading route</h1>
-              <p className="mt-1 max-w-2xl text-[10px] leading-4 text-slate-400">Pick a market, select a duration, then use the protected live terminal. Existing wallet checks, server rules, settlement and receipt logic remain unchanged.</p>
+              <p className="mt-1 max-w-2xl text-[10px] leading-4 text-slate-400">Pick a market, select a duration, then use the protected live terminal. Trade activity and settlement follow the Vexa Blockchain Ecosystem framework.</p>
             </div>
             <div className="hidden rounded-2xl border border-white/10 bg-white/[0.04] p-2.5 sm:block"><Zap size={18} className="text-cyan-300" /></div>
           </div>
