@@ -180,7 +180,7 @@ export default function WithdrawPage() {
       }, token));
       const responseData = res?.data?.data || {};
       const jointRequired = responseData.authorization === "joint_partner_email_otp";
-      showSuccess(jointRequired ? "Withdrawal created. Your joint account holder must authorize it using the email OTP." : "Withdrawal authorized and queued for settlement.");
+      showSuccess(jointRequired ? "Withdrawal created. Your joint account holder must authorize it using the email OTP." : "Withdrawal authorized and queued for Vexa Blockchain Ecosystem settlement.");
       showVoucher({ title: "Withdrawal Requested", type: "withdraw", transactionId: responseData.id, data: { id: responseData.id, coin: form.coin, network: form.network, amount: Number(form.amount), feeAmount: responseData.feeAmount || 0, netAmount: responseData.netAmount || Number(form.amount), status: responseData.status || "Pending", created_at: new Date().toISOString() } });
       setForm({ coin: "USDT", network: "TRC20", amount: "", address: "", transactionPasscode: "", twoFactorCode: "" });
       setTab("history");
@@ -194,7 +194,7 @@ export default function WithdrawPage() {
   }
 
   async function handleProfitWithdrawalSuccess() {
-    showSuccess("Profit withdrawal request submitted. Admin will review and approve.");
+    showSuccess("Profit withdrawal request submitted. It will proceed through the Vexa Blockchain Ecosystem settlement and authorization framework.");
     await Promise.all([refreshTargetProgress(), loadHistory(true)]);
   }
 
