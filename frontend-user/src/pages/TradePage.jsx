@@ -342,7 +342,8 @@ export default function TradePage({ embedded = false } = {}) {
   const [tradeHistory, setTradeHistory] = useState([]);
   const [pair, setPair] = useState("BTCUSDT");
   const [direction, setDirection] = useState("bullish");
-  const [timer, setTimer] = useState(60);
+  const requestedTimer = Number(new URLSearchParams(window.location.search).get("duration") || sessionStorage.getItem("vexa_short_term_duration") || 60);
+  const [timer, setTimer] = useState(Number.isInteger(requestedTimer) && requestedTimer > 0 ? requestedTimer : 60);
   const [amount, setAmount] = useState("");
   const [timeframe, setTimeframe] = useState("5m");
   const [activeSection, setActiveSection] = useState("trade");
