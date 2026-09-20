@@ -564,6 +564,27 @@ export default function TradePage({ embedded = false } = {}) {
     }
   }
 
+  async function refreshWalletBalance() {
+    try {
+      const [walletRes, assetsRes] = await Promise.allSettled([
+        withReadTimeout(userApi.getWalletSummary(token), 5000),
+        withReadTimeout(userApi.getUserAssets(token), 5000),
+      ]);
+      let nextBalance = null;
+      if (walletRes.status === "fulfilled") {
+        const value = Number(walletRes.value?.data?.data?.balance);
+        if (Number.isFinite(value)) nextBalance = value;
+      }
+      if (assetsRes.status === "fulfilled") {
+        const assets = Array.isArray(assetsRes.value?.data?.data?.assets) ? assetsRes.value.data.data.assets : [];
+        const usdt = assets.find((asset) => String(asset?.symbol || asset?.coin || "").toUpperCase() === "USDT");
+        const value = Number(usdt?.available_balance ?? usdt?.amount ?? usdt?.balance);
+        if (Number.isFinite(value) && value > 0) nextBalance = value;
+      }
+      if (nextBalance !== null) setWallet((previous) => ({ ...previous, balance: nextBalance }));
+    } catch (_) {}
+  }
+
   async function refreshTradeHistory(showSpinner = false) {
     if (showSpinner) setRefreshing(true);
     try {
