@@ -42,26 +42,26 @@ export default function TradePage() {
           </div>
         </section>
 
-        <section className="grid gap-2.5 sm:grid-cols-2">
+        <section className="grid gap-3 sm:grid-cols-2 lg:gap-4">
           {OPTIONS.map(({ path, title, subtitle, description, icon: Icon, badge }) => (
             <button
               key={path}
               type="button"
               onClick={() => navigate(path)}
-              className="group min-h-[170px] rounded-3xl border border-white/10 bg-[#0a0e1a] p-4 text-left shadow-[0_12px_35px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#0c1220] active:scale-[0.99]"
+              className="group min-h-[190px] rounded-3xl border border-white/10 bg-[#0a0e1a] p-5 text-left shadow-[0_12px_35px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#0c1220] active:scale-[0.99]"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-300/10">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-300/10">
                   <Icon size={18} className="text-cyan-300" />
                 </div>
                 <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[7px] font-bold tracking-[0.16em] text-slate-500">
                   {badge}
                 </span>
               </div>
-              <div className="mt-4 text-sm font-bold text-white">{title}</div>
-              <div className="mt-1 text-[10px] font-medium text-cyan-200">{subtitle}</div>
-              <div className="mt-2 text-[9px] leading-4 text-slate-500">{description}</div>
-              <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-white">
+              <div className="mt-4 text-base font-bold text-white sm:text-lg">{title}</div>
+              <div className="mt-1 text-[11px] font-medium text-cyan-200 sm:text-xs">{subtitle}</div>
+              <div className="mt-2 text-[10px] leading-5 text-slate-500 sm:text-[11px]">{description}</div>
+              <div className="mt-5 flex min-h-11 items-center gap-1.5 text-[12px] font-bold text-white sm:text-sm">
                 Open trading option <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
               </div>
             </button>
