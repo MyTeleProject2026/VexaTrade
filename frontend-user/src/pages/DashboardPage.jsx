@@ -126,6 +126,8 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState([]);
   const [combinedBalanceData, setCombinedBalanceData] = useState(null);
   const [news, setNews] = useState([]);
+  const [holdings, setHoldings] = useState([]);
+  const [hideBalance, setHideBalance] = useState(false);
   const mountedRef = useRef(true);
   const requestRef = useRef(false);
 
@@ -167,6 +169,7 @@ export default function DashboardPage() {
         const rows = Array.isArray(payload?.data?.assets)
           ? payload.data.assets
           : (Array.isArray(payload?.assets) ? payload.assets : []);
+        setHoldings(rows);
         const value = rows.reduce((sum, item) => {
           const explicit = Number(item?.usdt_value ?? item?.value_usdt ?? item?.value);
           if (Number.isFinite(explicit) && explicit !== 0) return sum + explicit;
@@ -202,20 +205,64 @@ export default function DashboardPage() {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const topMarkets = markets.slice(0, 8);
   const hasJointAccount = combinedBalanceData?.hasJointAccount || false;
-  const displayBalance = hasJointAccount ? combinedBalanceData.combinedBalance : portfolioValue;
+  const displayBalance = hasJointAccount ? Number(combinedBalanceData.combinedBalance || 0) : (portfolioValue || Number(wallet?.balance || 0));
+  const visibleBalance = hideBalance ? "••••••" : `${formatMoney(displayBalance)}`;
+  const ownedHoldings = holdings.filter((item) => Number(item?.available_balance ?? item?.balance ?? item?.amount ?? 0) > 0).slice(0, 6);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#050812]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" /></div>;
 
-  const balanceFormatted = `$${formatMoney(displayBalance)}`;
   return (
-    <div className="min-h-screen bg-[#050812] p-4">
-      <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="text-xl font-bold text-white">VexaTrade</div><button onClick={() => loadData(true)} className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"><RefreshCw size={16} className={refreshing ? "animate-spin" : ""}/></button></div><div className="flex items-center gap-3"><button onClick={() => navigate("/transactions")} className="relative rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"><Bell size={16}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white">{unreadCount}</span>}</button><button onClick={() => navigate("/assets")} className="rounded-full bg-[#0a0e1a] p-2 text-slate-400 transition hover:text-white"><Wallet size={16}/></button></div></div>
+    <div className="min-h-screen bg-[#050812] px-3 pb-24 pt-3 text-white sm:px-5 xl:pb-8">
+      <div className="mx-auto w-full max-w-[1400px] space-y-4">
+        <header className="flex items-center justify-between gap-3">
+          <div><div className="text-xl font-bold sm:text-2xl">VexaTrade</div><div className="text-xs text-slate-500">Trading dashboard</div></div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setHideBalance(v => !v)} className="rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs">{hideBalance ? "Show" : "Hide"} balance</button>
+            <button onClick={() => loadData(true)} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5"><RefreshCw size={17} className={refreshing ? "animate-spin" : ""}/></button>
+            <button onClick={() => navigate("/notifications")} className="relative rounded-xl border border-white/10 bg-[#0a0e1a] p-2.5"><Bell size={17}/>{unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-[9px] text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>
+          </div>
+        </header>
 
-      <div className="mb-4"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold text-white">VexaTrade News</h2>{news.length > 3 && <button onClick={() => navigate("/news")} className="text-xs text-cyan-400 hover:text-cyan-300">View All →</button>}</div>{news.length === 0 ? <div className="mt-2 rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center text-sm text-slate-400">No news available at the moment.</div> : <div className="mt-2 max-h-[400px] space-y-3 overflow-y-auto pr-1 custom-scrollbar">{news.map((item) => <NewsItem key={item.id} news={item}/>)}</div>}</div>
+        <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,.15),transparent_30%),#0a0e1a] p-5 sm:p-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><div className="text-xs text-slate-400">{hasJointAccount ? "Combined wallet balance" : "Estimated total value"}</div><div className="mt-2 text-3xl font-bold sm:text-4xl">{visibleBalance} <span className="text-sm font-medium text-slate-500">USDT</span></div><div className="mt-2 text-xs text-slate-500">Live wallet and asset ledger value</div></div>
+            <button onClick={() => navigate("/assets")} className="min-h-11 rounded-xl bg-cyan-500 px-5 text-sm font-semibold text-black">View Assets</button>
+          </div>
+        </section>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4"><StatCard title={hasJointAccount ? "Combined Balance" : "Total Balance"} value={balanceFormatted} icon={hasJointAccount ? Users : Wallet} onClick={() => navigate("/assets")} subtext={hasJointAccount ? "Joint account (shared balance)" : "Live wallet summary"} compact/><StatCard title="24h Change" value="Market data available below" icon={TrendingUp}/><StatCard title="24h Volume" value="Live market pairs" icon={TrendingDown}/><StatCard title="Open Trades" value="View in Trade" icon={TrendingUp} onClick={() => navigate("/trade")}/></div>
-      <div className="mb-4 flex gap-2"><ActionButton icon={ArrowDownToLine} label="Deposit" onClick={() => navigate("/deposit")}/><ActionButton icon={ArrowUpToLine} label="Withdraw" onClick={() => navigate("/withdraw")}/><ActionButton icon={ArrowRightLeft} label="Convert" onClick={() => navigate("/convert")}/><ActionButton icon={TrendingUp} label="Trade" onClick={() => navigate("/trade")}/></div>
-      <div className="rounded-xl border border-white/10 bg-[#0a0e1a]"><div className="border-b border-white/10 px-4 py-3"><h3 className="text-sm font-semibold text-white">Hot Pairs</h3></div><div className="grid gap-1 p-2 sm:grid-cols-2 lg:grid-cols-4">{topMarkets.map((item) => <MarketRow key={item.symbol} symbol={item.symbol?.replace("USDT", "") || ""} price={item.lastPrice || item.price} change={item.priceChangePercent} onClick={() => navigate("/trade")}/>)}</div></div>
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <ActionButton icon={ArrowDownToLine} label="Deposit" onClick={() => navigate("/deposit")} />
+          <ActionButton icon={ArrowUpToLine} label="Withdraw" onClick={() => navigate("/withdraw")} />
+          <ActionButton icon={ArrowRightLeft} label="Convert" onClick={() => navigate("/convert")} />
+          <ActionButton icon={TrendingUp} label="Trade" onClick={() => navigate("/trade")} />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
+          <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 sm:p-5">
+            <div className="flex items-center justify-between"><div><h2 className="text-base font-semibold">My Assets</h2><p className="mt-1 text-xs text-slate-500">{ownedHoldings.length} funded asset{ownedHoldings.length === 1 ? "" : "s"}</p></div><button onClick={() => navigate("/assets")} className="text-xs font-semibold text-cyan-400">View all</button></div>
+            <div className="mt-4 space-y-2">{ownedHoldings.length ? ownedHoldings.map(item => { const symbol=String(item?.symbol||item?.coin||"").toUpperCase(); const amount=Number(item?.available_balance??item?.balance??item?.amount??0); const value=Number(item?.usdt_value??item?.value_usdt??item?.value??(amount*Number(item?.current_price??item?.price??0))); const pnl=Number(item?.spot_pnl??item?.pnl??0); return <button key={symbol} onClick={() => navigate("/assets/"+encodeURIComponent(symbol))} className="flex w-full items-center justify-between rounded-2xl border border-white/5 bg-white/[.02] p-3 text-left hover:border-cyan-400/20"><div><div className="text-sm font-semibold">{symbol}</div><div className="mt-1 text-xs text-slate-500">{amount.toLocaleString(undefined,{maximumFractionDigits:10})} {symbol}</div></div><div className="text-right"><div className="text-sm font-semibold">{hideBalance ? "••••" : "$"+formatMoney(value)}</div><div className={pnl>=0?"text-[10px] text-emerald-400":"text-[10px] text-red-400"}>{pnl>=0?"+":""}{formatMoney(pnl)} USDT</div></div></button>; }) : <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-500">No funded assets yet. Deposit or convert funds to start.</div>}</div>
+          </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 sm:p-5">
+            <div className="flex items-center justify-between"><div><h2 className="text-base font-semibold">Market Movers</h2><p className="mt-1 text-xs text-slate-500">Live market pairs</p></div><button onClick={() => navigate("/trade")} className="text-xs font-semibold text-cyan-400">Trade</button></div>
+            <div className="mt-4 grid grid-cols-2 gap-2">{topMarkets.slice(0,6).map(item => <MarketRow key={item.symbol} symbol={item.symbol?.replace("USDT","")||""} price={item.lastPrice||item.price} change={item.priceChangePercent} onClick={() => navigate("/trade")} />)}</div>
+            {!topMarkets.length && <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-500">Market data is currently unavailable.</div>}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 sm:p-5">
+          <div className="flex items-center justify-between"><div><h2 className="text-base font-semibold">VexaTrade News</h2><p className="mt-1 text-xs text-slate-500">Platform updates and market information</p></div>{news.length>3&&<button onClick={() => navigate("/news")} className="text-xs font-semibold text-cyan-400">View all</button>}</div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">{news.slice(0,4).map(item => <NewsItem key={item.id} news={item}/>)}</div>
+          {!news.length&&<div className="mt-3 rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-500">No news available at the moment.</div>}
+        </section>
+
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <button onClick={() => navigate("/transactions")} className="min-h-12 rounded-xl border border-white/10 bg-[#0a0e1a] text-xs font-semibold">Transactions</button>
+          <button onClick={() => navigate("/notifications")} className="min-h-12 rounded-xl border border-white/10 bg-[#0a0e1a] text-xs font-semibold">Notifications</button>
+          <button onClick={() => navigate("/funds")} className="min-h-12 rounded-xl border border-white/10 bg-[#0a0e1a] text-xs font-semibold">Funds</button>
+          <button onClick={() => navigate("/support")} className="min-h-12 rounded-xl border border-white/10 bg-[#0a0e1a] text-xs font-semibold">Support</button>
+        </section>
+      </div>
       <style>{`.custom-scrollbar::-webkit-scrollbar{width:4px}.custom-scrollbar::-webkit-scrollbar-track{background:#0a0e1a}.custom-scrollbar::-webkit-scrollbar-thumb{background:#00d4ff;border-radius:10px}.custom-scrollbar{scrollbar-width:thin;scrollbar-color:#00d4ff #0a0e1a}`}</style>
     </div>
   );
