@@ -196,12 +196,12 @@
     min-height: var(--spot-control-min);
   }
   .vexa-spot-ui button {
-    font-size: 0.78rem;
+    font-size: 0.78rem !important;
     line-height: 1.15;
   }
   .vexa-spot-ui select,
   .vexa-spot-ui input {
-    font-size: 0.9rem;
+    font-size: 0.9rem !important;
     line-height: 1.2;
   }
   .vexa-spot-ui h1 { font-size: clamp(1.2rem, 4.8vw, 1.65rem); }
@@ -214,16 +214,16 @@
   .vexa-spot-ui {
     --spot-control-min: 46px;
   }
-  .vexa-spot-ui button { font-size: 0.84rem; }
+  .vexa-spot-ui button { font-size: 0.84rem !important; }
   .vexa-spot-ui select,
-  .vexa-spot-ui input { font-size: 0.95rem; }
+  .vexa-spot-ui input { font-size: 0.95rem !important; }
 }
 
 @media (min-width: 1024px) {
   .vexa-spot-ui {
     --spot-control-min: 48px;
   }
-  .vexa-spot-ui button { font-size: 0.88rem; }
+  .vexa-spot-ui button { font-size: 0.88rem !important; }
   .vexa-spot-ui select,
-  .vexa-spot-ui input { font-size: 1rem; }
+  .vexa-spot-ui input { font-size: 1rem !important; }
 }
