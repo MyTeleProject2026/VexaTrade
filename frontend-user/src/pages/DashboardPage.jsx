@@ -197,8 +197,25 @@ export default function DashboardPage() {
   useEffect(() => {
     mountedRef.current = true;
     loadData();
+
+    const handleFinancialAction = () => {
+      // Financial actions already completed by the server should update the
+      // dashboard without a timer, full-page reload, or duplicate submission.
+      void loadData(true);
+    };
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void loadData(true);
+    };
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       mountedRef.current = false;
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
