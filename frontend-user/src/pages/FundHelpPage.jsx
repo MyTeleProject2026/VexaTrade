@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";\nimport { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
 
 export default function FundHelpPage() {
   const steps = [
