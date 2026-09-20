@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require('../../db');
 const { authUser, authAdmin } = require('../middleware/auth');
 const { createError, createUserNotification, createAuditLog } = require('../utils/helpers');
+const { getUserUsdtAvailable } = require('../../services/assetLedgerService');
 
 // ─── User ───────────────────────────────────────────────────────────
 router.get('/joint-account/status', authUser, async (req, res, next) => {
@@ -47,24 +48,29 @@ router.post('/joint-account/request', authUser, async (req, res, next) => {
 
 router.get('/joint-account/combined-balance', authUser, async (req, res, next) => {
   try {
-    const [userRows] = await pool.execute(`SELECT id, uid, balance FROM users WHERE id = ?`, [req.user.id]);
+    const [userRows] = await pool.execute(`SELECT id, uid FROM users WHERE id = ?`, [req.user.id]);
     if (!userRows.length) return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: 0, userBalance: 0, partnerBalance: 0, partnerName: null } });
     const currentUser = userRows[0];
     const [jointRows] = await pool.execute(`SELECT * FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1`, [currentUser.uid, currentUser.uid]);
-    if (!jointRows.length) {
-      return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: Number(currentUser.balance || 0), userBalance: Number(currentUser.balance || 0), partnerBalance: 0, partnerName: null } });
-    }
+    const connection = await pool.getConnection();
+    try {
+      if (!jointRows.length) {
+        const userBalance = await getUserUsdtAvailable(connection, currentUser.id);
+        return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: userBalance, userBalance, partnerBalance: 0, partnerName: null } });
+      }
+      const userBalance = await getUserUsdtAvailable(connection, currentUser.id);
     const joint = jointRows[0];
     const partnerUid = joint.user1_uid === currentUser.uid ? joint.user2_uid : joint.user1_uid;
-    const [partnerRows] = await pool.execute(`SELECT id, uid, name, balance FROM users WHERE uid = ? LIMIT 1`, [partnerUid]);
+    const [partnerRows] = await connection.execute(`SELECT id, uid, name FROM users WHERE uid = ? LIMIT 1`, [partnerUid]);
     let partnerBalance = 0;
     let partnerName = null;
     if (partnerRows.length) {
-      partnerBalance = Number(partnerRows[0].balance || 0);
+      partnerBalance = await getUserUsdtAvailable(connection, partnerRows[0].id);
       partnerName = partnerRows[0].name || partnerRows[0].uid;
     }
-    const combinedBalance = Number(currentUser.balance || 0) + partnerBalance;
-    res.json({ success: true, data: { hasJointAccount: true, combinedBalance, userBalance: Number(currentUser.balance || 0), partnerBalance, partnerName, partnerUid, accountId: joint.account_id } });
+    const combinedBalance = userBalance + partnerBalance;
+    res.json({ success: true, data: { hasJointAccount: true, combinedBalance, userBalance, partnerBalance, partnerName, partnerUid, accountId: joint.account_id } });
+    } finally { connection.release(); }
   } catch (error) { next(error); }
 });
 
