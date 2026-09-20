@@ -146,6 +146,22 @@ async function ensureFinancialSchema() {
       console.log('[Schema] Removed legacy trg_user_funds_compound_pending trigger.');
     }
 
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS loan_repayments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        loan_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        amount DECIMAL(36,18) NOT NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'completed',
+        idempotency_key VARCHAR(128) NOT NULL,
+        request_hash CHAR(64) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_loan_repayment_user_idempotency (user_id,idempotency_key),
+        KEY idx_loan_repayment_loan (loan_id,created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
     await addColumn(connection, 'loans', 'repaid_amount', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
     await addColumn(connection, 'loans', 'due_at', 'DATETIME NULL');
     await addColumn(connection, 'loans', 'last_repayment_at', 'DATETIME NULL');
