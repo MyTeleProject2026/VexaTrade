@@ -4,7 +4,8 @@ const router = express.Router();
 const pool = require("./db");
 const { authAdmin } = require("./src/middleware/auth");
 const { createError } = require("./src/utils/helpers");
-const { syncVerificationSettingsFromWallets, getAllNetworkSettings, updateNetworkSetting, normalizeNetwork } = require("./depositVerificationService");
+const { syncVerificationSettingsFromWallets, getAllNetworkSettings, updateNetworkSetting } = require("./depositVerificationService");
+const normalizeNetwork = (value) => String(value || "").trim().toUpperCase();
 
 router.use(authAdmin);
 
