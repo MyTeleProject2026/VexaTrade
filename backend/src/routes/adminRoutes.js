@@ -10,7 +10,7 @@ const {
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
-const { releaseReservedAsset, consumeReservedAsset } = require('../../services/assetLedgerService');
+const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance } = require('../../services/assetLedgerService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -268,8 +268,19 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     const deposit = rows[0];
     if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
     const amount = Number(deposit.amount || 0);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, deposit.user_id]);
-    await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
+    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid deposit amount");
+    const coin = String(deposit.coin || "USDT").trim().toUpperCase();
+    const network = String(deposit.network || "INTERNAL").trim().toUpperCase();
+    await creditAssetBalance(connection, {
+      userId: deposit.user_id,
+      coin,
+      network,
+      amount,
+      referenceType: "deposit_admin_approval",
+      referenceId: deposit.id,
+      note: adminNote || `Deposit #${deposit.id} approved by admin`
+    });
+    await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
     await createTransactionLog(connection, { userId: deposit.user_id, type: "deposit_approved", amount, status: "completed", referenceId: deposit.id, note: adminNote || `Deposit #${deposit.id} approved by admin` });
     await createAuditLog(connection, { adminId: req.admin.id, action: "approve_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved deposit #${deposit.id}` });
     await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit approved", message: `Your deposit of ${amount} ${deposit.coin || "USDT"} has been approved.`, type: "general" });
