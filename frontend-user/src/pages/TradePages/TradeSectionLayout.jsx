@@ -21,22 +21,22 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
   ];
   const items = mode==="spot" ? spot : short;
   const isActive = path => location.pathname === path || location.pathname.startsWith(path + "/");
-  return <div className="min-h-screen bg-[#050812] text-white pb-[4.75rem] md:pb-0">
+  return <div className="min-h-screen bg-[#030712] text-white pb-[calc(4.9rem+env(safe-area-inset-bottom))] md:pb-0">
     <div className="mx-auto min-h-screen max-w-7xl">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/95 px-3 py-2.5 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/90 px-3 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
-          <button onClick={()=>navigate("/trade")} className="rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white" aria-label="Back to Trade"><ArrowLeft size={15}/></button>
-          <div className="min-w-0 flex-1"><div className="text-sm font-bold truncate">{title}</div><div className="text-[9px] text-slate-500 truncate">{subtitle}</div></div>
-          <div className="rounded-full border border-cyan-400/15 bg-cyan-400/5 px-2 py-1 text-[8px] text-cyan-300">{mode==="spot"?"SPOT / LONG-TERM":"SHORT-TERM"}</div>
+          <button onClick={()=>navigate("/trade")} className="group flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-slate-300 shadow-inner shadow-white/[0.03] transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.98]" aria-label="Back to Trade"><ArrowLeft size={15} className="transition-transform group-hover:-translate-x-0.5"/></button>
+          <div className="min-w-0 flex-1"><div className="text-sm font-bold tracking-tight truncate">{title}</div><div className="text-[9px] text-slate-500 truncate">{subtitle}</div></div>
+          <div className="rounded-full border border-cyan-300/15 bg-cyan-300/5 px-2 py-1 text-[8px] font-semibold tracking-wide text-cyan-300 shadow-inner shadow-cyan-300/5">{mode==="spot"?"SPOT / LONG-TERM":"SHORT-TERM"}</div>
         </div>
       </header>
       <main className="p-2.5 pb-4 sm:p-3 sm:pb-5">{children}</main>
-      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#081223]/98 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:static sm:mx-auto sm:mt-1 sm:max-w-3xl sm:rounded-2xl sm:border sm:p-1.5 sm:shadow-none">
-        <div className="grid grid-cols-5 gap-1">
-          {items.slice(0,5).map(([path,label,Icon])=>{
+      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#081223]/92 px-1.5 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-12px_35px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:static sm:mx-auto sm:mb-2 sm:mt-1 sm:max-w-3xl sm:rounded-2xl sm:border sm:p-1.5 sm:shadow-[0_12px_35px_rgba(0,0,0,0.18)]">
+        <div className={`grid gap-1 ${mode==="spot" ? "grid-cols-5" : "grid-cols-6"}`}>
+          {items.map(([path,label,Icon])=>{
             const active=isActive(path);
-            return <button key={path} onClick={()=>navigate(path)} className={`flex min-h-12 touch-manipulation flex-col items-center justify-center rounded-xl px-1 transition-colors active:scale-[0.98] ${active?"bg-cyan-400/10 text-cyan-300":"text-slate-500 hover:bg-white/5 hover:text-white"}`}>
-              <Icon size={16}/><span className="mt-0.5 text-[9px]">{label}</span>
+            return <button key={path} onClick={()=>navigate(path)} className={`group flex min-h-12 touch-manipulation flex-col items-center justify-center rounded-xl border px-1 transition active:scale-[0.97] ${active?"border-cyan-300/15 bg-cyan-300/10 text-cyan-200 shadow-inner shadow-cyan-300/5":"border-transparent text-slate-500 hover:border-white/5 hover:bg-white/5 hover:text-white"}`}>
+              <Icon size={16} className="transition-transform group-hover:-translate-y-0.5"/><span className="mt-0.5 text-[8px] font-medium sm:text-[9px]">{label}</span>
             </button>
           })}
         </div>
