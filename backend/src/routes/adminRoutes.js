@@ -668,7 +668,7 @@ router.get('/admin/funds', authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
       `SELECT uf.*, fp.name AS plan_name, u.name AS user_name, u.email AS user_email
-       FROM user_funds uf       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
+       FROM user_funds uf LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
        LEFT JOIN users u ON u.id = uf.user_id
        ORDER BY uf.created_at DESC`
     );
@@ -676,46 +676,107 @@ router.get('/admin/funds', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Fund profit is settled daily by fundSettlementService. Admin completion therefore
+// returns only the currently locked principal; earned profit must never be credited twice.
 router.post('/admin/funds/:id/complete', authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const fundId = Number(req.params.id);
+    const note = String(req.body?.note || req.body?.admin_note || 'Admin completed fund').trim();
+    if (!Number.isInteger(fundId) || fundId <= 0) throw createError(400, 'Invalid fund id');
     await connection.beginTransaction();
-    const [fundRows] = await connection.execute(`SELECT uf.*, fp.name AS plan_name FROM user_funds uf LEFT JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.id = ? FOR UPDATE`, [fundId]);
-    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const [fundRows] = await connection.execute(
+      `SELECT uf.*, fp.name AS plan_name FROM user_funds uf
+       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
+       WHERE uf.id = ? FOR UPDATE`, [fundId]
+    );
+    if (!fundRows.length) throw createError(404, 'Fund not found');
     const fund = fundRows[0];
-    if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already completed" }); }
+    if (String(fund.status).toLowerCase() === 'completed') {
+      await connection.rollback();
+      return res.json({ success: true, message: 'Fund already completed', data: { id: fundId, status: 'completed' } });
+    }
+    if (String(fund.status).toLowerCase() !== 'active') throw createError(409, 'Only active funds can be completed');
     const principal = toNumber(fund.locked_principal || fund.amount);
-    const profit = toNumber(fund.earned_profit);
-    const totalReturn = principal + profit;
-    if (!Number.isFinite(totalReturn) || totalReturn <= 0) throw createError(409, "Fund return is invalid");
-    await movePendingToAvailable(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:principal,entryType:"fund_principal_return",referenceType:"user_fund",referenceId:fund.id,note:"Admin completed fund"});
-    if (profit > 0) await creditAssetBalance(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:profit,referenceType:"fund_profit",referenceId:fund.id,note:"Fund earned profit"});
-    await connection.execute(`UPDATE user_funds SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
-    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Completed", message: `${fund.plan_name} completed. Total return: ${totalReturn.toFixed(2)} USDT`, type: "funds" });
+    if (!Number.isFinite(principal) || principal <= 0) throw createError(409, 'Fund principal is invalid');
+
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: principal,
+      entryType: 'fund_principal_return', referenceType: 'user_fund', referenceId: fund.id, note
+    });
+    await connection.execute(
+      `UPDATE user_funds SET status='completed', completed_at=NOW(), updated_at=NOW() WHERE id=?`, [fundId]
+    );
+    await createTransactionLog(connection, {
+      userId: fund.user_id, type: 'funds_return', amount: principal, status: 'completed',
+      referenceId: fund.id, note: `${note}: ${fund.plan_name || 'Fund'}`
+    });
+    await createAuditLog(connection, {
+      adminId: req.admin.id, action: 'complete_fund_ledger', targetUserId: fund.user_id,
+      referenceId: fund.id, note: `${note}: returned ${principal} USDT principal`
+    });
+    await createUserNotification(connection, {
+      userId: fund.user_id, title: 'Fund completed',
+      message: `${fund.plan_name || 'Your fund'} was completed and ${principal.toFixed(2)} USDT was returned to your available wallet.`,
+      type: 'funds'
+    });
     await connection.commit();
-    res.json({ success: true, message: "Fund completed", data: { id: fundId, total_return: totalReturn } });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+    res.json({ success: true, message: 'Fund completed and principal returned to ledger', data: { id: fundId, status: 'completed', principal_returned: principal } });
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 router.post('/admin/funds/:id/cancel', authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const fundId = Number(req.params.id);
+    const note = String(req.body?.note || req.body?.admin_note || 'Fund cancelled by admin').trim();
+    if (!Number.isInteger(fundId) || fundId <= 0) throw createError(400, 'Invalid fund id');
     await connection.beginTransaction();
-    const [fundRows] = await connection.execute(`SELECT uf.*, fp.name AS plan_name FROM user_funds uf LEFT JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.id = ? FOR UPDATE`, [fundId]);
-    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
+    const [fundRows] = await connection.execute(
+      `SELECT uf.*, fp.name AS plan_name FROM user_funds uf
+       LEFT JOIN fund_plans fp ON fp.id = uf.plan_id
+       WHERE uf.id = ? FOR UPDATE`, [fundId]
+    );
+    if (!fundRows.length) throw createError(404, 'Fund not found');
     const fund = fundRows[0];
-    if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Completed fund cannot be cancelled" }); }
-    if (fund.status === "cancelled") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already cancelled" }); }
+    const status = String(fund.status || '').toLowerCase();
+    if (status === 'cancelled') {
+      await connection.rollback();
+      return res.json({ success: true, message: 'Fund already cancelled', data: { id: fundId, status: 'cancelled' } });
+    }
+    if (status !== 'active') throw createError(409, 'Only active funds can be cancelled');
     const principal = toNumber(fund.locked_principal || fund.amount);
-    if (!Number.isFinite(principal) || principal <= 0) throw createError(409, "Fund principal is invalid");
-    await movePendingToAvailable(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:principal,entryType:"fund_principal_return",referenceType:"user_fund",referenceId:fund.id,note:"Admin cancelled fund"});
-    await connection.execute(`UPDATE user_funds SET status = 'cancelled', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
-    await createUserNotification(connection, { userId: fund.user_id, title: "Fund Cancelled", message: `Your fund has been cancelled. ${principal.toFixed(2)} USDT returned.`, type: "funds" });
+    if (!Number.isFinite(principal) || principal <= 0) throw createError(409, 'Fund principal is invalid');
+
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: principal,
+      entryType: 'fund_principal_return', referenceType: 'user_fund', referenceId: fund.id, note
+    });
+    await connection.execute(
+      `UPDATE user_funds SET status='cancelled', completed_at=NOW(), updated_at=NOW() WHERE id=?`, [fundId]
+    );
+    await createTransactionLog(connection, {
+      userId: fund.user_id, type: 'funds_return', amount: principal, status: 'completed',
+      referenceId: fund.id, note: `${note}: ${fund.plan_name || 'Fund'}`
+    });
+    await createAuditLog(connection, {
+      adminId: req.admin.id, action: 'cancel_fund_ledger', targetUserId: fund.user_id,
+      referenceId: fund.id, note: `${note}: returned ${principal} USDT principal`
+    });
+    await createUserNotification(connection, {
+      userId: fund.user_id, title: 'Fund cancelled',
+      message: `${fund.plan_name || 'Your fund'} was cancelled and ${principal.toFixed(2)} USDT was returned to your available wallet.`,
+      type: 'funds'
+    });
     await connection.commit();
-    res.json({ success: true, message: "Fund cancelled", data: { id: fundId, principal_returned: principal } });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+    res.json({ success: true, message: 'Fund cancelled and principal returned to ledger', data: { id: fundId, status: 'cancelled', principal_returned: principal } });
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
@@ -723,13 +784,22 @@ router.delete('/admin/funds/:id', authAdmin, async (req, res, next) => {
   try {
     const fundId = Number(req.params.id);
     await connection.beginTransaction();
-    const [fundRows] = await connection.execute(`SELECT id, user_id, status FROM user_funds WHERE id = ?`, [fundId]);
-    if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
-    await connection.execute(`DELETE FROM fund_profit_logs WHERE user_fund_id = ?`, [fundId]);
-    await connection.execute(`DELETE FROM user_funds WHERE id = ?`, [fundId]);
+    const [fundRows] = await connection.execute(`SELECT id, user_id, status FROM user_funds WHERE id=? FOR UPDATE`, [fundId]);
+    if (!fundRows.length) throw createError(404, 'Fund not found');
+    const status = String(fundRows[0].status || '').toLowerCase();
+    if (status === 'active') throw createError(409, 'Active fund cannot be deleted; complete or cancel it first');
+    await connection.execute(`DELETE FROM fund_profit_logs WHERE user_fund_id=?`, [fundId]);
+    await connection.execute(`DELETE FROM user_funds WHERE id=?`, [fundId]);
+    await createAuditLog(connection, {
+      adminId: req.admin.id, action: 'delete_fund_record', targetUserId: fundRows[0].user_id,
+      referenceId: fundId, note: `Deleted ${status} fund record #${fundId}`
+    });
     await connection.commit();
-    res.json({ success: true, message: "Fund deleted" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+    res.json({ success: true, message: 'Fund deleted' });
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 // ─── Spot / Long-Term Settlement Rule Profiles ─────────────────────
