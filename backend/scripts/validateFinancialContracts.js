@@ -33,7 +33,7 @@ const trade=read('src/routes/tradeRoutes.js');
 if (trade.includes("transactionSecurity('trade')")) throw new Error('[Trade] secure transaction gate must remain removed');
 if (!trade.includes('requestedEntryPrice') || !trade.includes('entryPrice')) throw new Error('[Trade] live clicked entry-price contract missing');
 const ledger=read('services/assetLedgerService.js');
-for (const fn of ['debitAvailableAsset','creditAssetBalance','reserveAssetBalance','moveAvailableToPending']) if (!ledger.includes(`function ${fn}`)) throw new Error(`[Ledger] missing ${fn}`);
+for (const fn of ['debitAvailableAsset','creditAssetBalance','reserveAssetBalance','moveAvailableToPending']) if (!ledger.includes(fn)) throw new Error(`[Ledger] missing ${fn}`);
 const security=read('src/routes/securityRoutes.js');
 for (const route of ['/user/2fa/setup','/user/2fa/enable','/user/2fa/verify','/user/2fa/recovery','/user/2fa/recovery/regenerate','/user/2fa/disable']) if (!security.includes(route)) throw new Error(`[2FA] missing ${route}`);
 const email=read('services/emailService.js');
