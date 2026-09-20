@@ -112,18 +112,41 @@ router.post('/admin/users/:id/add-funds', authAdmin, async (req, res, next) => {
     const userId = Number(req.params.id);
     const amount = Number(req.body.amount || 0);
     const note = String(req.body.note || "").trim();
-    if (!Number.isFinite(userId) || userId <= 0) throw createError(400, "Invalid user id");
+    if (!Number.isInteger(userId) || userId <= 0) throw createError(400, "Invalid user id");
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid amount");
+
     await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT id, balance FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    const [rows] = await connection.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!rows.length) throw createError(404, "User not found");
-    await connection.execute(`UPDATE users SET balance = balance + ?, updated_at = NOW() WHERE id = ?`, [amount, userId]);
-    await createTransactionLog(connection, { userId, type: "admin_credit", amount, status: "completed", referenceId: userId, note: note || `Manual fund added by admin ${req.admin.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "add_user_funds", targetUserId: userId, referenceId: userId, note: note || `Added ${amount} funds` });
-    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin added ${amount} to your balance.`, type: "general" });
+
+    const { creditAssetBalance } = require('../../services/assetLedgerService');
+    await creditAssetBalance(connection, {
+      userId,
+      coin: 'USDT',
+      network: 'INTERNAL',
+      amount,
+      referenceType: 'admin_credit',
+      referenceId: userId,
+      note: note || `Manual USDT credit added by admin ${req.admin.id}`
+    });
+
+    await createTransactionLog(connection, {
+      userId,
+      type: "admin_credit",
+      amount,
+      status: "completed",
+      referenceId: userId,
+      note: note || `Manual USDT credit added by admin ${req.admin.id}`
+    });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "add_user_funds", targetUserId: userId, referenceId: userId, note: note || `Added ${amount} USDT funds` });
+    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin added ${amount} USDT to your available balance.`, type: "general" });
+
     await connection.commit();
     res.json({ success: true, message: "Funds added" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 router.post('/admin/users/:id/decrease-funds', authAdmin, async (req, res, next) => {
@@ -132,20 +155,41 @@ router.post('/admin/users/:id/decrease-funds', authAdmin, async (req, res, next)
     const userId = Number(req.params.id);
     const amount = Number(req.body.amount || 0);
     const note = String(req.body.note || "").trim();
-    if (!Number.isFinite(userId) || userId <= 0) throw createError(400, "Invalid user id");
+    if (!Number.isInteger(userId) || userId <= 0) throw createError(400, "Invalid user id");
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid amount");
+
     await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT id, balance FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    const [rows] = await connection.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!rows.length) throw createError(404, "User not found");
-    const currentBalance = Number(rows[0].balance || 0);
-    if (currentBalance < amount) throw createError(400, "User balance insufficient");
-    await connection.execute(`UPDATE users SET balance = balance - ?, updated_at = NOW() WHERE id = ?`, [amount, userId]);
-    await createTransactionLog(connection, { userId, type: "admin_debit", amount, status: "completed", referenceId: userId, note: note || `Manual deduction by admin ${req.admin.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "decrease_user_funds", targetUserId: userId, referenceId: userId, note: note || `Decreased ${amount} funds` });
-    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin decreased ${amount} from your balance.`, type: "security" });
+
+    const { debitAvailableAsset } = require('../../services/assetLedgerService');
+    await debitAvailableAsset(connection, {
+      userId,
+      coin: 'USDT',
+      network: 'INTERNAL',
+      amount,
+      referenceType: 'admin_debit',
+      referenceId: userId,
+      note: note || `Manual USDT deduction by admin ${req.admin.id}`
+    });
+
+    await createTransactionLog(connection, {
+      userId,
+      type: "admin_debit",
+      amount,
+      status: "completed",
+      referenceId: userId,
+      note: note || `Manual USDT deduction by admin ${req.admin.id}`
+    });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "decrease_user_funds", targetUserId: userId, referenceId: userId, note: note || `Decreased ${amount} USDT funds` });
+    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin decreased ${amount} USDT from your available balance.`, type: "security" });
+
     await connection.commit();
     res.json({ success: true, message: "Funds decreased" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 // ─── Admin KYC ──────────────────────────────────────────────────────
