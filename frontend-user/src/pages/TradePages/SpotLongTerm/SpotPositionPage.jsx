@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import MarketChart from "../../../components/MarketChart";
 import OrderBook from "../../../components/OrderBook";
 import { spotTradeApi, userApi, getApiErrorMessage } from "../../../services/api";
+import TradeSectionLayout from "../TradeSectionLayout";
 
 const getToken=()=>localStorage.getItem("userToken")||localStorage.getItem("token")||localStorage.getItem("accessToken")||"";
 const money=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:8});
@@ -60,7 +61,7 @@ export default function SpotPositionPage(){
 
   if(loading)return <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-xs text-slate-400">Loading {pair} position…</div>;
 
-  return <div className="space-y-2.5">
+  return <TradeSectionLayout title="Spot Position" subtitle="Live Spot / Long-Term position" mode="spot"><div className="space-y-2.5">
     <section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-center justify-between gap-2">
         <button onClick={()=>navigate("/trade/spot/long-term/assets")} className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-white"><ArrowLeft size={12}/>Assets</button>
@@ -96,5 +97,5 @@ export default function SpotPositionPage(){
       </div>
     </section>
     <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[8px] leading-4 text-slate-500"><Activity size={11} className="mr-1 inline text-cyan-300"/>Live market value uses the public market stream. Realized P/L and balances remain server-controlled by the existing Spot ledger.</div>
-  </div>;
+  </div></TradeSectionLayout>;
 }
