@@ -670,6 +670,14 @@ export default function AdminTradesPage() {
                     >
                       {savingOverrideId === trade.id ? "Processing..." : "Force Loss"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOverrideTrade(trade.id, "tie")}
+                      disabled={savingOverrideId === trade.id}
+                      className="rounded-lg border border-slate-500/20 bg-slate-500/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-500/20 disabled:opacity-50"
+                    >
+                      {savingOverrideId === trade.id ? "Processing..." : "Set Tie"}
+                    </button>
                   </div>
                 </div>
               </div>
