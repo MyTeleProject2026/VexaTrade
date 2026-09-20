@@ -1041,7 +1041,22 @@ export default function FundsPage() {
         </section>
       )}
 
-      {tab === "help" && (\n        <section className="space-y-3">\n          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">\n            <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300">Funds Center</div>\n            <h2 className="mt-1 text-lg font-bold text-white">Funds Help</h2>\n            <p className="mt-1 text-[10px] leading-4 text-slate-500">Funding applications, active processing, daily profit records and completed vouchers are synchronized with the VexaTrade backend.</p>\n          </div>\n          <div className="grid gap-2 sm:grid-cols-2">\n            {[["Applying","Choose an available plan, enter an amount within the server-configured limits, review it and confirm once."],["Active processing","Active funds are refreshed from the server and live display values are projections only until settlement is credited."],["Profit & settlement","Daily profit records and completion values come from the backend fund settlement service."],["History & vouchers","Completed records can be opened from History and the server-generated voucher contains the authoritative values."]].map(([title,body])=>(\n              <div key={title} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3"><div className="text-xs font-semibold text-white">{title}</div><div className="mt-1 text-[10px] leading-4 text-slate-500">{body}</div></div>\n            ))}\n          </div>\n        </section>\n      )}\n\n      {tab === "history" && (
+      {tab === "help" && (
+        <section className="space-y-3">
+          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
+            <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300">Funds Center</div>
+            <h2 className="mt-1 text-lg font-bold text-white">Funds Help</h2>
+            <p className="mt-1 text-[10px] leading-4 text-slate-500">Funding applications, active processing, daily profit records and completed vouchers are synchronized with the VexaTrade backend.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[["Applying","Choose an available plan, enter an amount within the server-configured limits, review it and confirm once."],["Active processing","Active funds are refreshed from the server and live display values are projections only until settlement is credited."],["Profit & settlement","Daily profit records and completion values come from the backend fund settlement service."],["History & vouchers","Completed records can be opened from History and the server-generated voucher contains the authoritative values."]].map(([title,body])=>(
+              <div key={title} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3"><div className="text-xs font-semibold text-white">{title}</div><div className="mt-1 text-[10px] leading-4 text-slate-500">{body}</div></div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "history" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Funds History</h2>
