@@ -5,6 +5,7 @@ const { authAdmin } = require('../middleware/auth');
 const { createError, createTransactionLog, createUserNotification, createAuditLog, toNumber } = require('../utils/helpers');
 const { creditAssetBalance, debitAvailableAsset } = require('../../services/assetLedgerService');
 const { verifyDepositManually } = require('../../depositVerificationService');
+const { reconcileFinancialState } = require('../../services/financialReconciliationService');
 
 const normalize = (value, fallback) => String(value || fallback).trim().toUpperCase();
 
@@ -149,15 +150,28 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status='pending'");
     const [tradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades');
     const [todayTradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at)=CURDATE()');
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance),0) AS total FROM user_assets WHERE coin='USDT'");
+    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance),0) AS total, COALESCE(SUM(available_balance),0) AS available, COALESCE(SUM(reserved_balance),0) AS reserved, COALESCE(SUM(pending_balance),0) AS pending FROM user_assets WHERE coin='USDT'");
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status='pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status='pending'");
     res.json({ success: true, data: {
       totalUsers: Number(usersRow[0]?.total || 0), activeUsers: Number(activeUsersRow[0]?.total || 0), emailVerifiedUsers: Number(emailVerifiedRow[0]?.total || 0),
       pendingKyc: Number(pendingKycRow[0]?.total || 0), totalDeposits: Number(depositsRow[0]?.total || 0), pendingDeposits: Number(pendingDepositsRow[0]?.total || 0),
       totalWithdrawals: Number(withdrawalsRow[0]?.total || 0), pendingWithdrawals: Number(pendingWithdrawalsRow[0]?.total || 0), totalTrades: Number(tradesRow[0]?.total || 0),
-      todayTrades: Number(todayTradesRow[0]?.total || 0), totalBalance: Number(balanceRow[0]?.total || 0), pendingLoans: Number(pendingLoansRow[0]?.total || 0), pendingJointAccounts: Number(pendingJointRow[0]?.total || 0)
+      todayTrades: Number(todayTradesRow[0]?.total || 0), totalBalance: Number(balanceRow[0]?.total || 0), availableBalance: Number(balanceRow[0]?.available || 0), reservedBalance: Number(balanceRow[0]?.reserved || 0), pendingBalance: Number(balanceRow[0]?.pending || 0), pendingLoans: Number(pendingLoansRow[0]?.total || 0), pendingJointAccounts: Number(pendingJointRow[0]?.total || 0)
     }});
+  } catch (error) { next(error); }
+});
+
+// Read-only financial reconciliation endpoint for the Super Admin control plane.
+router.get('/admin/ledger/reconciliation', authAdmin, async (req, res, next) => {
+  try {
+    const report = await reconcileFinancialState(pool);
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: 'financial_reconciliation_check',
+      note: `healthy=${report.healthy}; asset_mismatches=${report.assetMismatches.length}; fund_mismatches=${report.fundMismatches.length}; duplicate_keys=${report.duplicateKeys.length}`
+    });
+    res.json({ success: true, data: report });
   } catch (error) { next(error); }
 });
 

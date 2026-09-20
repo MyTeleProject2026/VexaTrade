@@ -39,6 +39,10 @@ async function reconcileFinancialState(connection = pool) {
     UNION ALL SELECT 'withdrawals',user_id,idempotency_key,COUNT(*) FROM withdrawals WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
     UNION ALL SELECT 'conversions',user_id,idempotency_key,COUNT(*) FROM convert_transactions WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
     UNION ALL SELECT 'transfers',sender_id,idempotency_key,COUNT(*) FROM user_transfers WHERE idempotency_key IS NOT NULL GROUP BY sender_id,idempotency_key HAVING COUNT(*)>1
+    UNION ALL SELECT 'funds',user_id,idempotency_key,COUNT(*) FROM user_funds WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
+    UNION ALL SELECT 'trades',user_id,idempotency_key,COUNT(*) FROM trades WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
+    UNION ALL SELECT 'spot_orders',user_id,idempotency_key,COUNT(*) FROM spot_orders WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
+    UNION ALL SELECT 'loan_repayments',user_id,idempotency_key,COUNT(*) FROM loan_repayments WHERE idempotency_key IS NOT NULL GROUP BY user_id,idempotency_key HAVING COUNT(*)>1
   `);
 
   return {healthy:!assetMismatches.length&&!fundMismatches.length&&!duplicateKeys.length,checkedAt:new Date().toISOString(),assetMismatches,fundMismatches,duplicateKeys};

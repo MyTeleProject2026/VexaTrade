@@ -10,7 +10,7 @@ const {
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
-const { releaseReservedAsset, consumeReservedAsset } = require('../../services/assetLedgerService');
+const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, debitAvailableAsset, movePendingToAvailable } = require('../../services/assetLedgerService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status = 'pending'");
     const [tradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades");
     const [todayTradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at) = CURDATE()");
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance), 0) AS total FROM users");
+    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(available_balance),0) AS available, COALESCE(SUM(reserved_balance),0) AS reserved, COALESCE(SUM(pending_balance),0) AS pending, COALESCE(SUM(balance),0) AS total FROM user_assets WHERE coin='USDT'");
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status = 'pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status = 'pending'");
     res.json({
@@ -59,6 +59,9 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
         totalTrades: Number(tradesRow[0]?.total || 0),
         todayTrades: Number(todayTradesRow[0]?.total || 0),
         totalBalance: Number(balanceRow[0]?.total || 0),
+        availableBalance: Number(balanceRow[0]?.available || 0),
+        reservedBalance: Number(balanceRow[0]?.reserved || 0),
+        pendingBalance: Number(balanceRow[0]?.pending || 0),
         pendingLoans: Number(pendingLoansRow[0]?.total || 0),
         pendingJointAccounts: Number(pendingJointRow[0]?.total || 0),
       }
@@ -70,11 +73,17 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
 router.get('/admin/users', authAdmin, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT id, uid, name, first_name, last_name, gender, date_of_birth, country, email, balance, status,
+      `SELECT u.id, u.uid, u.name, u.first_name, u.last_name, u.gender, u.date_of_birth, u.country, u.email,
+              COALESCE(ua.available_balance,0) AS available_balance,
+              COALESCE(ua.reserved_balance,0) AS reserved_balance,
+              COALESCE(ua.pending_balance,0) AS pending_balance,
+              COALESCE(ua.balance,0) AS balance, u.status,
               email_verified, kyc_status, approved_at, trading_fee_tier, twofa_enabled, avatar_url,
               CASE WHEN passcode IS NOT NULL AND TRIM(passcode) <> '' THEN 1 ELSE 0 END AS has_passcode,
               created_at, updated_at
-       FROM users ORDER BY id DESC LIMIT 500`
+       FROM users u
+       LEFT JOIN user_assets ua ON ua.user_id=u.id AND ua.coin='USDT'
+       ORDER BY u.id DESC LIMIT 500`
     );
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }
@@ -268,7 +277,16 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     const deposit = rows[0];
     if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
     const amount = Number(deposit.amount || 0);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, deposit.user_id]);
+    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid deposit amount");
+    await creditAssetBalance(connection, {
+      userId: deposit.user_id,
+      coin: String(deposit.coin || "USDT").toUpperCase(),
+      network: String(deposit.network || "INTERNAL").toUpperCase(),
+      amount,
+      referenceType: "deposit",
+      referenceId: deposit.id,
+      note: adminNote || "Approved by admin"
+    });
     await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
     await createTransactionLog(connection, { userId: deposit.user_id, type: "deposit_approved", amount, status: "completed", referenceId: deposit.id, note: adminNote || `Deposit #${deposit.id} approved by admin` });
     await createAuditLog(connection, { adminId: req.admin.id, action: "approve_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved deposit #${deposit.id}` });
@@ -663,14 +681,16 @@ router.post('/admin/funds/:id/complete', authAdmin, async (req, res, next) => {
   try {
     const fundId = Number(req.params.id);
     await connection.beginTransaction();
-    const [fundRows] = await connection.execute(`SELECT * FROM user_funds WHERE id = ?`, [fundId]);
+    const [fundRows] = await connection.execute(`SELECT uf.*, fp.name AS plan_name FROM user_funds uf LEFT JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.id = ? FOR UPDATE`, [fundId]);
     if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
     const fund = fundRows[0];
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already completed" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
     const profit = toNumber(fund.earned_profit);
     const totalReturn = principal + profit;
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [totalReturn, fund.user_id]);
+    if (!Number.isFinite(totalReturn) || totalReturn <= 0) throw createError(409, "Fund return is invalid");
+    await movePendingToAvailable(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:principal,entryType:"fund_principal_return",referenceType:"user_fund",referenceId:fund.id,note:"Admin completed fund"});
+    if (profit > 0) await creditAssetBalance(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:profit,referenceType:"fund_profit",referenceId:fund.id,note:"Fund earned profit"});
     await connection.execute(`UPDATE user_funds SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Completed", message: `${fund.plan_name} completed. Total return: ${totalReturn.toFixed(2)} USDT`, type: "funds" });
     await connection.commit();
@@ -683,13 +703,14 @@ router.post('/admin/funds/:id/cancel', authAdmin, async (req, res, next) => {
   try {
     const fundId = Number(req.params.id);
     await connection.beginTransaction();
-    const [fundRows] = await connection.execute(`SELECT * FROM user_funds WHERE id = ?`, [fundId]);
+    const [fundRows] = await connection.execute(`SELECT uf.*, fp.name AS plan_name FROM user_funds uf LEFT JOIN fund_plans fp ON fp.id=uf.plan_id WHERE uf.id = ? FOR UPDATE`, [fundId]);
     if (!fundRows.length) { await connection.rollback(); return res.status(404).json({ success: false, message: "Fund not found" }); }
     const fund = fundRows[0];
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Completed fund cannot be cancelled" }); }
     if (fund.status === "cancelled") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already cancelled" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [principal, fund.user_id]);
+    if (!Number.isFinite(principal) || principal <= 0) throw createError(409, "Fund principal is invalid");
+    await movePendingToAvailable(connection,{userId:fund.user_id,coin:"USDT",network:"INTERNAL",amount:principal,entryType:"fund_principal_return",referenceType:"user_fund",referenceId:fund.id,note:"Admin cancelled fund"});
     await connection.execute(`UPDATE user_funds SET status = 'cancelled', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Cancelled", message: `Your fund has been cancelled. ${principal.toFixed(2)} USDT returned.`, type: "funds" });
     await connection.commit();
