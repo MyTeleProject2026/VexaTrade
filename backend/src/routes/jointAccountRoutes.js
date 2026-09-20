@@ -1,9 +1,11 @@
 // backend/src/routes/jointAccountRoutes.js
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const pool = require('../../db');
 const { authUser, authAdmin } = require('../middleware/auth');
 const { createError, createUserNotification, createAuditLog } = require('../utils/helpers');
+const { ensureAssetRow } = require('../../services/assetLedgerService');
 
 // ─── User ───────────────────────────────────────────────────────────
 router.get('/joint-account/status', authUser, async (req, res, next) => {
@@ -47,24 +49,36 @@ router.post('/joint-account/request', authUser, async (req, res, next) => {
 
 router.get('/joint-account/combined-balance', authUser, async (req, res, next) => {
   try {
-    const [userRows] = await pool.execute(`SELECT id, uid, balance FROM users WHERE id = ?`, [req.user.id]);
+    const [userRows] = await pool.execute(`SELECT id, uid FROM users WHERE id = ?`, [req.user.id]);
     if (!userRows.length) return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: 0, userBalance: 0, partnerBalance: 0, partnerName: null } });
     const currentUser = userRows[0];
     const [jointRows] = await pool.execute(`SELECT * FROM joint_accounts WHERE (user1_uid = ? OR user2_uid = ?) AND status = 'active' LIMIT 1`, [currentUser.uid, currentUser.uid]);
     if (!jointRows.length) {
-      return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: Number(currentUser.balance || 0), userBalance: Number(currentUser.balance || 0), partnerBalance: 0, partnerName: null } });
+      const [assetRows] = await pool.execute(`SELECT available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1`, [currentUser.id]);
+      const a=assetRows[0]||{};
+      const userAvailable=Number(a.available_balance||0);
+      return res.json({ success: true, data: { hasJointAccount: false, combinedBalance: userAvailable, spendableBalance: userAvailable, userBalance: userAvailable, partnerBalance: 0, partnerName: null, reservedBalance:Number(a.reserved_balance||0), pendingBalance:Number(a.pending_balance||0) } });
     }
     const joint = jointRows[0];
     const partnerUid = joint.user1_uid === currentUser.uid ? joint.user2_uid : joint.user1_uid;
-    const [partnerRows] = await pool.execute(`SELECT id, uid, name, balance FROM users WHERE uid = ? LIMIT 1`, [partnerUid]);
+    const [partnerRows] = await pool.execute(`SELECT id, uid, name FROM users WHERE uid = ? LIMIT 1`, [partnerUid]);
     let partnerBalance = 0;
+    let partnerReserved = 0;
+    let partnerPending = 0;
     let partnerName = null;
     if (partnerRows.length) {
-      partnerBalance = Number(partnerRows[0].balance || 0);
+      const [partnerAssets] = await pool.execute(`SELECT available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1`, [partnerRows[0].id]);
+      const pa=partnerAssets[0]||{};
+      partnerBalance=Number(pa.available_balance||0);
+      partnerReserved=Number(pa.reserved_balance||0);
+      partnerPending=Number(pa.pending_balance||0);
       partnerName = partnerRows[0].name || partnerRows[0].uid;
     }
-    const combinedBalance = Number(currentUser.balance || 0) + partnerBalance;
-    res.json({ success: true, data: { hasJointAccount: true, combinedBalance, userBalance: Number(currentUser.balance || 0), partnerBalance, partnerName, partnerUid, accountId: joint.account_id } });
+    const [userAssets] = await pool.execute(`SELECT available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1`, [currentUser.id]);
+    const ua=userAssets[0]||{};
+    const userAvailable=Number(ua.available_balance||0);
+    const combinedBalance=userAvailable+partnerBalance;
+    res.json({ success: true, data: { hasJointAccount: true, combinedBalance, spendableBalance:userAvailable, userBalance:userAvailable, partnerBalance, partnerSpendableBalance:partnerBalance, partnerName, partnerUid, accountId: joint.account_id, userReservedBalance:Number(ua.reserved_balance||0), userPendingBalance:Number(ua.pending_balance||0), partnerReservedBalance:partnerReserved, partnerPendingBalance:partnerPending, combinedBalanceIsDisplayOnly:true } });
   } catch (error) { next(error); }
 });
 
@@ -103,7 +117,7 @@ router.post('/admin/joint-account-requests/:id/approve', authAdmin, async (req, 
 });
 
 function cryptoSafeRandomSuffix() {
-  return Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  return crypto.randomBytes(6).toString('hex');
 }
 
 router.post('/admin/joint-account-requests/:id/reject', authAdmin, async (req, res, next) => {
