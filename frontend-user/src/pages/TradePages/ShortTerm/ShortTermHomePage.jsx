@@ -35,11 +35,6 @@ export default function ShortTermHomePage() {
           <button type="button" onClick={() => navigate("/trade/short-term/trade")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/20 bg-cyan-300 py-3 text-xs font-bold text-[#031016] shadow-[0_8px_25px_rgba(34,211,238,0.16)] transition hover:bg-cyan-200 active:scale-[0.99]">Open Trading Terminal <ArrowRight size={14} /></button>
         </section>
 
-        <section className="rounded-3xl border border-violet-300/15 bg-gradient-to-br from-violet-300/10 via-[#0a0e1a] to-[#050812] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-          <div className="flex items-start justify-between gap-3"><div><div className="text-[8px] font-bold uppercase tracking-[0.28em] text-violet-300">VexaTrade · Spot</div><h2 className="mt-1 text-lg font-bold tracking-tight">Spot / Long-Term Trading</h2><p className="mt-1 text-[10px] leading-4 text-slate-400">Use the dedicated market, order, review, result, orders, assets and position flow connected to the existing Spot APIs.</p></div></div>
-          <button type="button" onClick={() => navigate("/trade/spot/long-term")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-200/20 bg-violet-300 py-3 text-xs font-bold text-[#080412] shadow-[0_8px_25px_rgba(167,139,250,0.14)] transition hover:bg-violet-200 active:scale-[0.99]">Open Spot / Long-Term Trading <ArrowRight size={14} /></button>
-        </section>
-
         <section className="rounded-2xl border border-white/10 bg-[#0a0e1a]/90 p-3 shadow-[0_12px_35px_rgba(0,0,0,0.2)]">
           <div className="flex items-end justify-between gap-2">
             <div><div className="text-[10px] font-semibold text-white">Select duration</div><div className="mt-0.5 text-[9px] text-slate-500">Choose first, then continue to the live terminal.</div></div>
