@@ -29,7 +29,7 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
       <div className="mx-auto min-h-screen max-w-7xl">
         <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/95 px-3 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
           <div className="flex items-center gap-2">
-            <button onClick={()=>navigate("/trade")} className="group flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-slate-300 shadow-inner shadow-white/[0.03] transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.98]" aria-label="Back to Trade">
+            <button onClick={()=>navigate(location.pathname === "/trade" ? "/dashboard" : "/trade")} className="group flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-slate-300 shadow-inner shadow-white/[0.03] transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.98]" aria-label="Back to Trade">
               <ArrowLeft size={15} className="transition-transform group-hover:-translate-x-0.5"/>
             </button>
             <div className="min-w-0 flex-1">
