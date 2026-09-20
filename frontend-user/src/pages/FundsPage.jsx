@@ -601,7 +601,7 @@ export default function FundsPage() {
 
   useEffect(() => {
     const requested = searchParams.get("tab");
-    if (["plans", "private", "active", "history"].includes(requested) && requested !== tab) setTab(requested);
+    if (["plans", "private", "active", "history", "help"].includes(requested) && requested !== tab) setTab(requested);
   }, [searchParams, tab]);
 
   function selectFundTab(next) {
@@ -834,7 +834,7 @@ export default function FundsPage() {
         total_days: applyModal.duration_days,
         started_at: new Date().toISOString(),
         ends_at: responseData.ends_at,
-        wallet_address: responseData.wallet_address || '0x71C...3F2A',
+        wallet_address: responseData.wallet_address || null,
         is_private: applyModal.is_private,
       });
 
@@ -938,6 +938,7 @@ export default function FundsPage() {
             ["private", "Private Funds"],
             ["active", "Active"],
             ["history", "History"],
+            ["help", "Help"],
           ].map(([key, label]) => {
             if (key === "private" && !hasPrivatePlans) return null;
             return (
@@ -1040,7 +1041,7 @@ export default function FundsPage() {
         </section>
       )}
 
-      {tab === "history" && (
+      {tab === "help" && (\n        <section className="space-y-3">\n          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">\n            <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300">Funds Center</div>\n            <h2 className="mt-1 text-lg font-bold text-white">Funds Help</h2>\n            <p className="mt-1 text-[10px] leading-4 text-slate-500">Funding applications, active processing, daily profit records and completed vouchers are synchronized with the VexaTrade backend.</p>\n          </div>\n          <div className="grid gap-2 sm:grid-cols-2">\n            {[["Applying","Choose an available plan, enter an amount within the server-configured limits, review it and confirm once."],["Active processing","Active funds are refreshed from the server and live display values are projections only until settlement is credited."],["Profit & settlement","Daily profit records and completion values come from the backend fund settlement service."],["History & vouchers","Completed records can be opened from History and the server-generated voucher contains the authoritative values."]].map(([title,body])=>(\n              <div key={title} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3"><div className="text-xs font-semibold text-white">{title}</div><div className="mt-1 text-[10px] leading-4 text-slate-500">{body}</div></div>\n            ))}\n          </div>\n        </section>\n      )}\n\n      {tab === "history" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Funds History</h2>
