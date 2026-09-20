@@ -1,187 +1,86 @@
-// adminNetworkRoutes.js
+// backend/adminNetworkRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
-const storage = require('./cloudinaryStorage');
-// Import sync functions from depositVerificationService
-const { 
-  syncVerificationSettingsFromWallets, 
-  getAllNetworkSettings,
-  updateNetworkSetting 
-} = require("./depositVerificationService");
+const { authAdmin } = require("./src/middleware/auth");
+const { createError } = require("./src/utils/helpers");
+const { syncVerificationSettingsFromWallets, getAllNetworkSettings, updateNetworkSetting, normalizeNetwork } = require("./depositVerificationService");
 
-// ==========================
-// GET all network verification settings
-// ==========================
-router.get("/", async (req, res) => {
-  try {
-    const data = await getAllNetworkSettings();
-    res.json({
-      success: true,
-      data: data,
-    });
-  } catch (err) {
-    console.error("Get network settings error:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
+router.use(authAdmin);
+
+router.get("/", async (req, res, next) => {
+  try { res.json({ success: true, data: await getAllNetworkSettings() }); }
+  catch (err) { next(err); }
 });
 
-// ==========================
-// UPDATE a network verification setting
-// ==========================
-router.put("/:id", async (req, res) => {
+router.put("/:id", async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { address_prefix, address_suffix, explorer_api_url, api_key, token_type, contract_address, is_active } = req.body;
-    
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw createError(400, "Invalid setting id");
+    const allowed = ["network","explorer_api_url","api_key","address_prefix","address_suffix","token_type","contract_address","tolerance_percent","minimum_deposit","is_active"];
     const updates = {};
-    
-    if (address_prefix !== undefined) updates.address_prefix = address_prefix;
-    if (address_suffix !== undefined) updates.address_suffix = address_suffix;
-    if (explorer_api_url !== undefined) updates.explorer_api_url = explorer_api_url;
-    if (api_key !== undefined) updates.api_key = api_key;
-    if (token_type !== undefined) updates.token_type = token_type;
-    if (contract_address !== undefined) updates.contract_address = contract_address;
-    if (is_active !== undefined) updates.is_active = is_active;
-    
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No fields to update",
-      });
+    for (const key of allowed) if (req.body?.[key] !== undefined) updates[key] = req.body[key];
+    if (!Object.keys(updates).length) throw createError(400, "No fields to update");
+    if (updates.network !== undefined) {
+      updates.network = normalizeNetwork(updates.network);
+      if (!updates.network) throw createError(400, "Network is required");
     }
-    
+    if (updates.tolerance_percent !== undefined) {
+      const n = Number(updates.tolerance_percent);
+      if (!Number.isFinite(n) || n < 0 || n > 100) throw createError(400, "Tolerance must be between 0 and 100 percent");
+      updates.tolerance_percent = n;
+    }
+    if (updates.minimum_deposit !== undefined) {
+      const n = Number(updates.minimum_deposit);
+      if (!Number.isFinite(n) || n <= 0) throw createError(400, "Minimum deposit must be greater than 0");
+      updates.minimum_deposit = n;
+    }
+    if (updates.is_active !== undefined) updates.is_active = Number(updates.is_active) ? 1 : 0;
     const updated = await updateNetworkSetting(id, updates);
-    
-    res.json({
-      success: true,
-      message: "Setting updated successfully",
-      data: updated,
-    });
-  } catch (err) {
-    console.error("Update network setting error:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
+    if (!updated) return res.status(404).json({ success: false, message: "Setting not found" });
+    res.json({ success: true, message: "Setting updated successfully", data: updated });
+  } catch (err) { next(err); }
 });
 
-// ==========================
-// CREATE a new network verification setting
-// ==========================
-router.post("/", async (req, res) => {
+router.post("/", async (req, res, next) => {
   try {
-    const {
-      network,
-      explorer_api_url,
-      api_key,
-      address_prefix,
-      address_suffix,
-      token_type = "token",
-      contract_address = null,
-      is_active = 1,
-    } = req.body;
-    
-    if (!network) {
-      return res.status(400).json({
-        success: false,
-        message: "Network is required",
-      });
-    }
-    
-    if (!explorer_api_url) {
-      return res.status(400).json({
-        success: false,
-        message: "Explorer API URL is required",
-      });
-    }
-    
-    if (!address_prefix || !address_suffix) {
-      return res.status(400).json({
-        success: false,
-        message: "Address prefix and suffix are required",
-      });
-    }
-    
+    const network = normalizeNetwork(req.body?.network);
+    const explorerApiUrl = String(req.body?.explorer_api_url || "").trim();
+    const addressPrefix = String(req.body?.address_prefix || "").trim();
+    const addressSuffix = String(req.body?.address_suffix || "").trim();
+    const tolerance = Number(req.body?.tolerance_percent ?? 10);
+    const minimumDeposit = Number(req.body?.minimum_deposit ?? 0.01);
+    if (!network) throw createError(400, "Network is required");
+    if (!explorerApiUrl) throw createError(400, "Explorer API URL is required");
+    if (!addressPrefix || !addressSuffix) throw createError(400, "Address prefix and suffix are required");
+    if (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 100) throw createError(400, "Tolerance must be between 0 and 100 percent");
+    if (!Number.isFinite(minimumDeposit) || minimumDeposit <= 0) throw createError(400, "Minimum deposit must be greater than 0");
     const [result] = await pool.execute(
-      `INSERT INTO network_verification_settings 
-       (network, explorer_api_url, api_key, address_prefix, address_suffix, token_type, contract_address, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [network, explorer_api_url, api_key, address_prefix, address_suffix, token_type, contract_address, is_active]
+      `INSERT INTO network_verification_settings
+       (network, explorer_api_url, api_key, address_prefix, address_suffix, token_type, contract_address, tolerance_percent, minimum_deposit, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [network, explorerApiUrl, req.body?.api_key || null, addressPrefix, addressSuffix, String(req.body?.token_type || "token").trim(), req.body?.contract_address || null, tolerance, minimumDeposit, req.body?.is_active === undefined ? 1 : (Number(req.body.is_active) ? 1 : 0)]
     );
-    
-    const [newRow] = await pool.execute(
-      `SELECT * FROM network_verification_settings WHERE id = ?`,
-      [result.insertId]
-    );
-    
-    res.status(201).json({
-      success: true,
-      message: "Network verification setting created successfully",
-      data: newRow[0] || null,
-    });
-  } catch (err) {
-    console.error("Create network setting error:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
+    const [rows] = await pool.execute("SELECT * FROM network_verification_settings WHERE id=?", [result.insertId]);
+    res.status(201).json({ success: true, message: "Network verification setting created successfully", data: rows[0] || null });
+  } catch (err) { next(err); }
 });
 
-// ==========================
-// DELETE a network verification setting
-// ==========================
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req, res, next) => {
   try {
-    const { id } = req.params;
-    
-    const [result] = await pool.execute(
-      `DELETE FROM network_verification_settings WHERE id = ?`,
-      [id]
-    );
-    
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Setting not found",
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: "Setting deleted successfully",
-    });
-  } catch (err) {
-    console.error("Delete network setting error:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw createError(400, "Invalid setting id");
+    const [result] = await pool.execute("DELETE FROM network_verification_settings WHERE id=?", [id]);
+    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Setting not found" });
+    res.json({ success: true, message: "Setting deleted successfully" });
+  } catch (err) { next(err); }
 });
 
-// ==========================
-// SYNC endpoint - Manual trigger
-// ==========================
-router.post("/sync", async (req, res) => {
+router.post("/sync", async (req, res, next) => {
   try {
     await syncVerificationSettingsFromWallets();
-    res.json({
-      success: true,
-      message: "Verification settings synchronized from deposit wallets",
-    });
-  } catch (err) {
-    console.error("Sync error:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
+    res.json({ success: true, message: "Verification settings synchronized from active deposit wallets" });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
