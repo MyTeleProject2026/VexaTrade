@@ -363,7 +363,6 @@ export default function TradePage({ embedded = false } = {}) {
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
   const expirySyncStartedRef = useRef(false);
-  const livePollingRef = useRef(false);
 
   const marketMap = useMemo(() => {
     const map = {};
