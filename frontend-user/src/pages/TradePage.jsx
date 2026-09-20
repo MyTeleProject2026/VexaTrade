@@ -364,6 +364,7 @@ export default function TradePage({ embedded = false } = {}) {
   const lastPlacedTradeIdRef = useRef(null);
   const shownSettledTradeIdRef = useRef(null);
   const expirySyncStartedRef = useRef(false);
+  const livePollingRef = useRef(false);
 
   const marketMap = useMemo(() => {
     const map = {};
@@ -493,6 +494,65 @@ export default function TradePage({ embedded = false } = {}) {
     setRunningTrade(null);
     void finalizeExpiredTrade();
   }, [remainingSeconds, runningTrade]);
+
+  // Keep the terminal synchronized with the server while an order is live.
+  // The countdown and market stream remain client-side smooth, while order
+  // status, balance and final settlement are always refreshed from the backend.
+  useEffect(() => {
+    if (!openTrades.length && !runningTrade && !settlementPending) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled || livePollingRef.current) return;
+      livePollingRef.current = true;
+      try {
+        const [openResult, historyResult] = await Promise.allSettled([
+          tradeApi.open(token),
+          tradeApi.history(token),
+        ]);
+        if (cancelled) return;
+        if (openResult.status === "fulfilled") {
+          const rows = Array.isArray(openResult.value.data?.data) ? openResult.value.data.data : [];
+          setOpenTrades(rows);
+          const activeId = Number(lastPlacedTradeIdRef.current || runningTrade?.id || 0);
+          const active = activeId ? rows.find((row) => Number(row?.id) === activeId) : null;
+          if (active) {
+            setRunningTrade((prev) => prev ? {
+              ...prev,
+              ...active,
+              entryPrice: Number(active.entry_price || prev.entryPrice || 0),
+              payoutPercent: Number(active.payout_percent || prev.payoutPercent || 0),
+              endTime: active.end_time || prev.endTime,
+              timer: Number(active.timer_seconds || prev.timer || 60),
+              status: active.status || "open",
+            } : {
+              ...active,
+              entryPrice: Number(active.entry_price || 0),
+              payoutPercent: Number(active.payout_percent || 0),
+              endTime: active.end_time,
+              timer: Number(active.timer_seconds || 60),
+            });
+          }
+        }
+        if (historyResult.status === "fulfilled") {
+          const history = Array.isArray(historyResult.value.data?.data) ? historyResult.value.data.data : [];
+          setTradeHistory(history);
+          revealSettledTrade(history);
+          const activeId = Number(lastPlacedTradeIdRef.current || 0);
+          if (activeId && history.some((row) => Number(row?.id) === activeId && isSettled(row))) {
+            await refreshWalletBalance(false);
+          }
+        }
+      } finally {
+        livePollingRef.current = false;
+      }
+    };
+    void poll();
+    const interval = setInterval(poll, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [openTrades.length, runningTrade?.id, settlementPending]);
 
   async function loadTradePage() {
     // Never gate the trading terminal on a batch of API reads. Render the shell
@@ -1007,6 +1067,7 @@ export default function TradePage({ embedded = false } = {}) {
               {openTrades.length ? openTrades.map((trade) => (
                 <OpenTradeCard key={trade.id} trade={trade} onOpen={() => {
                   lastPlacedTradeIdRef.current = Number(trade.id);
+                  setPair(String(trade.pair || pair).toUpperCase());
                   setRunningTrade({
                     ...trade,
                     entryPrice: Number(trade.entry_price || 0),
@@ -1145,7 +1206,7 @@ function OpenTradeCard({ trade, onOpen }) {
         </div>
         <div className="text-right">
           <div className="text-sm font-bold tabular-nums text-white">{formatCountdown(remaining)}</div>
-          <div className="text-[9px] text-amber-300">remaining</div>
+          <div className="text-[9px] text-cyan-300">● LIVE PROCESSING</div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-2">
