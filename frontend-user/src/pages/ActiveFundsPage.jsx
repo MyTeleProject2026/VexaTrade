@@ -12,7 +12,7 @@ export default function ActiveFundsPage() {
         <div className="mb-3">
           <h1 className="text-xl font-bold text-white">Active Funds — Live Processing</h1>
           <p className="mt-1 text-[10px] text-slate-500">
-            Continuous display updates with authoritative server synchronization.
+            Continuous display updates with authoritative Vexa Blockchain Ecosystem synchronization.
           </p>
         </div>
         <FundsLiveActivity />
