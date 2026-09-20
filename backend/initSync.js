@@ -1,12 +1,14 @@
 // backend/initSync.js
 const { processPendingDeposits } = require("./depositVerificationService");
 const { settleDailyFunds } = require("./services/fundSettlementService");
+const { settleExpiredTrades } = require("./services/tradeSettlementService");
 
 // Keep the verifier single-flight so overlapping timer ticks/process hooks
 // cannot scan the same pending set concurrently. Deposit rows are still
 // locked inside the verifier as the final consistency guard.
 let verificationRunning = false;
 let fundSettlementRunning = false;
+let tradeSettlementRunning = false;
 
 async function runDepositVerification() {
   if (verificationRunning) {
@@ -57,3 +59,26 @@ fundSettlementInterval.unref?.();
 
 console.log("[Cron] Deposit verification service started.");
 console.log("[Cron] Daily fund settlement service started.");
+
+
+async function runTradeSettlement() {
+  if (tradeSettlementRunning) return;
+  tradeSettlementRunning = true;
+  try {
+    const settled = await settleExpiredTrades(50);
+    if (settled > 0) console.log(`[Trade] Live settlement completed: ${settled} trade(s).`);
+  } catch (err) {
+    console.error("[Trade] Live settlement cycle failed:", err.message);
+  } finally {
+    tradeSettlementRunning = false;
+  }
+}
+
+// Short-Term trades are time-sensitive. Run the server-authoritative expiry
+// worker every second so an expired position can move from OPEN/PENDING to its
+// final settlement without waiting for a long cron interval. The settlement
+// service locks each trade and is idempotent at the row level.
+void runTradeSettlement();
+const tradeSettlementInterval = setInterval(runTradeSettlement, 1000);
+tradeSettlementInterval.unref?.();
+console.log("[Trade] Live Short-Term settlement worker started (1s cycle).");
