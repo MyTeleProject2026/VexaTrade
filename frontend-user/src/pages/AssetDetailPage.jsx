@@ -1,0 +1,31 @@
+import { useEffect,useState } from "react";
+import { useNavigate,useParams } from "react-router-dom";
+import { ArrowDownToLine,ArrowLeft,ArrowRightLeft,ArrowUpToLine,BarChart3,Clock3,RefreshCw,Send,WalletCards } from "lucide-react";
+import { userApi,getApiErrorMessage } from "../services/api";
+import { useNotification } from "../hooks/useNotification";
+const names={USDT:"Tether USD",BTC:"Bitcoin",ETH:"Ethereum",BNB:"BNB",SOL:"Solana",XRP:"XRP",USDC:"USD Coin",TRX:"TRON",ADA:"Cardano",DOGE:"Dogecoin",AVAX:"Avalanche",DOT:"Polkadot",LTC:"Litecoin",MATIC:"Polygon",LINK:"Chainlink",SHIB:"Shiba Inu",TON:"Toncoin",ATOM:"Cosmos",XLM:"Stellar",BCH:"Bitcoin Cash"};
+const money=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const qty=v=>Number(v||0).toLocaleString(undefined,{maximumFractionDigits:12});
+export default function AssetDetailPage(){
+ const {coin:raw}=useParams();const coin=String(raw||"").toUpperCase();const nav=useNavigate();const {showError}=useNotification();const token=localStorage.getItem("userToken")||localStorage.getItem("token")||localStorage.getItem("accessToken")||"";
+ const [asset,setAsset]=useState(null),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[error,setError]=useState("");
+ async function load(silent){try{silent?setRefreshing(true):setLoading(true);setError("");const r=await userApi.getAsset(coin,token);const a=r?.data?.data?.asset||r?.data?.asset;if(!a)throw new Error("Asset not found");setAsset(a);}catch(e){setError(getApiErrorMessage(e));if(!silent)showError(getApiErrorMessage(e));}finally{setLoading(false);setRefreshing(false);}}
+ useEffect(()=>{load(false);},[coin]);
+ if(loading)return <div className="min-h-screen bg-[#050812] p-4 text-sm text-slate-300">Loading asset...</div>;
+ const price=Number(asset?.current_price||0),value=Number(asset?.total_usdt_value??asset?.usdt_value??0),pnl=Number(asset?.spot_pnl||0),pnlPct=Number(asset?.spot_pnl_percent||0),name=asset?.name||names[coin]||coin;
+ const go=p=>nav(p);
+ return <div className="min-h-screen bg-[#050812] px-3 pb-24 pt-3 text-white sm:px-5 xl:pb-8"><div className="mx-auto max-w-[1100px] space-y-4">
+ <header className="flex items-center gap-3"><button onClick={()=>go("/assets")} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[.03]"><ArrowLeft size={19}/></button><div className="flex-1"><div className="text-lg font-bold">{coin}</div><div className="text-xs text-slate-500">{name}</div></div><button onClick={()=>load(true)} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10"><RefreshCw size={17} className={refreshing?"animate-spin":""}/></button></header>
+ {error&&<div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
+ <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,.16),transparent_25%),#0a0e1a] p-5"><div className="text-xs text-slate-400">Total asset value</div><div className="mt-2 text-3xl font-bold">$$money(value) <span className="text-base text-slate-400">USDT</span></div><div className={pnl>=0?"mt-2 text-sm text-emerald-300":"mt-2 text-sm text-red-300"}>{pnl>=0?"+":""}$$money(pnl) USDT ({pnlPct>=0?"+":""}{pnlPct.toFixed(2)}%) Spot PnL</div></section>
+ <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[["Available",asset?.available_balance,coin],["Reserved",asset?.reserved_balance,coin],["Pending",asset?.pending_balance,coin],["Price",price,"USDT"]].map(x=><div key={x[0]} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-xs text-slate-500">{x[0]}</div><div className="mt-2 text-base font-semibold">{x[0]==="Price"?money(x[1]):qty(x[1])}</div><div className="text-[11px] text-slate-500">{x[2]}</div></div>)}</section>
+ <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+ <button onClick={()=>go("/deposit?asset="+encodeURIComponent(coin))} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-3 text-sm font-semibold text-black"><ArrowDownToLine size={17}/>Deposit</button>
+ <button onClick={()=>go("/withdraw?asset="+encodeURIComponent(coin))} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-3 text-sm font-semibold"><ArrowUpToLine size={17}/>Withdraw</button>
+ <button onClick={()=>go("/convert?asset="+encodeURIComponent(coin))} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-3 text-sm font-semibold"><ArrowRightLeft size={17}/>Convert</button>
+ <button onClick={()=>go("/trade/spot/long-term?symbol="+encodeURIComponent(coin+"USDT"))} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-3 text-sm font-semibold"><BarChart3 size={17}/>Trade</button>
+ </section>
+ <section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="flex items-center gap-3"><WalletCards size={18} className="text-cyan-300"/><div><div className="text-sm font-semibold">Asset actions</div><div className="text-xs text-slate-500">Open detailed wallet activity and existing platform workflows.</div></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><button onClick={()=>go("/assets/"+encodeURIComponent(coin)+"/history")} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm"><Clock3 size={17}/>Asset transaction history</button><button onClick={()=>go("/transactions")} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm"><Send size={17}/>All wallet transactions</button></div></section>
+ {Array.isArray(asset?.networks)&&asset.networks.length>0&&<section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="text-sm font-semibold">Supported networks</div><div className="mt-3 flex flex-wrap gap-2">{asset.networks.map(n=><span key={n} className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-300">{n}</span>)}</div></section>}
+ </div></div>;
+}
