@@ -494,64 +494,36 @@ export default function TradePage({ embedded = false } = {}) {
     void finalizeExpiredTrade();
   }, [remainingSeconds, runningTrade]);
 
-  // Keep the terminal synchronized with the server while an order is live.
-  // The countdown and market stream remain client-side smooth, while order
-  // status, balance and final settlement are always refreshed from the backend.
+  // The terminal uses the live market stream for price/countdown updates.
+  // Financial state is refreshed after a completed action, when the page regains
+  // focus, and once at expiry. No repeating API polling loop is used.
   useEffect(() => {
-    if (!openTrades.length && !runningTrade && !settlementPending) return undefined;
-    let cancelled = false;
-    const poll = async () => {
-      if (cancelled || livePollingRef.current) return;
-      livePollingRef.current = true;
-      try {
-        const [openResult, historyResult] = await Promise.allSettled([
-          tradeApi.open(token),
-          tradeApi.history(token),
-        ]);
-        if (cancelled) return;
-        if (openResult.status === "fulfilled") {
-          const rows = Array.isArray(openResult.value.data?.data) ? openResult.value.data.data : [];
-          setOpenTrades(rows);
-          const activeId = Number(lastPlacedTradeIdRef.current || runningTrade?.id || 0);
-          const active = activeId ? rows.find((row) => Number(row?.id) === activeId) : null;
-          if (active) {
-            setRunningTrade((prev) => prev ? {
-              ...prev,
-              ...active,
-              entryPrice: Number(active.entry_price || prev.entryPrice || 0),
-              payoutPercent: Number(active.payout_percent || prev.payoutPercent || 0),
-              endTime: active.end_time || prev.endTime,
-              timer: Number(active.timer_seconds || prev.timer || 60),
-              status: active.status || "open",
-            } : {
-              ...active,
-              entryPrice: Number(active.entry_price || 0),
-              payoutPercent: Number(active.payout_percent || 0),
-              endTime: active.end_time,
-              timer: Number(active.timer_seconds || 60),
-            });
-          }
-        }
-        if (historyResult.status === "fulfilled") {
-          const history = Array.isArray(historyResult.value.data?.data) ? historyResult.value.data.data : [];
-          setTradeHistory(history);
-          revealSettledTrade(history);
-          const activeId = Number(lastPlacedTradeIdRef.current || 0);
-          if (activeId && history.some((row) => Number(row?.id) === activeId && isSettled(row))) {
-            await refreshWalletBalance(false);
-          }
-        }
-      } finally {
-        livePollingRef.current = false;
+    const handleFinancialAction = (event) => {
+      const action = String(event?.detail?.action || "");
+      if (action === "trade-submit") {
+        void refreshOpenTrades(false);
+        void refreshTradeHistory(false);
       }
     };
-    void poll();
-    const interval = setInterval(poll, 1000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        void refreshOpenTrades(false);
+        void refreshTradeHistory(false);
+        void refreshWalletBalance(false);
+      }
     };
-  }, [openTrades.length, runningTrade?.id, settlementPending]);
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   async function loadTradePage() {
     // Never gate the trading terminal on a batch of API reads. Render the shell
