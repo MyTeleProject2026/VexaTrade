@@ -323,7 +323,7 @@ function Metric({ label, value }) {
   );
 }
 
-export default function TradePage() {
+export default function TradePage({ embedded = false } = {}) {
   const navigate = useNavigate();
   const token =
     localStorage.getItem("userToken") ||
@@ -581,7 +581,7 @@ export default function TradePage() {
     shownSettledTradeIdRef.current = id;
     setSettlementPending(false);
     setResultReceipt(settled);
-    setActiveSection("history");
+    if (!embedded) setActiveSection("history");
   }
 
   async function finalizeExpiredTrade() {
@@ -714,7 +714,7 @@ export default function TradePage() {
       setRunningTrade(placedTrade);
       setShowRunningTrade(true);
       setSettlementPending(false);
-      setActiveSection("orders");
+      if (!embedded) setActiveSection("orders");
       setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
       setWallet(prev => ({ ...prev, balance: Math.max(0, Number(prev.balance || 0) - Number(placedTrade.amount || 0)) }));
       showSuccess(`Trade #${tradeId} placed at ${formatPrice(placedTrade.entryPrice)}.`);
@@ -810,7 +810,7 @@ export default function TradePage() {
         </div>
       </header>
 
-      <section className="border-b border-white/10 bg-[#050812]/90 px-2.5 py-2 backdrop-blur-xl sm:px-4">
+      {!embedded && <section className="border-b border-white/10 bg-[#050812]/90 px-2.5 py-2 backdrop-blur-xl sm:px-4">
         <div className="mx-auto max-w-5xl rounded-xl border border-white/10 bg-white/[0.025] p-1 shadow-lg shadow-black/20">
           <div className="grid grid-cols-2 gap-1">
             <button type="button" onClick={() => navigate("/trade")} aria-current="page" className="min-h-0 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-left text-cyan-100 shadow-inner shadow-cyan-400/5 transition active:scale-[0.99]">
@@ -825,9 +825,9 @@ export default function TradePage() {
             </button>
           </div>
         </div>
-      </section>
+      </section>}
 
-      <main className="mx-auto max-w-5xl">
+      {!embedded && <main className="mx-auto max-w-5xl">
         <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
           <div className="flex gap-1 overflow-x-auto pb-2">
             {["trade", "orders", "history"].map((section) => (
@@ -1033,15 +1033,15 @@ export default function TradePage() {
             </div>
           </section>
         )}
-      </main>
+      </main>}
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
+      {!embedded && <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg justify-around">
           <BottomNavButton active={activeSection === "trade"} icon={TrendingUp} label="Trade" onClick={() => setActiveSection("trade")} />
           <BottomNavButton active={activeSection === "orders"} icon={BarChart3} label="Orders" onClick={() => setActiveSection("orders")} />
           <BottomNavButton active={activeSection === "history"} icon={History} label="History" onClick={() => setActiveSection("history")} />
         </div>
-      </div>
+      </div>}
 
       {runningTrade && showRunningTrade && (
         <RunningTradeModal
