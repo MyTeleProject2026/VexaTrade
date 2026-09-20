@@ -131,8 +131,12 @@ async function createTransactionLog(connection, payload) {
        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [userId, type, amount, status, referenceId, note]
     );
-  } catch (_) {
-    // Silent fail for logs; non-critical
+  } catch (error) {
+    // Financial transaction history is part of the authoritative operation
+    // contract. If it cannot be persisted, propagate the error so the caller's
+    // database transaction can roll back instead of silently reporting success.
+    console.error('[TransactionLog] Failed to persist financial transaction:', error.message);
+    throw error;
   }
 }
 
