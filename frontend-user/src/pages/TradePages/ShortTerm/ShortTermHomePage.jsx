@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import TradeSectionLayout from "../TradeSectionLayout";
 
 const DURATIONS = [
-  { seconds: 60, label: "60 sec", detail: "1 minute", badge: "FAST" },
-  { seconds: 180, label: "3 min", detail: "Balanced", badge: "3M" },
-  { seconds: 300, label: "5 min", detail: "Extended", badge: "5M" },
+  { seconds: 60, label: "60-Second", detail: "1 minute", badge: "FAST" },
+  { seconds: 180, label: "180-Second", detail: "3 minutes", badge: "3M" },
+  { seconds: 300, label: "300-Second", detail: "5 minutes", badge: "5M" },
 ];
 
 export default function ShortTermHomePage() {

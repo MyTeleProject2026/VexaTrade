@@ -60,7 +60,7 @@ export default function UserLayout() {
   const [isPasscodeLocked, setIsPasscodeLocked] = useState(false);
   const [checkingPasscode, setCheckingPasscode] = useState(true);
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
-  const showBackButton = shouldShowBackButton(location.pathname);
+  const showBackButton = shouldShowBackButton(location.pathname);\n  const isTradeRoute = location.pathname === "/trade" || location.pathname.startsWith("/trade/");
 
   useEffect(() => {
     const checkPasscode = async () => {
@@ -205,7 +205,7 @@ export default function UserLayout() {
           </header>
 
           <main className="vexa-scroll-shell flex-1 overflow-y-auto pb-32 md:pb-8"><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
-          <div className="md:hidden"><MobileBottomNav /></div>
+          {!isTradeRoute && <div className="md:hidden"><MobileBottomNav /></div>}
         </div>
       </div>
     </div>

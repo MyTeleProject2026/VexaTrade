@@ -373,13 +373,7 @@ export default function TradePage({ embedded = false } = {}) {
     return map;
   }, [marketRows]);
   const selectedMarket = marketMap[String(pair).toUpperCase()] || null;
-  const timerOptions = useMemo(() => {
-    const configured = rules
-      .filter((rule) => String(rule.status || "active").toLowerCase() === "active")
-      .map((rule) => Number(rule.timer_seconds))
-      .filter((seconds) => Number.isInteger(seconds) && seconds > 0 && seconds <= 86400);
-    return [...new Set([...DEFAULT_TIMER_OPTIONS, ...configured])].sort((a, b) => a - b);
-  }, [rules]);
+  const timerOptions = DEFAULT_TIMER_OPTIONS;
 
   useEffect(() => {
     if (!timerOptions.includes(Number(timer))) setTimer(timerOptions[0] || 60);
@@ -509,6 +503,7 @@ export default function TradePage({ embedded = false } = {}) {
 
     const reads = [
       ["wallet", () => withReadTimeout(userApi.getWalletSummary(token), 5000)],
+      ["assets", () => withReadTimeout(userApi.getUserAssets(token), 5000)],
       ["rules", () => withReadTimeout(tradeApi.rules(token), 5000)],
       ["market", () => withReadTimeout(marketApi.home(), 5000)],
       ["open", () => withReadTimeout(tradeApi.open(token), 5000)],
@@ -522,7 +517,16 @@ export default function TradePage({ embedded = false } = {}) {
       const response = result.value;
       if (key === "wallet") {
         const data = response.data?.data || {};
-        setWallet({ balance: Number(data.balance || 0) });
+        setWallet((previous) => ({ ...previous, balance: Number(data.balance || 0) }));
+      } else if (key === "assets") {
+        const assets = Array.isArray(response.data?.data?.assets) ? response.data.data.assets : [];
+        const usdt = assets.find((asset) => String(asset?.symbol || asset?.coin || "").toUpperCase() === "USDT");
+        if (usdt) {
+          const assetBalance = Number(usdt?.available_balance ?? usdt?.amount ?? usdt?.balance ?? 0);
+          if (Number.isFinite(assetBalance) && assetBalance > 0) {
+            setWallet((previous) => ({ ...previous, balance: assetBalance }));
+          }
+        }
       } else if (key === "rules") {
         setRules(Array.isArray(response.data?.data) ? response.data.data : []);
       } else if (key === "market") {
@@ -558,6 +562,27 @@ export default function TradePage({ embedded = false } = {}) {
     } finally {
       if (showSpinner) setRefreshing(false);
     }
+  }
+
+  async function refreshWalletBalance() {
+    try {
+      const [walletRes, assetsRes] = await Promise.allSettled([
+        withReadTimeout(userApi.getWalletSummary(token), 5000),
+        withReadTimeout(userApi.getUserAssets(token), 5000),
+      ]);
+      let nextBalance = null;
+      if (walletRes.status === "fulfilled") {
+        const value = Number(walletRes.value?.data?.data?.balance);
+        if (Number.isFinite(value)) nextBalance = value;
+      }
+      if (assetsRes.status === "fulfilled") {
+        const assets = Array.isArray(assetsRes.value?.data?.data?.assets) ? assetsRes.value.data.data.assets : [];
+        const usdt = assets.find((asset) => String(asset?.symbol || asset?.coin || "").toUpperCase() === "USDT");
+        const value = Number(usdt?.available_balance ?? usdt?.amount ?? usdt?.balance);
+        if (Number.isFinite(value) && value > 0) nextBalance = value;
+      }
+      if (nextBalance !== null) setWallet((previous) => ({ ...previous, balance: nextBalance }));
+    } catch (_) {}
   }
 
   async function refreshTradeHistory(showSpinner = false) {
@@ -916,7 +941,7 @@ export default function TradePage({ embedded = false } = {}) {
                   <div className="grid grid-cols-3 gap-1.5">
                     {timerOptions.map((seconds) => (
                       <button key={seconds} type="button" onClick={() => setTimer(seconds)} className={`rounded-xl border py-2 text-xs font-semibold ${Number(timer) === seconds ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-white/10 bg-[#050812] text-slate-400 hover:text-white"}`}>
-                        {seconds < 60 ? `${seconds}s` : `${seconds / 60}m`}
+                        {`${seconds}-Second`}
                       </button>
                     ))}
                   </div>
