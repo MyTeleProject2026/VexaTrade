@@ -1,4 +1,4 @@
-import { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";\nimport { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
 
 export default function FundHelpPage() {
   const steps = [
@@ -12,9 +12,9 @@ export default function FundHelpPage() {
   return (
     <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5">
       <div className="mx-auto max-w-3xl">
-        <a href="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
+        <Link to="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
           <ArrowLeft size={13} /> Funds Center
-        </a>
+        </Link>
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
           <div className="flex items-center gap-2">
             <HelpCircle className="text-cyan-300" size={18} />
