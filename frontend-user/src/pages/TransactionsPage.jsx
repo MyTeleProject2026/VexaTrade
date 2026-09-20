@@ -376,7 +376,7 @@ function TransactionDetailModal({ item, onClose }) {
 
     // Ecosystem note (admin_note)
     if (raw.admin_note) {
-      fields.push({ label: "Ecosystem Note", value: raw.admin_note, fullWidth: true });
+      fields.push({ label: "Blockchain Ecosystem Note", value: raw.admin_note, fullWidth: true });
     }
 
     fields.push({ label: "Time", value: formatTime(item.created_at) });
