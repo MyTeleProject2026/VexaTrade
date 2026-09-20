@@ -542,6 +542,19 @@ export default function TradePage({ embedded = false } = {}) {
     }
   }
 
+  async function refreshWalletBalance(showErrorOnFailure = false) {
+    try {
+      const response = await userApi.getWalletSummary(token);
+      const data = response.data?.data || {};
+      const balance = Number(data.balance || 0);
+      setWallet({ balance: Number.isFinite(balance) ? balance : 0 });
+      return Number.isFinite(balance) ? balance : 0;
+    } catch (error) {
+      if (showErrorOnFailure) showError(getApiErrorMessage(error) || "Wallet balance could not be refreshed.");
+      return null;
+    }
+  }
+
   async function refreshOpenTrades(showSpinner = false) {
     if (showSpinner) setRefreshing(true);
     try {
@@ -588,6 +601,7 @@ export default function TradePage({ embedded = false } = {}) {
     // One controlled history read at expiry. No polling/retry loop and no broad
     // wallet/target refresh is triggered automatically.
     await refreshTradeHistory(false);
+    await refreshWalletBalance(false);
     if (shownSettledTradeIdRef.current !== id) setSettlementPending(true);
   }
 
@@ -641,6 +655,8 @@ export default function TradePage({ embedded = false } = {}) {
       return;
     }
 
+    const freshBalance = await refreshWalletBalance(true);
+    const authoritativeBalance = freshBalance === null ? Number(wallet.balance || 0) : freshBalance;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       showError("Enter a valid USDT amount.");
@@ -654,8 +670,8 @@ export default function TradePage({ embedded = false } = {}) {
       showError(`Maximum trade amount is ${formatAmount(activeRule.max_amount)} USDT.`);
       return;
     }
-    if (numericAmount > Number(wallet.balance || 0)) {
-      showError("Insufficient available USDT balance.");
+    if (numericAmount > authoritativeBalance) {
+      showError("Insufficient available USDT balance. Available: " + formatAmount(authoritativeBalance) + " USDT.");
       return;
     }
 
@@ -712,6 +728,7 @@ export default function TradePage({ embedded = false } = {}) {
       if (!embedded) setActiveSection("orders");
       setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
       setWallet(prev => ({ ...prev, balance: Math.max(0, Number(prev.balance || 0) - Number(placedTrade.amount || 0)) }));
+      void refreshWalletBalance(false);
       showSuccess(`Trade #${tradeId} placed at ${formatPrice(placedTrade.entryPrice)}.`);
     } catch (err) {
       showError(getApiErrorMessage(err) || "Trade could not be placed.");
