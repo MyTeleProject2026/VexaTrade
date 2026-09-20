@@ -17,7 +17,31 @@ export function getPreferences() {
   }
 }
 
-async function syncPreferences(value) {\n  const token = localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token");\n  if (!token) return null;\n  const base = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";\n  const response = await fetch(`${base}/api/user/preferences`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(value) });\n  if (!response.ok) throw new Error("Unable to sync preferences");\n  return response.json();\n}\n\nexport async function hydratePreferences() {\n  const token = localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token");\n  if (!token) return getPreferences();\n  try {\n    const base = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";\n    const response = await fetch(`${base}/api/user/preferences`, { headers: { Authorization: `Bearer ${token}` } });\n    if (!response.ok) return getPreferences();\n    const remote = (await response.json()).data || {};\n    const value = { ...defaults, ...remote };\n    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));\n    applyAppearance(value.appearance);\n    return value;\n  } catch { return getPreferences(); }\n}\n\nexport function savePreferences(next) {
+async function syncPreferences(value) {
+  const token = localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token");
+  if (!token) return null;
+  const base = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
+  const response = await fetch(`${base}/api/user/preferences`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(value) });
+  if (!response.ok) throw new Error("Unable to sync preferences");
+  return response.json();
+}
+
+export async function hydratePreferences() {
+  const token = localStorage.getItem("userToken") || localStorage.getItem("accessToken") || localStorage.getItem("token");
+  if (!token) return getPreferences();
+  try {
+    const base = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
+    const response = await fetch(`${base}/api/user/preferences`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return getPreferences();
+    const remote = (await response.json()).data || {};
+    const value = { ...defaults, ...remote };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    applyAppearance(value.appearance);
+    return value;
+  } catch { return getPreferences(); }
+}
+
+export function savePreferences(next) {
   const value = { ...getPreferences(), ...next };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   applyAppearance(value.appearance);
