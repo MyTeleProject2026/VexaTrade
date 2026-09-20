@@ -16,10 +16,23 @@ async function columnExists(connection, table, column) {
 }
 
 async function addColumn(connection, table, column, definition) {
+  if (!(await tableExists(connection, table))) {
+    throw new Error(`Required table ${table} does not exist; schema bootstrap cannot safely continue.`);
+  }
   if (!(await columnExists(connection, table, column))) {
     await connection.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
     console.log(`[Schema] Added ${table}.${column}`);
   }
+}
+
+async function tableExists(connection, table) {
+  const [rows] = await connection.execute(
+    `SELECT 1 FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+     LIMIT 1`,
+    [table]
+  );
+  return rows.length > 0;
 }
 
 async function indexExists(connection, table, indexName) {
@@ -32,6 +45,9 @@ async function indexExists(connection, table, indexName) {
 }
 
 async function ensureUniqueIndex(connection, table, indexName, columns) {
+  if (!(await tableExists(connection, table))) {
+    throw new Error(`Required table ${table} does not exist; cannot create index ${indexName} safely.`);
+  }
   if (!(await indexExists(connection, table, indexName))) {
     await connection.execute(`CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(c => `\`${c}\``).join(',')})`);
     console.log(`[Schema] Added unique index ${table}.${indexName}`);
@@ -41,13 +57,16 @@ async function ensureUniqueIndex(connection, table, indexName, columns) {
 async function ensureFinancialSchema() {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
+    // TiDB DDL is not transactionally rolled back. Do not wrap the bootstrap
+    // in one giant transaction: if a later DDL statement fails, earlier safe
+    // schema changes must remain available for the next startup attempt.
+    // Financial data changes below remain narrowly scoped and idempotent.
 
-    if (await columnExists(connection, 'user_assets', 'balance')) {
+    if (await tableExists(connection, 'user_assets') && await columnExists(connection, 'user_assets', 'balance')) {
       await addColumn(connection, 'user_assets', 'available_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'reserved_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'pending_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
-      await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND balance <> 0`);
+        await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND balance <> 0`);
     }
 
     // Security migrations are SQL files and are not run automatically by Render.
@@ -262,10 +281,8 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB
     `);
 
-    await connection.commit();
     console.log('[Schema] Financial and security compatibility schema is ready.');
   } catch (error) {
-    try { await connection.rollback(); } catch (_) {}
     console.error('[Schema] Financial schema bootstrap failed:', error.message);
     throw error;
   } finally {
