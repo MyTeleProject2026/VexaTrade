@@ -235,7 +235,7 @@ export default function TwoFactorSetupModal({ open, token, onClose, onCompleted,
               ) : (
                 <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
                   <div className="text-xs font-semibold text-white">{managementAction === "disable" ? "Disable Authenticator 2FA" : "Regenerate recovery codes"}</div>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-500">This is a security-sensitive change. Confirm both factors below. The server validates them before changing your account.</p>
+                  <p className="mt-1 text-[10px] leading-4 text-slate-500">This is a security-sensitive change. Confirm both factors below. The Vexa Blockchain Ecosystem security framework validates them before changing your account.</p>
                   <label className="mt-3 block text-[10px] font-medium text-slate-400">Current authenticator code</label>
                   <input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={managementCode} onChange={e => setManagementCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="mt-1 w-full rounded-xl border border-white/10 bg-[#050812] px-3 py-2.5 text-center font-mono text-lg tracking-[0.3em] text-white outline-none focus:border-cyan-500" placeholder="000000" />
                   <label className="mt-3 block text-[10px] font-medium text-slate-400">Transaction passcode</label>
