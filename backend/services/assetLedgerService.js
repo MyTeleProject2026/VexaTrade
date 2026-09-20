@@ -51,7 +51,7 @@ async function syncTotal(connection,userId,coin){ await connection.execute('UPDA
 async function recordLedger(connection,{userId,coin,network,bucket,entryType,amount,referenceType,referenceId,note}){
   const normalizedCoin=normalizeCoin(coin), normalizedNetwork=normalizeNetwork(network), value=Number(amount);
   await connection.execute(`INSERT INTO asset_ledger_entries (user_id,coin,network,bucket,entry_type,amount,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?,?)`,[userId,normalizedCoin,normalizedNetwork,bucket,entryType,value,referenceType||null,referenceId||null,note||null]);
-  try { await connection.execute(`INSERT INTO financial_audit_events (user_id,action,coin,network,amount,reference_type,reference_id,metadata) VALUES (?,?,?,?,?,?,?,JSON_OBJECT('bucket',?, 'entry_type',?, 'note',?))`,[userId,entryType,normalizedCoin,normalizedNetwork,value,referenceType||null,referenceId||null,bucket,entryType,note||null]); } catch (_) { /* migration may not yet be applied; ledger remains authoritative */ }
+  await connection.execute(`INSERT INTO financial_audit_events (user_id,action,coin,network,amount,reference_type,reference_id,metadata) VALUES (?,?,?,?,?,?,?,JSON_OBJECT('bucket',?, 'entry_type',?, 'note',?))`,[userId,entryType,normalizedCoin,normalizedNetwork,value,referenceType||null,referenceId||null,bucket,entryType,note||null]);
 }
 async function creditAssetBalance(connection,{userId,coin,network,amount,referenceType,referenceId,note}){
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid asset credit');
