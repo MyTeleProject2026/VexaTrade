@@ -253,7 +253,6 @@ function RunningTradeModal({ trade, remainingSeconds, livePrice, onClose }) {
   const progress = Math.min(1, remaining / total);
   const entry = Number(trade.entryPrice || trade.entry_price || 0);
   const current = Number(livePrice || entry);
-  const delta = entry > 0 && current > 0 ? ((current - entry) / entry) * 100 : 0;
   const radius = 92;
   const circumference = 2 * Math.PI * radius;
   const directionUp = trade.direction === "bullish";
