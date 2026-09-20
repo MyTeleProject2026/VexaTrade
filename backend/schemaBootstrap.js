@@ -47,7 +47,7 @@ async function ensureFinancialSchema() {
       await addColumn(connection, 'user_assets', 'available_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'reserved_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
       await addColumn(connection, 'user_assets', 'pending_balance', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
-      await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND balance <> 0`);
+      await connection.execute(`UPDATE user_assets SET available_balance = balance WHERE available_balance = 0 AND reserved_balance = 0 AND pending_balance = 0 AND balance <> 0`);
     }
 
     // Security migrations are SQL files and are not run automatically by Render.
