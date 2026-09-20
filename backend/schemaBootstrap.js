@@ -348,7 +348,85 @@ async function ensureFinancialSchema() {
         KEY idx_asset_network_asset (asset_id),
         CONSTRAINT fk_asset_network_asset FOREIGN KEY (asset_id) REFERENCES asset_registry(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);    // Keep the repository-defined security/preferences/audit foundations
+    `);    // Deposit verification/admin-control tables are also required at runtime because
+    // Render does not execute backend/migrations automatically.
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS network_verification_settings (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        network VARCHAR(64) NOT NULL,
+        explorer_api_url VARCHAR(500) NOT NULL,
+        api_key VARCHAR(255) NULL,
+        address_prefix VARCHAR(128) NOT NULL,
+        address_suffix VARCHAR(128) NOT NULL,
+        token_type VARCHAR(64) NOT NULL DEFAULT 'token',
+        contract_address VARCHAR(255) NULL,
+        tolerance_percent DECIMAL(18,8) NOT NULL DEFAULT 10,
+        minimum_deposit DECIMAL(36,18) NOT NULL DEFAULT 0.01,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_network_verification_network (network),
+        KEY idx_network_verification_active (is_active, network)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await addColumn(connection, 'network_verification_settings', 'api_key', 'VARCHAR(255) NULL');
+    await addColumn(connection, 'network_verification_settings', 'contract_address', 'VARCHAR(255) NULL');
+    await addColumn(connection, 'network_verification_settings', 'tolerance_percent', 'DECIMAL(18,8) NOT NULL DEFAULT 10');
+    await addColumn(connection, 'network_verification_settings', 'minimum_deposit', 'DECIMAL(36,18) NOT NULL DEFAULT 0.01');
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_notifications (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(64) NOT NULL DEFAULT 'general',
+        is_read TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_user_notifications_user_created (user_id, created_at),
+        KEY idx_user_notifications_user_read (user_id, is_read, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS notification_email_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        notification_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        email VARCHAR(320) NOT NULL,
+        status VARCHAR(24) NOT NULL,
+        error_message TEXT NULL,
+        sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_notification_email_notification (notification_id),
+        KEY idx_notification_email_user_time (user_id, sent_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS transaction_security_challenges (
+        id CHAR(36) NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        action VARCHAR(64) NOT NULL,
+        idempotency_key VARCHAR(128) NOT NULL,
+        otp_hash CHAR(64) NOT NULL,
+        otp_verified TINYINT(1) NOT NULL DEFAULT 0,
+        two_factor_required TINYINT(1) NOT NULL DEFAULT 0,
+        two_factor_verified TINYINT(1) NOT NULL DEFAULT 0,
+        passcode_verified TINYINT(1) NOT NULL DEFAULT 0,
+        attempts INT NOT NULL DEFAULT 0,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_tsc_user_created (user_id, created_at),
+        KEY idx_tsc_user_key (user_id, idempotency_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Keep the repository-defined security/preferences/audit foundations
     // available on deployments where Render does not run SQL migration files.
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS two_factor_recovery_codes (
