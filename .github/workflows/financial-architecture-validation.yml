@@ -20,6 +20,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm install --no-audit --no-fund
+      - name: Validate financial API contracts
+        run: node scripts/validateFinancialContracts.js
       - name: Check backend JavaScript syntax
         shell: bash
         run: |
