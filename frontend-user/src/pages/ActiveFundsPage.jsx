@@ -1,3 +1,29 @@
-import { Link } from "react-router-dom";\nimport FundsLiveActivity from "../components/funds/FundsLiveActivity";
+import { Link } from "react-router-dom";
+import FundsLiveActivity from "../components/funds/FundsLiveActivity";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-export default function ActiveFundsPage(){return <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5"><div className="mx-auto max-w-6xl"><Link to="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400"><ArrowLeft size={13}/> Funds Center</Link><div className="mb-3"><h1 className="text-xl font-bold text-white">Active Funds — Live Processing</h1><p className="mt-1 text-[10px] text-slate-500">Continuous display updates with authoritative server synchronization.</p></div><FundsLiveActivity/><div className="mt-3 rounded-xl border border-white/10 bg-[#0a0e1a] p-3 text-[10px] text-slate-400">For full plan/application controls, open <a className="text-cyan-300" href="/funds">Funds Center <ExternalLink size={10} className="inline"/></Link>.</div></div></div>}
+
+export default function ActiveFundsPage() {
+  return (
+    <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5">
+      <div className="mx-auto max-w-6xl">
+        <Link to="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
+          <ArrowLeft size={13} /> Funds Center
+        </Link>
+        <div className="mb-3">
+          <h1 className="text-xl font-bold text-white">Active Funds — Live Processing</h1>
+          <p className="mt-1 text-[10px] text-slate-500">
+            Continuous display updates with authoritative server synchronization.
+          </p>
+        </div>
+        <FundsLiveActivity />
+        <div className="mt-3 rounded-xl border border-white/10 bg-[#0a0e1a] p-3 text-[10px] text-slate-400">
+          For full plan/application controls, open{" "}
+          <Link to="/funds" className="text-cyan-300">
+            Funds Center <ExternalLink size={10} className="inline" />
+          </Link>
+          .
+        </div>
+      </div>
+    </div>
+  );
+}
