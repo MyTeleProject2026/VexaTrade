@@ -15,7 +15,7 @@ const OPTIONS = [
     path: "/trade/spot/long-term",
     title: "Spot / Long-Term Trading",
     subtitle: "Market buy & sell execution",
-    description: "View live markets, review balances and place protected Spot orders through the existing server flow.",
+    description: "View live markets, review balances and place protected Spot orders through the Vexa Blockchain Ecosystem market framework.",
     icon: LineChart,
     badge: "SPOT",
   },
@@ -70,7 +70,7 @@ export default function TradePage() {
 
         <div className="flex gap-2 rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.04] p-3 text-[9px] leading-4 text-slate-500">
           <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-300" />
-          <span><b className="text-slate-300">Protected workflow.</b> Each route keeps the existing wallet checks, server validation, idempotency, settlement and result/receipt flow.</span>
+          <span><b className="text-slate-300">Protected workflow.</b> Each route follows the Vexa Blockchain Ecosystem market, transaction, settlement and result/receipt framework.</span>
         </div>
       </div>
     </TradeSectionLayout>
