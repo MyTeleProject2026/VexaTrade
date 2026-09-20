@@ -166,7 +166,7 @@ export default function UserLayout() {
 
   return (
     <div className="vexa-app-shell min-h-screen bg-[#050812] text-white">
-      <div className="flex min-h-screen">
+      <div className="flex min-h-0 min-h-screen">
         <aside className="hidden md:block md:shrink-0">
           <div className="h-screen sticky top-0"><UserSidebar /></div>
         </aside>
@@ -180,7 +180,7 @@ export default function UserLayout() {
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="vexa-topbar sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl safe-top">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -204,7 +204,7 @@ export default function UserLayout() {
             </div>
           </header>
 
-          <main className="vexa-scroll-shell flex-1 overflow-y-auto pb-32 md:pb-8"><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
+          <main className="vexa-scroll-shell min-h-0 flex-1 overflow-y-auto overscroll-y-auto pb-32 md:pb-8"><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
           <div className="md:hidden"><MobileBottomNav /></div>
         </div>
       </div>
