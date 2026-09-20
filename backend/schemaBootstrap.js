@@ -330,7 +330,79 @@ async function ensureFinancialSchema() {
         KEY idx_asset_network_asset (asset_id),
         CONSTRAINT fk_asset_network_asset FOREIGN KEY (asset_id) REFERENCES asset_registry(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);    // Keep the repository-defined security/preferences/audit foundations
+    // available on deployments where Render does not run SQL migration files.
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS two_factor_recovery_codes (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        code_hash VARCHAR(255) NOT NULL,
+        used_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_2fa_recovery_user (user_id, used_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS joint_withdrawal_authorizations (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        withdrawal_id BIGINT UNSIGNED NOT NULL,
+        requesting_user_id BIGINT UNSIGNED NOT NULL,
+        required_user_id BIGINT UNSIGNED NOT NULL,
+        otp_hash VARCHAR(255) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        verified_at DATETIME NULL,
+        consumed_at DATETIME NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_joint_withdrawal (withdrawal_id),
+        KEY idx_joint_auth_required_user (required_user_id, verified_at),
+        KEY idx_joint_auth_expiry (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await addColumn(connection, 'withdrawals', 'joint_authorization_id', 'BIGINT UNSIGNED NULL');
+    await addColumn(connection, 'withdrawals', 'authorization_status', "VARCHAR(32) NOT NULL DEFAULT 'not_required'");
+    await addColumn(connection, 'withdrawals', 'two_factor_verified_at', 'DATETIME NULL');
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id BIGINT NOT NULL PRIMARY KEY,
+        language VARCHAR(16) NOT NULL DEFAULT 'en',
+        timezone VARCHAR(64) NOT NULL DEFAULT 'UTC',
+        appearance ENUM('light','dark','system') NOT NULL DEFAULT 'system',
+        notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        haptics_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        sounds_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_user_preferences_updated (updated_at)
+      ) ENGINE=InnoDB
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS financial_audit_events (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT NULL,
+        actor_id BIGINT NULL,
+        action VARCHAR(96) NOT NULL,
+        coin VARCHAR(32) NULL,
+        network VARCHAR(64) NULL,
+        amount DECIMAL(36,18) NULL,
+        reference_type VARCHAR(64) NULL,
+        reference_id BIGINT NULL,
+        request_hash CHAR(64) NULL,
+        metadata JSON NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_financial_audit_user_time (user_id,created_at),
+        INDEX idx_financial_audit_reference (reference_type,reference_id),
+        INDEX idx_financial_audit_action_time (action,created_at)
+      ) ENGINE=InnoDB
+    `);
+
 
     console.log('[Schema] Financial and security compatibility schema is ready.');
   } catch (error) {
