@@ -34,7 +34,7 @@ function LiveFund({fund,now,serverOffsetMs}){
    <div><div className="text-[9px] text-slate-500">Progress</div><div className="text-xs font-semibold text-white">Day {day}/{total}</div></div>
   </div>
   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400 transition-[width] duration-1000" style={{width:total?Math.min(100,(day/total)*100):0}}/></div>
-  <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500"><span>{liveState==="running"?"Display projection updates continuously":"Projection frozen at server state"}</span><span>Server settlement authoritative</span></div>
+  <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500"><span>{liveState==="running"?"Display projection updates continuously":"Projection frozen at server state"}</span><span>Vexa Blockchain Ecosystem settlement authoritative</span></div>
  </div>
 }
 
