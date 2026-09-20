@@ -301,7 +301,7 @@ function RunningTradeModal({ trade, remainingSeconds, livePrice, onClose }) {
           </div>
 
           <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] leading-5 text-slate-400">
-            The live price is informational during the countdown. Final WIN/LOSS/TIE and settlement are determined by the backend settlement process at expiry.
+            The live price is informational during the countdown. Final WIN/LOSS/TIE and settlement are processed through the Vexa Blockchain Ecosystem settlement framework.
           </div>
 
           <button onClick={onClose} className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white hover:bg-white/10">
@@ -1031,7 +1031,7 @@ export default function TradePage({ embedded = false } = {}) {
                 </div>
 
                 <div className="mt-3 rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[10px] leading-4 text-slate-400">
-                  Entry price is captured from the live market stream at the exact BUY/SELL action. Final settlement uses the backend expiry process.
+                  Entry price is captured from the live market stream at the exact BUY/SELL action. Final settlement follows the Vexa Blockchain Ecosystem settlement framework.
                 </div>
 
                 <button
@@ -1059,7 +1059,7 @@ export default function TradePage({ embedded = false } = {}) {
             {settlementPending && (
               <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] text-amber-200">
                 <Clock3 size={14} />
-                Trade expiry reached. Settlement is still being processed by the backend. Refresh Orders/History when the final receipt is available.
+                Trade expiry reached. The Vexa Blockchain Ecosystem is processing the settlement result. Refresh Orders/History when the final receipt is available.
               </div>
             )}
             <div className="space-y-2">
@@ -1149,7 +1149,7 @@ function TradeReviewModal({ review, placing, onBack, onConfirm }) {
       <div className="w-full max-w-md rounded-t-3xl border border-white/10 bg-[#080d19] p-4 shadow-2xl sm:rounded-3xl">
         <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-300">Step 2 of 3</div>
         <h2 className="mt-1 text-lg font-bold text-white">Review Short-Term Trade</h2>
-        <p className="mt-1 text-[10px] text-slate-500">The backend will create exactly one timed position after you confirm.</p>
+        <p className="mt-1 text-[10px] text-slate-500">The Vexa Blockchain Ecosystem will process the confirmed timed position according to the platform settlement framework.</p>
         <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-[#050812] p-4 text-xs">
           <ReceiptRow label="Pair" value={review.pair} />
           <ReceiptRow label="Side" value={isBuy ? "BUY" : "SELL"} valueClassName={isBuy ? "text-emerald-300" : "text-red-300"} />
@@ -1157,7 +1157,7 @@ function TradeReviewModal({ review, placing, onBack, onConfirm }) {
           <ReceiptRow label="Stake" value={`${formatAmount(review.amount)} USDT`} />
           <ReceiptRow label="Captured entry" value={formatPrice(review.entryPrice)} />
           <ReceiptRow label="Payout" value={`${formatPercent(review.payoutPercent)}%`} />
-          <div className="border-t border-white/10 pt-2 text-[10px] leading-4 text-slate-500">Final settlement is performed by the backend at expiry. No secure-transaction page is inserted between review and placement.</div>
+          <div className="border-t border-white/10 pt-2 text-[10px] leading-4 text-slate-500">Final settlement is completed through the Vexa Blockchain Ecosystem framework at expiry. No secure-transaction page is inserted between review and placement.</div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" disabled={placing} onClick={onBack} className="rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 disabled:opacity-50">Back</button>
