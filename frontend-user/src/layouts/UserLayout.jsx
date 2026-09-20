@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell, Menu, Wallet } from "lucide-react";
 import UserSidebar from "../components/UserSidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
+import TradeTopNavBar from "../components/TradeTopNavBar";
 import PasscodeLockScreen from "../components/PasscodeLockScreen";
 import { userApi } from "../services/api";
 
@@ -204,7 +205,7 @@ export default function UserLayout() {
             </div>
           </header>
 
-          <main className="vexa-scroll-shell min-h-0 flex-1 overflow-y-auto overscroll-y-auto pb-32 md:pb-8"><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
+          <main className="vexa-scroll-shell min-h-0 flex-1 overflow-y-auto overscroll-y-auto pb-32 md:pb-8"><TradeTopNavBar /><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
           <div className="md:hidden"><MobileBottomNav /></div>
         </div>
       </div>
