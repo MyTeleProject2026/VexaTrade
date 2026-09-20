@@ -28,8 +28,27 @@ export default function SpotOrdersPage(){
 
   useEffect(()=>{
     void load();
-    const interval=setInterval(()=>void load(false),1000);
-    return()=>clearInterval(interval);
+
+    const handleFinancialAction = (event) => {
+      const action = String(event?.detail?.action || "");
+      if (["spot-trade-submit","trade-submit","convert-submit","transfer-submit"].includes(action)) {
+        void load(false);
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void load(false);
+    };
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
+    return()=>{
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
   },[]);
 
   return <TradeSectionLayout title="Spot Orders" subtitle="Live Vexa Blockchain Ecosystem execution and order stream" mode="spot">
@@ -38,7 +57,7 @@ export default function SpotOrdersPage(){
         <div className="flex items-center gap-2 text-xs font-semibold">
           <ClipboardList size={15} className="text-cyan-300"/>Orders
           <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/15 bg-emerald-400/5 px-1.5 py-0.5 text-[8px] text-emerald-300">
-            <Activity size={9}/> LIVE 1s
+            <Activity size={9}/> LIVE
           </span>
         </div>
         <button onClick={()=>load(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-slate-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.05] hover:text-cyan-200 active:scale-[0.98]">
