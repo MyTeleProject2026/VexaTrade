@@ -26,8 +26,6 @@ import AdminLoanSettingsPage from "./pages/admin/AdminLoanSettingsPage";
 import AdminLegalDocumentsPage from "./pages/admin/AdminLegalDocumentsPage";
 import AdminNewsPage from "./pages/admin/AdminNewsPage";
 import AdminTradingFundsControlPage from "./pages/admin/AdminTradingFundsControlPage";
-import AdminFundsPage from "./pages/admin/AdminFundsPage";
-import AdminFundsRulesPage from "./pages/admin/AdminFundsRulesPage";
 import AdminJointAccountRequests from "./pages/admin/AdminJointAccountRequests";
 import AdminJointAccountsPage from "./pages/admin/AdminJointAccountsPage";
 import AdminLayout from "./layouts/AdminLayout";
@@ -58,8 +56,6 @@ export default function App() {
       <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
       <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
       <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
-      <Route path="funds" element={<AdminFundsPage />} />
-      <Route path="fund-rules" element={<AdminFundsRulesPage />} />
       <Route path="trades" element={<AdminTradesPage />} />
       <Route path="trade-rules" element={<AdminTradeRulesPage />} /><Route path="spot-trade" element={<AdminSpotTradePage />} />
       <Route path="spot-settlement-rules" element={<AdminSpotSettlementRulesPage />} />
