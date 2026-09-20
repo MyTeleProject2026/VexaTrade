@@ -1,26 +1,8 @@
-import { ArrowLeft, BarChart3, CircleHelp, History, Home, List, Wallet, Zap } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function TradeSectionLayout({ title, subtitle, mode="short", children }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const short = [
-    ["/trade/short-term","Home",Home],
-    ["/trade/short-term/market","Market",BarChart3],
-    ["/trade/short-term/trade","Trade",Zap],
-    ["/trade/short-term/running","Running",List],
-    ["/trade/short-term/history","History",History],
-    ["/trade/short-term/help","Help",CircleHelp],
-  ];
-  const spot = [
-    ["/trade/spot/long-term","Home",Home],
-    ["/trade/spot/long-term/market","Market",BarChart3],
-    ["/trade/spot/long-term/order","Order",Zap],
-    ["/trade/spot/long-term/orders","Orders",List],
-    ["/trade/spot/long-term/assets","Assets",Wallet],
-  ];
-  const items = mode==="spot" ? spot : short;
-  const isActive = path => location.pathname === path || location.pathname.startsWith(path + "/");
   return <div className="min-h-full bg-[#030712] text-white">
     <div className="mx-auto min-h-screen max-w-7xl">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/90 px-3 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
@@ -31,16 +13,6 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
         </div>
       </header>
       <main className="p-2.5 pb-4 sm:p-3 sm:pb-5">{children}</main>
-      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="mx-auto mt-1 w-full max-w-3xl rounded-2xl border border-white/10 bg-[#081223]/92 p-1.5 shadow-[0_12px_35px_rgba(0,0,0,0.25)] backdrop-blur-2xl">
-        <div className={`grid gap-1 ${mode==="spot" ? "grid-cols-5" : "grid-cols-6"}`}>
-          {items.map(([path,label,Icon])=>{
-            const active=isActive(path);
-            return <button key={path} onClick={()=>navigate(path)} className={`group flex min-h-12 touch-manipulation flex-col items-center justify-center rounded-xl border px-1 transition active:scale-[0.97] ${active?"border-cyan-300/15 bg-cyan-300/10 text-cyan-200 shadow-inner shadow-cyan-300/5":"border-transparent text-slate-500 hover:border-white/5 hover:bg-white/5 hover:text-white"}`}>
-              <Icon size={16} className="transition-transform group-hover:-translate-y-0.5"/><span className="mt-0.5 text-[8px] font-medium sm:text-[9px]">{label}</span>
-            </button>
-          })}
-        </div>
-      </nav>
     </div>
   </div>;
 }
