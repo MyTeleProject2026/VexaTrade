@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS account_verification_steps (
 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, request_id BIGINT UNSIGNED NOT NULL, step_number TINYINT UNSIGNED NOT NULL,
 title VARCHAR(255) NOT NULL, description TEXT NULL, coin VARCHAR(32) NOT NULL, network VARCHAR(64) NOT NULL,
 verification_address VARCHAR(255) NOT NULL, verification_method VARCHAR(64) NOT NULL DEFAULT 'transaction_evidence',
+  required_amount DECIMAL(36,18) NULL,
+  required_amount_display VARCHAR(100) NULL,
 evidence_required TINYINT(1) NOT NULL DEFAULT 1, transaction_hash_required TINYINT(1) NOT NULL DEFAULT 1, receipt_required TINYINT(1) NOT NULL DEFAULT 1,
 status VARCHAR(32) NOT NULL DEFAULT 'locked', submitted_at DATETIME NULL, completed_at DATETIME NULL, admin_note TEXT NULL,
 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
