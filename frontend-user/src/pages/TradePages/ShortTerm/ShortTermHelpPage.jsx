@@ -2,7 +2,7 @@ import { CircleHelp, ShieldCheck } from "lucide-react";
 import TradeSectionLayout from "../TradeSectionLayout";
 export default function ShortTermHelpPage(){return <TradeSectionLayout title="Short-Term Help" subtitle="How the trading sections connect" mode="short"><div className="space-y-2.5">{[
  ["Choose market","Select a supported pair from the live market screen."],
- ["Configure trade","The existing TradePage remains responsible for amount, direction, timer and server validation."],
+ ["Configure trade","The existing TradePage handles amount, direction, timer and protected validation within the Vexa Blockchain Ecosystem trading framework."],
  ["Running","Active contracts are loaded from the existing /api/trades/open endpoint."],
  ["History","Completed records are loaded from the existing /api/trades/history endpoint."],
  ["Receipt","Final settlement and receipt information are presented through the Vexa Blockchain Ecosystem trading framework."]
