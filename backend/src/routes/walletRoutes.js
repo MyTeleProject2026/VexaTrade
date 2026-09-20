@@ -195,7 +195,12 @@ async function buildAssets(userId) {
     // Older asset records may have the real balance in `balance` while the
     // newer availability columns are still zero. Preserve that balance rather
     // than silently rendering the asset as zero.
-    const available = availableField > 0 ? availableField : Math.max(rawBalance - reserved - pending, 0);
+    // When the availability columns exist, they are authoritative even when
+    // available_balance is legitimately zero. The legacy balance column is only
+    // retained for backwards-compatible migration data.
+    const available = columns.has('available_balance')
+      ? availableField
+      : Math.max(rawBalance - reserved - pending, 0);
     const total = available + reserved + pending;
     const avgPrice = Number(asset.avg_price || 0);
     const currentPrice = coin === 'USDT' ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
