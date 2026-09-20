@@ -41,7 +41,7 @@ export default function JointWithdrawalAuthorization() {
     setSubmittingId(item.id);
     try {
       await withdrawalApi.jointAuthorize(item.id, { code }, token);
-      showSuccess("Joint withdrawal authorized successfully. It is now ready for settlement.");
+      showSuccess("Joint withdrawal authorized successfully. It is now ready for Vexa Blockchain Ecosystem settlement.");
       setCodes((current) => ({ ...current, [item.id]: "" }));
       await load(true);
     } catch (error) {
