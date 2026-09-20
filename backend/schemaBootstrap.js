@@ -161,6 +161,7 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'withdrawals', 'joint_authorization_id', 'BIGINT UNSIGNED NULL');
     await addColumn(connection, 'withdrawals', 'two_factor_verified_at', 'DATETIME NULL');
     await ensureUniqueIndex(connection, 'withdrawals', 'uq_withdrawals_user_idempotency', ['user_id', 'idempotency_key']);
+    await ensureIndex(connection, 'withdrawals', 'idx_withdrawals_request_hash', ['user_id', 'request_hash']);
     await ensureIndex(connection, 'withdrawals', 'idx_withdrawals_user_id_id', ['user_id', 'id']);
 
     await addColumn(connection, 'convert_transactions', 'idempotency_key', 'VARCHAR(128) NULL');
@@ -170,7 +171,7 @@ async function ensureFinancialSchema() {
 
     await addColumn(connection, 'user_transfers', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
-    await ensureUniqueIndex(connection, 'user_transfers', 'uq_transfer_user_idempotency', ['sender_id', 'idempotency_key']);
+    await ensureUniqueIndex(connection, 'user_transfers', 'uq_user_transfers_sender_idempotency', ['sender_id', 'idempotency_key']);
     await ensureIndex(connection, 'user_transfers', 'idx_user_transfers_sender_request_hash', ['sender_id', 'request_hash']);
 
     await addColumn(connection, 'trades', 'idempotency_key', 'VARCHAR(128) NULL');
