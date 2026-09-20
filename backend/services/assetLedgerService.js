@@ -38,6 +38,15 @@ async function ensureLegacyUsdtAvailable(connection, userId) {
   return Number(assets[0].available_balance || 0);
 }
 
+async function getUserUsdtAvailable(connection, userId) {
+  const [assets] = await connection.execute(
+    "SELECT available_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
+    [userId]
+  );
+  if (assets.length) return Number(assets[0].available_balance || 0);
+  const [users] = await connection.execute("SELECT balance FROM users WHERE id=? LIMIT 1", [userId]);
+  return Number(users[0]?.balance || 0);
+}
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
 async function recordLedger(connection,{userId,coin,network,bucket,entryType,amount,referenceType,referenceId,note}){
   const normalizedCoin=normalizeCoin(coin), normalizedNetwork=normalizeNetwork(network), value=Number(amount);
@@ -80,4 +89,4 @@ async function consumePendingAsset(connection,{userId,coin,network,amount,refere
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid pending asset settlement');
   await ensureAssetRow(connection,userId,coin);const [u]=await connection.execute('UPDATE user_assets SET pending_balance=pending_balance-? WHERE user_id=? AND coin=? AND pending_balance>=?',[amount,userId,coin,amount]);if(u.affectedRows!==1)throw createError(409,'Unable to settle pending asset balance');await syncTotal(connection,userId,coin);await recordLedger(connection,{userId,coin,network,bucket:'pending',entryType:'asset_consumed',amount,referenceType,referenceId,note});
 }
-module.exports={ensureAssetRow,ensureLegacyUsdtAvailable,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
+module.exports={ensureAssetRow,ensureLegacyUsdtAvailable,getUserUsdtAvailable,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
