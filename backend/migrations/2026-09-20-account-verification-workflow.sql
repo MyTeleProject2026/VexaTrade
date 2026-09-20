@@ -27,7 +27,8 @@ UNIQUE KEY uq_account_verification_step(request_id,step_number), KEY idx_account
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS account_verification_submissions (
 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, request_id BIGINT UNSIGNED NOT NULL, step_id BIGINT UNSIGNED NOT NULL, user_id BIGINT UNSIGNED NOT NULL,
-transaction_hash VARCHAR(255) NULL, receipt_url VARCHAR(1000) NULL, evidence_note TEXT NULL, request_hash CHAR(64) NOT NULL, status VARCHAR(32) NOT NULL DEFAULT 'submitted',
+transaction_hash VARCHAR(255) NULL,
+  submitted_amount DECIMAL(36,18) NULL, receipt_url VARCHAR(1000) NULL, evidence_note TEXT NULL, request_hash CHAR(64) NOT NULL, status VARCHAR(32) NOT NULL DEFAULT 'submitted',
 reviewed_by BIGINT UNSIGNED NULL, reviewed_at DATETIME NULL, review_note TEXT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 UNIQUE KEY uq_account_verification_submission_hash(request_hash), KEY idx_account_verification_submission_request(request_id,created_at), KEY idx_account_verification_submission_user(user_id,created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
