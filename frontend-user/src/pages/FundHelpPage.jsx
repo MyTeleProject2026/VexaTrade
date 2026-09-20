@@ -4,10 +4,10 @@ import { ArrowLeft, HelpCircle, ShieldCheck } from "lucide-react";
 export default function FundHelpPage() {
   const steps = [
     ["1. Apply", "Choose an eligible plan and submit an amount within its configured limits."],
-    ["2. Secure processing", "The backend validates the plan, balance, authorization and idempotency before locking the principal."],
-    ["3. Active", "Your active Fund is synchronized from the server. The live screen is a continuously updated display projection; ledger settlement remains server-authoritative."],
-    ["4. Daily settlement", "Configured daily settlement records actual profit and any compounded amount in the ledger."],
-    ["5. Completion", "At maturity, the backend returns the applicable principal and records the completed Fund and transaction history."],
+    ["2. Secure processing", "The Vexa Blockchain Ecosystem framework validates the plan, balance, authorization and transaction identity before locking the principal."],
+    ["3. Active", "Your active Fund is synchronized through the Vexa Blockchain Ecosystem financial framework. The live screen is a continuously updated display projection; settlement records remain authoritative within the ecosystem framework."],
+    ["4. Daily settlement", "Configured Blockchain Ecosystem settlement records actual profit and any compounded amount in the financial ledger."],
+    ["5. Completion", "At maturity, the Vexa Blockchain Ecosystem settlement framework returns the applicable principal and records the completed Fund and transaction history."],
   ];
 
   return (
