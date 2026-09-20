@@ -827,8 +827,8 @@ export default function TradePage({ embedded = false } = {}) {
         </div>
       </section>}
 
-      {!embedded && <main className="mx-auto max-w-5xl">
-        <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
+      <main className="mx-auto max-w-5xl">
+        {!embedded && <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
           <div className="flex gap-1 overflow-x-auto pb-2">
             {["trade", "orders", "history"].map((section) => (
               <button
@@ -841,9 +841,9 @@ export default function TradePage({ embedded = false } = {}) {
               </button>
             ))}
           </div>
-        </section>
+        </section>}
 
-        {activeSection === "trade" && (
+        {(embedded || activeSection === "trade") && (
           <>
             <section className="border-b border-white/10 p-2.5 sm:p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -976,7 +976,7 @@ export default function TradePage({ embedded = false } = {}) {
           </>
         )}
 
-        {activeSection === "orders" && (
+        {!embedded && activeSection === "orders" && (
           <section className="p-2.5 sm:p-3">
             <div className="mb-3 flex items-end justify-between">
               <div>
@@ -1011,7 +1011,7 @@ export default function TradePage({ embedded = false } = {}) {
           </section>
         )}
 
-        {activeSection === "history" && (
+        {!embedded && activeSection === "history" && (
           <section className="p-3 sm:p-4">
             <div className="mb-3 flex items-end justify-between">
               <div>
@@ -1033,7 +1033,7 @@ export default function TradePage({ embedded = false } = {}) {
             </div>
           </section>
         )}
-      </main>}
+      </main>
 
       {!embedded && <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg justify-around">
