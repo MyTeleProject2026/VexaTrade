@@ -238,4 +238,25 @@ router.get('/user/assets', authUser, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+
+// Dedicated authenticated asset detail endpoint used by the Assets tab.
+// It reuses the same ledger-aware buildAssets() source as the wallet summary so
+// the overview and detail screens cannot drift onto different balances.
+router.get('/user/assets/:coin', authUser, async (req, res, next) => {
+  try {
+    const coin = String(req.params.coin || '').trim().toUpperCase();
+    if (!coin || !/^[A-Z0-9._-]{2,20}$/.test(coin)) {
+      return res.status(400).json({ success: false, message: 'Invalid asset symbol' });
+    }
+    const assets = await buildAssets(req.user.id);
+    const asset = assets.find((row) => String(row.symbol || '').toUpperCase() === coin);
+    if (!asset) {
+      return res.status(404).json({ success: false, message: 'Asset not found in your wallet' });
+    }
+    res.json({ success: true, data: { asset } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
