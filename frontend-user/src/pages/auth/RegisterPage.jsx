@@ -126,8 +126,8 @@ export default function RegisterPage() {
         setError("Email already registered. Please login instead.");
         showError("Email already registered. Please login instead.");
       } else if (status === 500) {
-        setError("Server error. Please try again later.");
-        showError("Server error. Please try again later.");
+        setError("VexaTrade service error. Please try again later.");
+        showError("VexaTrade service error. Please try again later.");
       } else {
         setError(msg);
         showError(msg);
