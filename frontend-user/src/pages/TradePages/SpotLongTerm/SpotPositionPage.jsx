@@ -59,13 +59,13 @@ export default function SpotPositionPage(){
 
   const related=useMemo(()=>orders.filter(o=>String(o?.symbol||"").toUpperCase()===pair).slice(0,10),[orders,pair]);
 
-  if(loading)return <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-xs text-slate-400">Loading {pair} position…</div>;
+  if(loading)return <TradeSectionLayout title="Spot Position" subtitle="Live Spot / Long-Term position" mode="spot"><section className="rounded-2xl border border-white/10 bg-[#0a0e1a]/90 p-4 text-xs text-slate-400 shadow-[0_12px_35px_rgba(0,0,0,0.2)]"><div className="flex items-center gap-2"><RefreshCw size={14} className="animate-spin text-cyan-300"/>Loading {pair} position…</div></section></TradeSectionLayout>;
 
   return <TradeSectionLayout title="Spot Position" subtitle="Live Spot / Long-Term position" mode="spot"><div className="space-y-2.5">
     <section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-center justify-between gap-2">
-        <button onClick={()=>navigate("/trade/spot/long-term/assets")} className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-white"><ArrowLeft size={12}/>Assets</button>
-        <button onClick={load} disabled={refreshing} className="rounded-lg border border-white/10 p-1.5 text-slate-400" aria-label="Refresh position"><RefreshCw size={13} className={refreshing?"animate-spin":""}/></button>
+        <button onClick={()=>navigate("/trade/spot/long-term/assets")} className="group flex min-h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 text-[9px] font-semibold text-slate-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.05] hover:text-cyan-200 active:scale-[0.98]"><ArrowLeft size={12}/>Assets</button>
+        <button onClick={load} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-slate-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.05] hover:text-cyan-200 active:scale-[0.98]" aria-label="Refresh position"><RefreshCw size={13} className={refreshing?"animate-spin":""}/></button>
       </div>
       <div className="mt-2 flex items-end justify-between gap-2">
         <div><div className="text-[8px] uppercase tracking-[0.24em] text-cyan-300">Live position</div><h1 className="text-lg font-bold">{base}<span className="text-slate-500"> / USDT</span></h1></div>
