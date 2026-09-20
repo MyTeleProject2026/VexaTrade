@@ -35,7 +35,7 @@ export default function FundHistoryPage() {
         <div className="mb-3">
           <h1 className="text-xl font-bold text-white">Funds History</h1>
           <p className="text-[10px] text-slate-500">
-            Completed and historical fund records from the server.
+            Completed and historical Fund records from the Vexa Blockchain Ecosystem.
           </p>
         </div>
 
