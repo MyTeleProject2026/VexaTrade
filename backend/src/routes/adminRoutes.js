@@ -42,7 +42,7 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status = 'pending'");
     const [tradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades");
     const [todayTradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at) = CURDATE()");
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance), 0) AS total FROM users");
+    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance), 0) AS total FROM user_assets WHERE coin = 'USDT'");
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status = 'pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status = 'pending'");
     res.json({
