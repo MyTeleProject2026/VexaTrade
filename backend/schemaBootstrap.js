@@ -94,7 +94,10 @@ async function ensureFinancialSchema() {
       await connection.execute(`
         UPDATE user_assets
         SET available_balance = balance
-        WHERE available_balance = 0 AND balance <> 0
+        WHERE available_balance = 0
+          AND reserved_balance = 0
+          AND pending_balance = 0
+          AND balance <> 0
       `);
     }
 
