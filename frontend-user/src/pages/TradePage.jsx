@@ -125,7 +125,7 @@ function resultLabel(trade) {
   if (outcome === "win") return "WIN";
   if (outcome === "loss") return "LOSS";
   if (outcome === "tie") return "TIE";
-  if (["open", "pending"].includes(outcome)) return "OPEN";
+  if (["open", "pending"].includes(outcome)) return "PENDING";
   return String(trade?.status || "PENDING").toUpperCase();
 }
 function resultTone(trade) {
@@ -1192,6 +1192,9 @@ function DepthRow({ row, maxTotal, side }) {
 function OpenTradeCard({ trade, onOpen }) {
   const end = trade.end_time || trade.endTime;
   const remaining = secondsUntil(end);
+  const entry = Number(trade.entry_price || trade.entryPrice || 0);
+  const current = Number(trade.livePrice || 0);
+  const delta = entry > 0 && current > 0 ? ((current - entry) / entry) * 100 : 0;
   return (
     <button type="button" onClick={onOpen} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-left transition hover:border-cyan-400/20 hover:bg-[#0b1120]">
       <div className="flex items-center justify-between gap-3">
@@ -1209,9 +1212,10 @@ function OpenTradeCard({ trade, onOpen }) {
           <div className="text-[9px] text-cyan-300">● LIVE PROCESSING</div>
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-2">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-2 sm:grid-cols-4">
         <Metric label="Stake" value={`${formatAmount(trade.amount)} USDT`} />
         <Metric label="Entry" value={formatPrice(trade.entry_price)} />
+        <Metric label="Live price" value={Number(trade.livePrice || 0) > 0 ? formatPrice(trade.livePrice) : "Streaming…"} />
         <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-center">
           <div className="text-[9px] uppercase tracking-wider text-slate-500">Status</div>
           <div className="mt-1"><StatusPill trade={trade} /></div>
