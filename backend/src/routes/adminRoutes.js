@@ -10,7 +10,7 @@ const {
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
-const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance } = require('../../services/assetLedgerService');
+const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, movePendingToAvailable } = require('../../services/assetLedgerService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -680,9 +680,15 @@ router.post('/admin/funds/:id/complete', authAdmin, async (req, res, next) => {
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already completed" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
     const profit = toNumber(fund.earned_profit);
-    const totalReturn = principal + profit;
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [totalReturn, fund.user_id]);
+    const totalReturn = principal;
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: totalReturn,
+      entryType: 'fund_admin_completion_return', referenceType: 'user_fund', referenceId: fundId,
+      note: `Admin completed ${fund.plan_name}`
+    });
     await connection.execute(`UPDATE user_funds SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createTransactionLog(connection, { userId: fund.user_id, type: 'funds_return', amount: totalReturn, status: 'completed', referenceId: fundId, note: `Admin completed fund ${fund.plan_name}; return from pending ledger` });
+    await createAuditLog(connection, { adminId: req.admin.id, action: 'admin_complete_fund', targetUserId: fund.user_id, referenceId: fundId, note: `Completed ${fund.plan_name}; returned ${totalReturn} USDT from pending ledger` });
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Completed", message: `${fund.plan_name} completed. Total return: ${totalReturn.toFixed(2)} USDT`, type: "funds" });
     await connection.commit();
     res.json({ success: true, message: "Fund completed", data: { id: fundId, total_return: totalReturn } });
@@ -700,8 +706,14 @@ router.post('/admin/funds/:id/cancel', authAdmin, async (req, res, next) => {
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Completed fund cannot be cancelled" }); }
     if (fund.status === "cancelled") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already cancelled" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [principal, fund.user_id]);
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: principal,
+      entryType: 'fund_admin_cancellation_return', referenceType: 'user_fund', referenceId: fundId,
+      note: `Admin cancelled ${fund.plan_name}`
+    });
     await connection.execute(`UPDATE user_funds SET status = 'cancelled', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createTransactionLog(connection, { userId: fund.user_id, type: 'funds_return', amount: principal, status: 'completed', referenceId: fundId, note: `Admin cancelled fund ${fund.plan_name}; principal returned from pending ledger` });
+    await createAuditLog(connection, { adminId: req.admin.id, action: 'admin_cancel_fund', targetUserId: fund.user_id, referenceId: fundId, note: `Cancelled ${fund.plan_name}; returned ${principal} USDT from pending ledger` });
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Cancelled", message: `Your fund has been cancelled. ${principal.toFixed(2)} USDT returned.`, type: "funds" });
     await connection.commit();
     res.json({ success: true, message: "Fund cancelled", data: { id: fundId, principal_returned: principal } });
