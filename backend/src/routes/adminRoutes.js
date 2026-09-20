@@ -478,6 +478,117 @@ router.delete('/admin/audit-logs', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── Admin Short-Term Trade Operations ─────────────────────────────
+router.get('/admin/trades', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT t.*, u.uid, u.name AS user_name, u.email AS user_email
+       FROM trades t
+       LEFT JOIN users u ON u.id = t.user_id
+       ORDER BY t.id DESC LIMIT 500`
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/trades/:id/override', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const tradeId = Number(req.params.id);
+    const requestedResult = String(req.body?.result || '').trim().toLowerCase();
+    const requestedExitPrice = Number(req.body?.exit_price);
+    if (!Number.isInteger(tradeId) || tradeId <= 0) throw createError(400, 'Invalid trade id');
+    if (!['win', 'loss', 'tie'].includes(requestedResult)) throw createError(400, 'Result must be win, loss or tie');
+
+    await connection.beginTransaction();
+    const [rows] = await connection.execute('SELECT * FROM trades WHERE id = ? FOR UPDATE', [tradeId]);
+    if (!rows.length) throw createError(404, 'Trade not found');
+    const trade = rows[0];
+    if (String(trade.status).toLowerCase() !== 'open') throw createError(409, 'Only open trades can be overridden');
+
+    let exitPrice = Number.isFinite(requestedExitPrice) && requestedExitPrice > 0
+      ? requestedExitPrice
+      : Number(trade.entry_price || 0);
+    if (!Number.isFinite(exitPrice) || exitPrice <= 0) throw createError(400, 'A valid exit price is required');
+
+    const stake = Number(trade.amount || 0);
+    if (!Number.isFinite(stake) || stake <= 0) throw createError(400, 'Invalid trade stake');
+    const payout = Number(trade.payout_percent || 0);
+    const profit = requestedResult === 'win'
+      ? Number((stake * payout / 100).toFixed(18))
+      : 0;
+
+    if (requestedResult === 'win' || requestedResult === 'tie') {
+      await movePendingToAvailable(connection, {
+        userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+        amount: stake, entryType: 'trade_admin_override_return',
+        referenceType: 'trade', referenceId: trade.id,
+        note: `Admin override ${requestedResult}: stake returned`
+      });
+      if (requestedResult === 'win' && profit > 0) {
+        await creditAssetBalance(connection, {
+          userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+          amount: profit, referenceType: 'trade_admin_override',
+          referenceId: trade.id, note: 'Admin-set trade override profit'
+        });
+        await connection.execute(
+          `UPDATE user_targets
+           SET current_profit = LEAST(target_amount, current_profit + ?),
+               status = CASE WHEN current_profit >= target_amount THEN 'achieved' ELSE 'active' END,
+               updated_at = NOW()
+           WHERE user_id = ? AND status = 'active'`,
+          [profit, trade.user_id]
+        );
+      }
+    } else {
+      await consumePendingAsset(connection, {
+        userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+        amount: stake, referenceType: 'trade_admin_override',
+        referenceId: trade.id, note: 'Admin-set losing trade override'
+      });
+    }
+
+    await connection.execute(
+      `UPDATE trades
+       SET status='completed', result=?, exit_price=?, settled_at=NOW()
+       WHERE id=?`,
+      [requestedResult, exitPrice, trade.id]
+    );
+
+    await createTransactionLog(connection, {
+      userId: trade.user_id,
+      type: requestedResult === 'win' ? 'trade_profit' : (requestedResult === 'tie' ? 'trade_tie' : 'trade_loss'),
+      amount: requestedResult === 'win' ? profit : stake,
+      status: 'completed',
+      referenceId: trade.id,
+      note: `Admin override: ${trade.pair} ${requestedResult}; exit ${exitPrice}`
+    });
+    await createUserNotification(connection, {
+      userId: trade.user_id,
+      title: requestedResult === 'win' ? 'Trade completed' : (requestedResult === 'tie' ? 'Trade tied' : 'Trade completed'),
+      message: `Trade #${trade.id} was settled as ${requestedResult.toUpperCase()} by an administrator.`,
+      type: 'trade'
+    });
+    await createAuditLog(connection, {
+      adminId: req.admin.id,
+      action: 'override_trade',
+      targetUserId: trade.user_id,
+      referenceId: trade.id,
+      note: `Trade #${trade.id} overridden to ${requestedResult} at exit ${exitPrice}`
+    });
+
+    await connection.commit();
+    res.json({
+      success: true,
+      message: `Trade #${trade.id} overridden to ${requestedResult}`,
+      data: { tradeId: trade.id, result: requestedResult, exitPrice, profit }
+    });
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
+});
+
 // ─── Admin Trade Rules ──────────────────────────────────────────────
 router.post('/admin/trade-rules', authAdmin, async (req, res, next) => {
   try {
