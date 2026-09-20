@@ -54,11 +54,11 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   let realizedPnl=null,realizedPnlPct=null,outcome=null;
   if(side==="buy"){
    if(Number(usdt.available_balance)<quoteAmount+feeAmount)throw createError(400,"Insufficient USDT available balance including trading fee");
-   await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin='USDT' AND available_balance>=?",[quoteAmount+feeAmount,req.user.id,quoteAmount+feeAmount]);
+   const [usdtDebit]=await db.execute("UPDATE user_assets SET available_balance=available_balance-? WHERE user_id=? AND coin='USDT' AND available_balance>=?",[quoteAmount+feeAmount,req.user.id,quoteAmount+feeAmount]); if(usdtDebit.affectedRows!==1)throw createError(400,"Insufficient USDT available balance including trading fee");
    const oldBaseBalance=Number(baseAsset.available_balance||0),oldAvgPrice=Number(baseAsset.avg_price||0);
    const newBaseBalance=oldBaseBalance+quantity;
    const newAvgPrice=newBaseBalance>0?((oldBaseBalance*oldAvgPrice)+(quantity*price))/newBaseBalance:price;
-   await db.execute("UPDATE user_assets SET available_balance=?,avg_price=? WHERE user_id=? AND coin=?",[newBaseBalance,newAvgPrice,req.user.id,base]);
+   const [baseCredit]=await db.execute("UPDATE user_assets SET available_balance=?,avg_price=? WHERE user_id=? AND coin=?",[newBaseBalance,newAvgPrice,req.user.id,base]); if(baseCredit.affectedRows!==1)throw createError(409,`Unable to credit ${base} spot balance`);
    await syncTotal(db,req.user.id,"USDT");await syncTotal(db,req.user.id,base);
    await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_buy_debit",amount:quoteAmount+feeAmount,referenceType:"spot_order",note:`${symbol} market buy`});
    await recordLedger(db,{userId:req.user.id,coin:base,network:"INTERNAL",bucket:"available",entryType:"spot_buy_credit",amount:quantity,referenceType:"spot_order",note:`${symbol} market buy`}); if(feeAmount>0)await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_trading_fee",amount:feeAmount,referenceType:"spot_order",note:`${symbol} trading fee`});
@@ -69,8 +69,8 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
    realizedPnlPct=(costBasisPrice>0&&realizedPnl!==null)?(realizedPnl/(costBasisPrice*quantity))*100:null;
    const pnlBps=(costBasisPrice>0&&realizedPnl!==null)?(realizedPnl/(costBasisPrice*quantity))*10000:0;
    outcome=realizedPnl===null?null:(pnlBps>=winThresholdBps?"win":pnlBps<=-lossThresholdBps?"loss":"breakeven");
-   await db.execute("UPDATE user_assets SET available_balance=available_balance-?,avg_price=CASE WHEN available_balance-? <= 0 THEN 0 ELSE avg_price END WHERE user_id=? AND coin=? AND available_balance>=?",[quantity,quantity,req.user.id,base,quantity]);
-   await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin='USDT'",[quoteAmount-feeAmount,req.user.id]);
+   const [baseDebit]=await db.execute("UPDATE user_assets SET available_balance=available_balance-?,avg_price=CASE WHEN available_balance-? <= 0 THEN 0 ELSE avg_price END WHERE user_id=? AND coin=? AND available_balance>=?",[quantity,quantity,req.user.id,base,quantity]); if(baseDebit.affectedRows!==1)throw createError(400,`Insufficient ${base} available balance`);
+   const [usdtCredit]=await db.execute("UPDATE user_assets SET available_balance=available_balance+? WHERE user_id=? AND coin='USDT'",[quoteAmount-feeAmount,req.user.id]); if(usdtCredit.affectedRows!==1)throw createError(409,"Unable to credit USDT spot balance");
    await syncTotal(db,req.user.id,base);await syncTotal(db,req.user.id,"USDT");
    await recordLedger(db,{userId:req.user.id,coin:base,network:"INTERNAL",bucket:"available",entryType:"spot_sell_debit",amount:quantity,referenceType:"spot_order",note:`${symbol} market sell`});
    await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_sell_credit",amount:quoteAmount-feeAmount,referenceType:"spot_order",note:`${symbol} market sell`}); if(feeAmount>0)await recordLedger(db,{userId:req.user.id,coin:"USDT",network:"INTERNAL",bucket:"available",entryType:"spot_trading_fee",amount:feeAmount,referenceType:"spot_order",note:`${symbol} trading fee`});
