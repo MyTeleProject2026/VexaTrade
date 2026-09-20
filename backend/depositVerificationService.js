@@ -54,7 +54,7 @@ async function getNetworkSettings(network) {
 }
 
 async function updateNetworkSetting(id, updates) {
-  const allowed = new Set(['network','explorer_api_url','address_prefix','address_suffix','token_type','tolerance_percent','is_active']);
+  const allowed = new Set(['network','explorer_api_url','api_key','address_prefix','address_suffix','token_type','contract_address','tolerance_percent','minimum_deposit','is_active']);
   const fields=[]; const values=[];
   for (const [key,val] of Object.entries(updates || {})) {
     if (!allowed.has(key)) continue;
