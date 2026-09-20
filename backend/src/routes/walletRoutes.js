@@ -90,14 +90,10 @@ async function getWalletSummary(req) {
         [req.user.id]
       );
       const ledgerUsdt = Number(assetRows[0]?.available_usdt || 0);
-      // The multi-asset ledger is authoritative when it contains a usable USDT
-      // position. If no usable USDT position exists, retain the legacy balance
-      // as a compatibility fallback for accounts created before the ledger.
+      // Once a USDT asset row exists, its available balance is authoritative,
+      // including a legitimate zero balance. Legacy users.balance is used only
+      // when the ledger has no USDT position at all.
       availableUsdt = ledgerUsdt;
-      if (ledgerUsdt <= 0) {
-        const legacyBalance = Number(user.balance || 0);
-        if (legacyBalance > 0) availableUsdt = legacyBalance;
-      }
     } else if (columns.has('balance')) {
       const [assetRows] = await pool.execute(
         `SELECT COALESCE(SUM(balance),0) AS available_usdt
@@ -180,7 +176,11 @@ async function buildAssets(userId) {
     try {
       const [users] = await pool.execute('SELECT balance FROM users WHERE id=? LIMIT 1', [userId]);
       const legacyBalance = Number(users[0]?.balance || 0);
-      if (legacyBalance > 0) {
+      const [usdtRows] = await pool.execute(
+        "SELECT 1 FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
+        [userId]
+      );
+      if (!usdtRows.length && legacyBalance > 0) {
         assetRows = [{ coin: 'USDT', balance: legacyBalance, avg_price: 1, available_balance: legacyBalance, reserved_balance: 0, pending_balance: 0 }];
       }
     } catch (_) {}
