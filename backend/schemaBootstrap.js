@@ -130,7 +130,20 @@ async function ensureFinancialSchema() {
 
     // Fund settlement is service-owned. Remove the legacy database trigger that
     // also credited compound profit to pending, which would double-apply ledger movement.
-    await connection.execute('DROP TRIGGER IF EXISTS trg_user_funds_compound_pending');
+    // TiDB does not accept MySQL's DROP TRIGGER IF EXISTS form, so check
+    // INFORMATION_SCHEMA first and only issue DROP TRIGGER when it exists.
+    const [fundTriggerRows] = await connection.execute(
+      `SELECT TRIGGER_NAME
+       FROM information_schema.TRIGGERS
+       WHERE TRIGGER_SCHEMA = DATABASE()
+         AND TRIGGER_NAME = ?
+       LIMIT 1`,
+      ['trg_user_funds_compound_pending']
+    );
+    if (fundTriggerRows.length > 0) {
+      await connection.execute('DROP TRIGGER trg_user_funds_compound_pending');
+      console.log('[Schema] Removed legacy trg_user_funds_compound_pending trigger.');
+    }
 
     await addColumn(connection, 'loans', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'loans', 'request_hash', 'CHAR(64) NULL');
