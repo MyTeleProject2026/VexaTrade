@@ -1,5 +1,6 @@
 // frontend-user/src/pages/FundsPage.jsx – COMPLETE WITH CHART
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
   Wallet,
@@ -567,7 +568,8 @@ export default function FundsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [tab, setTab] = useState("plans");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => searchParams.get("tab") || "plans");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -596,6 +598,16 @@ export default function FundsPage() {
   const [targetChecking, setTargetChecking] = useState(true);
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
+
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (["plans", "private", "active", "history"].includes(requested) && requested !== tab) setTab(requested);
+  }, [searchParams, tab]);
+
+  function selectFundTab(next) {
+    setTab(next);
+    setSearchParams(next === "plans" ? {} : { tab: next }, { replace: true });
+  }
 
   const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
   const [profitWithdrawalProfit, setProfitWithdrawalProfit] = useState(0);
@@ -932,7 +944,7 @@ export default function FundsPage() {
               <button
                 key={key}
                 type="button"
-                onClick={() => setTab(key)}
+                onClick={() => selectFundTab(key)}
                 className={`rounded-lg py-2 text-xs font-semibold transition ${
                   tab === key ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
                 }`}
