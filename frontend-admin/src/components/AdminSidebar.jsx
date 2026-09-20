@@ -9,6 +9,7 @@ const groups = [
   ]},
   { label: "Accounts", items: [
     { label: "All Users", to: "/admin/users", icon: Users },
+    { label: "Account Verification", to: "/admin/account-verification", icon: ShieldCheck },
     { label: "KYC & Identity", to: "/admin/kyc", icon: ShieldCheck },
     { label: "Joint Account Requests", to: "/admin/joint-account-requests", icon: Handshake },
     { label: "Joint Accounts", to: "/admin/joint-accounts", icon: UserCog },
