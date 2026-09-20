@@ -146,6 +146,10 @@ async function ensureFinancialSchema() {
       console.log('[Schema] Removed legacy trg_user_funds_compound_pending trigger.');
     }
 
+    await addColumn(connection, 'loans', 'repaid_amount', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
+    await addColumn(connection, 'loans', 'due_at', 'DATETIME NULL');
+    await addColumn(connection, 'loans', 'last_repayment_at', 'DATETIME NULL');
+    await addColumn(connection, 'loans', 'overdue_at', 'DATETIME NULL');
     await addColumn(connection, 'loans', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'loans', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'loans', 'uq_loans_user_idempotency', ['user_id', 'idempotency_key']);
