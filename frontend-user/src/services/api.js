@@ -283,3 +283,8 @@ export const newsApi = {
 };
 
 export default appApiClient;
+
+
+// Account verification workflow
+export const getAccountVerification = (token) => appApiClient.get("/api/account-verification/status", { headers: { Authorization: `Bearer ${getUserToken(token)}` } });
+export const submitAccountVerification = (step, formData, token) => appApiClient.post(`/api/account-verification/steps/${Number(step)}/submit`, formData, { headers: { Authorization: `Bearer ${getUserToken(token)}`, "Content-Type": "multipart/form-data" }, timeout: 30000 });
