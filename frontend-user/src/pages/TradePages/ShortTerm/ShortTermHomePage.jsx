@@ -59,7 +59,7 @@ export default function ShortTermHomePage() {
           ))}
         </div>
 
-        <div className="flex gap-2 rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.04] p-3 text-[9px] leading-4 text-slate-500"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-300" /><span><b className="text-slate-300">Protected execution.</b> The terminal remains connected to the existing trade API, wallet validation, idempotency, live price stream and backend settlement process.</span></div>
+        <div className="flex gap-2 rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.04] p-3 text-[9px] leading-4 text-slate-500"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-300" /><span><b className="text-slate-300">Protected execution.</b> The terminal remains connected to the existing trading infrastructure, wallet validation, transaction identity, live market price stream and Vexa Blockchain Ecosystem settlement framework.</span></div>
       </div>
     </TradeSectionLayout>
   );
