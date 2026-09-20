@@ -32,19 +32,10 @@ async function ensureLegacyUsdtAvailable(connection, userId) {
     return legacyBalance;
   }
 
-  const row = assets[0];
-  const total = Number(row.balance || 0);
-  const available = Number(row.available_balance || 0);
-  const reserved = Number(row.reserved_balance || 0);
-  const pending = Number(row.pending_balance || 0);
-  if (total <= 0 && available <= 0 && reserved <= 0 && pending <= 0) {
-    await connection.execute(
-      "UPDATE user_assets SET balance=?, available_balance=?, reserved_balance=0, pending_balance=0 WHERE user_id=? AND coin='USDT'",
-      [legacyBalance, legacyBalance, userId]
-    );
-    return legacyBalance;
-  }
-  return available;
+  // A USDT asset row means the ledger has taken ownership of the balance.
+  // Never rehydrate it from users.balance: the legacy column may be stale after
+  // a legitimate spend, withdrawal, or trade.
+  return Number(assets[0].available_balance || 0);
 }
 
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
