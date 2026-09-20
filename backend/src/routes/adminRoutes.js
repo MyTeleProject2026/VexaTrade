@@ -623,11 +623,37 @@ router.get('/admin/trade-rules', authAdmin, async (req, res, next) => {
 router.put('/admin/trade-rules/:id', authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const timerSeconds = Number(req.body.timer_seconds);
+    const minAmount = Number(req.body.min_amount || 0);
+    const maxAmount = Number(req.body.max_amount || 0);
     const payoutPercent = Number(req.body.payout_percent);
     const status = String(req.body.status || "active").toLowerCase();
-    if (payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
-    await pool.execute(`UPDATE trade_rules SET payout_percent = ?, status = ? WHERE id = ?`, [payoutPercent, status, id]);
-    await createAuditLog(pool, { adminId: req.admin.id, action: "update_trade_rule", referenceId: id, note: `Updated trade rule #${id}` });
+    if (!Number.isInteger(id) || id <= 0) throw createError(400, "Invalid trade rule id");
+    if (!Number.isInteger(timerSeconds) || timerSeconds <= 0 || timerSeconds > 86400) throw createError(400, "Timer must be a whole number of seconds between 1 and 86400");
+    if (minAmount < 0 || maxAmount < 0 || (maxAmount > 0 && maxAmount < minAmount)) throw createError(400, "Invalid trade amount limits");
+    if (!Number.isFinite(payoutPercent) || payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
+    if (!["active", "inactive"].includes(status)) throw createError(400, "Invalid status");
+
+    const [existing] = await pool.execute(
+      "SELECT id FROM trade_rules WHERE timer_seconds = ? AND id <> ? LIMIT 1",
+      [timerSeconds, id]
+    );
+    if (existing.length) throw createError(409, "A trade rule for this duration already exists");
+
+    const [result] = await pool.execute(
+      `UPDATE trade_rules
+       SET timer_seconds=?, min_amount=?, max_amount=?, payout_percent=?, status=?
+       WHERE id=?`,
+      [timerSeconds, minAmount, maxAmount, payoutPercent, status, id]
+    );
+    if (!result.affectedRows) throw createError(404, "Trade rule not found");
+
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: "update_trade_rule",
+      referenceId: id,
+      note: `Updated trade rule #${id}`
+    });
     res.json({ success: true, message: "Trade rule updated" });
   } catch (error) { next(error); }
 });
