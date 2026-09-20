@@ -32,7 +32,7 @@ export default function SpotOrdersPage(){
     return()=>clearInterval(interval);
   },[]);
 
-  return <TradeSectionLayout title="Spot Orders" subtitle="Live server execution and order stream" mode="spot">
+  return <TradeSectionLayout title="Spot Orders" subtitle="Live Vexa Blockchain Ecosystem execution and order stream" mode="spot">
     <section className="rounded-2xl border border-white/10 bg-[#0a0e1a]/90 p-3 shadow-[0_12px_35px_rgba(0,0,0,0.2)]">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-semibold">
