@@ -206,12 +206,12 @@ function PortfolioCard({ title, value, subtext, icon: Icon, tone = "text-white" 
 }
 
 // ✅ FIX: AssetRow with proper coin logos
-function AssetRow({ item }) {
+function AssetRow({ item, onClick }) {
   const pnlPositive = Number(item.spotPnl || 0) >= 0;
   const logo = item.logo || COIN_LOGOS[item.symbol] || { icon: item.symbol[0], color: "#6B7280" };
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/5 bg-white/[0.02] px-3 py-3 sm:px-4">
+    <button type="button" onClick={onClick} className="flex w-full items-center justify-between gap-3 rounded-[24px] border border-white/5 bg-white/[0.02] px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-white/[0.04] sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
         <div
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${item.accent} text-lg font-bold text-white ring-1 ring-white/10 sm:h-12 sm:w-12`}
@@ -256,7 +256,7 @@ function AssetRow({ item }) {
           </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1118,7 +1118,7 @@ export default function AssetsPage() {
         <div className="space-y-2.5">
           {normalizedHoldings.length > 0 ? (
             normalizedHoldings.map((item) => (
-              <AssetRow key={item.symbol} item={item} />
+              <AssetRow key={item.symbol} item={item} onClick={() => navigate(`/assets/${encodeURIComponent(item.symbol)}`)} />
             ))
           ) : (
             <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
@@ -1142,14 +1142,7 @@ export default function AssetsPage() {
           </button>
         </div>
 
-        <div className="mt-4">
-          <HistoryRow
-            title="Place an order"
-            date={new Date().toLocaleString()}
-            amount={`-${formatMoney(displayBalance > 0 ? Math.min(displayBalance, 371) : 0)} USDT`}
-            negative
-          />
-        </div>
+        <button type="button" onClick={() => navigate("/transactions")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[.02] p-3 text-left transition hover:bg-white/[.05]"><div><div className="text-sm font-medium text-white">Open wallet transaction history</div><div className="mt-1 text-xs text-slate-500">View deposits, withdrawals, transfers, conversions and trading records.</div></div><ChevronRight size={18} className="text-slate-400"/></button>
       </section>
 
       {/* QR Transfer Modal */}
