@@ -25,9 +25,7 @@ const groups = [
     { label: "Loan Settings", to: "/admin/loan-settings", icon: HandCoins },
   ]},
   { label: "Trading Operations", items: [
-    { label: "Trading Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
-    { label: "Funds", to: "/admin/funds", icon: WalletCards },
-    { label: "Private Fund Rules", to: "/admin/fund-rules", icon: Settings2 },
+    { label: "Trading & Funds Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
     { label: "Short-Term Trades", to: "/admin/trades", icon: BarChart3 },
     { label: "Short-Term Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Market", to: "/admin/spot-trade", icon: CandlestickChart },
