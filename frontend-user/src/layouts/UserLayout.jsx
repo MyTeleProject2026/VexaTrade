@@ -202,8 +202,8 @@ export default function UserLayout() {
             </div>
           </header>
 
-          <main className={`flex-1 overflow-y-auto ${location.pathname.startsWith("/trade") ? "pb-0 md:pb-6" : "pb-20 md:pb-6"}`}><Outlet /></main>
-          {!location.pathname.startsWith("/trade") && <div className="md:hidden safe-bottom"><MobileBottomNav /></div>}
+          <main className={`flex-1 overflow-y-auto ${"pb-28 md:pb-6"}`}><Outlet /></main>
+          <div className="md:hidden safe-bottom"><MobileBottomNav /></div>
         </div>
       </div>
     </div>
