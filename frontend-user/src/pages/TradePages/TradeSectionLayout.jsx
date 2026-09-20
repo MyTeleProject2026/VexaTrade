@@ -21,7 +21,7 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
   ];
   const items = mode==="spot" ? spot : short;
   const isActive = path => location.pathname === path || location.pathname.startsWith(path + "/");
-  return <div className="min-h-screen bg-[#030712] text-white pb-[calc(4.9rem+env(safe-area-inset-bottom))] md:pb-0">
+  return <div className="min-h-full bg-[#030712] text-white">
     <div className="mx-auto min-h-screen max-w-7xl">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050812]/90 px-3 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
         <div className="flex items-center gap-2">
@@ -31,7 +31,7 @@ export default function TradeSectionLayout({ title, subtitle, mode="short", chil
         </div>
       </header>
       <main className="p-2.5 pb-4 sm:p-3 sm:pb-5">{children}</main>
-      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#081223]/92 px-1.5 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-12px_35px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:static sm:mx-auto sm:mb-2 sm:mt-1 sm:max-w-3xl sm:rounded-2xl sm:border sm:p-1.5 sm:shadow-[0_12px_35px_rgba(0,0,0,0.18)]">
+      <nav aria-label={`${mode === "spot" ? "Spot and Long-Term" : "Short-Term"} trade navigation`} className="mx-auto mt-1 w-full max-w-3xl rounded-2xl border border-white/10 bg-[#081223]/92 p-1.5 shadow-[0_12px_35px_rgba(0,0,0,0.25)] backdrop-blur-2xl">
         <div className={`grid gap-1 ${mode==="spot" ? "grid-cols-5" : "grid-cols-6"}`}>
           {items.map(([path,label,Icon])=>{
             const active=isActive(path);
