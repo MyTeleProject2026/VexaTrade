@@ -182,3 +182,48 @@
 .chat-appear {
   animation: chatAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+
+/* ─── Spot / Long-Term trading responsive UI scale ─── */
+@layer components {
+  .vexa-spot-ui {
+    --spot-control-min: 44px;
+    --spot-radius: .9rem;
+  }
+  .vexa-spot-ui button,
+  .vexa-spot-ui select,
+  .vexa-spot-ui input {
+    min-height: var(--spot-control-min);
+  }
+  .vexa-spot-ui button {
+    font-size: 0.78rem;
+    line-height: 1.15;
+  }
+  .vexa-spot-ui select,
+  .vexa-spot-ui input {
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+  .vexa-spot-ui h1 { font-size: clamp(1.2rem, 4.8vw, 1.65rem); }
+  .vexa-spot-ui h2 { font-size: clamp(1rem, 3.6vw, 1.25rem); }
+  .vexa-spot-ui [aria-label="Refresh position"] { min-width: 44px; }
+  .vexa-spot-ui .vexa-spot-touch-target { min-height: 46px; }
+}
+
+@media (min-width: 640px) {
+  .vexa-spot-ui {
+    --spot-control-min: 46px;
+  }
+  .vexa-spot-ui button { font-size: 0.84rem; }
+  .vexa-spot-ui select,
+  .vexa-spot-ui input { font-size: 0.95rem; }
+}
+
+@media (min-width: 1024px) {
+  .vexa-spot-ui {
+    --spot-control-min: 48px;
+  }
+  .vexa-spot-ui button { font-size: 0.88rem; }
+  .vexa-spot-ui select,
+  .vexa-spot-ui input { font-size: 1rem; }
+}
