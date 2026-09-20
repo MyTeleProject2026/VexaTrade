@@ -34,7 +34,7 @@ function LiveFund({fund,now,serverOffsetMs}){
    <div><div className="text-[9px] text-slate-500">Progress</div><div className="text-xs font-semibold text-white">Day {day}/{total}</div></div>
   </div>
   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400 transition-[width] duration-1000" style={{width:total?Math.min(100,(day/total)*100):0}}/></div>
-  <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500"><span>{liveState==="running"?"Display projection updates continuously":"Projection frozen at server state"}</span><span>Vexa Blockchain Ecosystem settlement authoritative</span></div>
+  <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500"><span>{liveState==="running"?"Display projection updates continuously":"Projection frozen at ecosystem settlement state"}</span><span>Vexa Blockchain Ecosystem settlement authoritative</span></div>
  </div>
 }
 
@@ -67,10 +67,10 @@ export default function FundsLiveActivity({compact=false,onCountChange,onFundCli
  const total=useMemo(()=>funds.reduce((s,f)=>s+n(f.locked_principal||f.amount),0),[funds]);
  if(!funds.length)return <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3"><div className="flex items-center justify-between"><div><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-cyan-300"><Radio size={12}/> Funds live monitor</div><div className="mt-1 text-xs text-slate-400">No active funding stream is running.</div></div><button onClick={()=>load(false)} className="rounded-lg border border-white/10 p-2 text-slate-300"><RefreshCw size={12} className={refreshing?"animate-spin":""}/></button></div>{error&&<div className="mt-2 text-[9px] text-amber-300">{error}</div>}</div>;
  return <section className={compact?"rounded-xl border border-white/10 bg-[#0a0e1a] p-3":"rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#0a0e1a,#050812)] p-3 shadow-lg"}>
-  <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300"><Activity size={12}/> Live Funds Processing</div><div className="mt-1 text-[11px] text-slate-400">{funds.length} active stream{funds.length===1?"":"s"} · {money(total)} USDT currently locked</div></div><div className="flex items-center gap-2 text-[9px] text-slate-500"><ShieldCheck size={11} className="text-emerald-400"/> Secure server sync {lastSync?new Date(lastSync).toLocaleTimeString():"…"}</div></div>
+  <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300"><Activity size={12}/> Live Funds Processing</div><div className="mt-1 text-[11px] text-slate-400">{funds.length} active stream{funds.length===1?"":"s"} · {money(total)} USDT currently locked</div></div><div className="flex items-center gap-2 text-[9px] text-slate-500"><ShieldCheck size={11} className="text-emerald-400"/> Secure Vexa Blockchain Ecosystem sync {lastSync?new Date(lastSync).toLocaleTimeString():"…"}</div></div>
   <div className="mt-3 space-y-2">{funds.map(f=><LiveFund key={f.id} fund={f} now={now} serverOffsetMs={serverOffsetMs}/>)}</div>
   <div className="mt-3 flex flex-wrap gap-3 text-[9px] text-slate-500"><span className="inline-flex items-center gap-1"><Clock3 size={10}/> 3s ecosystem data refresh</span><span className="inline-flex items-center gap-1"><CheckCircle2 size={10} className="text-emerald-400"/> Ecosystem settlement values authoritative</span><span className="inline-flex items-center gap-1"><Wallet size={10}/> Vexa Ecosystem USDT settlement</span></div>
   {error&&<div className="mt-2 text-[9px] text-amber-300">{error}</div>}
-  <div className="mt-2 text-[8px] text-slate-600">* Live profit/value is a client-side projection between authoritative server settlement events; it does not create ledger credit by itself.</div>
+  <div className="mt-2 text-[8px] text-slate-600">* Live profit/value is a client-side projection between authoritative Vexa Blockchain Ecosystem settlement events; it does not create ledger credit by itself.</div>
  </section>
 }
