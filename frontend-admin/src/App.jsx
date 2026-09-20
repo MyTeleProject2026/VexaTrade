@@ -59,7 +59,9 @@ export default function App() {
       <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
       <Route path="trading-funds-control" element={<AdminTradingFundsControlPage />} />
       <Route path="trades" element={<AdminTradesPage />} />
-      <Route path="trade-rules" element={<AdminTradeRulesPage />} /><Route path="spot-trade" element={<AdminSpotTradePage />} />
+      <Route path="trade" element={<AdminTradesPage />} />
+      <Route path="trade-rules" element={<AdminTradeRulesPage />} />
+      <Route path="trade-rule" element={<AdminTradeRulesPage />} /><Route path="spot-trade" element={<AdminSpotTradePage />} />
       <Route path="spot-settlement-rules" element={<AdminSpotSettlementRulesPage />} />
       <Route path="spots/long-term-trading" element={<LongTermTradingPage />} />
       <Route path="spots/long-term-trade-rules" element={<LongTermTradeRulesPage />} />
