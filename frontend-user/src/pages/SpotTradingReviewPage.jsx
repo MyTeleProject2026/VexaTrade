@@ -13,7 +13,7 @@ export default function SpotTradingReviewPage(){
  const dedicatedLongTerm = window.location.pathname.startsWith("/trade/spot/long-term");
  const navigate=useNavigate(),auth=token(),{showError}=useNotification();
  const[draft,setDraft]=useState(null),[price,setPrice]=useState(0),[quoteAt,setQuoteAt]=useState(0),[settings,setSettings]=useState(null),[processing,setProcessing]=useState(false),[error,setError]=useState(""),[refreshing,setRefreshing]=useState(false);
- useEffect(()=>{try{const d=JSON.parse(sessionStorage.getItem(DRAFT)||"null");if(!d)navigate("/trade/spot",{replace:true});else setDraft(d)}catch{navigate("/trade/spot",{replace:true})}},[navigate]);
+ useEffect(()=>{try{const d=JSON.parse(sessionStorage.getItem(DRAFT)||"null");if(!d)navigate(dedicatedLongTerm ? "/trade/spot/long-term/order" : "/trade/spot",{replace:true});else setDraft(d)}catch{navigate(dedicatedLongTerm ? "/trade/spot/long-term/order" : "/trade/spot",{replace:true})}},[navigate]);
  useEffect(()=>{if(!draft)return;let closed=false;let ws=null;try{ws=new WebSocket("wss://stream.binance.com:9443/ws/"+draft.pair.toLowerCase()+"@ticker");ws.onopen=()=>{if(!closed)setError("")};ws.onmessage=e=>{try{const p=Number(JSON.parse(e.data)?.c);if(!closed&&p>0){setPrice(p);setQuoteAt(Date.now())}}catch{}};ws.onerror=()=>{if(!closed)setError("Live market stream disconnected. Waiting for a fresh quote...")}}catch{setError("Unable to connect to the live market stream.")}return()=>{closed=true;try{ws?.close()}catch{}}},[draft]);
  async function loadSettings(){setRefreshing(true);try{const r=await spotTradeApi.settings(auth);setSettings(r.data?.data||null)}catch(e){setError(getApiErrorMessage(e))}finally{setRefreshing(false)}}
  useEffect(()=>{loadSettings()},[auth]);
