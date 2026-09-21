@@ -119,10 +119,13 @@ async function settleDailyFunds() {
         await connection.execute(
           `UPDATE user_targets
            SET current_profit = LEAST(target_amount, current_profit + ?),
-               status = CASE WHEN current_profit >= target_amount THEN 'achieved' ELSE 'active' END,
+               status = CASE
+                 WHEN current_profit + ? >= target_amount THEN 'achieved'
+                 ELSE 'active'
+               END,
                updated_at = NOW()
            WHERE user_id = ? AND status = 'active'`,
-          [dailyProfit, fund.user_id]
+          [dailyProfit, dailyProfit, fund.user_id]
         );
       }
 
