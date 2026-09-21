@@ -148,7 +148,7 @@ export default function AdminProfitWithdrawalRequestsPage() {
       </div>
       
       <div className="space-y-3">
-        {pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0 ? (
+        {pendingRequests.length === 0 && approvedRequests.length === 0 && rejectedRequests.length === 0 && settledRequests.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
             No withdrawal requests found.
           </div>
@@ -212,20 +212,7 @@ export default function AdminProfitWithdrawalRequestsPage() {
                 ))}
               </div>
             )}
-            {false && (
-              <div className="mt-5">
-                <h3 className="text-sm font-semibold text-white mb-3">Approved Requests</h3>
-                {approvedRequests.slice(0, 5).map((req) => (
-                  <div key={req.id} className="rounded-xl border border-white/10 bg-[#0a0e1a]/50 p-3 mb-2">
-                    <div className="flex justify-between">
-                      <span className="text-white">#{req.id}</span>
-                      <span className="text-emerald-300">{formatMoney(req.amount)} USDT</span>
-                    </div>
-                    <div className="text-xs text-slate-500">{req.name || req.email}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+}
           </>
         )}
       </div>
