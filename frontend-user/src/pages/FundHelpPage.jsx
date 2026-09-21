@@ -14,13 +14,13 @@ export default function FundHelpPage() {
     <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5">
       <div className="mx-auto max-w-3xl">
         <Link to="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
-          <ArrowLeft size={13} /> Funds Center
+          <ArrowLeft size={13} /> Trust Funds Center
         </Link>
         <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
           <div className="flex items-center gap-2">
             <HelpCircle className="text-cyan-300" size={18} />
             <div>
-              <h1 className="text-lg font-bold text-white">Funds Help</h1>
+              <h1 className="text-lg font-bold text-white">Trust Funds Help</h1>
               <p className="text-[10px] text-slate-500">How the VexaTrade funding lifecycle works.</p>
             </div>
           </div>
