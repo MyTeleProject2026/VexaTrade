@@ -78,10 +78,23 @@ async function verifyDepositManually(deposit) {
   const network=String(deposit?.network || 'INTERNAL').trim().toUpperCase();
   const amount=Number(deposit?.amount);
   const proof=deposit?.proof;
+  const txid=String(deposit?.txid || '').trim();
   const depositAddress=String(deposit?.address || '').trim();
 
   if (!proof || ['null','undefined'].includes(String(proof).toLowerCase())) return {success:false,reason:'Transaction receipt not uploaded. Please upload a valid receipt image.'};
   if (!depositAddress || ['null','undefined'].includes(depositAddress.toLowerCase())) return {success:false,reason:'Deposit address not found. Please use a valid deposit address.'};
+  if (network !== 'INTERNAL' && !txid) return {success:false,reason:'Transaction hash/reference is required for external-network deposits.'};
+
+  const [walletRows]=await pool.execute(
+    `SELECT address FROM deposit_wallets
+     WHERE UPPER(coin)=? AND UPPER(network)=? AND status='active'
+     ORDER BY id DESC LIMIT 1`,
+    [coin,network]
+  );
+  const configuredAddress=String(walletRows[0]?.address || '').trim();
+  if (!configuredAddress) return {success:false,reason:'Active deposit wallet is not configured for '+coin+'/'+network+'.'};
+  if (configuredAddress.toLowerCase() !== depositAddress.toLowerCase()) return {success:false,reason:'Deposit address does not match the active platform wallet for this coin/network.'};
+
   const settings=await getNetworkSettings(network);
   if (!settings) return {success:false,reason:`Network "${network}" verification settings not configured. Please contact support.`};
   const actualPrefix=String(settings.address_prefix || '').trim();
@@ -128,11 +141,17 @@ async function processPendingDeposits() {
         if (!locked.length || String(locked[0].status).toLowerCase()!=='pending') { await connection.rollback(); continue; }
         const dep=locked[0];
         const elapsedHours=(Date.now()-new Date(dep.created_at).getTime())/(1000*60*60);
-        if (!Number.isFinite(elapsedHours) || elapsedHours>=24) await rejectDeposit(connection,dep,'Timeout (24 hours)');
-        else {
+        if (!Number.isFinite(elapsedHours) || elapsedHours>=24) {
+          await rejectDeposit(connection,dep,'Timeout (24 hours)');
+        } else {
           const verification=await verifyDepositManually(dep);
-          if (!verification.success) await rejectDeposit(connection,dep,verification.reason);
-          else await approveDeposit(connection,dep,verification);
+          if (!verification.success) {
+            await rejectDeposit(connection,dep,verification.reason);
+          } else {
+            // Pre-validation is evidence only. Keep the deposit pending until
+            // an authenticated administrator explicitly approves settlement.
+            console.log(`[DepositVerification] Deposit #${dep.id} passed pre-validation and remains pending for admin review.`);
+          }
         }
         await connection.commit();
       } catch (error) {
