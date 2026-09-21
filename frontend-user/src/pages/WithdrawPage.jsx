@@ -195,7 +195,10 @@ export default function WithdrawPage() {
 
   async function handleProfitWithdrawalSuccess() {
     showSuccess("Profit withdrawal request submitted. It will proceed through the Vexa Blockchain Ecosystem settlement and authorization framework.");
-    await Promise.all([refreshTargetProgress(), loadHistory(true)]);
+    // A profit request reserves USDT immediately. Refresh the authoritative
+    // wallet summary as well as target/history so the page cannot continue
+    // displaying the pre-reservation available balance.
+    await Promise.all([refreshTargetProgress(), loadHistory(true), loadProfile()]);
   }
 
   const targetProgressPercent = useMemo(() => targetProgress.targetAmount <= 0 ? 0 : (targetProgress.currentProfit / targetProgress.targetAmount) * 100, [targetProgress]);
