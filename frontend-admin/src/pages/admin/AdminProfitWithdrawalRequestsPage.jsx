@@ -19,7 +19,8 @@ function formatDateTime(value) {
 function getStatusClass(status) {
   const value = String(status || "").toLowerCase();
   if (value === "pending") return "bg-amber-500/10 text-amber-300 border border-amber-500/20";
-  if (value === "approved") return "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20";
+  if (value === "approved") return "bg-cyan-500/10 text-cyan-300 border border-cyan-500/20";
+  if (value === "settled") return "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20";
   if (value === "rejected") return "bg-rose-500/10 text-rose-300 border border-rose-500/20";
   return "bg-slate-500/10 text-slate-300";
 }
@@ -62,6 +63,21 @@ export default function AdminProfitWithdrawalRequestsPage() {
     }
   }
   
+  async function handleSettle(id) {
+    const confirmed = window.confirm("Confirm that the external/manual USDT payout has actually been completed? This will finalize the ledger settlement.");
+    if (!confirmed) return;
+    try {
+      setActionId(id);
+      await adminApi.settleProfitWithdrawal(id, { note: "Manual treasury payout completed" }, token);
+      addToast("Profit payout settled successfully", "success");
+      await loadRequests();
+    } catch (err) {
+      addToast(getApiErrorMessage(err), "error");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   async function handleReject(id) {
     const confirmed = window.confirm("Reject this profit withdrawal request?");
     if (!confirmed) return;
@@ -87,6 +103,7 @@ export default function AdminProfitWithdrawalRequestsPage() {
   const pendingRequests = requests.filter(r => r.status === "pending");
   const approvedRequests = requests.filter(r => r.status === "approved");
   const rejectedRequests = requests.filter(r => r.status === "rejected");
+  const settledRequests = requests.filter(r => r.status === "settled");
   
   if (loading) {
     return <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-5">Loading requests...</div>;
@@ -104,7 +121,7 @@ export default function AdminProfitWithdrawalRequestsPage() {
         </div>
       </section>
       
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
           <div className="text-2xl font-bold text-amber-300">{pendingRequests.length}</div>
           <div className="text-xs text-slate-400">Pending</div>
@@ -116,6 +133,10 @@ export default function AdminProfitWithdrawalRequestsPage() {
         <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
           <div className="text-2xl font-bold text-rose-300">{rejectedRequests.length}</div>
           <div className="text-xs text-slate-400">Rejected</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-300">{settledRequests.length}</div>
+          <div className="text-xs text-slate-400">Settled</div>
         </div>
       </div>
       
@@ -149,6 +170,7 @@ export default function AdminProfitWithdrawalRequestsPage() {
                     <div className="text-sm text-slate-400">User ID: #{req.user_id}</div>
                     <div className="mt-2 text-2xl font-bold text-cyan-300">{formatMoney(req.amount)} USDT</div>
                     <div className="text-xs text-slate-500">Current Profit: {formatMoney(req.current_profit || 0)} USDT</div>
+                    <div className="text-xs text-slate-500">Available USDT: {formatMoney(req.available_usdt || 0)} · Reserved: {formatMoney(req.reserved_usdt || 0)}</div>
                     <div className="text-xs text-slate-500">Requested: {formatDateTime(req.created_at)}</div>
                   </div>
                   <div className="flex gap-2">
@@ -172,6 +194,25 @@ export default function AdminProfitWithdrawalRequestsPage() {
             ))}
             
             {approvedRequests.length > 0 && (
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-white mb-3">Approved — Awaiting Payout Settlement</h3>
+                {approvedRequests.slice(0, 20).map((req) => (
+                  <div key={req.id} className="rounded-xl border border-cyan-500/10 bg-[#0a0e1a]/50 p-3 mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <span className="text-white">#{req.id}</span>
+                        <span className="ml-2 text-cyan-300">{formatMoney(req.amount)} USDT</span>
+                        <div className="text-xs text-slate-500">{req.name || req.email}</div>
+                      </div>
+                      <button onClick={() => handleSettle(req.id)} disabled={actionId === req.id} className="rounded-xl bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50">
+                        {actionId === req.id ? "Processing..." : "Mark Payout Settled"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {false && (
               <div className="mt-5">
                 <h3 className="text-sm font-semibold text-white mb-3">Approved Requests</h3>
                 {approvedRequests.slice(0, 5).map((req) => (
