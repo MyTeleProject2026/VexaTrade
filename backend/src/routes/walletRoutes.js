@@ -5,6 +5,7 @@ const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
 const { getBinanceHomeMarkets } = require('../../services/tradeService');
+const { getUserUsdtAvailable } = require('../../services/assetLedgerService');
 
 let assetColumnsCache = null;
 let assetColumnsCacheAt = 0;
@@ -80,31 +81,31 @@ async function getWalletSummary(req) {
   if (!rows.length) throw createError(404, 'User not found');
 
   const user = rows[0];
-  let availableUsdt = Number(user.balance || 0);
+  let availableUsdt;
 
-  try {
-    if (columns.has('available_balance')) {
-      const [assetRows] = await pool.execute(
-        `SELECT COALESCE(SUM(available_balance),0) AS available_usdt, COALESCE(SUM(balance),0) AS ledger_balance, COALESCE(SUM(reserved_balance),0) AS reserved_usdt, COALESCE(SUM(pending_balance),0) AS pending_usdt
-         FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
-        [req.user.id]
-      );
-      const row = assetRows[0] || {};
-      const ledgerUsdt = Number(row.available_usdt || 0);
-      const ledgerBalance = Number(row.ledger_balance || 0);
-      const reservedUsdt = Number(row.reserved_usdt || 0);
-      const pendingUsdt = Number(row.pending_usdt || 0);
-      availableUsdt = (ledgerUsdt === 0 && ledgerBalance > 0 && reservedUsdt === 0 && pendingUsdt === 0) ? ledgerBalance : ledgerUsdt;
-    } else if (columns.has('balance')) {
-      const [assetRows] = await pool.execute(
-        `SELECT COALESCE(SUM(balance),0) AS available_usdt
-         FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
-        [req.user.id]
-      );
-      availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+  if (columns.has('available_balance')) {
+    // The multi-asset ledger is authoritative. Never resurrect users.balance
+    // when a USDT asset row already exists.
+    const connection = await pool.getConnection();
+    try {
+      availableUsdt = await getUserUsdtAvailable(connection, req.user.id);
+    } finally {
+      connection.release();
     }
-  } catch (assetError) {
-    console.warn('[Wallet] Asset balance lookup failed; using users.balance fallback:', assetError?.message || assetError);
+  } else if (columns.has('balance')) {
+    const [assetRows] = await pool.execute(
+      `SELECT COALESCE(SUM(balance),0) AS available_usdt
+       FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
+      [req.user.id]
+    );
+    availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+  } else {
+    // Compatibility only for an older schema without user_assets.
+    availableUsdt = Number(user.balance || 0);
+  }
+
+  if (!Number.isFinite(availableUsdt)) {
+    throw createError(503, 'USDT wallet balance is unavailable');
   }
 
   const walletLabel = await getWalletLabel();
