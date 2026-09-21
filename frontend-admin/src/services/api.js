@@ -88,6 +88,7 @@ export const adminApi = {
   updateWithdrawalSettings: (payload, token) => api.put("/api/admin/withdrawal-settings", payload, authHeaders(token)),
   getProfitWithdrawalRequests: (token) => api.get("/api/admin/profit-withdrawal-requests", authHeaders(token)),
   approveProfitWithdrawal: (id, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/approve`, {}, authHeaders(token)),
+  settleProfitWithdrawal: (id, payload, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/settle`, payload || {}, authHeaders(token)),
   rejectProfitWithdrawal: (id, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/reject`, {}, authHeaders(token)),
   getTrades: (token) => api.get("/api/admin/trades", authHeaders(token)),
   overrideTrade: (id, payload, token) => api.post(`/api/admin/trades/${id}/override`, payload, authHeaders(token)),
