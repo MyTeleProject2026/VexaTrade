@@ -102,25 +102,8 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
   // reserved. Final settlement atomically reduces current_profit, so historical
   // settled requests must not be subtracted a second time.
   const targetAvailable = Math.max(0, currentProfit - committedAmount);
-Number(wallet?.available_balance || 0);
-  const reservedWallet = Number(wallet?.reserved_balance || 0);
-  const pendingWallet = Number(wallet?.pending_balance || 0);
-  const totalWallet = Number(wallet?.balance || 0);
-  const currentProfit = Number(target?.current_profit || 0);
-  const loggedWalletProfit = Number(earned?.wallet_profit || 0);
-  const alreadySettled = Number(settled?.settled_profit || 0);
-  const committedAmount = Number(committed?.committed_amount || 0);
+  const available = Math.min(targetAvailable, Math.max(0, Number(availableWallet)));
 
-  // Only wallet-side fund profits are withdrawable. Compounded profit remains
-  // inside the fund. Pending/approved requests are excluded because their USDT
-  // is already reserved in the authoritative ledger.
-  const ledgerBackedProfit = Math.max(0, loggedWalletProfit - alreadySettled - committedAmount);
-  const profitSource = loggedWalletProfit > 0
-    ? ledgerBackedProfit
-    : Math.max(0, currentProfit - committedAmount);
-
-  const targetAvailable = Math.max(0, Math.min(currentProfit, profitSource));
-  const available = Math.min(targetAvailable, Math.max(0, availableWallet));
   return {
     target: target || null,
     currentProfit,
