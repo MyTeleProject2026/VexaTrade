@@ -4,7 +4,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { createError, createTransactionLog, createUserNotification, createAuditLog, toNumber } = require('../utils/helpers');
 const { creditAssetBalance, debitAvailableAsset } = require('../../services/assetLedgerService');
-const { verifyDepositManually } = require('../../depositVerificationService');
+const { verifyDepositManually, approveDeposit } = require('../../depositVerificationService');
 
 const normalize = (value, fallback) => String(value || fallback).trim().toUpperCase();
 
@@ -183,16 +183,25 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     if (String(deposit.status).toLowerCase() !== 'pending') throw createError(409, `Deposit is already ${deposit.status}`);
     const verification = await verifyDepositManually(deposit);
     if (!verification.success) throw createError(400, verification.reason);
+    await approveDeposit(connection, deposit, verification, req.admin.id, adminNote);
     const amount = Number(verification.actualAmount ?? deposit.amount);
     const coin = String(verification.coin || deposit.coin || 'USDT').trim().toUpperCase();
     const network = String(verification.network || deposit.network || 'INTERNAL').trim().toUpperCase();
-    await creditAssetBalance(connection, { userId: deposit.user_id, coin, network, amount, referenceType: 'deposit', referenceId: deposit.id, note: adminNote || `Admin-approved deposit #${deposit.id}` });
-    await connection.execute(`UPDATE deposits SET status='approved',admin_note=?,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE id=?`, [adminNote || `Approved by admin ${req.admin.id}`, depositId]);
-    await createTransactionLog(connection, { userId: deposit.user_id, type: 'deposit_approved', amount, status: 'completed', referenceId: deposit.id, note: adminNote || `Admin-approved ${coin}/${network} deposit #${deposit.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: 'approve_deposit', targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved ${amount} ${coin}/${network}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: 'Deposit approved', message: `${amount} ${coin} is now available in your wallet.`, type: 'deposit' });
+    const [[wallet]] = await connection.execute(
+      `SELECT balance, available_balance, reserved_balance, pending_balance
+       FROM user_assets WHERE user_id=? AND coin=? LIMIT 1 FOR UPDATE`,
+      [deposit.user_id, coin]
+    );
     await connection.commit();
-    res.json({ success: true, message: 'Deposit approved', data: { id: depositId, status: 'approved', amount, coin, network } });
+    res.json({ success: true, message: 'Deposit approved', data: {
+      id: depositId, status: 'approved', amount, coin, network,
+      wallet: {
+        balance: Number(wallet?.balance || 0),
+        available_balance: Number(wallet?.available_balance || 0),
+        reserved_balance: Number(wallet?.reserved_balance || 0),
+        pending_balance: Number(wallet?.pending_balance || 0)
+      }
+    } });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     next(error);
