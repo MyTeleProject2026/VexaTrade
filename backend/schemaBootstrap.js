@@ -49,7 +49,7 @@ async function ensureUniqueIndex(connection, table, indexName, columns) {
     throw new Error(`Required table ${table} does not exist; cannot create index ${indexName} safely.`);
   }
   if (!(await indexExists(connection, table, indexName))) {
-    await connection.execute(`CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(c => `\`${c}\``).join(',')})`);
+    await connection.execute(`CREATE UNIQUE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(columnName => "`" + columnName + "`").join(',')})`);
     console.log(`[Schema] Added unique index ${table}.${indexName}`);
   }
 }
