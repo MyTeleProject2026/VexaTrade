@@ -55,7 +55,7 @@ function formatDateTime(value) {
 
 function getDaysLeft(item) {
   const totalDays = Number(item?.total_days || 0);
-  const currentDay = Number(item?.current_day || 0);
+  const currentDay = Number(item?.display_current_day ?? item?.current_day ?? 0);
   return Math.max(0, totalDays - currentDay);
 }
 
