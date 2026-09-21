@@ -116,6 +116,21 @@ async function rejectDeposit(connection, dep, reason) {
   await createUserNotification(connection,{userId:dep.user_id,title:'Deposit rejected',message:`Your deposit #${dep.id} has been rejected. ${reason}`,type:'deposit'});
 }
 
+async function markDepositPendingReview(connection, dep, reason) {
+  const note=`Verification pending admin review: ${reason}`;
+  await connection.execute(
+    `UPDATE deposits SET admin_note=?, updated_at=NOW() WHERE id=? AND status='pending'`,
+    [note, dep.id]
+  );
+  await createAuditLog(connection,{
+    adminId:0,
+    action:'deposit_prevalidation_pending',
+    targetUserId:dep.user_id,
+    referenceId:dep.id,
+    note
+  });
+}
+
 async function approveDeposit(connection, dep, verification) {
   const amount=Number(verification.actualAmount ?? dep.amount);
   const coin=String(verification.coin || dep.coin || 'USDT').trim().toUpperCase();
@@ -146,10 +161,12 @@ async function processPendingDeposits() {
         } else {
           const verification=await verifyDepositManually(dep);
           if (!verification.success) {
-            await rejectDeposit(connection,dep,verification.reason);
+            // Verification is a pre-check, not an automatic settlement decision.
+            // Keep the request pending so the authenticated admin deposit-review
+            // route remains the single authority that can approve/reject funds.
+            await markDepositPendingReview(connection,dep,verification.reason);
           } else {
-            // Pre-validation is evidence only. Keep the deposit pending until
-            // an authenticated administrator explicitly approves settlement.
+            await markDepositPendingReview(connection,dep,'All automated checks passed; awaiting authenticated administrator approval.');
             console.log(`[DepositVerification] Deposit #${dep.id} passed pre-validation and remains pending for admin review.`);
           }
         }
