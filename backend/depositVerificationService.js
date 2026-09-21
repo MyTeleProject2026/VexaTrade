@@ -95,18 +95,26 @@ async function verifyDepositManually(deposit) {
   if (!configuredAddress) return {success:false,reason:'Active deposit wallet is not configured for '+coin+'/'+network+'.'};
   if (configuredAddress.toLowerCase() !== depositAddress.toLowerCase()) return {success:false,reason:'Deposit address does not match the active platform wallet for this coin/network.'};
 
-  const settings=await getNetworkSettings(network);
-  if (!settings) return {success:false,reason:`Network "${network}" verification settings not configured. Please contact support.`};
-  const actualPrefix=String(settings.address_prefix || '').trim();
-  const actualSuffix=String(settings.address_suffix || '').trim();
-  if (!actualPrefix || !actualSuffix) return {success:false,reason:`Address verification pattern not configured for ${network}. Please contact support.`};
-  const addressMatches=depositAddress.toLowerCase().startsWith(actualPrefix.toLowerCase()) && depositAddress.toLowerCase().endsWith(actualSuffix.toLowerCase());
-  if (!addressMatches) return {success:false,reason:`Deposit address mismatch. Expected address starting with "${actualPrefix}" and ending with "${actualSuffix}".`};
   if (!Number.isFinite(amount) || amount<=0) return {success:false,reason:'Invalid amount submitted. Please enter a valid amount.'};
-  const minimumDeposit=Number(settings.minimum_deposit || DEFAULT_MIN_DEPOSIT);
-  if (amount < minimumDeposit) return {success:false,reason:`Amount ${amount} is below the minimum deposit of ${minimumDeposit} ${coin}.`};
-  const tolerance=Math.max(0,Math.min(Number(settings.tolerance_percent ?? DEFAULT_TOLERANCE_PERCENT),100))/100;
-  return {success:true,actualAmount:amount,expectedAmount:amount,minAllowed:amount*(1-tolerance),maxAllowed:amount*(1+tolerance),coin,network,toAddress:depositAddress,receiptUploaded:true,addressVerified:true,amountVerified:true,depositId};
+
+  // INTERNAL deposits are constrained by the active platform wallet above.
+  // External networks additionally require an active network-verification policy.
+  const settings=network === 'INTERNAL' ? null : await getNetworkSettings(network);
+  if (network !== 'INTERNAL' && !settings) return {success:false,reason:'Network "' + network + '" verification settings not configured. Please contact support.'};
+  const minimumDeposit=Number(settings?.minimum_deposit ?? DEFAULT_MIN_DEPOSIT);
+  if (!Number.isFinite(minimumDeposit) || minimumDeposit < 0) return {success:false,reason:'Invalid minimum-deposit configuration for ' + network + '.'};
+  if (amount < minimumDeposit) return {success:false,reason:'Amount ' + amount + ' is below the minimum deposit of ' + minimumDeposit + ' ' + coin + '.'};
+
+  if (network !== 'INTERNAL') {
+    const actualPrefix=String(settings?.address_prefix || '').trim();
+    const actualSuffix=String(settings?.address_suffix || '').trim();
+    if (!actualPrefix || !actualSuffix) return {success:false,reason:'Address verification pattern not configured for ' + network + '. Please contact support.'};
+    const normalizedAddress=depositAddress.toLowerCase();
+    const addressMatches=normalizedAddress.startsWith(actualPrefix.toLowerCase()) && normalizedAddress.endsWith(actualSuffix.toLowerCase());
+    if (!addressMatches) return {success:false,reason:'Deposit address mismatch. Expected address starting with "' + actualPrefix + '" and ending with "' + actualSuffix + '".'};
+  }
+
+  const tolerance=Math.max(0,Math.min(Number(settings?.tolerance_percent ?? DEFAULT_TOLERANCE_PERCENT),100))/100;  return {success:true,actualAmount:amount,expectedAmount:amount,minAllowed:amount*(1-tolerance),maxAllowed:amount*(1+tolerance),coin,network,toAddress:depositAddress,receiptUploaded:true,addressVerified:true,amountVerified:true,depositId};
 }
 
 async function rejectDeposit(connection, dep, reason) {
