@@ -12,13 +12,29 @@ async function ensureAssetRow(connection, userId, coin) {
   return created[0];
 }
 async function ensureLegacyUsdtAvailable(connection, userId) {
-  // The asset ledger is authoritative once a USDT row exists. Legacy users.balance
-  // is materialized only when no USDT ledger row exists yet.
+  // The asset ledger is authoritative. A legacy/incomplete row can, however,
+  // contain the old total in balance while all bucket columns are still zero.
+  // Repair that impossible/incomplete state once, inside the caller's transaction,
+  // so every balance-sensitive feature uses the same available USDT source.
   const [assets] = await connection.execute(
     "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1 FOR UPDATE",
     [userId]
   );
-  if (assets.length) return Number(assets[0].available_balance || 0);
+  if (assets.length) {
+    const row = assets[0];
+    const balance = Number(row.balance || 0);
+    const available = Number(row.available_balance || 0);
+    const reserved = Number(row.reserved_balance || 0);
+    const pending = Number(row.pending_balance || 0);
+    if (balance > 0 && available === 0 && reserved === 0 && pending === 0) {
+      await connection.execute(
+        "UPDATE user_assets SET available_balance=?, balance=? WHERE user_id=? AND coin='USDT'",
+        [balance, balance, userId]
+      );
+      return balance;
+    }
+    return available;
+  }
 
   const [users] = await connection.execute('SELECT balance FROM users WHERE id=? FOR UPDATE', [userId]);
   const legacyBalance = Number(users[0]?.balance || 0);
@@ -31,16 +47,8 @@ async function ensureLegacyUsdtAvailable(connection, userId) {
 }
 
 async function getUserUsdtAvailable(connection, userId) {
-  const [assets] = await connection.execute(
-    "SELECT available_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
-    [userId]
-  );
-  if (assets.length) return Number(assets[0].available_balance || 0);
-
-  // Legacy accounts can still have their authoritative starting USDT in
-  // users.balance. Materialize that value into the asset ledger before any
-  // balance-sensitive operation so every downstream feature reads the same
-  // source of truth. Existing ledger rows are never overwritten.
+  // Lock through the legacy/reconciliation helper so a partially migrated
+  // USDT row cannot make the wallet appear to have zero funds.
   return ensureLegacyUsdtAvailable(connection, userId);
 }
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
