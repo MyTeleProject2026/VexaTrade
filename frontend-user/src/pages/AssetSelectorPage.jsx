@@ -7,6 +7,26 @@ export default function AssetSelectorPage(){
  const [assets,setAssets]=useState([]),[supported,setSupported]=useState([]),[q,setQ]=useState(""),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false);
  async function load(silent){silent?setRefreshing(true):setLoading(true);try{const [a,s]=await Promise.all([userApi.getUserAssets(token),userApi.getSupportedAssets(token)]);setAssets(Array.isArray(a?.data?.data?.assets)?a.data.data.assets:[]);setSupported(Array.isArray(s?.data?.data)?s.data.data:[]);}finally{setLoading(false);setRefreshing(false);}}
  useEffect(()=>{load(false);},[]);
- const merged=useMemo(()=>{const m=new Map();supported.forEach(x=>m.set(String(x.coin).toUpperCase(),{...x,owned:false}));assets.forEach(x=>{const c=String(x.symbol||x.coin).toUpperCase();m.set(c,{...(m.get(c)||{}),...x,coin:c,owned:Number(x.available_balance??x.balance??x.amount??0)>0});});return Array.from(m.values()).filter(x=>{const c=String(x.coin||"").toUpperCase(),n=String(x.name||"");return !q||c.includes(q.toUpperCase())||n.toLowerCase().includes(q.toLowerCase());}).sort((a,b)=>Number(b.owned)-Number(a.owned)||String(a.coin).localeCompare(String(b.coin));},[assets,supported,q]);
+ const merged=useMemo(()=>{
+  const m=new Map();
+  supported.forEach(x=>{
+   const coin=String(x.coin||"").toUpperCase();
+   if(coin)m.set(coin,{...x,coin,owned:false});
+  });
+  assets.forEach(x=>{
+   const coin=String(x.symbol||x.coin||"").toUpperCase();
+   if(!coin)return;
+   const available=Number(x.available_balance??x.balance??x.amount??0);
+   m.set(coin,{...(m.get(coin)||{}),...x,coin,owned:available>0});
+  });
+  const query=String(q||"").trim().toUpperCase();
+  return Array.from(m.values())
+   .filter(x=>{
+    const coin=String(x.coin||"").toUpperCase();
+    const name=String(x.name||"").toLowerCase();
+    return !query||coin.includes(query)||name.includes(String(q||"").trim().toLowerCase());
+   })
+   .sort((a,b)=>Number(b.owned)-Number(a.owned)||String(a.coin).localeCompare(String(b.coin)));
+ },[assets,supported,q]);
  return <div className="min-h-screen bg-[#050812] px-3 pb-24 pt-3 text-white sm:px-5 xl:pb-8"><div className="mx-auto max-w-[1100px] space-y-4"><header className="flex items-center gap-3"><button onClick={()=>nav("/assets")} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10"><ArrowLeft size={19}/></button><div className="flex-1"><div className="text-lg font-bold">Select Asset</div><div className="text-xs text-slate-500">Supported assets and your owned balances</div></div><button onClick={()=>load(true)} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10"><RefreshCw size={17} className={refreshing?"animate-spin":""}/></button></header><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0a0e1a] px-3"><Search size={17} className="text-slate-500"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search crypto" className="h-12 flex-1 bg-transparent text-sm outline-none"/></div>{loading?<div className="rounded-2xl bg-[#0a0e1a] p-5 text-sm text-slate-400">Loading assets...</div>:<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{merged.map(x=>{const c=String(x.coin||"").toUpperCase(),available=Number(x.available_balance??x.amount??x.balance??0);return <button key={c} onClick={()=>nav("/assets/"+encodeURIComponent(c))} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-left"><div className="flex items-center justify-between"><div><div className="text-base font-semibold">{c}</div><div className="text-xs text-slate-500">{x.name||c}</div></div><span className={available>0?"rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300":"rounded-lg bg-white/5 px-2 py-1 text-[10px] text-slate-500"}>{available>0?"Owned":"Supported"}</span></div><div className="mt-3 text-sm">{available.toLocaleString(undefined,{maximumFractionDigits:12})} {c}</div><div className="mt-1 text-xs text-slate-500">{x.networks?.length||0} network(s)</div></button>})}</div>}</div></div>;
 }
