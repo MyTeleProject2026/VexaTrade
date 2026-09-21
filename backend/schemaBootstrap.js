@@ -59,7 +59,8 @@ async function ensureIndex(connection, table, indexName, columns) {
     throw new Error(`Required table ${table} does not exist; cannot create index ${indexName} safely.`);
   }
   if (!(await indexExists(connection, table, indexName))) {
-    await connection.execute(`CREATE INDEX \`${indexName}\` ON \`${table}\` (${columns.map(c => \`${c}\`).join(',')})`);
+    const quotedColumns = columns.map(columnName => "`" + columnName + "`").join(',');
+    await connection.execute(`CREATE INDEX \`${indexName}\` ON \`${table}\` (${quotedColumns})`);
     console.log(`[Schema] Added index ${table}.${indexName}`);
   }
 }
