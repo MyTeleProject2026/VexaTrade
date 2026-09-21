@@ -184,6 +184,7 @@ export const userApi = {
   setUserTarget: (payload, token) => appApiClient.post("/api/user/target/set", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   updateTargetProfit: (payload, token) => appApiClient.post("/api/user/target/update-profit", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getWithdrawalSettings: () => appApiClient.get("/api/withdrawal-settings"),
+  getProfitWithdrawalAvailability: (token) => appApiClient.get("/api/withdraw/profit-availability", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   requestProfitWithdrawal: (payload, token) => appApiClient.post("/api/withdraw/profit-request", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getProfitWithdrawalHistory: (token) => appApiClient.get("/api/withdraw/profit-history", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getNotifications: (token) => appApiClient.get("/api/user/notifications", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
