@@ -85,15 +85,16 @@ async function getWalletSummary(req) {
   try {
     if (columns.has('available_balance')) {
       const [assetRows] = await pool.execute(
-        `SELECT COALESCE(SUM(available_balance),0) AS available_usdt
+        `SELECT COALESCE(SUM(available_balance),0) AS available_usdt, COALESCE(SUM(balance),0) AS ledger_balance, COALESCE(SUM(reserved_balance),0) AS reserved_usdt, COALESCE(SUM(pending_balance),0) AS pending_usdt
          FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
         [req.user.id]
       );
-      const ledgerUsdt = Number(assetRows[0]?.available_usdt || 0);
-      // Once a USDT asset row exists, its available balance is authoritative,
-      // including a legitimate zero balance. Legacy users.balance is used only
-      // when the ledger has no USDT position at all.
-      availableUsdt = ledgerUsdt;
+      const row = assetRows[0] || {};
+      const ledgerUsdt = Number(row.available_usdt || 0);
+      const ledgerBalance = Number(row.ledger_balance || 0);
+      const reservedUsdt = Number(row.reserved_usdt || 0);
+      const pendingUsdt = Number(row.pending_usdt || 0);
+      availableUsdt = (ledgerUsdt === 0 && ledgerBalance > 0 && reservedUsdt === 0 && pendingUsdt === 0) ? ledgerBalance : ledgerUsdt;
     } else if (columns.has('balance')) {
       const [assetRows] = await pool.execute(
         `SELECT COALESCE(SUM(balance),0) AS available_usdt
@@ -198,8 +199,9 @@ async function buildAssets(userId) {
     // When the availability columns exist, they are authoritative even when
     // available_balance is legitimately zero. The legacy balance column is only
     // retained for backwards-compatible migration data.
+    const bucketTotal = availableField + reserved + pending;
     const available = columns.has('available_balance')
-      ? availableField
+      ? (availableField === 0 && rawBalance > 0 && bucketTotal === 0 ? rawBalance : availableField)
       : Math.max(rawBalance - reserved - pending, 0);
     const total = available + reserved + pending;
     const avgPrice = Number(asset.avg_price || 0);
