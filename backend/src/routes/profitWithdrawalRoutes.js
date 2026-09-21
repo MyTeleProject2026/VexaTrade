@@ -106,30 +106,39 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
     [userId, excludeRequestId, excludeRequestId]
   );
 
-  const availableWallet = await getUserUsdtAvailable(connection, userId);
+  await ensureLegacyUsdtAvailable(connection, userId);
+  const [[wallet]] = await connection.execute(
+    "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1 FOR UPDATE",
+    [userId]
+  );
+
+  const availableWallet = Number(wallet?.available_balance || 0);
+  const reservedWallet = Number(wallet?.reserved_balance || 0);
+  const pendingWallet = Number(wallet?.pending_balance || 0);
+  const totalWallet = Number(wallet?.balance || 0);
   const currentProfit = Number(target?.current_profit || 0);
   const loggedWalletProfit = Number(earned?.wallet_profit || 0);
   const alreadySettled = Number(settled?.settled_profit || 0);
   const committedAmount = Number(committed?.committed_amount || 0);
 
   // Only wallet-side fund profits are withdrawable. Compounded profit remains
-  // inside the fund and is therefore not treated as payout cash.
-  const ledgerBackedProfit = Math.max(0, loggedWalletProfit - alreadySettled);
+  // inside the fund. Pending/approved requests are excluded because their USDT
+  // is already reserved in the authoritative ledger.
+  const ledgerBackedProfit = Math.max(0, loggedWalletProfit - alreadySettled - committedAmount);
   const profitSource = loggedWalletProfit > 0
     ? ledgerBackedProfit
     : Math.max(0, currentProfit - committedAmount);
 
   const targetAvailable = Math.max(0, Math.min(currentProfit, profitSource));
-  const available = Math.min(
-    targetAvailable,
-    Math.max(0, availableWallet)
-  );
-
+  const available = Math.min(targetAvailable, Math.max(0, availableWallet));
   return {
     target: target || null,
     currentProfit,
     pendingProfit: committedAmount,
     walletAvailable: Number(availableWallet.toFixed(18)),
+    walletReserved: Number(reservedWallet.toFixed(18)),
+    walletPending: Number(pendingWallet.toFixed(18)),
+    walletTotal: Number(totalWallet.toFixed(18)),
     earnedWalletProfit: Number(loggedWalletProfit.toFixed(18)),
     withdrawnProfit: Number(alreadySettled.toFixed(18)),
     available: Number(available.toFixed(18)),
@@ -152,8 +161,10 @@ router.get('/withdraw/profit-availability', authUser, async (req, res, next) => 
           walletAvailable: funds.walletAvailable,
           earnedWalletProfit: funds.earnedWalletProfit,
           withdrawnProfit: funds.withdrawnProfit,
-          availableProfit: funds.available,
-        },
+          walletReserved: funds.walletReserved,
+          walletPending: funds.walletPending,
+          walletTotal: funds.walletTotal,
+          availableProfit: funds.available,        },
       });
     } catch (error) {
       try { await db.rollback(); } catch (_) {}
