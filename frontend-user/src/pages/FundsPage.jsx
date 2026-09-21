@@ -188,7 +188,9 @@ function ActiveFundCard({ item }) {
   const principal = Number(item.locked_principal || item.principal || 0);
   const earnedProfit = Number(item.earned_profit || item.profit_earned || 0);
   const totalDays = Number(item.total_days || item.duration_days || 0);
-  const currentDay = Number(item.current_day || 0);
+  const settledDay = Number(item.current_day || 0);
+  const displayDay = Math.max(settledDay, Math.min(totalDays, Number(item.display_current_day ?? settledDay)));
+  const currentDay = displayDay;
   const startedAt = item.started_at || item.created_at || new Date().toISOString();
   const endsAt = item.ends_at || item.expected_end_date || item.maturity_date;
   const status = item.status || "active";
