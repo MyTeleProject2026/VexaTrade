@@ -126,6 +126,19 @@ router.get('/withdraw/profit-availability', authUser, async (req, res, next) => 
       await db.beginTransaction();
       const funds = await availableProfit(db, req.user.id);
       await db.commit();
+      const [[wallet]] = await db.execute(
+        `SELECT balance,available_balance,reserved_balance,pending_balance
+         FROM user_assets
+         WHERE user_id=? AND coin='USDT'
+         LIMIT 1`,
+        [req.user.id]
+      );
+      const walletReserved = Number(wallet?.reserved_balance || 0);
+      const walletPending = Number(wallet?.pending_balance || 0);
+      const walletTotal = Number(wallet?.balance || (
+        Number(funds.walletAvailable || 0) + walletReserved + walletPending
+      ));
+
       res.json({
         success: true,
         data: {
@@ -134,10 +147,11 @@ router.get('/withdraw/profit-availability', authUser, async (req, res, next) => 
           walletAvailable: funds.walletAvailable,
           earnedWalletProfit: funds.earnedWalletProfit,
           withdrawnProfit: funds.withdrawnProfit,
-          walletReserved: funds.walletReserved,
-          walletPending: funds.walletPending,
-          walletTotal: funds.walletTotal,
-          availableProfit: funds.available,        },
+          walletReserved,
+          walletPending,
+          walletTotal,
+          availableProfit: funds.available,
+        },
       });
     } catch (error) {
       try { await db.rollback(); } catch (_) {}
