@@ -82,6 +82,9 @@ async function getWalletSummary(req) {
 
   const user = rows[0];
   let availableUsdt;
+  let reservedUsdt = 0;
+  let pendingUsdt = 0;
+  let totalUsdt = 0;
 
   if (columns.has('available_balance')) {
     // The multi-asset ledger is authoritative. Never resurrect users.balance
@@ -89,6 +92,13 @@ async function getWalletSummary(req) {
     const connection = await pool.getConnection();
     try {
       availableUsdt = await getUserUsdtAvailable(connection, req.user.id);
+      const [[asset]] = await connection.execute(
+        "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
+        [req.user.id]
+      );
+      reservedUsdt = Number(asset?.reserved_balance || 0);
+      pendingUsdt = Number(asset?.pending_balance || 0);
+      totalUsdt = Number(asset?.balance ?? (availableUsdt + reservedUsdt + pendingUsdt));
     } finally {
       connection.release();
     }
@@ -99,13 +109,24 @@ async function getWalletSummary(req) {
       [req.user.id]
     );
     availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+    const [[assetBuckets]] = await pool.execute(
+      "SELECT COALESCE(SUM(reserved_balance),0) reserved_usdt, COALESCE(SUM(pending_balance),0) pending_usdt, COALESCE(SUM(balance),0) total_usdt FROM user_assets WHERE user_id=? AND coin='USDT'",
+      [req.user.id]
+    );
+    reservedUsdt = Number(assetBuckets?.reserved_usdt || 0);
+    pendingUsdt = Number(assetBuckets?.pending_usdt || 0);
+    totalUsdt = Number(assetBuckets?.total_usdt || (availableUsdt + reservedUsdt + pendingUsdt));
   } else {
     // Compatibility only for an older schema without user_assets.
     availableUsdt = Number(user.balance || 0);
+    totalUsdt = availableUsdt;
   }
 
-  if (!Number.isFinite(availableUsdt)) {
+  if (![availableUsdt, reservedUsdt, pendingUsdt, totalUsdt].every(Number.isFinite)) {
     throw createError(503, 'USDT wallet balance is unavailable');
+  }
+  if (availableUsdt < 0 || reservedUsdt < 0 || pendingUsdt < 0 || totalUsdt < 0) {
+    throw createError(503, 'USDT wallet ledger is inconsistent');
   }
 
   const walletLabel = await getWalletLabel();
