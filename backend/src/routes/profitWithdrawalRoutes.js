@@ -45,7 +45,7 @@ const express=require('express');const crypto=require('crypto');const router=exp
   );
   const targetAvailable=Math.max(
     0,
-    Math.min(currentProfit,profitSource)-Number(pending?.pending_amount||0)
+    Math.min(currentProfit,profitSource)
   );
   const available=Math.min(targetAvailable,Math.max(0,availableWallet));
 
