@@ -17,10 +17,10 @@ router.get('/admin/users', authAdmin, async (req, res, next) => {
       SELECT
         u.id, u.uid, u.name, u.first_name, u.last_name, u.gender, u.date_of_birth,
         u.country, u.email,
-        COALESCE(ua.balance, 0) AS balance,
-        COALESCE(ua.available_balance, 0) AS available_balance,
-        COALESCE(ua.reserved_balance, 0) AS reserved_balance,
-        COALESCE(ua.pending_balance, 0) AS pending_balance,
+        CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.balance,0) END AS balance,
+        CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.available_balance,0) END AS available_balance,
+        COALESCE(ua.reserved_balance,0) AS reserved_balance,
+        COALESCE(ua.pending_balance,0) AS pending_balance,
         u.status, u.email_verified, u.kyc_status, u.approved_at,
         u.trading_fee_tier, u.twofa_enabled, u.avatar_url,
         CASE WHEN u.passcode IS NOT NULL AND TRIM(u.passcode) <> '' THEN 1 ELSE 0 END AS has_passcode,
@@ -56,8 +56,8 @@ router.get('/admin/users/:id', authAdmin, async (req, res, next) => {
       success: true,
       data: {
         ...user,
-        balance: toNumber(usdt?.balance),
-        available_balance: toNumber(usdt?.available_balance),
+        balance: toNumber(usdt ? usdt.balance : user.balance),
+        available_balance: toNumber(usdt ? usdt.available_balance : user.balance),
         reserved_balance: toNumber(usdt?.reserved_balance),
         pending_balance: toNumber(usdt?.pending_balance),
         assets: assets.map(asset => ({
@@ -149,7 +149,11 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status='pending'");
     const [tradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades');
     const [todayTradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at)=CURDATE()');
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance),0) AS total FROM user_assets WHERE coin='USDT'");
+    const [balanceRow] = await pool.execute(`
+      SELECT COALESCE(SUM(CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.available_balance,0) END),0) AS total
+      FROM users u
+      LEFT JOIN user_assets ua ON ua.user_id=u.id AND ua.coin='USDT'
+    `);
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status='pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status='pending'");
     res.json({ success: true, data: {
