@@ -47,6 +47,8 @@ export default function App() {
       <Route path="users" element={<AdminUsersPage />} />
       <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
       <Route path="account-verification" element={<AdminAccountVerificationPage />} />
+      <Route path="account-verification/stage/:stepNumber" element={<AdminAccountVerificationPage />} />
+      <Route path="account-verification/user/:userId/stage/:stepNumber" element={<AdminAccountVerificationPage />} />
       <Route path="kyc" element={<AdminKycPage />} />
       <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
       <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
