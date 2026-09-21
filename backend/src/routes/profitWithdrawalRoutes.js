@@ -52,7 +52,10 @@ async function ensureTable() {
       } catch (error) {
         if (!/duplicate|exists/i.test(String(error?.message || ''))) throw error;
       }
-    })().finally(() => { readyPromise = null; });
+    })().catch((error) => {
+      readyPromise = null;
+      throw error;
+    });
   }
   await readyPromise;
 }
