@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { depositApi, getApiErrorMessage } from "../services/api";
+import { depositApi, userApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
 import { createActionIdempotencyKey, runSingleUserAction } from "../services/actionRequest";
 
@@ -112,6 +112,7 @@ export default function DepositPage() {
   const token = localStorage.getItem("userToken") || localStorage.getItem("token") || localStorage.getItem("accessToken") || "";
   const { showSuccess, showError, showVoucher } = useNotification();
   const [wallets, setWallets] = useState([]);
+  const [availableUsdt, setAvailableUsdt] = useState(0);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -130,9 +131,11 @@ export default function DepositPage() {
     try {
       if (!silent) setLoading(true); else setRefreshing(true);
       setError("");
-      const [walletRes, historyRes] = await Promise.all([depositApi.wallets(token), depositApi.history(token)]);
+      const [walletRes, historyRes, balanceRes] = await Promise.all([depositApi.wallets(token), depositApi.history(token), userApi.getWalletSummary(token)]);
       const walletRows = (Array.isArray(walletRes.data?.data) ? walletRes.data.data : []).map(wallet => ({ ...wallet, qr_image_url: wallet.qr_image_url || wallet.qr_url || wallet.qrCodeUrl || null }));
       const historyRows = Array.isArray(historyRes.data?.data) ? historyRes.data.data : [];
+      const authoritativeBalance = Number(balanceRes.data?.data?.balance ?? 0);
+      if (Number.isFinite(authoritativeBalance)) setAvailableUsdt(authoritativeBalance);
       setWallets(walletRows);
       setHistory(historyRows);
       if (liveVoucher?.id) {
@@ -234,6 +237,7 @@ export default function DepositPage() {
   return (
     <div className="space-y-6 bg-[#050812] px-4 pb-28 pt-4 sm:px-6 xl:pb-8">
       <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_18%),linear-gradient(180deg,#0a0e1a_0%,#050812_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-[0.32em] text-cyan-400">Deposit</div><h1 className="mt-2 text-3xl font-bold text-white">Add Funds</h1><p className="mt-2 text-sm text-slate-400">Select a wallet, transfer funds, upload receipt, and submit your deposit request.</p></div><button type="button" onClick={handleManualRefresh} disabled={refreshing} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06] disabled:opacity-60"><RefreshCw size={18} className={refreshing ? "animate-spin" : ""} /></button></div></section>
+      <section className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.05] p-4"><div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Available USDT</div><div className="mt-1 text-2xl font-bold text-white">{formatAmount(availableUsdt)} <span className="text-sm font-medium text-slate-400">USDT</span></div><div className="mt-1 text-[11px] text-slate-500">Live wallet balance from the authoritative asset ledger.</div></section>
       <div className="flex gap-1 rounded-2xl border border-white/10 bg-[#0a0e1a] p-1"><button type="button" onClick={() => setActiveTab("deposit")} className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition ${activeTab === "deposit" ? "bg-cyan-500 text-black" : "text-slate-400 hover:text-white"}`}><Wallet size={16} className="inline mr-2" />Deposit Wallet</button><button type="button" onClick={() => setActiveTab("history")} className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition ${activeTab === "history" ? "bg-cyan-500 text-black" : "text-slate-400 hover:text-white"}`}><Clock size={16} className="inline mr-2" />History ({history.length})</button></div>
       {activeTab === "deposit" && <div className="grid gap-6 xl:grid-cols-[1.05fr_1fr]">
         <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><Wallet size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Deposit Wallet</h2></div></div><div className="space-y-5 p-5"><div><FieldLabel>Select Network</FieldLabel><select value={selectedWalletId} onChange={(e) => setSelectedWalletId(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-white outline-none focus:border-cyan-500">{wallets.map(wallet => { const value = String(wallet.id || `${wallet.coin}-${wallet.network}`); const label = wallet.label || wallet.display_label || `${wallet.coin} ${wallet.network}`; return <option key={value} value={value}>{label}</option>; })}</select></div>
