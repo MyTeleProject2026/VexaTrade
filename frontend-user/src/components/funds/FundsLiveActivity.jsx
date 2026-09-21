@@ -21,7 +21,7 @@ function LiveFund({fund,now,serverOffsetMs}){
  // earned_profit again here or compounded profit would be double-counted in the
  // displayed fund position. The current-day projection is the only unsettled part.
  const current=principal+projectedCurrentDayProfit;
- const total=n(fund.total_days),day=n(fund.current_day);
+ const total=n(fund.total_days),settledDay=n(fund.current_day); const day=Math.max(settledDay,Math.min(total,n(fund.display_current_day)));
  return <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.045] p-3">
   <div className="flex items-start justify-between gap-3">
    <div className="min-w-0"><div className="flex items-center gap-2"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70"/><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400"/></span><span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">{liveState==="running"?"Live funding":"Fund status"}</span></div><div className="mt-1 truncate text-sm font-semibold text-white">{fund.plan_name||"Fund Plan"}</div></div>
