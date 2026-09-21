@@ -131,16 +131,17 @@ async function markDepositPendingReview(connection, dep, reason) {
   });
 }
 
-async function approveDeposit(connection, dep, verification) {
+async function approveDeposit(connection, dep, verification, adminId = 0, adminNote = '') {
   const amount=Number(verification.actualAmount ?? dep.amount);
   const coin=String(verification.coin || dep.coin || 'USDT').trim().toUpperCase();
   const network=String(verification.network || dep.network || 'INTERNAL').trim().toUpperCase();
   if (!Number.isFinite(amount) || amount<=0) throw createError(400,'Invalid deposit amount');
 
   await creditAssetBalance(connection,{userId:dep.user_id,coin,network,amount,referenceType:'deposit',referenceId:dep.id,note:`Auto-approved deposit #${dep.id} via manual verification`});
-  await connection.execute(`UPDATE deposits SET status='approved', admin_note='Auto-approved: Manual verification passed', approved_at=COALESCE(approved_at,NOW()), updated_at=NOW() WHERE id=?`, [dep.id]);
-  await createTransactionLog(connection,{userId:dep.user_id,type:'deposit_approved',amount,status:'completed',referenceId:dep.id,note:`${coin}/${network} auto-approved deposit #${dep.id}`});
-  await createAuditLog(connection,{adminId:0,action:'auto_approve_deposit',targetUserId:dep.user_id,referenceId:dep.id,note:`${amount} ${coin}/${network}`});
+  const note = String(adminNote || '').trim() || 'Deposit approved after verification';
+  await connection.execute(`UPDATE deposits SET status='approved', admin_note=?, approved_at=COALESCE(approved_at,NOW()), updated_at=NOW() WHERE id=?`, [note, dep.id]);
+  await createTransactionLog(connection,{userId:dep.user_id,type:'deposit_approved',amount,status:'completed',referenceId:dep.id,note:`${coin}/${network} approved deposit #${dep.id}`});
+  await createAuditLog(connection,{adminId:Number(adminId)||0,action:'approve_deposit',targetUserId:dep.user_id,referenceId:dep.id,note:`${amount} ${coin}/${network}: ${note}`});
   await createUserNotification(connection,{userId:dep.user_id,title:'Deposit approved',message:`${amount} ${coin} is now available in your wallet.`,type:'deposit'});
 }
 
@@ -181,4 +182,4 @@ async function processPendingDeposits() {
   } finally { connection.release(); }
 }
 
-module.exports={processPendingDeposits,syncVerificationSettingsFromWallets,getNetworkSettings,getAllNetworkSettings,updateNetworkSetting,extractPrefixSuffix,verifyDepositManually};
+module.exports={processPendingDeposits,syncVerificationSettingsFromWallets,getNetworkSettings,getAllNetworkSettings,updateNetworkSetting,extractPrefixSuffix,verifyDepositManually,approveDeposit};
