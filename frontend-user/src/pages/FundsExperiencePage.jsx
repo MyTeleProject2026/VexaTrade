@@ -7,11 +7,11 @@ import FundsLiveActivity from "../components/funds/FundsLiveActivity";
 export default function FundsExperiencePage(){
  const [showMonitor,setShowMonitor]=useState(true);
  const links=[
-  ["/funds","Funds Center",LayoutDashboard],
+  ["/funds","Trust Funds Center",LayoutDashboard],
   ["/funds?tab=plans","Fund Plans",ListChecks],
-  ["/funds/active","Active Funds",PlayCircle],
+  ["/funds/active","Active Trust Funds",PlayCircle],
   ["/funds/history","History & Vouchers",History],
-  ["/funds/help","Funds Help",BookOpen],
+  ["/funds/help","Trust Funds Help",BookOpen],
  ];
  return <div className="min-h-screen bg-[#050812] pb-20">
   <div className="mx-auto max-w-7xl px-3 pt-3 sm:px-5">
@@ -22,6 +22,6 @@ export default function FundsExperiencePage(){
    {showMonitor&&<div className="mb-2"><FundsLiveActivity/></div>}
   </div>
   <FundsPage/>
-  <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-5"><div className="rounded-xl border border-white/10 bg-white/[0.02] p-2 text-[9px] text-slate-500">VexaTrade Funds operates through the Vexa Blockchain Ecosystem financial and settlement framework. The live monitor never mutates balances.</div></div>
+  <div className="mx-auto mt-3 max-w-7xl px-3 sm:px-5"><div className="rounded-xl border border-white/10 bg-white/[0.02] p-2 text-[9px] text-slate-500">VexaTrade Trust Funds operates through the Vexa Blockchain Ecosystem financial and settlement framework. The live monitor never mutates balances.</div></div>
  </div>
 }
