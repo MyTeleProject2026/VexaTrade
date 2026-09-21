@@ -110,11 +110,23 @@ async function getWalletSummary(req) {
 
   const walletLabel = await getWalletLabel();
 
+  const [assetRows] = await pool.execute(
+    "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
+    [req.user.id]
+  );
+  const asset = assetRows[0] || {};
+  const reservedUsdt = Number(asset.reserved_balance || 0);
+  const pendingUsdt = Number(asset.pending_balance || 0);
+  const totalUsdt = Number(asset.balance || 0);
+
   return {
     success: true,
     data: {
       balance: Number.isFinite(availableUsdt) ? availableUsdt : 0,
-      walletLabel,
+      available_balance: Number.isFinite(availableUsdt) ? availableUsdt : 0,
+      reserved_balance: Number.isFinite(reservedUsdt) ? reservedUsdt : 0,
+      pending_balance: Number.isFinite(pendingUsdt) ? pendingUsdt : 0,
+      total_balance: Number.isFinite(totalUsdt) ? totalUsdt : 0,      walletLabel,
       user: {
         id: user.id,
         uid: user.uid,
