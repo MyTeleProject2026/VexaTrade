@@ -109,10 +109,7 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
     currentProfit,
     pendingProfit: committedAmount,
     walletAvailable: Number(availableWallet.toFixed(18)),
-    walletReserved: Number(reservedWallet.toFixed(18)),
-    walletPending: Number(pendingWallet.toFixed(18)),
-    walletTotal: Number(totalWallet.toFixed(18)),
-    earnedWalletProfit: Number(loggedWalletProfit.toFixed(18)),
+    earnedWalletProfit: Number(currentProfit.toFixed(18)),
     withdrawnProfit: 0,
     available: Number(available.toFixed(18)),
   };
