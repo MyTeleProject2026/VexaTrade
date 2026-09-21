@@ -30,10 +30,10 @@ export default function FundHistoryPage() {
     <div className="min-h-screen bg-[#050812] p-3 pb-24 sm:p-5">
       <div className="mx-auto max-w-6xl">
         <Link to="/funds" className="mb-3 inline-flex items-center gap-1 text-xs text-slate-400">
-          <ArrowLeft size={13} /> Funds Center
+          <ArrowLeft size={13} /> Trust Funds Center
         </Link>
         <div className="mb-3">
-          <h1 className="text-xl font-bold text-white">Funds History</h1>
+          <h1 className="text-xl font-bold text-white">Trust Funds History</h1>
           <p className="text-[10px] text-slate-500">
             Completed and historical Fund records from the Vexa Blockchain Ecosystem.
           </p>
@@ -53,7 +53,7 @@ export default function FundHistoryPage() {
               <div key={r.id} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-semibold text-white">{r.plan_name || "Fund Plan"}</div>
+                    <div className="text-sm font-semibold text-white">{r.plan_name || "Trust Fund Plan"}</div>
                     <div className="text-[9px] text-slate-500">Fund #{r.id}</div>
                   </div>
                   <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-[9px] font-semibold text-emerald-300">
