@@ -376,6 +376,18 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'network_verification_settings', 'tolerance_percent', 'DECIMAL(18,8) NOT NULL DEFAULT 10');
     await addColumn(connection, 'network_verification_settings', 'minimum_deposit', 'DECIMAL(36,18) NOT NULL DEFAULT 0.01');
 
+    // Repair legacy USDT rows once the availability buckets exist. balance is
+    // the aggregate of available/reserved/pending, so a row with zero in all
+    // buckets and a positive aggregate is safe to materialize into available.
+    await connection.execute(
+      `UPDATE user_assets
+       SET available_balance = balance
+       WHERE available_balance = 0
+         AND reserved_balance = 0
+         AND pending_balance = 0
+         AND balance > 0`
+    );
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS user_notifications (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
