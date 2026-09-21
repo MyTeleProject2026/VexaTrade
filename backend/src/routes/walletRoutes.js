@@ -131,15 +131,10 @@ async function getWalletSummary(req) {
 
   const walletLabel = await getWalletLabel();
 
-  const [assetRows] = await pool.execute(
-    "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
-    [req.user.id]
-  );
-  const asset = assetRows[0] || {};
-  const reservedUsdt = Number(asset.reserved_balance || 0);
-  const pendingUsdt = Number(asset.pending_balance || 0);
-  const totalUsdt = Number(asset.balance || 0);
-
+  // Keep the values calculated from the authoritative ledger above.
+  // Do not redeclare/overwrite them from a second query: doing so can shadow
+  // the authoritative values and, in older builds, caused a duplicate-const
+  // syntax error that made every wallet summary endpoint return 500.
   return {
     success: true,
     data: {
