@@ -112,6 +112,20 @@ async function settleDailyFunds() {
         });
       }
 
+      // Synchronize the user's profit target from this same settlement event.
+      // This records earned profit consistently even when part of the profit is compounded;
+      // spendable withdrawal remains capped by the authoritative USDT available balance.
+      if (dailyProfit > 0) {
+        await connection.execute(
+          `UPDATE user_targets
+           SET current_profit = LEAST(target_amount, current_profit + ?),
+               status = CASE WHEN current_profit >= target_amount THEN 'achieved' ELSE 'active' END,
+               updated_at = NOW()
+           WHERE user_id = ? AND status = 'active'`,
+          [dailyProfit, fund.user_id]
+        );
+      }
+
       if (profitToWallet > 0) {
         await creditAssetBalance(connection, {
           userId: fund.user_id,
