@@ -48,7 +48,7 @@ export default function ExternalWalletVerificationPage() {
   const requestRef = useRef(null);
   const mountedRef = useRef(true);
 
-  const load = useCallback(async ({ manual = false } = {}) => {
+  const load = useCallback(async ({ manual = false, background = false } = {}) => {
     if (!token) {
       navigate("/login", { replace: true });
       return null;
@@ -93,7 +93,7 @@ export default function ExternalWalletVerificationPage() {
   useEffect(() => {
     mountedRef.current = true;
     void load();
-    const id = setInterval(() => void load(), 15000);
+    const id = setInterval(() => void load({ background: true }), 30000);
     return () => {
       mountedRef.current = false;
       clearInterval(id);
