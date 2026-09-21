@@ -92,27 +92,17 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
     [userId, excludeRequestId, excludeRequestId]
   );
 
-  const [[earned]] = await connection.execute(
-    `SELECT COALESCE(SUM(wallet_amount),0) wallet_profit
-     FROM fund_profit_logs
-     WHERE user_id=?`,
-    [userId]
-  );
+  const availableWallet = await getUserUsdtAvailable(connection, userId);
+  const currentProfit = Number(target?.current_profit || 0);
+  const committedAmount = Number(committed?.committed_amount || 0);
 
-  const [[settled]] = await connection.execute(
-    `SELECT COALESCE(SUM(amount),0) settled_profit
-     FROM profit_withdrawal_requests
-     WHERE user_id=? AND status='settled' AND (? IS NULL OR id<>?)`,
-    [userId, excludeRequestId, excludeRequestId]
-  );
-
-  await ensureLegacyUsdtAvailable(connection, userId);
-  const [[wallet]] = await connection.execute(
-    "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1 FOR UPDATE",
-    [userId]
-  );
-
-  const availableWallet = Number(wallet?.available_balance || 0);
+  // user_targets.current_profit is the canonical profit entitlement fed by
+  // every real profit-producing settlement (short-term trades and fund profits).
+  // Pending/approved requests are excluded because their USDT is already
+  // reserved. Final settlement atomically reduces current_profit, so historical
+  // settled requests must not be subtracted a second time.
+  const targetAvailable = Math.max(0, currentProfit - committedAmount);
+Number(wallet?.available_balance || 0);
   const reservedWallet = Number(wallet?.reserved_balance || 0);
   const pendingWallet = Number(wallet?.pending_balance || 0);
   const totalWallet = Number(wallet?.balance || 0);
@@ -140,7 +130,7 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
     walletPending: Number(pendingWallet.toFixed(18)),
     walletTotal: Number(totalWallet.toFixed(18)),
     earnedWalletProfit: Number(loggedWalletProfit.toFixed(18)),
-    withdrawnProfit: Number(alreadySettled.toFixed(18)),
+    withdrawnProfit: 0,
     available: Number(available.toFixed(18)),
   };
 }
