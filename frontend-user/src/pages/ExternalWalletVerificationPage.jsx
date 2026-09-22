@@ -387,7 +387,7 @@ export default function ExternalWalletVerificationPage() {
               <form onSubmit={submit} className="space-y-3 rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
                 {stageRejected ? (
                   <div className="rounded-xl border border-red-400/15 bg-red-500/5 px-3 py-2 text-xs text-red-300">
-                    This stage needs resubmission. Review the administrator note above or in your notification and submit corrected evidence.
+                    This stage needs resubmission. Review the verification review note above or in your notification and submit corrected evidence.
                   </div>
                 ) : null}
 
