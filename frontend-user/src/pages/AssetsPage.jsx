@@ -1044,6 +1044,12 @@ export default function AssetsPage() {
             </div>
           )}
 
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+            <span>Available USDT <b className="text-cyan-300">{formatMoney(wallet.balance)} USDT</b></span>
+            {Number(wallet.pending_balance || 0) > 0 && <span>Pending <b className="text-amber-300">{formatMoney(wallet.pending_balance)} USDT</b></span>}
+            {Number(wallet.reserved_balance || 0) > 0 && <span>Reserved <b className="text-amber-300">{formatMoney(wallet.reserved_balance)} USDT</b></span>}
+          </div>
+
           <button
             type="button"
             onClick={() => navigate("/transactions")}
