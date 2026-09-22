@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Settings2, WalletCards, SlidersHorizontal, LineChart, ShieldCheck } from "lucide-react";
+import { BarChart3, Settings2, WalletCards, SlidersHorizontal, ShieldCheck } from "lucide-react";
 import AdminTradesPage from "./AdminTradesPage";
 import AdminTradeRulesPage from "./AdminTradeRulesPage";
 import AdminFundsPage from "./AdminFundsPage";
@@ -10,9 +10,8 @@ import AdminSpotSettlementRulesPage from "./AdminSpotSettlementRulesPage";
 const TABS = [
   { id: "short-trades", label: "Short-Term Trades", icon: BarChart3 },
   { id: "short-rules", label: "Short-Term Rules", icon: Settings2 },
-  { id: "spot-market", label: "Spot / Long-Term Market", icon: LineChart },
-  { id: "spot-control", label: "Spot / Long-Term Control", icon: SlidersHorizontal },
-  { id: "spot-rules", label: "Spot Settlement Rules", icon: ShieldCheck },
+  { id: "spot-trading", label: "Spot / Long-Term Trading", icon: SlidersHorizontal },
+  { id: "spot-rules", label: "Spot / Long-Term Rules", icon: ShieldCheck },
   { id: "funds", label: "Funds", icon: WalletCards },
   { id: "fund-rules", label: "Funds Rules", icon: Settings2 },
 ];
@@ -84,8 +83,7 @@ export default function AdminTradingFundsControlPage() {
       <div>
         {tab === "short-trades" ? <AdminTradesPage /> : null}
         {tab === "short-rules" ? <AdminTradeRulesPage /> : null}
-        {tab === "spot-market" ? <AdminSpotTradePage /> : null}
-        {tab === "spot-control" ? <AdminSpotTradePage /> : null}
+        {tab === "spot-trading" ? <AdminSpotTradePage /> : null}
         {tab === "spot-rules" ? <AdminSpotSettlementRulesPage /> : null}
         {tab === "funds" ? <AdminFundsPage /> : null}
         {tab === "fund-rules" ? <AdminFundsRulesPage /> : null}
