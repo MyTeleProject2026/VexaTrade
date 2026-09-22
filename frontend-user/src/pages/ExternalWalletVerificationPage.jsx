@@ -374,13 +374,13 @@ export default function ExternalWalletVerificationPage() {
                 <Clock3 className="mx-auto text-amber-300" size={28} />
                 <h3 className="mt-3 text-sm font-semibold">Stage {currentStepNumber} is under review</h3>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
-                  Your evidence has been submitted. The next stage will unlock only after an administrator approves this stage.
+                  Your evidence has been submitted. The next stage unlocks through the VexaTrade Blockchain Ecosystem verification workflow.
                 </p>
               </section>
             ) : stageLocked || stageCompleted ? (
               <section className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-6 text-center text-sm text-slate-400">
                 {stageCompleted
-                  ? "This stage is completed. Refresh after administrator review for the next stage."
+                  ? "This stage is completed. Refresh to receive the next Blockchain Ecosystem verification state."
                   : "This stage is locked until the previous stage is completed."}
               </section>
             ) : (
