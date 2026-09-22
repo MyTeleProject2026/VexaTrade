@@ -207,6 +207,36 @@ async function ensureFinancialSchema() {
     await addColumn(connection, 'loans', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'loans', 'uq_loans_user_idempotency', ['user_id', 'idempotency_key']);
 
+    // Short-Term trade rules are part of the runtime API and must exist on
+    // fresh Render/TiDB deployments. Older environments may already have this
+    // table from a migration; CREATE IF NOT EXISTS is intentionally additive.
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS trade_rules (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        timer_seconds INT NOT NULL,
+        min_amount DECIMAL(36,18) NOT NULL DEFAULT 0,
+        max_amount DECIMAL(36,18) NOT NULL DEFAULT 0,
+        payout_percent DECIMAL(18,8) NOT NULL DEFAULT 0,
+        status VARCHAR(16) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_trade_rules_timer (timer_seconds),
+        KEY idx_trade_rules_status_timer (status,timer_seconds)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Keep the requested Short-Term durations available on a fresh deployment.
+    // Existing rows are never overwritten.
+    await connection.execute(`
+      INSERT INTO trade_rules(timer_seconds,min_amount,max_amount,payout_percent,status)
+      VALUES
+        (60,0,0,0,'active'),
+        (180,0,0,0,'active'),
+        (300,0,0,0,'active')
+      ON DUPLICATE KEY UPDATE timer_seconds=VALUES(timer_seconds)
+    `);
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS spot_orders (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL,
