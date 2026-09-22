@@ -294,8 +294,6 @@ export default function ExternalWalletVerificationPage() {
           </div>
         </section>
 
-        {timerBanner}
-
         {error ? (
           <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-xs text-red-300">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
