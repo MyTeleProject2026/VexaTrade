@@ -920,15 +920,39 @@ export default function AssetsPage() {
   useEffect(() => {
     loadData();
 
-    const handleTransactionComplete = (event) => {
+    // Financial actions can change the authoritative wallet buckets immediately.
+    // Refresh the complete Assets view after an action instead of refreshing only
+    // the portfolio rows, so Available USDT, open-trade totals and notifications
+    // stay synchronized with the same backend ledger source.
+    const handleFinancialAction = (event) => {
       const action = String(event?.detail?.action || "").toLowerCase();
       if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {
-        refreshPortfolioAssets();
+        void loadData(true);
       }
     };
 
+    const handleTransactionComplete = (event) => {
+      const action = String(event?.detail?.action || "").toLowerCase();
+      if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {
+        void loadData(true);
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void loadData(true);
+    };
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
     window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
-    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   // Portfolio value is derived from the actual coin holdings. `wallet.balance`
