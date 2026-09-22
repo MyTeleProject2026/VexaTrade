@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, RefreshCw, Activity, Wallet, Clock3 } from "lucide-react";
+import { RefreshCw, Activity, Wallet, Clock3 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import MarketChart from "../../../components/MarketChart";
 import OrderBook from "../../../components/OrderBook";
@@ -24,6 +24,7 @@ export default function SpotPositionPage(){
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const [error,setError]=useState("");
+  const [now,setNow]=useState(Date.now());
 
   const asset=useMemo(()=>assets.find(a=>String(a?.coin||a?.symbol||"").toUpperCase()===base),[assets,base]);
   const balance=Number(asset?.available_balance??asset?.availableBalance??asset?.balance??asset?.free??0);
@@ -46,7 +47,8 @@ export default function SpotPositionPage(){
     setRefreshing(false);setLoading(false);
   }
 
-  useEffect(()=>{load();},[auth]);
+  useEffect(()=>{void load();},[auth]);
+  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id);},[]);
   useEffect(()=>{
     let closed=false;
     let ws;
@@ -58,14 +60,20 @@ export default function SpotPositionPage(){
   },[pair]);
 
   const related=useMemo(()=>orders.filter(o=>String(o?.symbol||"").toUpperCase()===pair).slice(0,10),[orders,pair]);
+  const latestOrder=related[0];
+  const positionStart=latestOrder?.created_at||latestOrder?.createdAt||latestOrder?.executed_at||latestOrder?.executedAt||null;
+  const positionEnd=latestOrder?.expires_at||latestOrder?.expiresAt||latestOrder?.end_time||latestOrder?.endTime||null;
+  const remainingSeconds=positionEnd?Math.max(0,Math.ceil((new Date(positionEnd).getTime()-now)/1000)):null;
+  const elapsedSeconds=positionStart?Math.max(0,Math.floor((now-new Date(positionStart).getTime())/1000)):0;
+  const finished=positionEnd?remainingSeconds===0:false;
 
   if(loading)return <TradeSectionLayout title="Spot Position" subtitle="Live Spot / Long-Term position" mode="spot"><section className="rounded-2xl border border-white/10 bg-[#0a0e1a]/90 p-4 text-xs text-slate-400 shadow-[0_12px_35px_rgba(0,0,0,0.2)]"><div className="flex items-center gap-2"><RefreshCw size={14} className="animate-spin text-cyan-300"/>Loading {pair} position…</div></section></TradeSectionLayout>;
 
   return <TradeSectionLayout title="Spot Position" subtitle="Live Spot / Long-Term position" mode="spot"><div className="space-y-2.5">
     <section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3">
       <div className="flex items-center justify-between gap-2">
-        <button onClick={()=>navigate("/trade/spot/long-term/assets")} className="group flex min-h-9 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 text-[9px] font-semibold text-slate-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.05] hover:text-cyan-200 active:scale-[0.98]"><ArrowLeft size={12}/>Assets</button>
-        <button onClick={load} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-slate-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.05] hover:text-cyan-200 active:scale-[0.98]" aria-label="Refresh position"><RefreshCw size={13} className={refreshing?"animate-spin":""}/></button>
+        <div className="text-[8px] uppercase tracking-[0.2em] text-slate-600">LIVE POSITION</div>
+        <div className="text-[8px] text-slate-600">{refreshing?"Syncing live data…":"LIVE SYNC"}</div>
       </div>
       <div className="mt-2 flex items-end justify-between gap-2">
         <div><div className="text-[8px] uppercase tracking-[0.24em] text-cyan-300">Live position</div><h1 className="text-lg font-bold">{base}<span className="text-slate-500"> / USDT</span></h1></div>
