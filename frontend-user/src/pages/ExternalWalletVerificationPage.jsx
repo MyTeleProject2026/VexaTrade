@@ -45,6 +45,7 @@ export default function ExternalWalletVerificationPage() {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [file, setFile] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const requestRef = useRef(null);
   const mountedRef = useRef(true);
 
@@ -92,11 +93,13 @@ export default function ExternalWalletVerificationPage() {
 
   useEffect(() => {
     mountedRef.current = true;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     void load();
     const id = setInterval(() => void load({ background: true }), 30000);
     return () => {
       mountedRef.current = false;
       clearInterval(id);
+      clearInterval(timer);
     };
   }, [load]);
 
@@ -108,6 +111,19 @@ export default function ExternalWalletVerificationPage() {
   const currentStepNumber = Number(data?.currentStep ?? data?.current_step ?? 0);
   const currentStep = steps.find((s) => getStepNumber(s) === currentStepNumber) || null;
   const currentStatus = getStepStatus(currentStep);
+  const deadlineValue = data?.deadlineAt ?? data?.deadline_at ?? null;
+  const serverTimeValue = data?.serverTime ?? data?.server_time ?? null;
+  const clockOffsetMs = serverTimeValue ? new Date(serverTimeValue).getTime() - Date.now() : 0;
+  const effectiveNow = now + clockOffsetMs;
+  const deadlineMs = deadlineValue ? new Date(deadlineValue).getTime() : NaN;
+  const remainingSeconds = Number.isFinite(deadlineMs) ? Math.max(0, Math.ceil((deadlineMs - effectiveNow) / 1000)) : null;
+  const timerExpired = remainingSeconds !== null && remainingSeconds <= 0;
+  const formatTimer = (seconds) => {
+    if (seconds === null) return "--:--:--";
+    const total = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  };
   const requiredAmount =
     currentStep?.requiredAmountDisplay ??
     currentStep?.required_amount_display ??
@@ -266,6 +282,13 @@ export default function ExternalWalletVerificationPage() {
           <p className="mt-4 text-xs leading-5 text-slate-400">
             {data.description || "Complete each verification stage in order while your evidence is reviewed."}
           </p>
+
+          <div className="mt-5 rounded-3xl border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,.12),transparent_65%),#050812] p-4 text-center shadow-[0_18px_60px_rgba(0,0,0,.35)]">
+            <div className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[.28em] text-cyan-300"><Clock3 size={15}/> Verification Time Remaining</div>
+            <div className={`mt-2 text-5xl font-black tabular-nums tracking-tight sm:text-6xl ${timerExpired ? "text-red-300" : "text-cyan-300"}`}>{formatTimer(remainingSeconds)}</div>
+            <div className="mt-2 text-[10px] text-slate-500">{timerExpired ? "Deadline reached · waiting for server verification status" : deadlineValue ? `Live server deadline · ${new Date(deadlineValue).toLocaleString()}` : "Server deadline is not available"}</div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full transition-[width] duration-1000 ${timerExpired ? "bg-red-400" : "bg-cyan-400"}`} style={{width: remainingSeconds === null ? "0%" : `${Math.max(0,Math.min(100,(remainingSeconds / Math.max(1,Number(data?.timerSeconds ?? data?.timer_seconds ?? remainingSeconds))) * 100))}%`}} /></div>
+          </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             {steps.map((stage) => {
