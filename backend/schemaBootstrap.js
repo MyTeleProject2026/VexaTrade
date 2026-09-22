@@ -226,6 +226,17 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // Existing Render/TiDB installations may already have an older trade_rules table.
+    // CREATE TABLE IF NOT EXISTS does not add columns to that table, so explicitly
+    // reconcile every column used by the current Short-Term rules API before seeding.
+    await addColumn(connection, 'trade_rules', 'timer_seconds', 'INT NOT NULL DEFAULT 60');
+    await addColumn(connection, 'trade_rules', 'min_amount', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
+    await addColumn(connection, 'trade_rules', 'max_amount', 'DECIMAL(36,18) NOT NULL DEFAULT 0');
+    await addColumn(connection, 'trade_rules', 'payout_percent', 'DECIMAL(18,8) NOT NULL DEFAULT 0');
+    await addColumn(connection, 'trade_rules', 'status', "VARCHAR(16) NOT NULL DEFAULT 'active'");
+    await addColumn(connection, 'trade_rules', 'created_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
+    await addColumn(connection, 'trade_rules', 'updated_at', 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
     // Keep the requested Short-Term durations available on a fresh deployment.
     // Existing rows are never overwritten.
     await connection.execute(`
