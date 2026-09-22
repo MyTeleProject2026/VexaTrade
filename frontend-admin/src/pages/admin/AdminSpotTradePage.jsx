@@ -9,6 +9,7 @@ const token=()=>localStorage.getItem("adminToken")||localStorage.getItem("admin_
 const defaults={
   enabled:true,min:"10",max:"100000",slippage:"100",fee:"0",ttl:"15",daily:"0",
   buy:true,sell:true,pairs:DEFAULT_PAIRS,message:"",
+  winThresholdBps:"1",lossThresholdBps:"1",
   settlementModel:"market_execution",priceSource:"binance_public_market",receipt:true,pnlEnabled:true,pnlReference:"live_market",pnlRefreshSeconds:"5",realizedPnlOnSell:true
 };
 
@@ -27,6 +28,7 @@ export default function AdminSpotTradePage(){
     ttl:String(d.quote_ttl_seconds??15),daily:String(d.max_orders_per_day??0),
     buy:d.buy_enabled!==false,sell:d.sell_enabled!==false,
     pairs:String(d.supported_pairs||DEFAULT_PAIRS),message:String(d.maintenance_message||""),
+    winThresholdBps:String(d.win_threshold_bps??1),lossThresholdBps:String(d.loss_threshold_bps??1),
     settlementModel:String(d.settlement_model||"market_execution"),
     priceSource:String(d.settlement_price_source||"binance_public_market"),
     receipt:d.settlement_receipt_required!==false,pnlEnabled:d.pnl_enabled!==false,pnlReference:String(d.pnl_reference||"live_market"),pnlRefreshSeconds:String(d.pnl_refresh_seconds??5),realizedPnlOnSell:d.realized_pnl_on_sell!==false
@@ -40,9 +42,9 @@ export default function AdminSpotTradePage(){
 
  async function save(e){
   e.preventDefault();
-  const min=Number(form.min),max=Number(form.max),slip=Number(form.slippage),fee=Number(form.fee),ttl=Number(form.ttl),daily=Number(form.daily);
+  const min=Number(form.min),max=Number(form.max),slip=Number(form.slippage),fee=Number(form.fee),ttl=Number(form.ttl),daily=Number(form.daily),winThresholdBps=Number(form.winThresholdBps),lossThresholdBps=Number(form.lossThresholdBps);
   const pairs=form.pairs.split(",").map(v=>v.trim().toUpperCase()).filter(Boolean);
-  if(!Number.isFinite(min)||min<=0||!Number.isFinite(max)||max<=min||!Number.isFinite(slip)||slip<=0||slip>10000||!Number.isFinite(fee)||fee<0||fee>1000||!Number.isInteger(ttl)||ttl<5||ttl>120||!Number.isInteger(daily)||daily<0||daily>10000||!pairs.length)
+  if(!Number.isFinite(min)||min<=0||!Number.isFinite(max)||max<=min||!Number.isFinite(slip)||slip<=0||slip>10000||!Number.isFinite(fee)||fee<0||fee>1000||!Number.isInteger(ttl)||ttl<5||ttl>120||!Number.isInteger(daily)||daily<0||daily>10000||!Number.isFinite(winThresholdBps)||winThresholdBps<0||winThresholdBps>100000||!Number.isFinite(lossThresholdBps)||lossThresholdBps<0||lossThresholdBps>100000||!pairs.length)
    return addToast("Check limits, fee, quote TTL, daily limit and supported pairs.","error");
   if(form.settlementModel!=="market_execution"||form.priceSource!=="binance_public_market"||!form.receipt)
    return addToast("Spot settlement must remain market-based with public market pricing and receipts enabled.","error");
@@ -52,6 +54,7 @@ export default function AdminSpotTradePage(){
     trading_enabled:form.enabled,min_order_usdt:min,max_order_usdt:max,max_slippage_bps:slip,
     trading_fee_bps:fee,quote_ttl_seconds:ttl,max_orders_per_day:daily,buy_enabled:form.buy,
     sell_enabled:form.sell,supported_pairs:pairs.join(","),maintenance_message:form.message,
+    win_threshold_bps:winThresholdBps,loss_threshold_bps:lossThresholdBps,
     settlement_model:form.settlementModel,settlement_price_source:form.priceSource,
     settlement_receipt_required:form.receipt,pnl_enabled:form.pnlEnabled,pnl_reference:form.pnlReference,pnl_refresh_seconds:Number(form.pnlRefreshSeconds),realized_pnl_on_sell:form.realizedPnlOnSell,manual_outcome_override:false
    },t);
@@ -114,11 +117,15 @@ export default function AdminSpotTradePage(){
 
    <section className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-4 space-y-3">
     <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300"><SlidersHorizontal size={15}/>P/L settlement display controls</div>
-    <p className="text-[10px] leading-4 text-slate-400">These controls define how objective market P/L is displayed and refreshed. They cannot force a user's WIN or LOSS.</p>
+    <p className="text-[10px] leading-4 text-slate-400">These controls define how objective market P/L is displayed and how realized sell P/L is classified. They cannot force a user's WIN or LOSS; the server calculates the result from actual execution price and cost basis.</p>
     <div className="grid gap-3 md:grid-cols-3">
       <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Live P/L enabled</b><span className="text-[9px] text-slate-500">Show unrealized market P/L.</span></span><input type="checkbox" checked={form.pnlEnabled} onChange={e=>set("pnlEnabled",e.target.checked)}/></label>
       <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Reference</span><select value={form.pnlReference} onChange={e=>set("pnlReference",e.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0a0e1a] px-2.5 py-2 text-[10px] text-white"><option value="live_market">Live public market</option></select></label>
       <label className="rounded-xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">Refresh interval (sec)</span><input type="number" min="1" max="60" value={form.pnlRefreshSeconds} onChange={e=>set("pnlRefreshSeconds",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/></label>
+    </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">WIN classification threshold (bps)</span><input type="number" min="0" max="100000" step="0.1" value={form.winThresholdBps} onChange={e=>set("winThresholdBps",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/><span className="mt-1 block text-[9px] text-slate-600">Realized sell P/L at or above this threshold is classified as WIN.</span></label>
+      <label className="rounded-2xl bg-[#050812] p-3"><span className="text-[10px] text-slate-500">LOSS classification threshold (bps)</span><input type="number" min="0" max="100000" step="0.1" value={form.lossThresholdBps} onChange={e=>set("lossThresholdBps",e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0a0e1a] px-3 py-2 text-xs text-white"/><span className="mt-1 block text-[9px] text-slate-600">Realized sell P/L at or below the negative threshold is classified as LOSS.</span></label>
     </div>
     <label className="flex items-center justify-between rounded-xl bg-[#050812] p-3 text-xs"><span><b className="block">Realize P/L on market sell</b><span className="text-[9px] text-slate-500">Realized result is based on actual execution price.</span></span><input type="checkbox" checked={form.realizedPnlOnSell} onChange={e=>set("realizedPnlOnSell",e.target.checked)}/></label>
    </section>
