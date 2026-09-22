@@ -54,6 +54,22 @@ export default function SpotPositionPage(){
   return orders.find(o=>String(o?.symbol||"").toUpperCase()===pair&&String(o?.side||"").toLowerCase()==="buy")||null;
  },[position,orders,pair]);
 
+ const positionClosedOrder=useMemo(()=>{
+  if(!position)return null;
+  const opened=Number(new Date(position?.filledAt||position?.filled_at||position?.createdAt||position?.created_at||0).getTime()||0);
+  const targetQty=Number(position?.quantity||0);
+  return orders
+    .filter(o=>{
+      const samePair=String(o?.symbol||"").toUpperCase()===pair;
+      const sell=String(o?.side||"").toLowerCase()==="sell";
+      const status=["filled","completed","settled"].includes(String(o?.status||"").toLowerCase());
+      const created=Number(new Date(o?.filled_at||o?.filledAt||o?.created_at||o?.createdAt||0).getTime()||0);
+      const soldQty=Number(o?.quantity||0);
+      return samePair&&sell&&status&&created>=opened&&(!targetQty||soldQty<=targetQty+1e-12);
+    })
+    .sort((a,b)=>Number(b?.id||0)-Number(a?.id||0))[0]||null;
+ },[position,orders,pair]);
+
  const entry=Number(latest?.executionPrice??latest?.execution_price??0);
  const amount=Number(latest?.quantity||0);
  const openedAt=latest?.filledAt||latest?.filled_at||latest?.createdAt||latest?.created_at||null;
@@ -71,11 +87,26 @@ export default function SpotPositionPage(){
  const outcome=String(latest?.outcome||"").toLowerCase();
 
  useEffect(()=>{
-  if(!position||side!=="sell")return;
-  sessionStorage.setItem(RECEIPT,JSON.stringify(position));
+  if(!position||!positionClosedOrder)return;
+  const receipt={
+    ...positionClosedOrder,
+    orderId:positionClosedOrder?.id||positionClosedOrder?.orderId,
+    symbol:positionClosedOrder?.symbol||position?.symbol,
+    side:positionClosedOrder?.side||"sell",
+    quantity:positionClosedOrder?.quantity,
+    executionPrice:positionClosedOrder?.execution_price??positionClosedOrder?.executionPrice,
+    quoteAmount:positionClosedOrder?.quote_amount??positionClosedOrder?.quoteAmount,
+    feeAmount:positionClosedOrder?.fee_amount??positionClosedOrder?.feeAmount,
+    status:positionClosedOrder?.status||"filled",
+    outcome:positionClosedOrder?.outcome||null,
+    realizedPnl:positionClosedOrder?.realized_pnl??positionClosedOrder?.realizedPnl??null,
+    realizedPnlPct:positionClosedOrder?.realized_pnl_pct??positionClosedOrder?.realizedPnlPct??null,
+    filledAt:positionClosedOrder?.filled_at||positionClosedOrder?.filledAt||positionClosedOrder?.updated_at||positionClosedOrder?.created_at
+  };
+  sessionStorage.setItem(RECEIPT,JSON.stringify(receipt));
   sessionStorage.removeItem(ACTIVE);
   navigate("/trade/spot/long-term/result",{replace:true});
- },[position,side,navigate]);
+ },[position,positionClosedOrder,navigate]);
 
  if(!latest){
   return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#030712] p-5 text-xs text-slate-400">Preparing live Spot / Long-Term position…</div>;
@@ -97,10 +128,10 @@ export default function SpotPositionPage(){
    </div>
   </header>
 
-  <main className="w-full p-3 sm:p-5 lg:p-7">
-   <section className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(360px,.55fr)]">
+  <main className="flex min-h-[calc(100vh-86px)] w-full flex-col p-3 sm:p-5 lg:p-7">
+   <section className="grid flex-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(360px,.55fr)]">
     <div className="min-w-0 space-y-4">
-     <section className="rounded-[32px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,.15),transparent_58%),#0a0e1a] p-4 shadow-[0_28px_100px_rgba(0,0,0,.42)] sm:p-7">
+     <section className="min-h-[calc(100vh-120px)] rounded-[32px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,rgba(34,211,238,.15),transparent_58%),#0a0e1a] p-4 shadow-[0_28px_100px_rgba(0,0,0,.42)] sm:p-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
        <div><div className="text-[9px] font-bold uppercase tracking-[.3em] text-cyan-300">FULL-SCREEN LIVE POSITION</div><div className="mt-1 text-sm font-bold text-white">{pair} · {side.toUpperCase()} · {status.toUpperCase()}</div></div>
        <div className="flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/5 px-3 py-1.5 text-[9px] font-bold text-emerald-300"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"/>POSITION LIVE</div>
