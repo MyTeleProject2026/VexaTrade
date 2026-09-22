@@ -83,7 +83,10 @@ export default function UserSidebar({ onNavigate, onClose, showClose = false }) 
   function goTo(path) { navigate(path); onNavigate?.(); }
   function handleLogout() {
     localStorage.removeItem("userToken"); localStorage.removeItem("token"); localStorage.removeItem("accessToken"); localStorage.removeItem("userRefreshToken"); localStorage.removeItem("user"); localStorage.removeItem("userData"); localStorage.removeItem("role");
-    sessionStorage.removeItem("cryptopulse_passcode_verified"); navigate("/login"); onNavigate?.();
+    sessionStorage.removeItem("VexaTrade_passcode_verified");
+    sessionStorage.removeItem("vexa_trade_platform_unlocked");
+    navigate("/login", { replace: true });
+    onNavigate?.();
   }
 
   return (
