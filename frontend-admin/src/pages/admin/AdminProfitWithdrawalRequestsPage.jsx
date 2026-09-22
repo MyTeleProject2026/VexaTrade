@@ -212,7 +212,6 @@ export default function AdminProfitWithdrawalRequestsPage() {
                 ))}
               </div>
             )}
-}
           </>
         )}
       </div>
