@@ -757,7 +757,14 @@ export default function TradePage({ embedded = false } = {}) {
       setRunningTrade(placedTrade);
       setShowRunningTrade(true);
       setSettlementPending(false);
+      try {
+        sessionStorage.setItem("vexa_short_term_active_position", JSON.stringify(placedTrade));
+        sessionStorage.removeItem("vexa_short_term_receipt");
+      } catch (_) {}
       if (!embedded) setActiveSection("orders");
+      // A submitted timed trade must enter the dedicated live-position screen.
+      // The receipt is shown only after the authoritative expiry/settlement flow.
+      navigate("/trade/short-term/position", { replace: true });
       setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
       setWallet(prev => ({ ...prev, balance: Math.max(0, Number(prev.balance || 0) - Number(placedTrade.amount || 0)) }));
       void refreshWalletBalance(false);
