@@ -5,7 +5,7 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminControlCenterPage from "./pages/admin/AdminControlCenterPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminUserDetailsControlPage from "./pages/admin/AdminUserDetailsControlPage";
-import AdminAccountVerificationPage from "./pages/admin/AdminAccountVerificationPage";
+import AdminAccountVerificationPage from "./pages/admin/AdminAccountVerificationPage";import AdminAccountVerificationSubmissionReviewPage from "./pages/admin/AdminAccountVerificationSubmissionReviewPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
@@ -46,7 +46,7 @@ export default function App() {
       <Route path="control-center" element={<AdminControlCenterPage />} />
       <Route path="users" element={<AdminUsersPage />} />
       <Route path="users/:id" element={<AdminUserDetailsControlPage />} />
-      <Route path="account-verification" element={<AdminAccountVerificationPage />} />
+      <Route path="account-verification" element={<AdminAccountVerificationPage />} /><Route path="account-verification/submissions" element={<AdminAccountVerificationSubmissionReviewPage />} />
       <Route path="account-verification/stage/:stepNumber" element={<AdminAccountVerificationPage />} />
       <Route path="account-verification/user/:userId/stage/:stepNumber" element={<AdminAccountVerificationPage />} />
       <Route path="kyc" element={<AdminKycPage />} />
