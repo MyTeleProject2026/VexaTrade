@@ -10,6 +10,7 @@ const PAGE_META = {
   "/admin/dashboard": ["Operations Dashboard", "Platform health, activity and financial operations."],
   "/admin/users": ["User Management", "Account lifecycle, wallet access and user administration."],
   "/admin/account-verification": ["Account Verification Control", "Configure and review staged external-wallet ownership verification."],
+  "/admin/account-verification/submissions": ["Submission Review", "Review user-submitted external-wallet verification stages 1 through 3."],
   "/admin/kyc": ["KYC & Identity", "Identity review, verification decisions and compliance."],
   "/admin/joint-account-requests": ["Joint Account Requests", "Review and decide joint account applications."],
   "/admin/joint-accounts": ["Joint Accounts", "Manage active linked account relationships."],
