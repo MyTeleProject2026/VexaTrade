@@ -20,7 +20,7 @@ const SECTION_TAGS = [
   ["/admin/spots/long-term-trading", "Spot / Long-Term Trading Control"],
   ["/admin/spot-settlement-rules", "Spot / Long-Term Settlement Rules"],
   ["/admin/spots/long-term-trade-rules", "Spot / Long-Term Trade Rules"],
-  ["/admin/joint-account-requests", "Account Requests"],
+  ["/admin/account-verification/submissions", "Submission Review"],\n  ["/admin/joint-account-requests", "Account Requests"],
   ["/admin/joint-accounts", "Joint Accounts"],
   ["/admin/loans", "Loan Control"],
   ["/admin/loan-settings", "Loan Settings"],
