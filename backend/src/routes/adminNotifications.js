@@ -127,7 +127,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
 // ──────────────────────────────────────────────────────────────
 // GET: System notifications for admin dashboard
 // ──────────────────────────────────────────────────────────────
-router.get('/admin/notifications', authAdmin, async (req, res, next) => {
+router.get('/notifications', authAdmin, async (req, res, next) => {
   try {
     const notifications = [];
 
@@ -219,7 +219,7 @@ router.get('/admin/notifications', authAdmin, async (req, res, next) => {
 // ──────────────────────────────────────────────────────────────
 // PUT: Mark system notification as read
 // ──────────────────────────────────────────────────────────────
-router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
+router.put('/notifications/:id/read', authAdmin, async (req, res, next) => {
   // System notifications are dynamic (read state is not stored)
   // Just return success
   try {
