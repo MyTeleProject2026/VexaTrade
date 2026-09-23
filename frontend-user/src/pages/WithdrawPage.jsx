@@ -67,6 +67,7 @@ export default function WithdrawPage() {
   const [success, setSuccess] = useState("");
   const [hasTarget, setHasTarget] = useState(false);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
+  const [profitAvailability, setProfitAvailability] = useState({ currentProfit: 0, pendingProfit: 0, walletAvailable: 0, availableProfit: 0 });
   const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
   const [profitWithdrawalAmount, setProfitWithdrawalAmount] = useState(0);
   const [targetChecking, setTargetChecking] = useState(true);
@@ -105,8 +106,9 @@ export default function WithdrawPage() {
   }
 
   function openProfitWithdrawal() {
-    if (targetProgress.currentProfit <= 0) { showError("You don't have any profits to withdraw yet."); return; }
-    setProfitWithdrawalAmount(targetProgress.currentProfit);
+    const availableProfit = Number(profitAvailability.availableProfit || 0);
+    if (availableProfit <= 0) { showError("You don't have any withdrawable profit available right now."); return; }
+    setProfitWithdrawalAmount(availableProfit);
     setShowProfitWithdrawalModal(true);
   }
 
@@ -136,9 +138,24 @@ export default function WithdrawPage() {
     finally { setLoading(false); setRefreshing(false); }
   }
 
+  async function loadProfitAvailability() {
+    try {
+      const res = await userApi.getProfitWithdrawalAvailability(token);
+      if (res.data?.success && res.data?.data) {
+        const data = res.data.data;
+        setProfitAvailability({
+          currentProfit: Number(data.currentProfit || 0),
+          pendingProfit: Number(data.pendingProfit || 0),
+          walletAvailable: Number(data.walletAvailable || 0),
+          availableProfit: Number(data.availableProfit || 0),
+        });
+      }
+    } catch (err) { console.error("Failed to refresh profit availability:", err); }
+  }
+
   async function loadAll(silent = false) {
     setError("");
-    await Promise.all([loadProfile(), loadHistory(silent), checkUserTarget()]);
+    await Promise.all([loadProfile(), loadHistory(silent), checkUserTarget(), loadProfitAvailability()]);
   }
 
   useEffect(() => {
@@ -216,7 +233,7 @@ export default function WithdrawPage() {
     <div className="space-y-6 bg-[#050812] px-4 pb-28 pt-4 sm:px-6 xl:pb-8">
       <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.10),transparent_18%),linear-gradient(180deg,#0a0a0a_0%,#050505_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-[0.32em] text-cyan-400">Withdraw</div><h1 className="mt-2 text-3xl font-bold text-white">Withdraw Funds</h1><p className="mt-2 text-sm text-slate-400">Transfer funds securely to your external wallet.</p></div><button type="button" onClick={handleManualRefresh} disabled={refreshing} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white transition hover:bg-white/[0.06] disabled:opacity-60"><RefreshCw size={18} className={refreshing ? "animate-spin" : ""} /></button></div></section>
       {renderKycCard()}
-      {hasTarget && targetProgress.targetAmount > 0 && !targetChecking && <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Target size={16} className="text-cyan-400" /><span className="text-sm text-slate-300">Your Target Goal:</span><span className="text-sm font-semibold text-white">{targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT</span></div><div className="flex items-center gap-2"><div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} /></div><span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span></div></div>{isTargetAchieved ? <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center"><span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span></div> : <div className="mt-2 text-xs text-slate-400">{targetProgress.currentProfit > 0 ? <span>You have {targetProgress.currentProfit.toFixed(2)} USDT in profits. <button onClick={openProfitWithdrawal} className="ml-1 text-cyan-400 hover:text-cyan-300">Withdraw profits now →</button></span> : <span>Start trading or funding to earn profits and withdraw them before reaching your target!</span>}</div>}</div>}
+      {hasTarget && targetProgress.targetAmount > 0 && !targetChecking && <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3"><div className="flex items-center justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><Target size={16} className="text-cyan-400" /><span className="text-sm text-slate-300">Your Target Goal:</span><span className="text-sm font-semibold text-white">{targetProgress.currentProfit.toFixed(2)} / {targetProgress.targetAmount.toFixed(2)} USDT</span></div><div className="flex items-center gap-2"><div className="h-2 w-32 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: `${Math.min(100, targetProgressPercent)}%` }} /></div><span className="text-xs text-cyan-300">{targetProgressPercent.toFixed(1)}%</span></div></div>{isTargetAchieved ? <div className="mt-2 rounded-lg bg-emerald-500/20 p-2 text-center"><span className="text-sm text-emerald-300">🎉 Target Achieved! You can now withdraw your full balance (principal + profits).</span></div> : <div className="mt-2 text-xs text-slate-400">{Number(profitAvailability.availableProfit || 0) > 0 ? <span>You have {Number(profitAvailability.availableProfit || 0).toFixed(2)} USDT of withdrawable profit. <button onClick={openProfitWithdrawal} className="ml-1 text-cyan-400 hover:text-cyan-300">Withdraw profits now →</button></span> : <span>Profit is not currently withdrawable. Pending reservations and the authoritative USDT wallet balance are checked before payout.</span>}</div>}</div>}
       <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => setTab("request")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "request" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>Request</button><button type="button" onClick={() => setTab("history")} className={`rounded-2xl py-3 text-sm font-semibold transition ${tab === "history" ? "bg-cyan-500 text-black" : "border border-white/10 bg-[#0a0e1a] text-slate-300"}`}>History</button></div>
       {tab === "request" ? <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
         <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><ArrowUpToLine size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Withdrawal Request</h2></div></div>
@@ -233,7 +250,7 @@ export default function WithdrawPage() {
         </GlassCard>
         <GlassCard><div className="border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><Wallet size={18} className="text-cyan-400" /><h2 className="text-xl font-semibold text-white">Withdrawal Summary</h2></div></div>
           <div className="space-y-4 p-5"><div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Available Balance</div><div className="mt-2 text-3xl font-bold text-white">{formatAmount(walletBalance)} USDT</div></div>
-            {hasTarget && <div className="rounded-[24px] border border-cyan-500/20 bg-cyan-500/10 p-4"><div className="flex items-center justify-between"><div className="text-sm text-cyan-300">Profit Balance (Before Target)</div><DollarSign size={16} className="text-cyan-300" /></div><div className="mt-2 text-2xl font-bold text-cyan-300">{formatAmount(targetProgress.currentProfit)} USDT</div><div className="mt-2 text-xs text-slate-400">Withdraw from profits without affecting your main balance</div><button type="button" onClick={openProfitWithdrawal} disabled={targetProgress.currentProfit <= 0} className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed">Withdraw Profits</button></div>}
+            {hasTarget && <div className="rounded-[24px] border border-cyan-500/20 bg-cyan-500/10 p-4"><div className="flex items-center justify-between"><div className="text-sm text-cyan-300">Withdrawable Profit</div><DollarSign size={16} className="text-cyan-300" /></div><div className="mt-2 text-2xl font-bold text-cyan-300">{formatAmount(profitAvailability.availableProfit)} USDT</div><div className="mt-2 text-xs text-slate-400">Authoritative payout amount after wallet availability and existing reservations.</div><button type="button" onClick={openProfitWithdrawal} disabled={profitAvailability.availableProfit <= 0} className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/20 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed">Withdraw Profits</button></div>}
             <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Selected Coin</div><div className="mt-2 text-xl font-semibold text-white">{form.coin}</div></div>
             <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="text-sm text-slate-500">Selected Network</div><div className="mt-2 text-xl font-semibold text-white">{form.network}</div></div>
             <div className="rounded-[24px] border border-white/10 bg-[#050812] p-4"><div className="flex items-start gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-300"><Lock size={18} /></div><div><div className="text-sm font-semibold text-white">Security Reminder</div><div className="mt-2 text-sm leading-6 text-slate-400">Double-check your wallet address and network before submitting. Withdrawals cannot be reversed after processing.</div></div></div></div>
