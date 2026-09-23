@@ -601,7 +601,7 @@ router.post('/admin/profit-withdrawal-requests/:id/reject', authAdmin, async (re
     await db.execute(
       `UPDATE profit_withdrawal_requests
        SET status='rejected',admin_note=?,rejected_at=NOW(),updated_at=NOW()
-       WHERE id=? AND status='pending'`,
+       WHERE id=? AND status IN ('pending','approved')`,
       [note, requestId]
     );
 
