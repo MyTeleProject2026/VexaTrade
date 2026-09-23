@@ -56,8 +56,30 @@ router.get('/admin/users/:id', authAdmin, async (req, res, next) => {
       success: true,
       data: {
         ...user,
-        balance: toNumber(usdt ? usdt.balance : user.balance),
-        available_balance: toNumber(usdt ? usdt.available_balance : user.balance),
+        balance: toNumber(
+          usdt
+            ? (
+              Number(usdt.available_balance || 0) === 0 &&
+              Number(usdt.balance || 0) > 0 &&
+              Number(usdt.reserved_balance || 0) === 0 &&
+              Number(usdt.pending_balance || 0) === 0
+                ? usdt.balance
+                : usdt.balance
+            )
+            : user.balance
+        ),
+        available_balance: toNumber(
+          usdt
+            ? (
+              Number(usdt.available_balance || 0) === 0 &&
+              Number(usdt.balance || 0) > 0 &&
+              Number(usdt.reserved_balance || 0) === 0 &&
+              Number(usdt.pending_balance || 0) === 0
+                ? usdt.balance
+                : usdt.available_balance
+            )
+            : user.balance
+        ),
         reserved_balance: toNumber(usdt?.reserved_balance),
         pending_balance: toNumber(usdt?.pending_balance),
         assets: assets.map(asset => ({
@@ -150,7 +172,15 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [tradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades');
     const [todayTradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at)=CURDATE()');
     const [balanceRow] = await pool.execute(`
-      SELECT COALESCE(SUM(CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.available_balance,0) END),0) AS total
+      SELECT COALESCE(SUM(CASE
+        WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0)
+        WHEN COALESCE(ua.available_balance,0)=0
+             AND COALESCE(ua.balance,0)>0
+             AND COALESCE(ua.reserved_balance,0)=0
+             AND COALESCE(ua.pending_balance,0)=0
+          THEN ua.balance
+        ELSE COALESCE(ua.available_balance,0)
+      END),0) AS total
       FROM users u
       LEFT JOIN user_assets ua ON ua.user_id=u.id AND ua.coin='USDT'
     `);
