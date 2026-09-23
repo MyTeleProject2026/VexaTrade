@@ -154,6 +154,13 @@ async function ensureFinancialSchema() {
     `);
     await addColumn(connection, 'security_events', 'metadata', 'JSON NULL');
 
+    // Deposit review/settlement uses these fields across the worker, admin review
+    // route and user history endpoint. Older Render/TiDB databases may have the
+    // original deposits table without the newer review columns, so reconcile them
+    // here before any approval request can touch the table.
+    await addColumn(connection, 'deposits', 'approved_at', 'DATETIME NULL');
+    await addColumn(connection, 'deposits', 'admin_note', 'TEXT NULL');
+    await addColumn(connection, 'deposits', 'updated_at', 'DATETIME NULL');
     await addColumn(connection, 'deposits', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'deposits', 'request_hash', 'CHAR(64) NULL');
     await ensureUniqueIndex(connection, 'deposits', 'uq_deposits_user_idempotency', ['user_id', 'idempotency_key']);
