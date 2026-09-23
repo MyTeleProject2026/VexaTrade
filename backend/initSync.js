@@ -1,5 +1,5 @@
 // backend/initSync.js
-const { processPendingDeposits } = require("./depositVerificationService");
+const { processPendingDeposits, syncVerificationSettingsFromWallets } = require("./depositVerificationService");
 const { settleDailyFunds } = require("./services/fundSettlementService");
 const { settleExpiredTrades } = require("./services/tradeSettlementService");
 
