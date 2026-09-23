@@ -220,8 +220,11 @@ export default function AdminUsersPage() {
                    </td>
 
                   <td className="px-4 py-3 align-top sm:px-5">
-                    <div className="font-semibold text-white">
-                      {formatMoney(user.balance)} USDT
+                    <div className="font-semibold text-emerald-300">
+                      {formatMoney(user.available_balance)} USDT
+                    </div>
+                    <div className="mt-1 text-[10px] text-slate-500">
+                      Available · Total {formatMoney(user.balance)} · Pending {formatMoney(user.pending_balance)}
                     </div>
                    </td>
 
