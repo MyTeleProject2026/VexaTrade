@@ -220,26 +220,38 @@ router.get('/notifications', authAdmin, async (req, res, next) => {
 // PUT: Mark system notification as read
 // ──────────────────────────────────────────────────────────────
 router.put('/notifications/:id/read', authAdmin, async (req, res, next) => {
-  // System notifications are dynamic (read state is not stored)
-  // Just return success
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '').trim();
 
-    const [result] = await pool.query(
-      'UPDATE user_notifications SET is_read = 1 WHERE id = ?',
-      [id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
+    // Dashboard/system notifications are generated from live counts and use
+    // synthetic IDs such as "deposits-pending-123". They do not exist in
+    // user_notifications, so never send those IDs to an integer DB column.
+    if (!/^\\d+$/.test(id)) {
+      return res.json({
+        success: true,
+        message: 'System notification acknowledged',
+        data: { id, persistent: false }
       });
     }
 
-    res.json({
+    const notificationId = Number(id);
+    if (!Number.isSafeInteger(notificationId) || notificationId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+    }
+
+    const [result] = await pool.execute(
+      'UPDATE user_notifications SET is_read = 1 WHERE id = ?',
+      [notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+
+    return res.json({
       success: true,
-      message: 'Notification marked as read'
+      message: 'Notification marked as read',
+      data: { id: notificationId, persistent: true }
     });
   } catch (error) {
     next(error);
