@@ -7,7 +7,7 @@ const { transactionSecurity } = require('../middleware/transactionSecurity');
 const { createError, createTransactionLog, createUserNotification, createAuditLog } = require('../utils/helpers');
 const {
   ensureLegacyUsdtAvailable,
-  getUserUsdtAvailable,
+  getUserUsdtSnapshot,
   reserveAssetBalance,
   releaseReservedAsset,
   consumeReservedAsset,
@@ -95,23 +95,26 @@ async function availableProfit(connection, userId, excludeRequestId = null) {
     [userId, excludeRequestId, excludeRequestId]
   );
 
-  const availableWallet = await getUserUsdtAvailable(connection, userId);
+  const wallet = await getUserUsdtSnapshot(connection, userId);
   const currentProfit = Number(target?.current_profit || 0);
   const committedAmount = Number(committed?.committed_amount || 0);
 
-  // user_targets.current_profit is the canonical profit entitlement fed by
-  // every real profit-producing settlement (short-term trades and fund profits).
-  // Pending/approved requests are excluded because their USDT is already
-  // reserved. Final settlement atomically reduces current_profit, so historical
-  // settled requests must not be subtracted a second time.
+  // current_profit is the target/profit entitlement produced by actual trade/fund
+  // settlement. Pending/approved requests are already reserved in the asset
+  // ledger, so subtract them once from the entitlement. The final amount is also
+  // capped by the same locked USDT available bucket so the UI can never offer
+  // more spendable profit than the wallet can actually settle.
   const targetAvailable = Math.max(0, currentProfit - committedAmount);
-  const available = Math.min(targetAvailable, Math.max(0, Number(availableWallet)));
+  const available = Math.min(targetAvailable, Math.max(0, wallet.available));
 
   return {
     target: target || null,
     currentProfit,
     pendingProfit: committedAmount,
-    walletAvailable: Number(availableWallet.toFixed(18)),
+    walletAvailable: Number(wallet.available.toFixed(18)),
+    walletReserved: Number(wallet.reserved.toFixed(18)),
+    walletPending: Number(wallet.pending.toFixed(18)),
+    walletTotal: Number(wallet.balance.toFixed(18)),
     earnedWalletProfit: Number(currentProfit.toFixed(18)),
     withdrawnProfit: 0,
     available: Number(available.toFixed(18)),
@@ -574,7 +577,7 @@ router.post('/admin/profit-withdrawal-requests/:id/reject', authAdmin, async (re
     );
 
     if (!request) throw createError(404, 'Profit withdrawal request not found');
-    if (request.status !== 'pending') {
+    if (!['pending','approved'].includes(String(request.status))) {
       throw createError(409, `Request is already ${request.status}`);
     }
 
@@ -582,6 +585,9 @@ router.post('/admin/profit-withdrawal-requests/:id/reject', authAdmin, async (re
       req.body?.note || req.body?.admin_note || ''
     ).trim().slice(0, 2000) || null;
 
+    // Pending and approved requests both hold a real USDT reservation.
+    // Rejection must release that reservation exactly once before marking the
+    // request rejected; settled requests can never be rolled back here.
     await releaseReservedAsset(db, {
       userId: request.user_id,
       coin: 'USDT',
