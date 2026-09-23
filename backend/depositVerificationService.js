@@ -81,12 +81,14 @@ async function verifyDepositManually(deposit) {
   const amount=Number(deposit?.amount);
   const proof=deposit?.proof;
   const txid=String(deposit?.txid || '').trim();
-  const depositAddress=String(deposit?.address || '').trim();
 
   if (!proof || ['null','undefined'].includes(String(proof).toLowerCase())) return {success:false,reason:'Transaction receipt not uploaded. Please upload a valid receipt image.'};
-  if (!depositAddress || ['null','undefined'].includes(depositAddress.toLowerCase())) return {success:false,reason:'Deposit address not found. Please use a valid deposit address.'};
   if (network !== 'INTERNAL' && !txid) return {success:false,reason:'Transaction hash/reference is required for external-network deposits.'};
 
+  // The deposit destination is optional in older records. When it is missing,
+  // resolve the authoritative destination from the active platform wallet
+  // for the exact coin/network. This keeps legacy deposits reviewable without
+  // inventing a user-supplied address.
   const [walletRows]=await pool.execute(
     `SELECT address FROM deposit_wallets
      WHERE UPPER(coin)=? AND UPPER(network)=? AND status='active'
@@ -95,7 +97,13 @@ async function verifyDepositManually(deposit) {
   );
   const configuredAddress=String(walletRows[0]?.address || '').trim();
   if (!configuredAddress) return {success:false,reason:'Active deposit wallet is not configured for '+coin+'/'+network+'.'};
-  if (configuredAddress.toLowerCase() !== depositAddress.toLowerCase()) return {success:false,reason:'Deposit address does not match the active platform wallet for this coin/network.'};
+
+  const rawDepositAddress=String(deposit?.address || '').trim();
+  const addressWasOmitted=!rawDepositAddress || ['null','undefined'].includes(rawDepositAddress.toLowerCase());
+  const depositAddress=addressWasOmitted ? configuredAddress : rawDepositAddress;
+  if (!addressWasOmitted && configuredAddress.toLowerCase() !== depositAddress.toLowerCase()) {
+    return {success:false,reason:'Deposit address does not match the active platform wallet for this coin/network.'};
+  }
 
   if (!Number.isFinite(amount) || amount<=0) return {success:false,reason:'Invalid amount submitted. Please enter a valid amount.'};
 
