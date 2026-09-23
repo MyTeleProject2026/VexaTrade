@@ -5,9 +5,13 @@ const normalizeCoin = value => String(value || '').trim().toUpperCase();
 const normalizeNetwork = value => String(value || '').trim().toUpperCase() || 'INTERNAL';
 
 async function ensureAssetRow(connection, userId, coin) {
-  const [rows] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[userId,coin]);
+  const normalizedUserId = Number(userId);
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) throw createError(400, 'Invalid user id for asset ledger');
+  const [users] = await connection.execute('SELECT id FROM users WHERE id=? LIMIT 1 FOR UPDATE',[normalizedUserId]);
+  if (!users.length) throw createError(409, `Cannot modify asset ledger: user ${normalizedUserId} does not exist`);
+  const [rows] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[normalizedUserId,coin]);
   if (rows.length) return rows[0];
-  await connection.execute('INSERT INTO user_assets (user_id, coin, balance, avg_price, available_balance, reserved_balance, pending_balance) VALUES (?, ?, 0, 0, 0, 0, 0)',[userId,coin]);
+  await connection.execute('INSERT INTO user_assets (user_id, coin, balance, avg_price, available_balance, reserved_balance, pending_balance) VALUES (?, ?, 0, 0, 0, 0, 0)',[normalizedUserId,coin]);
   const [created] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[userId,coin]);
   return created[0];
 }
