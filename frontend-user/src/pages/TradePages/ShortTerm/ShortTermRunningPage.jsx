@@ -1,5 +1,6 @@
 import { useEffect,useMemo,useState } from "react";
 import { Activity,Clock3,RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { tradeApi } from "../../../services/api";
 import TradeSectionLayout from "../TradeSectionLayout";
 
@@ -25,6 +26,7 @@ function formatPrice(value){
 }
 
 export default function ShortTermRunningPage(){
+ const navigate=useNavigate();
  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[error,setError]=useState("");
  const [now,setNow]=useState(Date.now());
  const [prices,setPrices]=useState({});
@@ -117,7 +119,7 @@ export default function ShortTermRunningPage(){
      const left=remaining(r,now), total=Math.max(1,Number(r.timer_seconds||r.timer||0)), progress=Math.max(0,Math.min(100,(left/total)*100));
      const symbol=String(r.pair||"").toUpperCase(), price=Number(prices[symbol]||0), updated=marketUpdatedAt[symbol];
      const direction=String(r.direction||r.side||"").toLowerCase();
-     return <article key={r.id||i} className="rounded-2xl border border-white/5 bg-[#050812] p-3">
+     return <button key={r.id||i} type="button" onClick={()=>{try{sessionStorage.setItem("vexa_short_term_active_position",JSON.stringify({...r,id:r.id,pair:symbol,direction:r.direction||r.side,entryPrice:Number(r.entry_price||r.entryPrice||0),payoutPercent:Number(r.payout_percent||r.payoutPercent||0),endTime:endTimeOf(r),timer:Number(r.timer_seconds||r.timer||60)}));sessionStorage.removeItem("vexa_short_term_receipt");}catch(_){}navigate("/trade/short-term/position",{replace:true});}} className="block w-full rounded-2xl border border-white/5 bg-[#050812] p-3 text-left transition hover:border-cyan-400/20 hover:bg-[#0a0e1a]">
       <div className="flex items-start justify-between gap-3">
        <div className="min-w-0"><div className="text-sm font-bold text-white">{symbol||"—"}</div><div className={`mt-1 text-[9px] font-semibold ${direction==="bullish"||direction==="buy"?"text-emerald-300":"text-red-300"}`}>{direction==="bullish"||direction==="buy"?"BUY":"SELL"} · {r.status||"OPEN"}</div></div>
        <div className="text-right"><div className="text-[8px] uppercase tracking-wider text-slate-600">Time left</div><div className={`text-2xl font-bold tabular-nums ${left<=10?"text-amber-300":"text-cyan-300"}`}>{endTimeOf(r)?formatCountdown(left):"—"}</div></div>
