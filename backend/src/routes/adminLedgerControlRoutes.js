@@ -269,7 +269,20 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     } });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
-    next(error);
+    // Deposit approval is an authenticated financial operation. Return the
+    // actual application error instead of allowing an unclassified exception
+    // to become a generic 500, so the admin UI can show the real reason.
+    if (error?.status) {
+      return res.status(Number(error.status) || 400).json({
+        success: false,
+        message: String(error.message || 'Deposit approval failed'),
+      });
+    }
+    console.error('[AdminDepositApprove] unexpected error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Deposit approval failed due to a server-side error',
+    });
   } finally { connection.release(); }
 });
 
