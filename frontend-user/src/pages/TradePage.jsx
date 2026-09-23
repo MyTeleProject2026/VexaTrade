@@ -755,14 +755,15 @@ export default function TradePage({ embedded = false } = {}) {
       setTradeReview(null);
       setAmount("");
       setRunningTrade(placedTrade);
-      setShowRunningTrade(true);
+      setShowRunningTrade(false);
       setSettlementPending(false);
       try {
         sessionStorage.setItem("vexa_short_term_active_position", JSON.stringify(placedTrade));
         sessionStorage.removeItem("vexa_short_term_receipt");
       } catch (_) {}
       if (!embedded) setActiveSection("orders");
-      // A submitted timed trade must enter the dedicated live-position screen.
+      // A submitted timed trade enters the dedicated full-screen live-position route.
+      // The legacy compact modal is intentionally not used.
       // The receipt is shown only after the authoritative expiry/settlement flow.
       navigate("/trade/short-term/position", { replace: true });
       setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
@@ -1047,14 +1048,20 @@ export default function TradePage({ embedded = false } = {}) {
                 <OpenTradeCard key={trade.id} trade={trade} onOpen={() => {
                   lastPlacedTradeIdRef.current = Number(trade.id);
                   setPair(String(trade.pair || pair).toUpperCase());
-                  setRunningTrade({
-                    ...trade,
-                    entryPrice: Number(trade.entry_price || 0),
-                    payoutPercent: Number(trade.payout_percent || 0),
-                    endTime: trade.end_time,
-                    timer: Number(trade.timer_seconds || trade.timer || 60),
-                  });
-                  setShowRunningTrade(true);
+                  try {
+                    sessionStorage.setItem("vexa_short_term_active_position", JSON.stringify({
+                      ...trade,
+                      id: trade.id,
+                      pair: trade.pair,
+                      direction: trade.direction,
+                      entryPrice: Number(trade.entry_price || trade.entryPrice || 0),
+                      payoutPercent: Number(trade.payout_percent || trade.payoutPercent || 0),
+                      endTime: trade.end_time || trade.endTime,
+                      timer: Number(trade.timer_seconds || trade.timer || 60),
+                    }));
+                    sessionStorage.removeItem("vexa_short_term_receipt");
+                  } catch (_) {}
+                  navigate("/trade/short-term/position", { replace: true });
                 }} />
               )) : (
                 <EmptyState icon={BarChart3} title="No open trades" body="Your active positions will appear here after a successful BUY or SELL." />
@@ -1095,14 +1102,7 @@ export default function TradePage({ embedded = false } = {}) {
         </div>
       </div>}
 
-      {runningTrade && showRunningTrade && (
-        <RunningTradeModal
-          trade={runningTrade}
-          remainingSeconds={remainingSeconds}
-          livePrice={livePrice}
-          onClose={() => setShowRunningTrade(false)}
-        />
-      )}
+
       {tradeReview && (
         <TradeReviewModal
           review={tradeReview}
