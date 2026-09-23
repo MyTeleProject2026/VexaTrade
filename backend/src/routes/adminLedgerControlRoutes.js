@@ -214,9 +214,40 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     const [rows] = await connection.execute('SELECT * FROM deposits WHERE id=? FOR UPDATE', [depositId]);
     if (!rows.length) throw createError(404, 'Deposit not found');
     const deposit = rows[0];
-    if (String(deposit.status).toLowerCase() !== 'pending') throw createError(409, `Deposit is already ${deposit.status}`);
+    const currentStatus = String(deposit.status || '').trim().toLowerCase();
+    if (currentStatus === 'approved') {
+      const [[wallet]] = await connection.execute(
+        `SELECT balance, available_balance, reserved_balance, pending_balance
+         FROM user_assets WHERE user_id=? AND coin=? LIMIT 1 FOR UPDATE`,
+        [deposit.user_id, String(deposit.coin || 'USDT').trim().toUpperCase()]
+      );
+      await connection.rollback();
+      return res.json({
+        success: true,
+        message: 'Deposit was already approved',
+        data: {
+          id: depositId,
+          status: 'approved',
+          amount: Number(deposit.amount || 0),
+          coin: String(deposit.coin || 'USDT').trim().toUpperCase(),
+          network: String(deposit.network || 'INTERNAL').trim().toUpperCase(),
+          wallet: {
+            balance: Number(wallet?.balance || 0),
+            available_balance: Number(wallet?.available_balance || 0),
+            reserved_balance: Number(wallet?.reserved_balance || 0),
+            pending_balance: Number(wallet?.pending_balance || 0)
+          },
+          replayed: true
+        }
+      });
+    }
+    if (currentStatus !== 'pending') throw createError(409, `Deposit is already ${currentStatus || 'processed'}`);
+
     const verification = await verifyDepositManually(deposit);
     if (!verification.success) throw createError(400, verification.reason);
+
+    // The authenticated admin approval is the final settlement authority.
+    // All ledger writes below occur in this same DB transaction.
     await approveDeposit(connection, deposit, verification, req.admin.id, adminNote);
     const amount = Number(verification.actualAmount ?? deposit.amount);
     const coin = String(verification.coin || deposit.coin || 'USDT').trim().toUpperCase();
