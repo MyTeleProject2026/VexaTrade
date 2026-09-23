@@ -18,6 +18,9 @@ async function runDepositVerification() {
 
   verificationRunning = true;
   try {
+    // Keep network verification policy automatically aligned with the active
+    // deposit-wallet configuration before validating pending deposits.
+    await syncVerificationSettingsFromWallets();
     await processPendingDeposits();
   } catch (err) {
     console.error("[Cron] Deposit verification failed:", err.message);
