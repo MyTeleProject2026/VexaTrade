@@ -132,7 +132,7 @@ export default function ShortTermRunningPage(){
        <div className="rounded-xl bg-[#0a0e1a] p-2"><div className="text-[8px] text-slate-600">Payout</div><div className="mt-0.5 text-xs font-semibold text-white">{Number(r.payout_percent||r.payoutPercent||0).toFixed(2)}%</div></div>
       </div>
       <div className="mt-2 flex items-center justify-between text-[8px] text-slate-600"><span>Expiry {endTimeOf(r)?new Date(endTimeOf(r)).toLocaleString():"—"}</span><span>{updated?"Market updated "+new Date(updated).toLocaleTimeString():"Waiting for live market"}</span></div>
-     </article>;
+     </button>;
     })}
    </div>
   </section>
