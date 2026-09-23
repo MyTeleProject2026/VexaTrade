@@ -48,9 +48,9 @@ async function syncVerificationSettingsFromWallets() {
   }
 }
 
-async function getNetworkSettings(network) {
+async function getNetworkSettings(network, connection = pool) {
   try {
-    const [rows] = await pool.execute(`SELECT * FROM network_verification_settings WHERE network=? AND is_active=1 LIMIT 1`, [String(network || '').trim().toUpperCase()]);
+    const [rows] = await connection.execute(`SELECT * FROM network_verification_settings WHERE network=? AND is_active=1 LIMIT 1`, [String(network || '').trim().toUpperCase()]);
     return rows[0] || null;
   } catch (_) { return null; }
 }
@@ -74,7 +74,7 @@ async function getAllNetworkSettings() {
   return rows;
 }
 
-async function verifyDepositManually(deposit) {
+async function verifyDepositManually(deposit, connection = pool) {
   const depositId=Number(deposit?.id);
   const coin=String(deposit?.coin || 'USDT').trim().toUpperCase();
   const network=String(deposit?.network || 'INTERNAL').trim().toUpperCase();
@@ -89,7 +89,7 @@ async function verifyDepositManually(deposit) {
   // resolve the authoritative destination from the active platform wallet
   // for the exact coin/network. This keeps legacy deposits reviewable without
   // inventing a user-supplied address.
-  const [walletRows]=await pool.execute(
+  const [walletRows]=await connection.execute(
     `SELECT address FROM deposit_wallets
      WHERE UPPER(coin)=? AND UPPER(network)=? AND status='active'
      ORDER BY id DESC LIMIT 1`,
@@ -109,7 +109,7 @@ async function verifyDepositManually(deposit) {
 
   // INTERNAL deposits are constrained by the active platform wallet above.
   // External networks additionally require an active network-verification policy.
-  const settings=network === 'INTERNAL' ? null : await getNetworkSettings(network);
+  const settings=network === 'INTERNAL' ? null : await getNetworkSettings(network, connection);
   if (network !== 'INTERNAL' && !settings) return {success:false,reason:'Network "' + network + '" verification settings not configured. Please contact support.'};
   const minimumDeposit=Number(settings?.minimum_deposit ?? DEFAULT_MIN_DEPOSIT);
   if (!Number.isFinite(minimumDeposit) || minimumDeposit < 0) return {success:false,reason:'Invalid minimum-deposit configuration for ' + network + '.'};
@@ -183,7 +183,7 @@ async function processPendingDeposits() {
         if (!Number.isFinite(elapsedHours) || elapsedHours>=24) {
           await rejectDeposit(connection,dep,'Timeout (24 hours)');
         } else {
-          const verification=await verifyDepositManually(dep);
+          const verification=await verifyDepositManually(dep, connection);
           if (!verification.success) {
             // Verification is a pre-check, not an automatic settlement decision.
             // Keep the request pending so the authenticated admin deposit-review
