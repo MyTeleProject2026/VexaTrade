@@ -90,6 +90,9 @@ export default function AdminAuditLogsPage() {
   useEffect(() => {
     if (!token) return;
 
+    const interval = setInterval(() => {
+      loadLogs(false, false);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [token]);
