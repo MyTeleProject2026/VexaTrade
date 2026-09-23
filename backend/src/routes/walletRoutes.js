@@ -5,7 +5,7 @@ const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
 const { getBinanceHomeMarkets } = require('../../services/tradeService');
-const { getUserUsdtAvailable } = require('../../services/assetLedgerService');
+const { getUserUsdtSnapshot } = require('../../services/assetLedgerService');
 
 let assetColumnsCache = null;
 let assetColumnsCacheAt = 0;
@@ -91,14 +91,11 @@ async function getWalletSummary(req) {
     // when a USDT asset row already exists.
     const connection = await pool.getConnection();
     try {
-      availableUsdt = await getUserUsdtAvailable(connection, req.user.id);
-      const [[asset]] = await connection.execute(
-        "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
-        [req.user.id]
-      );
-      reservedUsdt = Number(asset?.reserved_balance || 0);
-      pendingUsdt = Number(asset?.pending_balance || 0);
-      totalUsdt = Number(asset?.balance ?? (availableUsdt + reservedUsdt + pendingUsdt));
+      const snapshot = await getUserUsdtSnapshot(connection, req.user.id);
+      availableUsdt = snapshot.available;
+      reservedUsdt = snapshot.reserved;
+      pendingUsdt = snapshot.pending;
+      totalUsdt = snapshot.balance;
     } finally {
       connection.release();
     }
