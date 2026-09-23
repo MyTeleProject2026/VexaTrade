@@ -51,6 +51,39 @@ async function getUserUsdtAvailable(connection, userId) {
   // USDT row cannot make the wallet appear to have zero funds.
   return ensureLegacyUsdtAvailable(connection, userId);
 }
+
+async function getUserUsdtSnapshot(connection, userId) {
+  // Every wallet/profit screen must read the same authoritative bucket state.
+  // Reconcile legacy rows first, then return all USDT buckets from one locked row.
+  await ensureLegacyUsdtAvailable(connection, userId);
+  const [[row]] = await connection.execute(
+    `SELECT balance, available_balance, reserved_balance, pending_balance
+     FROM user_assets
+     WHERE user_id=? AND coin='USDT'
+     LIMIT 1
+     FOR UPDATE`,
+    [userId]
+  );
+  if (!row) {
+    return { balance: 0, available: 0, reserved: 0, pending: 0 };
+  }
+  const available = Number(row.available_balance || 0);
+  const reserved = Number(row.reserved_balance || 0);
+  const pending = Number(row.pending_balance || 0);
+  const derivedTotal = available + reserved + pending;
+  const storedTotal = Number(row.balance || 0);
+  // balance is a derived compatibility field. Repair it when an old row drifted
+  // from its authoritative bucket totals, without inventing or changing funds.
+  if (Math.abs(storedTotal - derivedTotal) > 1e-12) {
+    await connection.execute(
+      `UPDATE user_assets
+       SET balance=available_balance+reserved_balance+pending_balance
+       WHERE user_id=? AND coin='USDT'`,
+      [userId]
+    );
+  }
+  return { balance: derivedTotal, available, reserved, pending };
+}
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
 async function recordLedger(connection,{userId,coin,network,bucket,entryType,amount,referenceType,referenceId,note}){
   const normalizedCoin=normalizeCoin(coin), normalizedNetwork=normalizeNetwork(network), value=Number(amount);
@@ -93,4 +126,4 @@ async function consumePendingAsset(connection,{userId,coin,network,amount,refere
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid pending asset settlement');
   await ensureAssetRow(connection,userId,coin);const [u]=await connection.execute('UPDATE user_assets SET pending_balance=pending_balance-? WHERE user_id=? AND coin=? AND pending_balance>=?',[amount,userId,coin,amount]);if(u.affectedRows!==1)throw createError(409,'Unable to settle pending asset balance');await syncTotal(connection,userId,coin);await recordLedger(connection,{userId,coin,network,bucket:'pending',entryType:'asset_consumed',amount,referenceType,referenceId,note});
 }
-module.exports={ensureAssetRow,ensureLegacyUsdtAvailable,getUserUsdtAvailable,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
+module.exports={ensureAssetRow,ensureLegacyUsdtAvailable,getUserUsdtAvailable,getUserUsdtSnapshot,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
