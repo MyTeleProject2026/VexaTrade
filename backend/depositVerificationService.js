@@ -39,6 +39,8 @@ async function syncVerificationSettingsFromWallets() {
     const activeNetworks = Object.keys(networkAddresses);
     if (activeNetworks.length) {
       await pool.execute(`UPDATE network_verification_settings SET is_active=0 WHERE network NOT IN (${activeNetworks.map(() => '?').join(',')})`, activeNetworks);
+    } else {
+      await pool.execute(`UPDATE network_verification_settings SET is_active=0`);
     }
     console.log('[Sync] Verification settings synchronized successfully.');
   } catch (error) {
@@ -126,10 +128,15 @@ async function rejectDeposit(connection, dep, reason) {
 
 async function markDepositPendingReview(connection, dep, reason) {
   const note=`Verification pending admin review: ${reason}`;
-  await connection.execute(
-    `UPDATE deposits SET admin_note=?, updated_at=NOW() WHERE id=? AND status='pending'`,
-    [note, dep.id]
-  );
+  const [[current]] = await connection.execute(`SELECT admin_note FROM deposits WHERE id=? AND status='pending' FOR UPDATE`, [dep.id]);
+  if (String(current?.admin_note || '') !== note) {
+    await connection.execute(
+      `UPDATE deposits SET admin_note=?, updated_at=NOW() WHERE id=? AND status='pending'`,
+      [note, dep.id]
+    );
+  } else {
+    return;
+  }
   await createAuditLog(connection,{
     adminId:0,
     action:'deposit_prevalidation_pending',
