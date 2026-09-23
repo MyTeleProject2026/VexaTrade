@@ -204,9 +204,14 @@ export default function AdminProfitWithdrawalRequestsPage() {
                         <span className="ml-2 text-cyan-300">{formatMoney(req.amount)} USDT</span>
                         <div className="text-xs text-slate-500">{req.name || req.email}</div>
                       </div>
-                      <button onClick={() => handleSettle(req.id)} disabled={actionId === req.id} className="rounded-xl bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50">
-                        {actionId === req.id ? "Processing..." : "Mark Payout Settled"}
-                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSettle(req.id)} disabled={actionId === req.id} className="rounded-xl bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50">
+                          {actionId === req.id ? "Processing..." : "Mark Payout Settled"}
+                        </button>
+                        <button onClick={() => handleReject(req.id)} disabled={actionId === req.id} className="rounded-xl bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50">
+                          {actionId === req.id ? "Processing..." : "Reject / Release"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
