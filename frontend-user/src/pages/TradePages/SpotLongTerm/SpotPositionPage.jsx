@@ -47,7 +47,21 @@ export default function SpotPositionPage(){
   }catch(e){setError(getApiErrorMessage(e))}
   finally{setSyncing(false)}
  };
- useEffect(()=>{void load();const interval=Math.max(1000,Number(settings?.pnlRefreshSeconds||5)*1000);const id=setInterval(()=>void load(),interval);return()=>clearInterval(id)},[auth,settings?.pnlRefreshSeconds]);
+ useEffect(()=>{void load()},[auth]);
+ useEffect(()=>{
+  let cancelled=false;
+  const syncLiveState=async()=>{
+   try{
+    const [o,a]=await Promise.all([spotTradeApi.orders(auth),userApi.getUserAssets(auth)]);
+    if(cancelled)return;
+    setOrders(listOf(o.data?.data));
+    const ad=a.data?.data;
+    setAssets(Array.isArray(ad?.assets)?ad.assets:Array.isArray(ad)?ad:[]);
+   }catch(_){}
+  };
+  const id=setInterval(syncLiveState,1000);
+  return()=>{cancelled=true;clearInterval(id)};
+ },[auth]);
 
  const latest=useMemo(()=>{
   if(position)return position;
@@ -121,7 +135,7 @@ export default function SpotPositionPage(){
      <div className="mt-1 text-[9px] text-slate-500">Market position remains open until the user executes the corresponding market sell. No browser-side settlement.</div>
     </div>
     <div className="shrink-0 text-right">
-     <div className="text-[8px] uppercase tracking-[.25em] text-slate-600">LIVE MARKET</div>
+     <div className="text-[8px] uppercase tracking-[.25em] text-slate-600">LIVE MARKET · PER-SECOND</div>
      <div className="text-3xl font-black tabular-nums text-cyan-300 sm:text-5xl">{price?money(price):"Streaming…"}</div>
      <div className="mt-1 text-[8px] text-emerald-300">● LIVE TICK · {new Date(now).toLocaleTimeString()}</div>
     </div>
@@ -159,7 +173,7 @@ export default function SpotPositionPage(){
       <div className="mt-3 rounded-2xl border border-white/5 bg-[#050812] p-5 text-center">
        <div className="text-[8px] uppercase tracking-[.28em] text-slate-600">POSITION AGE</div>
        <div className="mt-1 text-4xl font-black tabular-nums text-cyan-300">{elapsedFmt}</div>
-       <div className="mt-1 text-[9px] text-slate-500">Running every second while this position remains open.</div>
+       <div className="mt-1 text-[9px] text-slate-500">Running every second while this position remains open; server order/balance state is synchronized continuously and the market stream updates the price independently.</div>
       </div>
       <div className="mt-3 space-y-2 text-[10px]">
        <div className="flex justify-between"><span className="text-slate-600">Order ID</span><b>#{latest?.orderId||latest?.id||latest?.order_id||"—"}</b></div>
