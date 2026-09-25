@@ -14,7 +14,7 @@ import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
 import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
-import AdminTradesPage from "./pages/admin/AdminTradesPage";
+import AdminTradesPage from "./pages/admin/AdminTradesPage";import AdminDigitalOptionsPage from "./pages/admin/AdminDigitalOptionsPage";
 import AdminTradeRulesPage from "./pages/admin/AdminTradeRulesPage";import AdminSpotTradePage from "./pages/admin/AdminSpotTradePage";
 import LongTermTradingPage from "./pages/admin/AdminSpots/LongTermTradingPage";
 import LongTermTradeRulesPage from "./pages/admin/AdminSpots/LongTermTradeRulesPage";import AdminSpotSettlementRulesPage from "./pages/admin/AdminSpotSettlementRulesPage";
