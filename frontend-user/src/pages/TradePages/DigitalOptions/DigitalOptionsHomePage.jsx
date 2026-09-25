@@ -1,0 +1,1 @@
+import {DigitalLayout,LiveChart,RunningPositions} from "./DigitalOptionsShared";export default function DigitalOptionsHomePage(){return <DigitalLayout title="Long-Horizon Digital Options" subtitle="Professional market, contract, running-position and settlement workspace."><div className="space-y-4"><LiveChart/><RunningPositions/></div></DigitalLayout>}
