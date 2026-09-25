@@ -1,7 +1,7 @@
 import {useEffect,useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {ArrowLeft,Clock3,RefreshCw,ShieldCheck,TrendingDown,TrendingUp} from "lucide-react";
-import {digitalOptionsApi,walletApi} from "../services/api";
+import {digitalOptionsApi,userApi} from "../services/api";
 
 const MATURITIES=[["30m","30 Minutes"],["1h","1 Hour"],["24h","24 Hours"],["30d","30 Days"],["1y","1 Year"]];
 const PAIRS=["BTCUSDT","ETHUSDT"];
@@ -9,7 +9,7 @@ const PAIRS=["BTCUSDT","ETHUSDT"];
 export default function DigitalOptionsPage(){
  const navigate=useNavigate(); const [settings,setSettings]=useState(null); const [active,setActive]=useState([]); const [pair,setPair]=useState("BTCUSDT"); const [timeframe,setTimeframe]=useState("30m"); const [stake,setStake]=useState(""); const [strike,setStrike]=useState(""); const [balance,setBalance]=useState(0); const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [notice,setNotice]=useState("");
  const token=localStorage.getItem("userToken")||localStorage.getItem("token")||"";
- const refresh=async()=>{try{const r=await Promise.all([digitalOptionsApi.settings(token),digitalOptionsApi.active(token),walletApi.summary(token)]);setSettings(r[0].data?.data||r[0].data);setActive(r[1].data?.data||[]);const d=r[2].data?.data||r[2].data||{};setBalance(Number(d?.assets?.USDT?.available_balance??d?.available_balance??0));}catch(e){setError(e?.response?.data?.message||"Unable to load Digital Options.");}};
+ const refresh=async()=>{try{const r=await Promise.all([digitalOptionsApi.settings(token),digitalOptionsApi.active(token),userApi.getWalletSummary(token)]);setSettings(r[0].data?.data||r[0].data);setActive(r[1].data?.data||[]);const d=r[2].data?.data||r[2].data||{};setBalance(Number(d?.assets?.USDT?.available_balance??d?.available_balance??0));}catch(e){setError(e?.response?.data?.message||"Unable to load Digital Options.");}};
  useEffect(()=>{refresh();const t=setInterval(refresh,5000);return()=>clearInterval(t)},[]);
  const place=async(direction)=>{setBusy(true);setError("");setNotice("");try{const r=await digitalOptionsApi.place({pair,direction,timeframeCode:timeframe,stake:Number(stake),strikePrice:Number(strike)||undefined},token);setNotice("Digital Option #"+r.data?.data?.id+" opened.");setStake("");await refresh()}catch(e){setError(e?.response?.data?.message||"Unable to open Digital Option.")}finally{setBusy(false)}};
  const cashout=async(id)=>{try{await digitalOptionsApi.cashout(id,token);setNotice("Position cashed out.");await refresh()}catch(e){setError(e?.response?.data?.message||"Cash-out unavailable.")}};
