@@ -1,0 +1,1 @@
+import {DigitalLayout,DigitalTradeForm,LiveChart} from "./DigitalOptionsShared";export default function DigitalOptionsTradePage(){return <DigitalLayout title="Create Digital Option" subtitle="Complete every contract field before placing a protected USDT order."><div className="space-y-4"><LiveChart/><DigitalTradeForm/></div></DigitalLayout>}
