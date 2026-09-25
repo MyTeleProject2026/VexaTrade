@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, LineChart, ShieldCheck, Zap } from "lucide-react";
+import { ArrowRight, Clock3, LineChart, ShieldCheck, Zap, Timer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TradeSectionLayout from "./TradePages/TradeSectionLayout";
 
@@ -10,6 +10,14 @@ const OPTIONS = [
     description: "Choose a duration, market pair and BUY / SELL direction in the protected short-term terminal.",
     icon: Clock3,
     badge: "SHORT-TERM",
+  },
+  {
+    path: "/trade/digital-options",
+    title: "Long-Horizon Digital Options",
+    subtitle: "30m / 1h / 24h / 30d / 1y maturities",
+    description: "Use live market barriers with defined maturities, running-position monitoring and account-linked settlement.",
+    icon: Timer,
+    badge: "DIGITAL",
   },
   {
     path: "/trade/spot/long-term",
@@ -42,7 +50,7 @@ export default function TradePage() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:gap-4">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
           {OPTIONS.map(({ path, title, subtitle, description, icon: Icon, badge }) => (
             <button
               key={path}
