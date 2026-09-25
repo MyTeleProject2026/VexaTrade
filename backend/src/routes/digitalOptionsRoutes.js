@@ -39,6 +39,20 @@ router.post('/digital-options/place', authUser, transactionSecurity('digital-opt
   } catch(e){ next(e); }
 });
 
+router.get('/digital-options/history', authUser, async (req,res,next)=>{
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id,asset_pair,direction,entry_spot_price,strike_price,stake_amount,payout_rate,timeframe_code,duration_seconds,created_at,expiration_time,status,settlement_price,payout_amount,settlement_mode,settled_at
+       FROM digital_options_trades
+       WHERE user_id=?
+       ORDER BY created_at DESC
+       LIMIT 200`,
+      [req.user.id]
+    );
+    res.json({success:true,data:rows});
+  } catch(e){ next(e); }
+});
+
 router.get('/digital-options/active', authUser, async (req,res,next)=>{
   try { res.json({success:true,data:await listActiveDigitalOptions(req.user.id)}); } catch(e){ next(e); }
 });
