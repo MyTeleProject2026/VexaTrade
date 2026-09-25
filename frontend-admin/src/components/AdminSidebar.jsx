@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
 
 const groups = [
   { label: "Command", items: [
@@ -29,6 +29,7 @@ const groups = [
   { label: "Trading Operations", items: [
     { label: "Trading & Funds Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
     { label: "Short-Term Trades", to: "/admin/trades", icon: BarChart3 },
+    { label: "Long-Horizon Digital Options", to: "/admin/digital-options", icon: Timer },
     { label: "Short-Term Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Market", to: "/admin/spot-trade", icon: CandlestickChart },
     { label: "Spot / Long-Term Trading Control", to: "/admin/spots/long-term-trading", icon: SlidersHorizontal },
