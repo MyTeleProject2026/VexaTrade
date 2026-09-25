@@ -255,6 +255,13 @@ export const spotTradeApi = {
   },
 };
 
+export const digitalOptionsApi = {
+  settings: (token) => appApiClient.get('/api/digital-options/settings', { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  active: (token) => appApiClient.get('/api/digital-options/active', { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  place: (payload, token) => { const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey('digital-options'); return appApiClient.post('/api/digital-options/place', { ...payload, idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, 'Idempotency-Key': idempotencyKey } }); },
+  cashout: (id, token) => { const idempotencyKey = createIdempotencyKey('digital-options-cashout'); return appApiClient.post(`/api/digital-options/cashout/${id}`, { idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, 'Idempotency-Key': idempotencyKey } }); },
+};
+
 export const fundsApi = {
   plans: (token) => appApiClient.get("/api/funds/plans", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   summary: (token) => appApiClient.get("/api/funds/summary", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
