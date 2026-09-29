@@ -300,6 +300,8 @@ async function adminOverrideDigitalOption({ adminId, tradeId, outcome, note }) {
     const status = action === 'FORCE_WIN' ? 'SETTLED_WIN' : action === 'FORCE_REFUND' ? 'VOIDED' : 'SETTLED_LOSS';
     await connection.execute(`UPDATE digital_options_trades SET status=?,settlement_price=?,payout_amount=?,settlement_mode='MANUAL_ADMIN',settled_by_admin_id=?,settlement_note=?,settled_at=NOW(),updated_at=NOW() WHERE id=?`, [status, price, payout, adminId, String(note || '').slice(0, 500), trade.id]);
     await audit(connection, { userId: trade.user_id, actorId: adminId, action: `DIGITAL_OPTION_${action}`, amount: payout, referenceId: trade.id, metadata: { note: String(note || '').slice(0, 500), settlementPrice: price } });
+    await createTransactionLog(connection, { userId: trade.user_id, type: action === 'FORCE_WIN' ? 'digital_option_profit' : action === 'FORCE_REFUND' ? 'digital_option_refund' : 'digital_option_loss', amount: action === 'FORCE_WIN' ? payout - stake : payout || stake, status: 'completed', referenceId: trade.id, note: `Digital Option admin settlement ${action}` });
+    await createUserNotification(connection, { userId: trade.user_id, title: 'Digital Option manually settled', message: `Digital Option #${trade.id} was settled by the VexaTrade administration flow as ${action.replace('FORCE_','')}.`, type: 'trade' });
     await connection.commit();
     return { id: trade.id, status, payout_amount: payout };
   } catch (error) {
