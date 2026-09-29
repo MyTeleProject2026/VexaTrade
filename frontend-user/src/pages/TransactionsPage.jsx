@@ -18,6 +18,14 @@ import {
 } from "lucide-react";
 import { transactionApi, userApi, getApiErrorMessage } from "../services/api";
 
+// User-facing brand normalization. Internal API/admin role values remain unchanged.
+function userFacingText(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+    .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+}
+
 // ---------- helpers ----------
 function formatAmount(value) {
   const num = Number(value || 0);
@@ -165,7 +173,7 @@ function getNotificationIcon(type) {
 }
 
 function getNotificationTitle(item) {
-  return item?.title || "Notification";
+  return userFacingText(item?.title) || "Notification";
 }
 
 function getNotificationStatus(item) {
@@ -281,7 +289,7 @@ function TransactionDetailModal({ item, onClose }) {
     if (message) {
       fields.push({
         label: "Message",
-        value: message,
+        value: userFacingText(message),
         fullWidth: true,
         multiline: true,
       });
@@ -343,7 +351,7 @@ function TransactionDetailModal({ item, onClose }) {
       fields.push({ label: "Status", value: <StatusBadge status={raw.status} /> });
     }
     if (raw.note) {
-      fields.push({ label: "Note", value: raw.note, fullWidth: true });
+      fields.push({ label: "Note", value: userFacingText(raw.note), fullWidth: true });
     }
     if (raw.fee !== undefined && raw.fee !== null) {
       fields.push({ label: "Fee", value: `${formatAmount(raw.fee)} ${getDisplayCoin(raw)}` });
@@ -684,7 +692,7 @@ export default function TransactionsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="truncate text-sm font-semibold text-white sm:text-base">
-                            {item.title}
+                            {userFacingText(item.title)}
                           </div>
                           {Number(item.is_read || 0) !== 1 && (
                             <span className="rounded-full bg-cyan-500 px-2 py-0.5 text-[10px] font-semibold text-black">
@@ -698,7 +706,7 @@ export default function TransactionsPage() {
                           )}
                         </div>
                         <div className="mt-1 line-clamp-2 text-sm text-slate-300">
-                          {item.subtitle}
+                          {userFacingText(item.subtitle)}
                         </div>
                         <div className="mt-2 text-[11px] text-slate-500 sm:text-xs">
                           {formatTime(item.created_at)}
