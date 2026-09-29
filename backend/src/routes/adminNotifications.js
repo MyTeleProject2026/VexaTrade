@@ -12,6 +12,12 @@ const { generateNotificationEmail } = require('../../services/emailTemplates');
 router.post('/notifications/send', authAdmin, async (req, res, next) => {
   try {
     const { user_id, title, message, type, send_email } = req.body;
+    const brandUserText = (value) => String(value ?? "")
+      .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+      .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+
+    const brandedTitle = brandUserText(title);
+    const brandedMessage = brandUserText(message);
 
     // 📩 Log full request
     console.log('📩 [NOTIFICATION] Received:', {
@@ -49,7 +55,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     const [result] = await pool.query(
       `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
        VALUES (?, ?, ?, ?, 0, NOW())`,
-      [user_id, title, message, type || 'general']
+      [user_id, brandedTitle, brandedMessage, type || 'general']
     );
 
     const notificationId = result.insertId;
@@ -62,8 +68,8 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       console.log(`📧 [NOTIFICATION] Attempting to send email to ${user.email}...`);
 
       const emailHtml = generateNotificationEmail({
-        title,
-        message,
+        title: brandedTitle,
+        message: brandedMessage,
         type: type || 'general',
         userName: user.name || user.email,
         userEmail: user.email,
@@ -73,7 +79,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
 
       await sendEmail({
         to: user.email,
-        subject: `[VexaTrade] ${title}`,
+        subject: `[VexaTrade] ${brandedTitle}`,
         html: emailHtml,
       });
 
@@ -111,7 +117,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       data: {
         notification_id: notificationId,
         user_id: user_id,
-        title: title,
+        title: brandedTitle,
         type: type || 'general',
         email_sent: emailSent,
         email_error: emailError,
