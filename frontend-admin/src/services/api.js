@@ -92,6 +92,7 @@ export const adminApi = {
   settleProfitWithdrawal: (id, payload, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/settle`, payload || {}, authHeaders(token)),
   rejectProfitWithdrawal: (id, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/reject`, {}, authHeaders(token)),
   getDigitalOptionsPending: (token) => api.get('/api/admin/digital-options/pending', authHeaders(token)),
+  getDigitalOptionsHistory: (token) => api.get('/api/admin/digital-options/history', authHeaders(token)),
   getDigitalOptionsSettings: (token) => api.get('/api/admin/digital-options/settings', authHeaders(token)),
   updateDigitalOptionsSettings: (payload, token) => api.put('/api/admin/digital-options/settings', payload, authHeaders(token)),
   overrideDigitalOption: (payload, token) => api.post('/api/admin/digital-options/override', payload, authHeaders(token)),
