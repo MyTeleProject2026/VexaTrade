@@ -220,6 +220,8 @@ export const marketApi = {
   home: () => appApiClient.get("/api/market/home"),
   list: () => appApiClient.get("/api/market/list"),
   price: (symbol) => appApiClient.get(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
+  ticker: (symbol) => appApiClient.get(`/api/market/ticker?symbol=${encodeURIComponent(symbol)}`),
+  klines: (symbol, interval = "1m", limit = 300) => appApiClient.get(`/api/market/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${Number(limit)}`),
 };
 
 export const depositApi = {
