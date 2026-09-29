@@ -89,7 +89,7 @@ router.put('/admin/digital-options/settings', authAdmin, async (req,res,next)=>{
     for(const key of allowed){
       if(req.body?.[key]===undefined) continue;
       let value=req.body[key];
-      if(['enabled','cashout_enabled','auto_settlement_enabled','manual_outcome_override'].includes(key)) value=value?'true':'false';
+      if(['enabled','cashout_enabled','auto_settlement_enabled','manual_outcome_override'].includes(key)) value=['1','true','yes','on'].includes(String(value).toLowerCase())?'true':'false';
       else if(['payout_rate','platform_spread_fee','risk_free_rate','implied_volatility','max_stake_usdt'].includes(key)) {
         value=String(Number(value));
         if(!Number.isFinite(Number(value))) throw createError(400,`Invalid setting: ${key}`);
