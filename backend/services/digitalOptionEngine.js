@@ -229,12 +229,19 @@ async function cashoutDigitalOption({ userId, tradeId }) {
 
 async function settleExpiredDigitalOptions(limit = 100) {
   const connection = await pool.getConnection();
+  try {
+    const settings = await getSettings(connection);
+    if (!settings.auto_settlement_enabled) return 0;
+  } finally {
+    connection.release();
+  }
+  const connection2 = await pool.getConnection();
   let trades = [];
   try {
-    [trades] = await connection.execute(
+    [trades] = await connection2.execute(
       `SELECT * FROM digital_options_trades WHERE status='ACTIVE' AND expiration_time <= NOW() ORDER BY expiration_time ASC LIMIT ${Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100))}`
     );
-  } finally { connection.release(); }
+  } finally { connection2.release(); }
 
   let settled = 0;
   for (const candidate of trades) {
