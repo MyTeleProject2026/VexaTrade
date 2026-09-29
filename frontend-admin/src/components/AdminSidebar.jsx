@@ -30,6 +30,7 @@ const groups = [
     { label: "Trading & Funds Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
     { label: "Short-Term Trades", to: "/admin/trades", icon: BarChart3 },
     { label: "Long-Horizon Digital Options", to: "/admin/digital-options", icon: Timer },
+    { label: "Long-Horizon Digital Options Rules", to: "/admin/digital-options-rules", icon: Settings2 },
     { label: "Short-Term Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Market", to: "/admin/spot-trade", icon: CandlestickChart },
     { label: "Spot / Long-Term Trading Control", to: "/admin/spots/long-term-trading", icon: SlidersHorizontal },
