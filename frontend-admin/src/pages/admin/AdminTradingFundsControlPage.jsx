@@ -6,12 +6,16 @@ import AdminFundsPage from "./AdminFundsPage";
 import AdminFundsRulesPage from "./AdminFundsRulesPage";
 import AdminSpotTradePage from "./AdminSpotTradePage";
 import AdminSpotSettlementRulesPage from "./AdminSpotSettlementRulesPage";
+import AdminDigitalOptionsPage from "./AdminDigitalOptionsPage";
+import AdminDigitalOptionsRulesPage from "./AdminDigitalOptionsRulesPage";
 
 const TABS = [
   { id: "short-trades", label: "Short-Term Trades", icon: BarChart3 },
   { id: "short-rules", label: "Short-Term Rules", icon: Settings2 },
   { id: "spot-trading", label: "Spot / Long-Term Trading", icon: SlidersHorizontal },
   { id: "spot-rules", label: "Spot / Long-Term Rules", icon: ShieldCheck },
+  { id: "digital-options", label: "Long-Horizon Digital Options", icon: BarChart3 },
+  { id: "digital-rules", label: "Digital Options Rules", icon: Settings2 },
   { id: "funds", label: "Funds", icon: WalletCards },
   { id: "fund-rules", label: "Funds Rules", icon: Settings2 },
 ];
@@ -85,6 +89,8 @@ export default function AdminTradingFundsControlPage() {
         {tab === "short-rules" ? <AdminTradeRulesPage /> : null}
         {tab === "spot-trading" ? <AdminSpotTradePage /> : null}
         {tab === "spot-rules" ? <AdminSpotSettlementRulesPage /> : null}
+        {tab === "digital-options" ? <AdminDigitalOptionsPage /> : null}
+        {tab === "digital-rules" ? <AdminDigitalOptionsRulesPage /> : null}
         {tab === "funds" ? <AdminFundsPage /> : null}
         {tab === "fund-rules" ? <AdminFundsRulesPage /> : null}
       </div>
