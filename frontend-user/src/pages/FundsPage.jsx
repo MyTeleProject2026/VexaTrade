@@ -37,6 +37,15 @@ import DOMPurify from 'dompurify';
 import FundsLiveActivity from "../components/funds/FundsLiveActivity";
 
 // ---------- helpers ----------
+// Normalize any legacy operational wording before it reaches the user-facing screen.
+function userFacingText(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+    .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+}
+
+
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -543,7 +552,7 @@ function ArticleDetailsModal({ plan, onClose }) {
             <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
           ) : (
             <>
-              {plan.admin_note && <div className="mb-3"><div className="text-xs font-semibold text-cyan-400">📢 Information</div><div className="text-sm text-slate-300 whitespace-pre-wrap">{plan.admin_note}</div></div>}
+              {plan.admin_note && <div className="mb-3"><div className="text-xs font-semibold text-cyan-400">📢 Information</div><div className="text-sm text-slate-300 whitespace-pre-wrap">{userFacingText(plan.admin_note)}</div></div>}
               {plan.additional_notes && <div className="mb-3"><div className="text-xs font-semibold text-slate-300">ℹ️ Additional Notes</div><div className="text-sm text-slate-400 whitespace-pre-wrap">{plan.additional_notes}</div></div>}
               {plan.disclaimer && <div className="mb-3"><div className="text-xs font-semibold text-amber-400">⚠️ Disclaimer</div><div className="text-sm text-amber-300/70 whitespace-pre-wrap">{plan.disclaimer}</div></div>}
             </>
