@@ -86,19 +86,39 @@ router.put('/admin/digital-options/settings', authAdmin, async (req,res,next)=>{
   try {
     await connection.beginTransaction();
     const allowed=['enabled','payout_rate','platform_spread_fee','risk_free_rate','implied_volatility','max_stake_usdt','cashout_enabled','auto_settlement_enabled','manual_outcome_override','supported_pairs'];
+    const numericRules={
+      payout_rate:[0,1000],
+      platform_spread_fee:[0,1],
+      risk_free_rate:[-1,1],
+      implied_volatility:[0.000001,10],
+      max_stake_usdt:[0.00000001,1000000000],
+    };
     for(const key of allowed){
       if(req.body?.[key]===undefined) continue;
       let value=req.body[key];
-      if(['enabled','cashout_enabled','auto_settlement_enabled','manual_outcome_override'].includes(key)) value=['1','true','yes','on'].includes(String(value).toLowerCase())?'true':'false';
-      else if(['payout_rate','platform_spread_fee','risk_free_rate','implied_volatility','max_stake_usdt'].includes(key)) {
-        value=String(Number(value));
-        if(!Number.isFinite(Number(value))) throw createError(400,`Invalid setting: ${key}`);
-      } else value=String(value);
+      if(['enabled','cashout_enabled','auto_settlement_enabled','manual_outcome_override'].includes(key)){
+        value=['1','true','yes','on'].includes(String(value).toLowerCase())?'true':'false';
+      } else if(Object.prototype.hasOwnProperty.call(numericRules,key)){
+        const n=Number(value);
+        const [min,max]=numericRules[key];
+        if(!Number.isFinite(n)||n<min||n>max) throw createError(400,`Invalid setting: ${key}`);
+        value=String(n);
+      } else {
+        const pairs=String(value).split(',').map(v=>v.trim().toUpperCase()).filter(Boolean);
+        if(key==='supported_pairs'){
+          if(!pairs.length||pairs.length>50||pairs.some(v=>!/^[A-Z0-9]{5,20}$/.test(v))) throw createError(400,'Invalid supported markets');
+          value=pairs.join(',');
+        } else value=String(value).trim();
+      }
       await connection.execute(
         'INSERT INTO digital_options_settings(setting_key,setting_value,status,updated_by,updated_at) VALUES (?,?,\'active\',?,NOW()) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by),updated_at=NOW()',
         [key,value,req.admin.id]
       );
     }
+    await connection.execute(
+      'INSERT INTO digital_options_audit (user_id,actor_id,action,trade_id,amount,metadata,created_at) VALUES (NULL,?,?,NULL,NULL,?,NOW())',
+      [req.admin.id,'DIGITAL_OPTIONS_SETTINGS_UPDATED',JSON.stringify({keys:allowed.filter(k=>req.body?.[k]!==undefined)})]
+    );
     await connection.commit();
     res.json({success:true,message:'Digital Options settings updated'});
   }catch(e){try{await connection.rollback();}catch(_){}next(e);}finally{connection.release();}
