@@ -1,4 +1,70 @@
 import {useEffect,useState} from "react";
 import {adminApi} from "../../services/api";
-const keys=[["enabled","Trading enabled"],["payout_rate","Payout rate (%)"],["platform_spread_fee","Cash-out spread fee"],["risk_free_rate","Risk-free rate"],["implied_volatility","Implied volatility"],["max_stake_usdt","Maximum stake (USDT)"],["cashout_enabled","Early cash-out enabled"],["auto_settlement_enabled","Automatic expiry settlement"],["manual_outcome_override","Manual admin override"],["supported_pairs","Supported markets (comma separated)"]];
-export default function AdminDigitalOptionsRulesPage(){const[settings,setSettings]=useState({}),[message,setMessage]=useState("");const token=localStorage.getItem("adminToken")||"";const load=async()=>{try{const r=await adminApi.getDigitalOptionsSettings(token);setSettings(Object.fromEntries((r.data?.data||[]).map(x=>[x.setting_key,x.setting_value])))}catch(e){setMessage(e?.response?.data?.message||"Unable to load Digital Options rules.")}};useEffect(()=>{load()},[]);const save=async()=>{try{await adminApi.updateDigitalOptionsSettings(settings,token);setMessage("Digital Options rules saved.");await load()}catch(e){setMessage(e?.response?.data?.message||"Rules update failed.")}};return <div className="p-4 text-white"><div className="mx-auto max-w-5xl space-y-4"><header><div className="text-[9px] tracking-[.25em] text-cyan-300">TRADING & FUNDS CONTROL · RULES</div><h1 className="mt-1 text-2xl font-bold">Long-Horizon Digital Options Rules</h1><p className="mt-1 text-xs text-slate-500">Production settings used by the Digital Options order, cash-out and settlement engine.</p></header>{message&&<div className="rounded-xl border border-white/10 p-3 text-xs">{message}</div>}<section className="grid gap-3 sm:grid-cols-2">{keys.map(([key,label])=><label key={key} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-[10px] text-slate-400">{label}<input value={settings[key]??""} onChange={e=>setSettings({...settings,[key]:e.target.value})} className="mt-2 w-full rounded-xl border border-white/10 bg-[#050812] p-3 text-sm text-white"/></label>)}</section><button type="button" onClick={save} className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-5 py-3 text-xs font-bold text-cyan-200">Save Digital Options Rules</button></div></div>
+
+const keys=[
+  ["enabled","Trading enabled"],
+  ["payout_rate","Payout rate (%)"],
+  ["platform_spread_fee","Cash-out spread fee"],
+  ["risk_free_rate","Risk-free rate"],
+  ["implied_volatility","Implied volatility"],
+  ["max_stake_usdt","Maximum stake (USDT)"],
+  ["cashout_enabled","Early cash-out enabled"],
+  ["auto_settlement_enabled","Automatic expiry settlement"],
+  ["manual_outcome_override","Manual admin override"],
+  ["supported_pairs","Supported markets (comma separated)"],
+];
+
+export default function AdminDigitalOptionsRulesPage(){
+  const [settings,setSettings]=useState({});
+  const [message,setMessage]=useState("");
+  const token=localStorage.getItem("adminToken")||"";
+
+  const load=async()=>{
+    try{
+      const r=await adminApi.getDigitalOptionsSettings(token);
+      setSettings(Object.fromEntries((r.data?.data||[]).map(x=>[x.setting_key,x.setting_value])));
+    }catch(e){
+      setMessage(e?.response?.data?.message||"Unable to load Digital Options rules.");
+    }
+  };
+
+  useEffect(()=>{load()},[]);
+
+  const save=async()=>{
+    try{
+      await adminApi.updateDigitalOptionsSettings(settings,token);
+      setMessage("Digital Options rules saved.");
+      await load();
+    }catch(e){
+      setMessage(e?.response?.data?.message||"Rules update failed.");
+    }
+  };
+
+  return (
+    <div className="p-4 text-white">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <header>
+          <div className="text-[9px] tracking-[.25em] text-cyan-300">TRADING &amp; FUNDS CONTROL · RULES</div>
+          <h1 className="mt-1 text-2xl font-bold">Long-Horizon Digital Options Rules</h1>
+          <p className="mt-1 text-xs text-slate-500">Production settings used by the Digital Options order, cash-out and settlement engine.</p>
+        </header>
+        {message&&<div className="rounded-xl border border-white/10 p-3 text-xs">{message}</div>}
+        <section className="grid gap-3 sm:grid-cols-2">
+          {keys.map(([key,label])=>(
+            <label key={key} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-[10px] text-slate-400">
+              {label}
+              <input
+                value={settings[key]??""}
+                onChange={e=>setSettings({...settings,[key]:e.target.value})}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-[#050812] p-3 text-sm text-white"
+              />
+            </label>
+          ))}
+        </section>
+        <button type="button" onClick={save} className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-5 py-3 text-xs font-bold text-cyan-200">
+          Save Digital Options Rules
+        </button>
+      </div>
+    </div>
+  );
+}
