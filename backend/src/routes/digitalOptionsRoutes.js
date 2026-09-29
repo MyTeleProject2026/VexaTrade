@@ -74,6 +74,17 @@ router.get('/admin/digital-options/pending', authAdmin, async (req,res,next)=>{
   } catch(e){ next(e); }
 });
 
+router.get('/admin/digital-options/history', authAdmin, async (req,res,next)=>{
+  try {
+    const [rows]=await pool.execute(
+      `SELECT t.id,t.user_id,t.asset_pair,t.direction,t.timeframe_code,t.stake_amount,t.entry_spot_price,t.strike_price,t.settlement_price,t.payout_amount,t.status,t.settlement_mode,t.settlement_note,t.created_at,t.expiration_time,t.settled_at,u.email,u.name
+       FROM digital_options_trades t JOIN users u ON u.id=t.user_id
+       WHERE t.status<>'ACTIVE' ORDER BY t.settled_at DESC, t.id DESC LIMIT 500`
+    );
+    res.json({success:true,data:rows});
+  } catch(e){ next(e); }
+});
+
 router.get('/admin/digital-options/settings', authAdmin, async (req,res,next)=>{
   try {
     const [rows]=await pool.execute('SELECT setting_key,setting_value,status,updated_by,updated_at FROM digital_options_settings ORDER BY setting_key');
