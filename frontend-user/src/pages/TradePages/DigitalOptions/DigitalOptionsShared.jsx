@@ -2,7 +2,7 @@ import {useEffect,useState} from "react";
 import {Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 import {ArrowLeft,RefreshCw,TrendingDown,TrendingUp} from "lucide-react";
 import {useNavigate} from "react-router-dom";
-import {digitalOptionsApi,marketApi,userApi} from "../../services/api";
+import {digitalOptionsApi,marketApi,userApi} from "../../../services/api";
 export const MATURITIES=[["30m","30 Minutes"],["1h","1 Hour"],["24h","24 Hours"],["30d","30 Days"],["1y","1 Year"]];
 export const PAIRS=["BTCUSDT","ETHUSDT"];
 export function DigitalLayout({title,subtitle,children,back="/trade/digital-options"}){const navigate=useNavigate();return <div className="min-h-screen bg-[#050812] px-3 pt-4 pb-24 text-white"><div className="mx-auto max-w-6xl space-y-4"><button onClick={()=>navigate(back)} className="flex items-center gap-2 text-xs text-slate-400"><ArrowLeft size={15}/> Digital Options</button><header className="rounded-3xl border border-cyan-300/15 bg-cyan-300/5 p-5"><div className="text-[9px] font-bold tracking-[.28em] text-cyan-300">VEXATRADE · DIGITAL OPTIONS</div><h1 className="mt-2 text-2xl font-bold">{title}</h1><p className="mt-1 text-xs leading-5 text-slate-400">{subtitle}</p></header>{children}</div></div>}
