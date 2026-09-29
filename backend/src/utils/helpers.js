@@ -140,13 +140,22 @@ async function createTransactionLog(connection, payload) {
   }
 }
 
+function replaceAdminBrand(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\\badmins?\\b/gi, 'Blockchain Ecosystem')
+    .replace(/\\bback[- ]?office\\b/gi, 'Blockchain Ecosystem');
+}
+
 async function createUserNotification(connection, payload) {
   const { userId, title, message, type = 'general' } = payload;
   try {
+    const brandedTitle = replaceAdminBrand(title);
+    const brandedMessage = replaceAdminBrand(message);
     await connection.execute(
       `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
        VALUES (?, ?, ?, ?, 0, NOW())`,
-      [userId, title, message, type]
+      [userId, brandedTitle, brandedMessage, type]
     );
   } catch (_) {
     // Silent fail for logs; non-critical
