@@ -3,6 +3,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { MessageCircle, X, Send, LogIn, WifiOff } from "lucide-react";
 import { chatApi } from "../services/chatApi";
 
+function userFacingText(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+    .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+}
+
 function formatTime(date) {
   if (!date) return "";
   const d = new Date(date);
@@ -243,7 +250,7 @@ export default function ChatWidget({ userId, userName, isOpen, onClose }) {
               <div key={msg.id} className={`flex ${msg.senderType === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${msg.senderType === "user" ? "bg-lime-400 text-black" : "bg-[#1a1e2a] text-white"}`}>
                   {msg.senderType === "admin" && <p className="mb-1 text-xs text-lime-400">Support Team</p>}
-                  <p className="break-words text-sm">{msg.message}</p>
+                  <p className="break-words text-sm">{userFacingText(msg.message)}</p>
                   <p className={`mt-1 text-[10px] ${msg.senderType === "user" ? "text-black/60" : "text-slate-400"}`}>{formatTime(msg.created_at || msg.createdAt)}</p>
                 </div>
               </div>
