@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 import {Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
-import {ArrowLeft,RefreshCw,TrendingDown,TrendingUp} from "lucide-react";
+import {ArrowLeft,Clock3,RefreshCw,TrendingDown,TrendingUp} from "lucide-react";
 import {useNavigate} from "react-router-dom";
 import {digitalOptionsApi,marketApi,userApi} from "../../../services/api";
 export const MATURITIES=[["30m","30 Minutes"],["1h","1 Hour"],["24h","24 Hours"],["30d","30 Days"],["1y","1 Year"]];
