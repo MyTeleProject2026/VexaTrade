@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "VexaTrade Transaction Tools",
+  "short_name": "VexaTrade Tools",
+  "description": "Read-only blockchain transaction lookup and wallet balance tools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080f1c",
+  "theme_color": "#080f1c",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    { "src": "/vexatrade-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
