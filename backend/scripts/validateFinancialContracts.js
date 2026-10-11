@@ -44,4 +44,22 @@ const admin=read('src/routes/adminControlCenterRoutes.js');
 for (const control of ['support','assets','assetLedger','loans']) if (!admin.includes(control)) throw new Error(`[Admin] control surface missing: ${control}`);
 const userApi=fs.readFileSync(path.join(root,'../frontend-user/src/services/api.js'),'utf8');
 for (const apiRoute of ['/api/spot/orders','/api/deposits/request','/api/withdrawals/request','/api/convert/execute','/api/user/transfer','/api/funds/apply','/api/loans/apply','/api/withdraw/profit-request','/api/transactions']) if (!userApi.includes(apiRoute)) throw new Error(`[Frontend API] missing ${apiRoute}`);
+// Blockchain settlement guardrails: never accept a manually entered TXID as payment proof.
+const adminRoutes = read('src/routes/adminRoutes.js');
+const completionStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/complete'");
+const completionEnd = adminRoutes.indexOf("\\nrouter.", completionStart + 1);
+if (completionStart < 0 || completionEnd < 0) throw new Error('[Settlement] legacy withdrawal completion route missing');
+const completionRoute = adminRoutes.slice(completionStart, completionEnd);
+if (!completionRoute.includes('BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED')) throw new Error('[Settlement] legacy withdrawal completion must fail closed');
+if (completionRoute.includes('consumeReservedAsset') || completionRoute.includes("status='completed'")) throw new Error('[Settlement] manual TXID route must not settle ledger funds');
+
+const settlement = read('src/routes/assetSettlementRoutes.js');
+if (!settlement.includes("router.get('/operations/treasury/status'")) throw new Error('[Treasury] authenticated readiness endpoint missing');
+if (!settlement.includes('outboundSettlementReady:false')) throw new Error('[Treasury] outbound transfers must remain disabled without configured custody');
+if (!settlement.includes('verifyTronUsdtDeposit') || !settlement.includes('claimVerifiedDeposit')) throw new Error('[Deposit] confirmed chain verification and unique TXID claims missing');
+const ledgerAdmin = read('src/routes/adminLedgerControlRoutes.js');
+if (!ledgerAdmin.includes('verifyTronUsdtDeposit') || !ledgerAdmin.includes('claimVerifiedDeposit')) throw new Error('[Deposit] duplicate admin approval route is not protected by confirmed chain verification');
+const tronVerifier = read('services/tronVerificationService.js');
+if (!tronVerifier.includes('USDT_TRC20_MAINNET') || !tronVerifier.includes('walletsolidity/gettransactioninfobyid')) throw new Error('[Deposit] confirmed TRON receipt verifier missing');
+
 console.log('VexaTrade financial contract validation passed.');
