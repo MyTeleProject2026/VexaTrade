@@ -319,4 +319,27 @@ router.get('/operations/integrations/coinbase/balances', authAdmin, async (req, 
   }
 });
 
+
+/* Read-only Bitget spot account balances; API secrets remain server-side. */
+router.get('/operations/integrations/bitget/balances', authAdmin, async (req, res) => {
+  const key=String(process.env.EXCHANGE_BITGET_API_KEY||'').trim();
+  const secret=String(process.env.EXCHANGE_BITGET_API_SECRET||'').trim();
+  const passphrase=String(process.env.EXCHANGE_BITGET_API_PASSPHRASE||'').trim();
+  if(!key||!secret||!passphrase)return res.status(503).json({success:false,message:'Bitget read-only access is not configured. Set the Bitget API key, secret, and passphrase in the backend environment.'});
+  const crypto=require('crypto');
+  const timestamp=String(Date.now());
+  const requestPath='/api/v2/spot/account/assets';
+  const sign=crypto.createHmac('sha256',secret).update(timestamp+'GET'+requestPath).digest('base64');
+  try{
+    const upstream=await fetch('https://api.bitget.com'+requestPath,{method:'GET',headers:{'ACCESS-KEY':key,'ACCESS-SIGN':sign,'ACCESS-TIMESTAMP':timestamp,'ACCESS-PASSPHRASE':passphrase,'locale':'en-US','Content-Type':'application/json'},signal:AbortSignal.timeout(12000)});
+    const payload=await upstream.json();
+    if(!upstream.ok||String(payload?.code)!=='00000')return res.status(502).json({success:false,message:'Bitget rejected the read-only balance request. Check API permissions, passphrase, IP allowlist, and server time.'});
+    const data=Array.isArray(payload?.data)?payload.data:[];
+    const balances=data.map(x=>({currency:String(x.coin||''),available:String(x.available||'0'),frozen:String(x.frozen||'0'),locked:String(x.locked||'0'),usdtValue:String(x.usdtBalance||'0')})).filter(x=>x.currency&&[x.available,x.frozen,x.locked,x.usdtValue].some(v=>Number(v)!==0));
+    res.json({success:true,provider:'Bitget Spot',readOnly:true,fetchedAt:new Date().toISOString(),balances,notice:'Read-only Bitget spot account balances. This endpoint does not enable withdrawals or authorize blockchain transfers.'});
+  }catch(error){
+    res.status(502).json({success:false,message:error?.name==='TimeoutError'?'Bitget balance request timed out. Try again later.':'Could not reach Bitget for read-only balances. Check backend network access.'});
+  }
+});
+
 module.exports=router;
