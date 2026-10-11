@@ -34,3 +34,15 @@
 .owner-login-heading small{font-size:10px;line-height:1.5;color:#8ea1ba}
 .owner-login .footnote{grid-column:1/-1}
 @media(max-width:680px){.owner-login{grid-template-columns:1fr}.owner-login-heading,.owner-login .footnote{grid-column:auto}}
+
+/* Ethereum wallet activity cards */
+.activity-list{display:grid;gap:0;margin:14px 0;border:1px solid #24354b;border-radius:12px;overflow:hidden}
+.activity-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid #24354b;background:#0a1422;min-width:0}
+.activity-row:last-child{border-bottom:0}
+.activity-icon{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;border-radius:10px;background:#1b2b42;color:#a9c9ff}
+.activity-main{display:grid;gap:4px;min-width:0;flex:1}
+.activity-main>b{font-size:12px;color:#edf4ff;overflow-wrap:anywhere}
+.activity-main>small{font-size:10px;line-height:1.45;color:#91a5c0;overflow-wrap:anywhere}
+.icon-link{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border:1px solid #31455f;border-radius:9px;color:#c5d8f4}
+.icon-link:hover{background:#1a2a40}
+@media(max-width:680px){.activity-row{padding:11px 9px;gap:8px}.activity-icon{width:30px;height:30px}.activity-main>small{font-size:9px}}
