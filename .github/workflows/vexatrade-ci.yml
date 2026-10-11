@@ -52,6 +52,7 @@ jobs:
           node --check src/routes/legalRoutes.js
           node --check src/routes/supportRoutes.js
           node --check services/assetLedgerService.js
+          node --check services/tronVerificationService.js
           node scripts/validateFinancialContracts.js
       - name: Validate runtime dependency graph
         run: |
