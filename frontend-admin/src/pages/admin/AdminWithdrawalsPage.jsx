@@ -33,6 +33,10 @@ function getStatusClass(status) {
 
 function StatCard({ label, value, tone = "text-white" }) {
   return (
+    <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-100">
+      <strong className="font-semibold">On-chain settlement is locked.</strong> A manually entered TXID is not proof that a payment was sent. VexaTrade will only mark a withdrawal complete after a configured treasury provider broadcasts the transfer and verifies its confirmed receipt.
+    </div>
+
     <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {label}
@@ -160,24 +164,6 @@ export default function AdminWithdrawalsPage() {
     } finally {
       setActionLoading("");
     }
-  }
-
-  async function handleComplete(id) {
-    const txid = window.prompt("Enter the REAL external blockchain transaction hash/reference:");
-    if (txid === null) return;
-    if (!String(txid).trim()) {
-      const errorMsg = "A real external transaction hash/reference is required to complete settlement.";
-      setError(errorMsg); addToast(errorMsg, "error"); return;
-    }
-    const settlementNote = window.prompt("Settlement note (optional):", "");
-    if (settlementNote === null) return;
-    try {
-      setActionLoading(`complete-${id}`); setError(""); setSuccess("");
-      await adminApi.completeWithdrawal(id, { txid: String(txid).trim(), settlement_note: settlementNote }, token);
-      const successMsg = `Withdrawal #${id} settlement completed with recorded transaction reference.`;
-      setSuccess(successMsg); addToast(successMsg, "success"); await fetchWithdrawals(false, false);
-    } catch (err) { const errorMsg = getApiErrorMessage(err); setError(errorMsg); addToast(errorMsg, "error"); }
-    finally { setActionLoading(""); }
   }
 
   function handleFilterChange(e) {
@@ -485,7 +471,7 @@ export default function AdminWithdrawalsPage() {
                     {canBeginSettlement || isProcessing || canCancel ? (
                       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
                         {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Starting..." : "Begin Settlement"}</button> : null}
-                        {isProcessing ? <button type="button" disabled={actionLoading === `complete-${w.id}`} onClick={() => handleComplete(w.id)} className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50">{actionLoading === `complete-${w.id}` ? "Completing..." : "Record Real TXID & Complete"}</button> : null}
+                        {isProcessing ? <button type="button" disabled title="Locked until a configured treasury provider broadcasts and verifies the blockchain receipt" className="cursor-not-allowed rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200/80">Blockchain provider required</button> : null}
                         {canCancel ? <button type="button" disabled={actionLoading === `reject-${w.id}`} onClick={() => handleReject(w.id)} className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">{actionLoading === `reject-${w.id}` ? "Cancelling..." : "Cancel & Release Asset"}</button> : null}
                       </div>
                     ) : (
