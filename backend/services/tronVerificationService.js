@@ -109,4 +109,24 @@ async function verifyTronUsdtDeposit({ txid, recipientAddress, expectedAmount })
   };
 }
 
-module.exports = { verifyTronUsdtDeposit, decimalToUnits, USDT_TRC20_MAINNET };
+async function claimVerifiedDeposit(connection, { txid, depositId, userId, coin = 'USDT', network = 'TRC20', amount }) {
+  const cleanTxid = String(txid || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(cleanTxid)) throw new Error('Cannot claim an invalid blockchain transaction hash');
+  try {
+    await connection.execute(
+      'INSERT INTO blockchain_transaction_claims (network, txid, deposit_id, user_id, coin, amount) VALUES (?, ?, ?, ?, ?, ?)',
+      [String(network).toUpperCase(), cleanTxid, Number(depositId), Number(userId), String(coin).toUpperCase(), String(amount)]
+    );
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      const conflict = new Error('This blockchain transaction or deposit request has already been claimed for settlement.');
+      conflict.status = 409;
+      conflict.code = 'BLOCKCHAIN_TX_ALREADY_CLAIMED';
+      throw conflict;
+    }
+    throw error;
+  }
+  return cleanTxid;
+}
+
+module.exports = { verifyTronUsdtDeposit, claimVerifiedDeposit, decimalToUnits, USDT_TRC20_MAINNET };
