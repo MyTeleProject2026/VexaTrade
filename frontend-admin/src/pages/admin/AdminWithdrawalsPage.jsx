@@ -33,10 +33,6 @@ function getStatusClass(status) {
 
 function StatCard({ label, value, tone = "text-white" }) {
   return (
-    <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-100">
-      <strong className="font-semibold">On-chain settlement is locked.</strong> A manually entered TXID is not proof that a payment was sent. VexaTrade will only mark a withdrawal complete after a configured treasury provider broadcasts the transfer and verifies its confirmed receipt.
-    </div>
-
     <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-4 shadow-xl">
       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
         {label}
@@ -246,7 +242,9 @@ export default function AdminWithdrawalsPage() {
 
   return (
     <div className="space-y-5">
-      {/* ✅ ADDED: Toast Container */}
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-100">
+        <strong className="font-semibold">On-chain settlement is locked.</strong> A manually entered TXID is not proof that a payment was sent. VexaTrade will only mark a withdrawal complete after a configured treasury provider broadcasts the transfer and verifies its confirmed receipt.
+      </div>
       <ToastContainer />
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
