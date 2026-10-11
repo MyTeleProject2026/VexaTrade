@@ -59,6 +59,10 @@ if (approvalStart < 0 || approvalEnd < 0) throw new Error('[Settlement] owner ap
 const approvalRoute = adminRoutes.slice(approvalStart, approvalEnd);
 if (approvalRoute.includes("status='settlement_processing'")) throw new Error('[Settlement] owner approval must not imply blockchain processing');
 if (!approvalRoute.includes('awaiting_treasury_configuration') || !approvalRoute.includes('transactionHash: null')) throw new Error('[Settlement] approval must clearly remain pending with no TXID before broadcast');
+const adminWithdrawalsUi = fs.readFileSync(path.join(root,'../frontend-admin/src/pages/admin/AdminWithdrawalsPage.jsx'),'utf8');
+if (!adminWithdrawalsUi.includes('Approve Request (No Send)')) throw new Error('[Admin UI] withdrawal approval must not be presented as a send action');
+if (!adminWithdrawalsUi.includes('This will not send a blockchain transaction')) throw new Error('[Admin UI] approval confirmation must disclose that no blockchain transaction is sent');
+if (!adminWithdrawalsUi.includes('No blockchain transaction was sent')) throw new Error('[Admin UI] approval success must not imply funds were broadcast');
 
 const settlement = read('src/routes/assetSettlementRoutes.js');
 if (!settlement.includes("router.get('/operations/treasury/status'")) throw new Error('[Treasury] authenticated readiness endpoint missing');
