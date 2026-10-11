@@ -126,7 +126,7 @@ export default function AdminWithdrawalsPage() {
   }
 
   async function handleApprove(id) {
-    const confirmed = window.confirm("Begin settlement processing for this authorized withdrawal?");
+    const confirmed = window.confirm("Record owner approval? This will not send a blockchain transaction. Transfers remain pending until treasury funding, signing, broadcast, and receipt verification are configured.");
     if (!confirmed) return;
 
     try {
@@ -135,7 +135,7 @@ export default function AdminWithdrawalsPage() {
       setSuccess("");
 
       await adminApi.approveWithdrawal(id, {}, token);
-      const successMsg = `Withdrawal #${id} moved to settlement processing.`;
+      const successMsg = `Withdrawal #${id} approved by owner. No blockchain transaction was sent; it remains pending treasury configuration.`;
       setSuccess(successMsg);
       // ✅ ADDED: Success toast
       addToast(successMsg, "success");
@@ -295,7 +295,7 @@ export default function AdminWithdrawalsPage() {
               Withdrawal Management
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Monitor authorization and settlement stages. Completion requires a real external transaction reference.
+              Monitor owner approval and settlement stages. Owner approval does not send funds; completion requires a real broadcast and verified chain receipt.
             </p>
           </div>
 
@@ -506,7 +506,7 @@ export default function AdminWithdrawalsPage() {
 
                     {canBeginSettlement || isProcessing || canCancel ? (
                       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                        {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Starting..." : "Begin Settlement"}</button> : null}
+                        {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Saving..." : "Approve Request (No Send)"}</button> : null}
                         {isProcessing ? <button type="button" disabled title="Locked until a configured treasury provider broadcasts and verifies the blockchain receipt" className="cursor-not-allowed rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200/80">Blockchain provider required</button> : null}
                         {canCancel ? <button type="button" disabled={actionLoading === `reject-${w.id}`} onClick={() => handleReject(w.id)} className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">{actionLoading === `reject-${w.id}` ? "Cancelling..." : "Cancel & Release Asset"}</button> : null}
                       </div>
