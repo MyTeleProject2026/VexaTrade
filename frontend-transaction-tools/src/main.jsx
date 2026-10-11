@@ -112,10 +112,10 @@ function App(){
     }catch(error){lastProviderError=error;}
     if(!tx){
      try{
-      const r=await fetch('https://apilist.tronscanapi.com/api/transaction-info?hash='+encodeURIComponent(hash));
+      const r=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(hash));
       if(!r.ok)throw Error('TronScan HTTP '+r.status);
-      const j=await r.json();
-      if(!j||(!j.hash&&!j.transactionHash&&!j.txID&&!j.contractRet&&!j.block&&j.confirmed===undefined))throw Error('Transaction not found by TronScan');
+      const responseJson=await r.json();if(!r.ok||responseJson?.success===false)throw Error(responseJson?.message||'TronScan public lookup failed');const j=responseJson?.data||responseJson;
+      if(!j||(!j.hash&&!j.transactionHash&&!j.txID&&!j.contractRet&&!j.block&&!j.blockNumber&&j.confirmed===undefined))throw Error('Transaction not found by TronScan');
       tx={txID:j.hash||j.transactionHash||j.txID||hash,block_timestamp:j.timestamp||j.blockTimeStamp||j.block_timestamp};
       info={blockNumber:j.block||j.blockNumber||j.block_number,blockTimeStamp:j.timestamp||j.blockTimeStamp||j.block_timestamp,receipt:{result:j.contractRet||j.contract_ret||j.receipt?.result},result:j.contractRet||j.contract_ret};
       const transfer=(j.tokenTransferInfo||j.token_transfer_info||j.trc20TransferInfo||j.trc20_transfer_info||[]);
