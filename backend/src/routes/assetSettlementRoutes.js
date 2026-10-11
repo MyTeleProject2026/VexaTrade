@@ -259,7 +259,7 @@ router.get('/operations/integrations/providers', authAdmin, async (req, res) => 
     {id:'binance',name:'Binance',env:['EXCHANGE_BINANCE_API_KEY','EXCHANGE_BINANCE_API_SECRET'],docs:'https://developers.binance.com/docs/binance-spot-api-docs'},
     {id:'kraken',name:'Kraken',env:['EXCHANGE_KRAKEN_API_KEY','EXCHANGE_KRAKEN_API_SECRET'],docs:'https://docs.kraken.com/api/'},
     {id:'bybit',name:'Bybit',env:['EXCHANGE_BYBIT_API_KEY','EXCHANGE_BYBIT_API_SECRET'],docs:'https://bybit-exchange.github.io/docs/v5/intro'}
-  ].map(p=>{const missing=p.env.filter(k=>!String(process.env[k]||'').trim());return {...p,kind:'exchange-api',status:missing.length===0?'configured_not_tested':(missing.length===p.env.length?'not_configured':'incomplete'),credentialsConfigured:missing.length===0,missingEnvironmentVariables:missing,accessPolicy:'Use read-only API keys. Do not enable exchange withdrawals.'};});
+  ].map(p=>{const missing=p.env.filter(k=>!String(process.env[k]||'').trim());return {...p,kind:'exchange-api',requiredCount:p.env.length,presentCount:p.env.length-missing.length,status:missing.length===0?'configured_not_tested':(missing.length===p.env.length?'not_configured':'incomplete'),credentialsConfigured:missing.length===0,missingEnvironmentVariables:missing,accessPolicy:'Use read-only API keys. Do not enable exchange withdrawals.'};});
   const signerEnv=['TREASURY_SIGNER_URL','TREASURY_SIGNER_API_KEY','TREASURY_SIGNER_PROVIDER'];
   const missingSigner=signerEnv.filter(k=>!String(process.env[k]||'').trim());
   res.json({success:true,data:[
