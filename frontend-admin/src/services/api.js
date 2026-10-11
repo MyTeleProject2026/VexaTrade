@@ -65,6 +65,7 @@ export const adminApi = {
   rejectKyc: (id, payload, token) => api.post(`/api/admin/kyc/${id}/reject`, payload || {}, authHeaders(token)),
   getDeposits: (token) => api.get("/api/admin/deposits", authHeaders(token)),
   approveDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/approve`, payload || {}, authHeaders(token)),
+  verifyDepositOnChain: (id, token) => api.post(`/api/operations/deposits/${id}/verify`, {}, authHeaders(token)),
   rejectDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/reject`, payload || {}, authHeaders(token)),
   getDepositNetworks: (token) => api.get("/api/admin/deposit-networks", authHeaders(token)),
   createDepositNetwork: (payload, token) => api.post("/api/admin/deposit-networks", payload, authHeaders(token)),
