@@ -61,7 +61,7 @@ function isSupportedAssetNetwork(coin, network) {
 }
 function isPositiveDecimal18(value) {
   const s = String(value ?? '').trim();
-  if (!/^(?:0|[1-9]\\d{0,17})(?:\\.\\d{1,18})?$/.test(s)) return false;
+  if (!/^(?:0|[1-9]\d{0,17})(?:\.\d{1,18})?$/.test(s)) return false;
   return /[1-9]/.test(s);
 }
 
