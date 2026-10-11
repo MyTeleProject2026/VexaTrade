@@ -11,6 +11,7 @@ import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
 import AdminDepositVerificationSettings from "./pages/admin/AdminDepositVerificationSettings";
 import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
+import AdminInternalTransfersPage from "./pages/admin/AdminInternalTransfersPage";
 import AdminWithdrawalFeesPage from "./pages/admin/AdminWithdrawalFeesPage";
 import AdminWithdrawalSettingsPage from "./pages/admin/AdminWithdrawalSettingsPage";
 import AdminProfitWithdrawalRequestsPage from "./pages/admin/AdminProfitWithdrawalRequestsPage";
@@ -56,6 +57,7 @@ export default function App() {
       <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
       <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
       <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
+      <Route path="internal-transfers" element={<AdminInternalTransfersPage />} />
       <Route path="withdrawal-fees" element={<AdminWithdrawalFeesPage />} />
       <Route path="withdrawal-settings" element={<AdminWithdrawalSettingsPage />} />
       <Route path="profit-withdrawal-requests" element={<AdminProfitWithdrawalRequestsPage />} />
