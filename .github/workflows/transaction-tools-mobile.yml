@@ -98,8 +98,14 @@ jobs:
         run: npm run build
       - name: Add iOS platform
         run: npx cap add ios
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+      - name: Install CocoaPods dependencies
+        run: pod install --project-directory=ios/App
+      - name: Verify CocoaPods workspace
+        run: test -d ios/App/App.xcworkspace
       - name: Build iOS Simulator app
-        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
       - name: Package iOS Simulator app
         run: |
           cd build/ios/Build/Products/Debug-iphonesimulator
