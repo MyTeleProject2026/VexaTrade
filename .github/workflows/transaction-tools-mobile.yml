@@ -17,6 +17,31 @@ permissions:
   contents: read
 
 jobs:
+  web-build:
+    name: Validate responsive web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build web app
+        run: npm run build
+      - name: Upload static site build
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexatrade-transaction-tools-web-dist
+          path: frontend-transaction-tools/dist/
+          if-no-files-found: error
+          retention-days: 14
+
   android-apk:
     name: Build Android APK
     runs-on: ubuntu-latest
@@ -74,7 +99,7 @@ jobs:
       - name: Add iOS platform
         run: npx cap add ios
       - name: Build iOS Simulator app
-        run: xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
       - name: Package iOS Simulator app
         run: |
           cd build/ios/Build/Products/Debug-iphonesimulator
