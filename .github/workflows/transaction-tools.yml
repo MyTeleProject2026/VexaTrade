@@ -1,0 +1,35 @@
+name: Transaction Tools Static Build
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+      - ".github/workflows/transaction-tools.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend-transaction-tools/package.json
+      - name: Install dependencies
+        working-directory: frontend-transaction-tools
+        run: npm install --no-audit --no-fund
+      - name: Build static site
+        working-directory: frontend-transaction-tools
+        run: npm run build
