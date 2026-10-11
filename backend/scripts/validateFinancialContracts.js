@@ -47,7 +47,7 @@ for (const apiRoute of ['/api/spot/orders','/api/deposits/request','/api/withdra
 // Blockchain settlement guardrails: never accept a manually entered TXID as payment proof.
 const adminRoutes = read('src/routes/adminRoutes.js');
 const completionStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/complete'");
-const completionEnd = adminRoutes.indexOf("\\nrouter.", completionStart + 1);
+const completionEnd = adminRoutes.indexOf("\nrouter.", completionStart + 1);
 if (completionStart < 0 || completionEnd < 0) throw new Error('[Settlement] legacy withdrawal completion route missing');
 const completionRoute = adminRoutes.slice(completionStart, completionEnd);
 if (!completionRoute.includes('BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED')) throw new Error('[Settlement] legacy withdrawal completion must fail closed');
