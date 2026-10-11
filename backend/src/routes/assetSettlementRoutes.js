@@ -66,7 +66,7 @@ function isPositiveDecimal18(value) {
 }
 function normalizeDecimal(value) {
   const parts = String(value ?? '0').trim().split('.');
-  const whole = (parts[0] || '0').replace(/^0+(?=\\d)/, '');
+  const whole = (parts[0] || '0').replace(/^0+/, '') || '0';
   const fraction = (parts[1] || '').replace(/0+$/, '');
   return fraction ? whole + '.' + fraction : whole;
 }
