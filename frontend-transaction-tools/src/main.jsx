@@ -102,18 +102,45 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    const [r,i]=await Promise.all([fetch(c.api+'/v1/transactions/'+hash),fetch(c.api+'/wallet/gettransactioninfobyid?value='+encodeURIComponent(hash))]);
-    if(!r.ok||!i.ok)throw Error('The public TRON provider is unavailable or rate-limited. Retry later or use TronScan.');
-    const j=await r.json(),info=await i.json(),tx=j?.data?.[0];if(!tx)throw Error('No transaction found on TRON. Check the hash and selected network.');
-    const evr=await fetch(c.api+'/v1/transactions/'+hash+'/events');let ev=null;if(evr.ok){const ej=await evr.json();ev=(ej.data||[]).find(x=>x.contract_address===c.usdt&&x.event_name==='Transfer');}
-    const success=info?.receipt?.result==='SUCCESS'||info?.result==='SUCCESS';
-    setLookup({id:hash,success,block:info.blockNumber??info.block_number??'Not provided',time:info.blockTimeStamp?new Date(info.blockTimeStamp).toLocaleString():tx.block_timestamp?new Date(tx.block_timestamp).toLocaleString():'Not provided',amount:ev?.result?.value?Number(ev.result.value)/1e6:null,amountDisplay:ev?.result?.value?formatUnits(ev.result.value,6,6):null,asset:'USDT',to:ev?.result?.to||'Not available',isUsdt:!!ev,url:c.explorer+hash,network:c.name});
+    let tx=null,info=null,ev=null,lastProviderError=null;
+    try{
+     const [r,i]=await Promise.all([fetch(c.api+'/v1/transactions/'+hash),fetch(c.api+'/wallet/gettransactioninfobyid?value='+encodeURIComponent(hash))]);
+     if(!r.ok||!i.ok)throw Error('TRON Grid HTTP '+(!r.ok?r.status:i.status));
+     const j=await r.json();info=await i.json();tx=j?.data?.[0];
+     if(!tx)throw Error('Transaction not found by TRON Grid');
+     try{const evr=await fetch(c.api+'/v1/transactions/'+hash+'/events');if(evr.ok){const ej=await evr.json();ev=(ej.data||[]).find(x=>String(x.contract_address||'').toLowerCase()===c.usdt.toLowerCase()&&x.event_name==='Transfer');}}catch(_){}
+    }catch(error){lastProviderError=error;}
+    if(!tx){
+     try{
+      const r=await fetch('https://apilist.tronscanapi.com/api/transaction-info?hash='+encodeURIComponent(hash));
+      if(!r.ok)throw Error('TronScan HTTP '+r.status);
+      const j=await r.json();
+      if(!j||(!j.hash&&!j.transactionHash&&!j.txID&&!j.contractRet&&!j.block&&j.confirmed===undefined))throw Error('Transaction not found by TronScan');
+      tx={txID:j.hash||j.transactionHash||j.txID||hash,block_timestamp:j.timestamp||j.blockTimeStamp||j.block_timestamp};
+      info={blockNumber:j.block||j.blockNumber||j.block_number,blockTimeStamp:j.timestamp||j.blockTimeStamp||j.block_timestamp,receipt:{result:j.contractRet||j.contract_ret||j.receipt?.result},result:j.contractRet||j.contract_ret};
+      const transfer=(j.tokenTransferInfo||j.token_transfer_info||j.trc20TransferInfo||j.trc20_transfer_info||[]);
+      const t=Array.isArray(transfer)?transfer[0]:transfer;
+      if(t){
+       const contract=t.contract_address||t.tokenId||t.token_id||t.contractAddress;
+       const raw=String(t.amount_str||t.amount||t.quant||t.value||'');
+       const decimals=Number(t.decimals??t.tokenDecimal??t.token_decimal??6);
+       if(String(contract||'').toLowerCase()===c.usdt.toLowerCase()&&raw)ev={contract_address:c.usdt,event_name:'Transfer',result:{value:raw,to:t.to_address||t.to||t.target}}; 
+       else if(raw) {const displayAmount=Number(raw)/Math.pow(10,decimals); if(Number.isFinite(displayAmount)&&displayAmount>=0) ev=null;}
+      }
+     }catch(error){throw Error('TRON lookup providers are unavailable or could not verify this hash. '+(lastProviderError?.message||error.message||'Retry later or open TronScan.'));}
+    }
+    if(!tx)throw Error('No transaction found on TRON. Check the hash and selected network.');
+    const contractResult=String(info?.receipt?.result||info?.result||'').toUpperCase();
+    const success=contractResult==='SUCCESS'||contractResult==='SUCESS';
+    const block=info?.blockNumber??info?.block_number??'Not provided';
+    const stamp=info?.blockTimeStamp??info?.block_timestamp??tx.block_timestamp;
+    setLookup({id:hash,success,pending:!block||block==='Not provided',block,time:stamp?new Date(Number(stamp)<1e12?Number(stamp)*1000:Number(stamp)).toLocaleString():'Not provided',amount:ev?.result?.value?Number(ev.result.value)/1e6:null,amountDisplay:ev?.result?.value?formatUnits(ev.result.value,6,6):null,asset:'USDT',to:ev?.result?.to||'Not available',isUsdt:!!ev,url:c.explorer+hash,network:c.name});
    }else if(chain==='btc'){
     const r=await fetch(c.api+'/tx/'+hash);if(!r.ok)throw Error(r.status===404?'Bitcoin transaction not found.':'Bitcoin public provider is unavailable or rate-limited.');
     const tx=await r.json();const status=tx.status||{};const first=tx.vout?.find(o=>o.scriptpubkey_address);
     setLookup({id:hash,success:!!status.confirmed,block:status.block_height??'Unconfirmed',time:status.block_time?new Date(status.block_time*1000).toLocaleString():'Not confirmed',amount:null,amountDisplay:null,asset:'BTC',to:first?.scriptpubkey_address||'Multiple outputs',isUsdt:false,url:c.explorer+hash,network:c.name});
    }else{
-    const rpc=async(method,params)=>{const r=await fetch(c.rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});if(!r.ok)throw Error('Public '+c.name+' RPC unavailable or rate-limited.');const j=await r.json();if(j.error)throw Error(j.error.message||'Blockchain RPC rejected the request.');return j.result;};
+    const rpc=(method,params)=>evmRpc(chain,method,params);
     const [tx,receipt]=await Promise.all([rpc('eth_getTransactionByHash',[hash]),rpc('eth_getTransactionReceipt',[hash])]);
     if(!tx)throw Error('Transaction not found on '+c.name+'.');
     let amount=Number(BigInt(tx.value||'0x0'))/1e18,amountDisplay=formatUnits(tx.value||'0x0',18,8),asset=c.native,isUsdt=false,to=tx.to||'Contract creation';
