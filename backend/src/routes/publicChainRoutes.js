@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 
 const TRON_USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const TRON_USDT_HEX = '41' + 'a614f803b6fd780986a42c78ec9c7f77e6ded13c'; // Canonical TRC20 USDT contract, hex form.
 const HEADERS = { Accept: 'application/json', 'User-Agent': 'VexaTrade-TransactionTools/1.0' };
 
 async function getJson(url, timeoutMs = 10000) {
@@ -97,7 +96,7 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
         address,
         trxSun: String(account.balance || '0'),
         usdtRaw: String(token && token.balance || '0'),
-        usdtDecimals: Number(token && (token.tokenDecimal ?? token.token_decimal) ?? 6),
+        usdtDecimals: Number((token && (token.tokenDecimal ?? token.token_decimal)) ?? 6),
         checkedAt: new Date().toISOString(),
         explorerUrl: 'https://tronscan.org/#/address/' + address
       }
