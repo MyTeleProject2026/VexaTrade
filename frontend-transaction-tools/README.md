@@ -1,9 +1,12 @@
 # VexaTrade Transaction Tools: Web + Android + iOS
 
-## Web static site
+## Web static site and installable PWA
 - Render Static Site root: `frontend-transaction-tools`
 - Build command: `npm install && npm run build`
 - Publish directory: `dist`
+- The site includes a web app manifest, branded icon, and service worker for shell/offline fallback.
+- On Android Chrome, open the deployed HTTPS site and use the browser menu's **Install app** or **Add to Home screen** option when available.
+- Public transaction and wallet lookups still require a network connection. The service worker does not cache API responses or represent cached information as live chain data.
 
 ## Android APK
 GitHub Actions builds a debug APK for installation/testing and uploads it as an artifact. Download `vexatrade-android-debug-apk` from the workflow run and install the APK on an Android device. Android may ask you to permit installs from your browser/file manager. This is a debug-signed testing package, not a production release.
