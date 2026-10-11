@@ -171,19 +171,27 @@ function App(){
    if(chain==='tron'){
     let account={},token=null;
     try{
-     const [accountResponse,tokenResponse]=await Promise.all([
-      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
-      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
-     ]);
-     if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid unavailable');
-     const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
-     account=accountJson?.data?.[0]||{};
-     token=(tokenJson.data||[]).find(x=>String(x.tokenId||'').toLowerCase()===c.usdt.toLowerCase()||x.tokenAbbr?.toUpperCase()==='USDT');
+     const response=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a));
+     const result=await response.json();
+     if(!response.ok||!result?.success)throw Error(result?.message||'Backend TRON balance lookup unavailable');
+     account={balance:result.data?.trxSun||'0'};
+     token={balance:result.data?.usdtRaw||'0',tokenDecimal:result.data?.usdtDecimals??6};
     }catch(_){
-     const response=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a));
-     if(!response.ok)throw Error('TRON public balance providers are unavailable or rate-limited. Try again shortly.');
-     const scan=await response.json();account={balance:scan.balance||0};
-     token=(scan.trc20token_balances||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT');
+     try{
+      const [accountResponse,tokenResponse]=await Promise.all([
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
+      ]);
+      if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid unavailable');
+      const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
+      account=accountJson?.data?.[0]||{};
+      token=(tokenJson.data||[]).find(x=>String(x.tokenId||'').toLowerCase()===c.usdt.toLowerCase()||x.tokenAbbr?.toUpperCase()==='USDT');
+     }catch(__){
+      const response=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a));
+      if(!response.ok)throw Error('TRON public balance providers are unavailable or rate-limited. Try again shortly.');
+      const scan=await response.json();account={balance:scan.balance||0};
+      token=(scan.trc20token_balances||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT');
+     }
     }
     const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??token?.token_decimal??6);
     setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and configured USDT TRC20 token balance from public TRON chain data. A public address lookup does not prove ownership.'});
