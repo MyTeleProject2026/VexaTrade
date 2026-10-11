@@ -11,7 +11,7 @@ const {
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
 const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, movePendingToAvailable } = require('../../services/assetLedgerService');
-const { verifyTronUsdtDeposit } = require('../../services/tronVerificationService');
+const { verifyTronUsdtDeposit, claimVerifiedDeposit } = require('../../services/tronVerificationService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -279,8 +279,9 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     if (!wallets.length || !wallets[0].address) throw createError(503, "No active TRON USDT treasury deposit address is configured");
     const verification = await verifyTronUsdtDeposit({ txid: deposit.txid, recipientAddress: wallets[0].address, expectedAmount: deposit.amount });
     if (!verification.verified) throw createError(422, "Deposit not credited: " + verification.reason);
-    const [duplicates] = await connection.execute("SELECT id FROM deposits WHERE id<>? AND txid=? AND status='approved' LIMIT 1 FOR UPDATE", [deposit.id, deposit.txid]);
+    const [duplicates] = await connection.execute("SELECT id FROM deposits WHERE id<>? AND LOWER(txid)=LOWER(?) AND status='approved' LIMIT 1 FOR UPDATE", [deposit.id, deposit.txid]);
     if (duplicates.length) throw createError(409, "This blockchain transaction has already been credited to another deposit request");
+    await claimVerifiedDeposit(connection, { txid: verification.txid, depositId: deposit.id, userId: deposit.user_id, coin, network: "TRC20", amount: deposit.amount });
     await creditAssetBalance(connection, {
       userId: deposit.user_id,
       coin,
