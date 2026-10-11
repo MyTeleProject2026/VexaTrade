@@ -54,7 +54,7 @@ if (!completionRoute.includes('BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED')) throw new
 if (completionRoute.includes('consumeReservedAsset') || completionRoute.includes("status='completed'")) throw new Error('[Settlement] manual TXID route must not settle ledger funds');
 
 const approvalStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/approve'");
-const approvalEnd = adminRoutes.indexOf("\\nrouter.", approvalStart + 1);
+const approvalEnd = adminRoutes.indexOf("\nrouter.", approvalStart + 1);
 if (approvalStart < 0 || approvalEnd < 0) throw new Error('[Settlement] owner approval route missing');
 const approvalRoute = adminRoutes.slice(approvalStart, approvalEnd);
 if (approvalRoute.includes("status='settlement_processing'")) throw new Error('[Settlement] owner approval must not imply blockchain processing');
