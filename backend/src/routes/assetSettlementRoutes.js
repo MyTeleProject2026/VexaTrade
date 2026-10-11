@@ -292,4 +292,31 @@ router.get('/operations/integrations/okx/balances', authAdmin, async (req, res) 
   }
 });
 
+
+/* Read-only Coinbase Advanced Trade account balances; private API key remains server-side. */
+router.get('/operations/integrations/coinbase/balances', authAdmin, async (req, res) => {
+  const keyName=String(process.env.EXCHANGE_COINBASE_API_KEY||'').trim();
+  const privateKey=String(process.env.EXCHANGE_COINBASE_API_SECRET||'').replace(/\\n/g,'\n').trim();
+  if(!keyName||!privateKey)return res.status(503).json({success:false,message:'Coinbase Advanced Trade read-only access is not configured. Set EXCHANGE_COINBASE_API_KEY to the Coinbase CDP key name and EXCHANGE_COINBASE_API_SECRET to its PEM private key in the backend environment.'});
+  const crypto=require('crypto');
+  const b64url=value=>Buffer.from(value).toString('base64url');
+  try{
+    const now=Math.floor(Date.now()/1000);
+    const header={alg:'ES256',kid:keyName,nonce:crypto.randomBytes(16).toString('hex'),typ:'JWT'};
+    const payload={iss:'cdp',sub:keyName,nbf:now-5,exp:now+90,uri:'GET api.coinbase.com/api/v3/brokerage/accounts'};
+    const signingInput=b64url(JSON.stringify(header))+'.'+b64url(JSON.stringify(payload));
+    const signature=crypto.sign('sha256',Buffer.from(signingInput),{key:privateKey,dsaEncoding:'ieee-p1363'});
+    const jwt=signingInput+'.'+signature.toString('base64url');
+    const upstream=await fetch('https://api.coinbase.com/api/v3/brokerage/accounts?limit=250',{method:'GET',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},signal:AbortSignal.timeout(12000)});
+    const body=await upstream.json();
+    if(!upstream.ok)return res.status(502).json({success:false,message:'Coinbase rejected the read-only account request. Check the CDP key name, PEM private key, API permissions, and key restrictions.'});
+    const accounts=Array.isArray(body?.accounts)?body.accounts:[];
+    const balances=accounts.map(a=>({accountId:String(a.uuid||''),name:String(a.name||''),currency:String(a.currency||''),available:String(a.available_balance?.value||'0'),hold:String(a.hold?.value||'0'),type:String(a.type||''),ready:!!a.ready})).filter(a=>a.currency&&([a.available,a.hold].some(v=>Number(v)!==0)||a.ready));
+    res.json({success:true,provider:'Coinbase Advanced Trade',readOnly:true,fetchedAt:new Date().toISOString(),balances,notice:'Read-only Coinbase account balances. This endpoint does not enable withdrawals or authorize blockchain transfers.'});
+  }catch(error){
+    const invalidKey=error?.code==='ERR_OSSL_UNSUPPORTED'||error?.code==='ERR_OSSL_PEM_NO_START_LINE'||error?.code==='ERR_INVALID_ARG_TYPE';
+    res.status(502).json({success:false,message:invalidKey?'Coinbase private key format is invalid. Configure the complete PEM private key using escaped newline characters in the backend environment.':'Could not complete the Coinbase read-only balance request. Check backend network access and Coinbase key configuration.'});
+  }
+});
+
 module.exports=router;
