@@ -70,6 +70,7 @@ export default function AdminWithdrawalsPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [treasuryStatus, setTreasuryStatus] = useState(null);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -80,7 +81,23 @@ export default function AdminWithdrawalsPage() {
 
   useEffect(() => {
     fetchWithdrawals(true);
+    fetchTreasuryStatus();
   }, [token]);
+
+  async function fetchTreasuryStatus() {
+    try {
+      const response = await adminApi.getTreasuryStatus(token);
+      setTreasuryStatus(response.data?.data || null);
+    } catch {
+      setTreasuryStatus({
+        provider: "Bitget Wallet",
+        treasuryConfigured: false,
+        outboundSettlementReady: false,
+        enabledOutboundNetworks: [],
+        message: "Treasury readiness could not be verified. Outbound settlement remains disabled."
+      });
+    }
+  }
 
 
 
@@ -245,6 +262,27 @@ export default function AdminWithdrawalsPage() {
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-100">
         <strong className="font-semibold">On-chain settlement is locked.</strong> A manually entered TXID is not proof that a payment was sent. VexaTrade will only mark a withdrawal complete after a configured treasury provider broadcasts the transfer and verifies its confirmed receipt.
       </div>
+      <section className="rounded-2xl border border-amber-500/20 bg-[#0a0e1a] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Treasury provider readiness</p>
+            <p className="mt-2 text-sm font-semibold text-white">{treasuryStatus?.provider || "Bitget Wallet"} · {treasuryStatus?.outboundSettlementReady ? "Configured" : "Not configured"}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">{treasuryStatus?.message || "Checking authenticated treasury configuration…"}</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+            {treasuryStatus?.outboundSettlementReady ? "Settlement enabled" : "Outbound transfers locked"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <InfoBox label="Outbound networks enabled" value={(treasuryStatus?.enabledOutboundNetworks || []).length ? treasuryStatus.enabledOutboundNetworks.join(", ") : "None"} />
+          <InfoBox label="Receipt policy" value="Confirmed chain receipt required; manual TXID is never accepted as proof." />
+        </div>
+        {Array.isArray(treasuryStatus?.missing) && treasuryStatus.missing.length > 0 && (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-400">
+            {treasuryStatus.missing.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        )}
+      </section>
       <ToastContainer />
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
