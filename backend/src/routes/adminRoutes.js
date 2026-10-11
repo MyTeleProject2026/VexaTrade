@@ -11,6 +11,7 @@ const {
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
 const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, movePendingToAvailable } = require('../../services/assetLedgerService');
+const { verifyTronUsdtDeposit } = require('../../services/tronVerificationService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -271,14 +272,23 @@ router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => 
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid deposit amount");
     const coin = String(deposit.coin || "USDT").trim().toUpperCase();
     const network = String(deposit.network || "INTERNAL").trim().toUpperCase();
+    if (coin !== "USDT" || !["TRC20", "TRON"].includes(network)) {
+      throw createError(409, "Deposit credit is locked for this asset/network until a verified blockchain adapter is configured.");
+    }
+    const [wallets] = await connection.execute("SELECT address FROM deposit_wallets WHERE UPPER(coin)='USDT' AND UPPER(network) IN ('TRC20','TRON') AND status='active' ORDER BY id DESC LIMIT 1");
+    if (!wallets.length || !wallets[0].address) throw createError(503, "No active TRON USDT treasury deposit address is configured");
+    const verification = await verifyTronUsdtDeposit({ txid: deposit.txid, recipientAddress: wallets[0].address, expectedAmount: deposit.amount });
+    if (!verification.verified) throw createError(422, "Deposit not credited: " + verification.reason);
+    const [duplicates] = await connection.execute("SELECT id FROM deposits WHERE id<>? AND txid=? AND status='approved' LIMIT 1 FOR UPDATE", [deposit.id, deposit.txid]);
+    if (duplicates.length) throw createError(409, "This blockchain transaction has already been credited to another deposit request");
     await creditAssetBalance(connection, {
       userId: deposit.user_id,
       coin,
-      network,
+      network: "TRC20",
       amount,
       referenceType: "deposit_admin_approval",
       referenceId: deposit.id,
-      note: adminNote || `Deposit #${deposit.id} approved by admin`
+      note: adminNote || `Verified TRON USDT deposit #${deposit.id} approved by admin; TXID ${verification.txid}`
     });
     await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
     await createTransactionLog(connection, { userId: deposit.user_id, type: "deposit_approved", amount, status: "completed", referenceId: deposit.id, note: adminNote || `Deposit #${deposit.id} approved by admin` });
