@@ -90,3 +90,20 @@
 .owner-auth-footer>span:first-child{display:flex;align-items:center;gap:7px}
 .owner-auth-footer i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#57d6ad;box-shadow:0 0 9px #57d6ad80}
 @media(max-width:420px){.owner-auth-screen{padding:14px 10px}.owner-auth-card{padding:22px 18px;border-radius:17px}.owner-auth-brand{margin-bottom:27px}.owner-auth-footer{flex-direction:column}}
+
+
+/* Authenticated OKX read-only account balance panel */
+.okx-balance-panel{display:grid;gap:13px;margin-top:18px;padding:15px;border:1px solid #2a405b;border-radius:13px;background:linear-gradient(145deg,#0c1a2b,#08111d)}
+.okx-balance-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.okx-balance-heading>div{display:grid;gap:5px}
+.okx-balance-heading b{font-size:13px;color:#edf4ff}
+.okx-balance-heading small{font-size:10px;color:#91a8c4}
+.okx-total{display:grid;gap:5px;padding:14px;border:1px solid #284769;border-radius:10px;background:#11243a}
+.okx-total small{font-size:10px;color:#8eabc9}
+.okx-total b{font-size:25px;letter-spacing:-.025em;color:#f1f7ff;overflow-wrap:anywhere}
+.okx-balance-list{display:grid;gap:7px}
+.okx-balance-row{display:grid;grid-template-columns:.7fr repeat(4,minmax(0,1fr));gap:10px;align-items:center;padding:11px;border:1px solid #20344c;border-radius:9px;background:#091421;font-size:11px;color:#e2edfc;min-width:0}
+.okx-balance-row>b{font-size:12px}
+.okx-balance-row>span{display:grid;gap:5px;min-width:0;overflow-wrap:anywhere}
+.okx-balance-row small{font-size:9px;color:#829ab8}
+@media(max-width:620px){.okx-balance-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.okx-balance-row>b{grid-column:1/-1;padding-bottom:7px;border-bottom:1px solid #20344c}.okx-balance-heading>button{width:100%;justify-content:center}}
