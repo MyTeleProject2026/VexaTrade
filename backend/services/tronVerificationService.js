@@ -3,7 +3,7 @@
 const axios = require('axios');
 
 const DEFAULT_TRONGRID = 'https://api.trongrid.io';
-const USDT_TRC20_MAINNET = 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj';
+const USDT_TRC20_MAINNET = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const TRANSFER_EVENT = 'Transfer';
 
 function decimalToUnits(value, decimals = 6) {
