@@ -46,3 +46,15 @@
 .icon-link{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border:1px solid #31455f;border-radius:9px;color:#c5d8f4}
 .icon-link:hover{background:#1a2a40}
 @media(max-width:680px){.activity-row{padding:11px 9px;gap:8px}.activity-icon{width:30px;height:30px}.activity-main>small{font-size:9px}}
+
+/* Multi-address public Ethereum portfolio */
+.portfolio-list{display:grid;gap:10px;margin-top:16px}
+.portfolio-row{display:grid;gap:12px;padding:14px;border:1px solid #273a53;border-radius:12px;background:#091422}
+.portfolio-address{display:flex;align-items:center;gap:8px;min-width:0}
+.portfolio-address>b{font-size:12px;color:#dce9ff;overflow-wrap:anywhere;margin-right:auto}
+.portfolio-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.portfolio-values>span{display:grid;gap:5px;padding:10px;border-radius:9px;background:#101f31;min-width:0}
+.portfolio-values small{font-size:10px;color:#8ea4c0}
+.portfolio-values b{font-size:16px;color:#eef5ff;overflow-wrap:anywhere}
+.error-text{color:#ffb4b4;font-size:12px;margin-top:10px;overflow-wrap:anywhere}
+@media(max-width:560px){.portfolio-row{padding:10px}.portfolio-values b{font-size:14px}}
