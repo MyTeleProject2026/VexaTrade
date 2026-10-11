@@ -429,14 +429,42 @@ router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) 
   try {
     const withdrawalId = Number(req.params.id);
     const note = String(req.body?.settlement_note || '').trim();
-    const [rows] = await pool.execute('SELECT * FROM withdrawals WHERE id=?',[withdrawalId]);
-    if (!rows.length) throw createError(404,'Withdrawal not found');
-    const w=rows[0];
-    if (w.status !== 'pending_settlement') throw createError(400,'Withdrawal is not authorized for settlement');
-    await pool.execute("UPDATE withdrawals SET status='settlement_processing',admin_note=?,updated_at=NOW() WHERE id=?",[note||'Settlement processing',withdrawalId]);
-    await createAuditLog(pool,{adminId:req.admin.id,action:'begin_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||'Settlement processing started'});
-    res.json({success:true,message:'Withdrawal moved to settlement processing'});
-  } catch(error){next(error);}
+    const [rows] = await pool.execute('SELECT * FROM withdrawals WHERE id=?', [withdrawalId]);
+    if (!rows.length) throw createError(404, 'Withdrawal not found');
+    const w = rows[0];
+    if (w.status !== 'pending_settlement') {
+      throw createError(400, 'Withdrawal is not awaiting owner approval');
+    }
+
+    // Approval is not a broadcast. Keep the request pending until a real,
+    // configured treasury integration can sign, broadcast, and verify receipt.
+    const approvalNote = note
+      ? `Owner approved; awaiting treasury funding/signing/broadcast. ${note}`
+      : 'Owner approved; awaiting treasury funding/signing/broadcast. No blockchain transaction has been sent.';
+    await pool.execute(
+      'UPDATE withdrawals SET admin_note=?, updated_at=NOW() WHERE id=? AND status=?',
+      [approvalNote, withdrawalId, 'pending_settlement']
+    );
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: 'approve_withdrawal_pending_treasury',
+      targetUserId: w.user_id,
+      referenceId: w.id,
+      note: approvalNote
+    });
+    return res.json({
+      success: true,
+      message: 'Owner approval recorded. The withdrawal remains pending until treasury funding, signing, broadcast, and confirmed-receipt verification are configured.',
+      data: {
+        withdrawalId,
+        status: 'pending_settlement',
+        transactionHash: null,
+        settlement: 'awaiting_treasury_configuration'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post('/admin/withdrawals/:id/complete', authAdmin, async (req, res) => {
