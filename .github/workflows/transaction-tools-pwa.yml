@@ -1,0 +1,65 @@
+name: Transaction Tools PWA Install Package
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+      - ".github/workflows/transaction-tools-pwa.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+      - ".github/workflows/transaction-tools-pwa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pwa-build:
+    name: Build and validate installable web app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend-transaction-tools/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build production PWA
+        run: npm run build
+      - name: Validate PWA manifest, service worker and app icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/index.html
+          test -s dist/manifest.webmanifest
+          test -s dist/sw.js
+          test -s dist/vexatrade-icon.svg
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const manifest = JSON.parse(fs.readFileSync('dist/manifest.webmanifest', 'utf8'));
+          for (const key of ['name', 'short_name', 'start_url', 'scope', 'display', 'icons']) {
+            if (!(key in manifest)) throw new Error('PWA manifest missing required field: ' + key);
+          }
+          if (manifest.display !== 'standalone') throw new Error('PWA must use standalone display mode');
+          if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) throw new Error('PWA manifest has no icons');
+          console.log('PWA manifest validated:', manifest.name);
+          NODE
+          grep -q "apple-mobile-web-app-capable" dist/index.html
+          grep -q 'rel="manifest"' dist/index.html
+      - name: Upload installable PWA static package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexatrade-transaction-tools-pwa-webapp
+          path: frontend-transaction-tools/dist/
+          if-no-files-found: error
+          retention-days: 30
