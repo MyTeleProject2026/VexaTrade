@@ -41,6 +41,7 @@ jobs:
           node --check src/routes/loanRoutes.js
           node --check src/routes/profitWithdrawalRoutes.js
           node --check src/routes/adminRoutes.js
+          node --check src/routes/adminLedgerControlRoutes.js
           node --check src/routes/adminControlCenterRoutes.js
           node --check src/routes/adminNotifications.js
           node --check src/routes/vexaAccountSso.js
