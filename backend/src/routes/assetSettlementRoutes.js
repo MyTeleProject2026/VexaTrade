@@ -43,9 +43,26 @@ function validateDestinationAddress(network, address) {
   const n = String(network || '').trim().toUpperCase();
   const a = String(address || '').trim();
   if (['TRON','TRC20'].includes(n)) return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a);
-  if (['ETHEREUM','ERC20','BSC','BEP20','POLYGON','POLYGON POS','ARBITRUM','OPTIMISM','BASE','AVALANCHE C-CHAIN'].includes(n)) return /^0x[a-fA-F0-9]{40}$/.test(a);
+  if (['ETHEREUM','ERC20','BSC','BEP20','POLYGON','POLYGON POS'].includes(n)) return /^0x[a-fA-F0-9]{40}$/.test(a);
   if (['BITCOIN','BTC'].includes(n)) return /^(bc1[ac-hj-np-z02-9]{11,71}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/i.test(a);
   return false;
+}
+function isSupportedAssetNetwork(coin, network) {
+  const c = String(coin || '').trim().toUpperCase();
+  const n = String(network || '').trim().toUpperCase();
+  const allowed = {
+    TRON: ['USDT','TRX'], TRC20: ['USDT'],
+    ETHEREUM: ['ETH','USDT'], ERC20: ['USDT'],
+    BSC: ['BNB','USDT'], BEP20: ['USDT'],
+    POLYGON: ['POL','USDT'], 'POLYGON POS': ['POL','USDT'],
+    BITCOIN: ['BTC'], BTC: ['BTC']
+  };
+  return Boolean(allowed[n] && allowed[n].includes(c));
+}
+function isPositiveDecimal18(value) {
+  const s = String(value ?? '').trim();
+  if (!/^(?:0|[1-9]\\d{0,17})(?:\\.\\d{1,18})?$/.test(s)) return false;
+  return /[1-9]/.test(s);
 }
 
 // Owner workspace: create a persistent pending outbound intent only.
@@ -74,18 +91,34 @@ router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) 
     const requestKey = String(req.body?.request_key || '').trim();
     if (!/^[A-Z0-9]{2,24}$/.test(coin)) return res.status(400).json({ success: false, message: 'Choose a supported coin symbol.' });
     if (!network || network.length > 32) return res.status(400).json({ success: false, message: 'Choose a blockchain network.' });
+    if (!isSupportedAssetNetwork(coin, network)) return res.status(400).json({ success: false, message: 'This coin is not supported on the selected network. Check the asset/network pair before creating a request.' });
     if (!['wallet','exchange'].includes(destinationKind)) return res.status(400).json({ success: false, message: 'Destination type must be wallet or exchange.' });
     if (!validateDestinationAddress(network, destinationAddress)) return res.status(400).json({ success: false, message: 'Destination address format does not match a supported network. This format check does not prove ownership or account credit.' });
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 1e18 || !/^\d+(\.\d{1,18})?$/.test(amountText)) return res.status(400).json({ success: false, message: 'Enter a positive amount with up to 18 decimal places.' });
+    if (!isPositiveDecimal18(amountText)) return res.status(400).json({ success: false, message: 'Enter a positive amount with up to 18 integer digits and up to 18 decimal places.' });
     if (!/^VXT-[A-F0-9]{24}$/.test(requestKey)) return res.status(400).json({ success: false, message: 'A valid unique internal request reference is required.' });
     const [existing] = await pool.execute('SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at FROM treasury_outbound_requests WHERE request_key=? LIMIT 1', [requestKey]);
     if (existing.length) return res.status(200).json({ success: true, duplicate: true, data: existing[0], message: 'Existing pending request returned. No duplicate request was created.' });
-    const [result] = await pool.execute(
-      `INSERT INTO treasury_outbound_requests
-        (request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'awaiting_funding', NULL, ?, ?, NOW(), NOW())`,
-      [requestKey, coin, network, destinationKind, destinationAddress, destinationLabel, amountText, note, Number(req.admin.id)]
-    );
+    let result;
+    try {
+      [result] = await pool.execute(
+        `INSERT INTO treasury_outbound_requests
+          (request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'awaiting_funding', NULL, ?, ?, NOW(), NOW())`,
+        [requestKey, coin, network, destinationKind, destinationAddress, destinationLabel, amountText, note, Number(req.admin.id)]
+      );
+    } catch (insertError) {
+      // Concurrent retries can both pass the pre-insert lookup. The unique key
+      // remains authoritative: return the existing request instead of creating
+      // a second payment intent or exposing a duplicate-key server error.
+      if (insertError.code === 'ER_DUP_ENTRY') {
+        const [duplicateRows] = await pool.execute(
+          'SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at FROM treasury_outbound_requests WHERE request_key=? LIMIT 1',
+          [requestKey]
+        );
+        if (duplicateRows.length) return res.status(200).json({ success: true, duplicate: true, data: duplicateRows[0], message: 'Existing pending request returned. No duplicate request was created.' });
+      }
+      throw insertError;
+    }
     await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_request_created', referenceId: result.insertId, note: `${amountText} ${coin}/${network}; awaiting funding; no transaction broadcast` });
     const [rows] = await pool.execute('SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at FROM treasury_outbound_requests WHERE id=? LIMIT 1', [result.insertId]);
     res.status(201).json({ success: true, data: rows[0], settlementEnabled: false, message: 'Pending outbound request created. No funds were sent, no external balance was created, and no blockchain TXID exists yet.' });
