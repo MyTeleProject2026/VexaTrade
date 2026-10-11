@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Search, ImageOff, ExternalLink } from "lucide-react";
+import { RefreshCw, Search, ImageOff, ExternalLink, ShieldCheck } from "lucide-react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 // ✅ ADDED: Import toast notification hook
 import useToast from "../../components/ToastNotification";
@@ -97,6 +97,7 @@ export default function AdminDepositsPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [chainChecks, setChainChecks] = useState({});
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -136,6 +137,28 @@ export default function AdminDepositsPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  async function handleVerifyOnChain(id) {
+    try {
+      setActionLoading(`verify-${id}`);
+      setError("");
+      setSuccess("");
+      setChainChecks((current) => ({ ...current, [id]: null }));
+      const response = await adminApi.verifyDepositOnChain(id, token);
+      const result = response.data?.data || response.data;
+      setChainChecks((current) => ({ ...current, [id]: { verified: true, data: result } }));
+      const message = `Deposit #${id} verified against confirmed TRON chain data. Approval will verify again before crediting.`;
+      setSuccess(message);
+      addToast(message, "success");
+    } catch (err) {
+      const message = getApiErrorMessage(err);
+      setChainChecks((current) => ({ ...current, [id]: { verified: false, message } }));
+      setError(message);
+      addToast(message, "error");
+    } finally {
+      setActionLoading("");
     }
   }
 
@@ -435,6 +458,32 @@ export default function AdminDepositsPage() {
                       </div>
                     </div>
 
+                    {isPending ? (
+                      <div className="mb-3 space-y-2">
+                        <button
+                          type="button"
+                          disabled={actionLoading === `verify-${deposit.id}` || !deposit.txid || !["USDT"].includes(String(deposit.coin || "").toUpperCase()) || !["TRC20", "TRON"].includes(String(deposit.network || "").toUpperCase())}
+                          onClick={() => handleVerifyOnChain(deposit.id)}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <ShieldCheck size={15} />
+                          {actionLoading === `verify-${deposit.id}` ? "Checking solidified TRON receipt..." : "Verify on-chain deposit"}
+                        </button>
+                        {chainChecks[deposit.id]?.verified ? (
+                          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-200">
+                            <b>Confirmed on-chain</b><br />
+                            {chainChecks[deposit.id].data?.amount} USDT · block {chainChecks[deposit.id].data?.blockNumber || "confirmed"}<br />
+                            Recipient: {chainChecks[deposit.id].data?.recipientAddress}
+                            <br />The approve endpoint re-verifies before ledger credit.
+                          </div>
+                        ) : null}
+                        {chainChecks[deposit.id] && !chainChecks[deposit.id].verified ? (
+                          <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.06] p-3 text-xs leading-5 text-rose-200">
+                            <b>Not verified</b><br />{chainChecks[deposit.id].message}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
                       <button
                         type="button"
