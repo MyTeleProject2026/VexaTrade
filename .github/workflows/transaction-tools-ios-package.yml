@@ -1,0 +1,151 @@
+name: Transaction Tools iOS Packages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+      - ".github/workflows/transaction-tools-ios-package.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "frontend-transaction-tools/**"
+      - ".github/workflows/transaction-tools-ios-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator:
+    name: Build iOS Simulator app package
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend-transaction-tools/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build web assets
+        run: npm run build
+      - name: Add iOS platform
+        run: npx cap add ios
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+      - name: Install CocoaPods dependencies
+        run: pod install --project-directory=ios/App
+      - name: Verify workspace exists
+        run: test -d ios/App/App.xcworkspace
+      - name: Build for iOS Simulator
+        run: xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
+      - name: Package Simulator app
+        run: |
+          cd build/ios/Build/Products/Debug-iphonesimulator
+          ditto -c -k --sequesterRsrc --keepParent App.app "$GITHUB_WORKSPACE/frontend-transaction-tools/vexatrade-ios-simulator-app.zip"
+      - name: Upload iOS Simulator package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexatrade-transaction-tools-ios-simulator
+          path: frontend-transaction-tools/vexatrade-ios-simulator-app.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  signed-ipa:
+    name: Build signed iPhone IPA (when Apple signing secrets are configured)
+    runs-on: macos-15
+    if: github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    env:
+      IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
+    steps:
+      - name: Check Apple signing configuration
+        id: signing
+        shell: bash
+        run: |
+          if [[ -n "$IOS_CERTIFICATE_BASE64" && -n "$IOS_CERTIFICATE_PASSWORD" && -n "$IOS_PROVISIONING_PROFILE_BASE64" && -n "$IOS_TEAM_ID" && -n "$IOS_BUNDLE_ID" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Apple signing secrets are not configured; producing the Simulator package only. A device-installable IPA requires an Apple Distribution certificate and provisioning profile."
+          fi
+      - name: Checkout
+        if: steps.signing.outputs.configured == 'true'
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        if: steps.signing.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend-transaction-tools/package-lock.json
+      - name: Install dependencies
+        if: steps.signing.outputs.configured == 'true'
+        run: npm ci --no-audit --no-fund
+      - name: Build web assets
+        if: steps.signing.outputs.configured == 'true'
+        run: npm run build
+      - name: Add and sync iOS
+        if: steps.signing.outputs.configured == 'true'
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          pod install --project-directory=ios/App
+      - name: Import signing certificate and provisioning profile
+        if: steps.signing.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/ios_distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          security create-keychain -p "$IOS_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$IOS_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/profile.mobileprovision"
+      - name: Archive and export signed IPA
+        if: steps.signing.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/VexaTrade.xcarchive" DEVELOPMENT_TEAM="$IOS_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$IOS_BUNDLE_ID" CODE_SIGN_STYLE=manual PROVISIONING_PROFILE_SPECIFIER=profile archive
+          mkdir -p "$RUNNER_TEMP/export"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>method</key><string>ad-hoc</string>
+          <key>teamID</key><string>$IOS_TEAM_ID</string>
+          <key>signingStyle</key><string>manual</string>
+          <key>provisioningProfiles</key><dict><key>$IOS_BUNDLE_ID</key><string>profile</string></dict>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/VexaTrade.xcarchive" -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          mkdir -p release
+          cp "$RUNNER_TEMP/export/"*.ipa release/VexaTrade-Transaction-Tools.ipa
+      - name: Upload signed iPhone IPA
+        if: steps.signing.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexatrade-transaction-tools-ios-ipa
+          path: frontend-transaction-tools/release/VexaTrade-Transaction-Tools.ipa
+          if-no-files-found: error
+          retention-days: 30
