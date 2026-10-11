@@ -72,9 +72,15 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    const r=await fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt);if(!r.ok)throw Error('The public TRON provider is unavailable or rate-limited.');
-    const j=await r.json(),t=(j.data||[]).find(x=>x.tokenId===c.usdt||x.tokenAbbr?.toUpperCase()==='USDT');
-    setBalance({address:a,amount:t?Number(t.balance||0)/Math.pow(10,Number(t.tokenDecimal??6)):0,amountDisplay:t?formatUnits(t.balance||'0',Number(t.tokenDecimal??6),6):'0',asset:'USDT',time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'USDT TRC20 token balance from public chain data.'});
+    const [accountResponse,tokenResponse]=await Promise.all([
+     fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
+     fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
+    ]);
+    if(!accountResponse.ok||!tokenResponse.ok)throw Error('The public TRON provider is unavailable or rate-limited.');
+    const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
+    const account=accountJson?.data?.[0]||{},token=(tokenJson.data||[]).find(x=>String(x.tokenId||'').toLowerCase()===c.usdt.toLowerCase()||x.tokenAbbr?.toUpperCase()==='USDT');
+    const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??6);
+    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and USDT TRC20 token balance from public TRON chain data. A public address lookup does not prove ownership.'});
    }else if(chain==='btc'){
     const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Bitcoin public provider is unavailable or rate-limited.');
     const j=await r.json(),stats=j.chain_stats||{},m=j.mempool_stats||{};
