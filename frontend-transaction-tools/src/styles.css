@@ -24,3 +24,13 @@
 .transfer-row code{display:block;overflow-wrap:anywhere;white-space:normal;padding:8px;background:#020814;border-radius:6px;color:#c8d7f0;font-size:10px}
 .pill.amber{color:#ffd28a;background:#ffbd4a12;border-color:#ffbd4a30}
 @media(max-width:680px){.owner-connect,.transfer-form{grid-template-columns:1fr}.field-wide,.owner-connect .footnote{grid-column:auto}.owner-connect{align-items:stretch}.owner-connect .primary{width:100%}.owner-session button{flex:1;justify-content:center}.transfer-row-bottom{align-items:flex-start;flex-direction:column}}
+
+/* Shared VexaTrade Admin credential sign-in for owner tools. */
+.owner-login{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+.owner-login-heading{grid-column:1/-1;display:flex;align-items:center;gap:11px;padding:2px 0 5px;color:#b8d0ff}
+.owner-login-heading>svg{flex:0 0 auto}
+.owner-login-heading div{display:grid;gap:4px}
+.owner-login-heading b{font-size:13px;color:#e8f0ff}
+.owner-login-heading small{font-size:10px;line-height:1.5;color:#8ea1ba}
+.owner-login .footnote{grid-column:1/-1}
+@media(max-width:680px){.owner-login{grid-template-columns:1fr}.owner-login-heading,.owner-login .footnote{grid-column:auto}}
