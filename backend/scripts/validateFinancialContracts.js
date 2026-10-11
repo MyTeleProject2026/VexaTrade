@@ -70,7 +70,7 @@ if (!settlement.includes('outboundSettlementReady:false')) throw new Error('[Tre
 if (!settlement.includes('verifyTronUsdtDeposit') || !settlement.includes('claimVerifiedDeposit')) throw new Error('[Deposit] confirmed chain verification and unique TXID claims missing');
 if (!settlement.includes("router.post('/operations/treasury/transfers'") || !settlement.includes("router.get('/operations/treasury/transfers'")) throw new Error('[Treasury] authenticated pending transfer request API missing');
 if (!settlement.includes("'awaiting_funding'") || !settlement.includes("txid, note, created_by")) throw new Error('[Treasury] outbound request queue must retain pending status and transaction evidence fields');
-if (!settlement.includes("No funds were sent") || !settlement.includes("No blockchain TXID exists yet")) throw new Error('[Treasury] pending request response must not imply external payment');
+if (!settlement.includes("No funds were sent") || !settlement.includes("no blockchain TXID exists yet")) throw new Error('[Treasury] pending request response must not imply external payment');
 const toolsUi = fs.readFileSync(path.join(root,'../frontend-transaction-tools/src/main.jsx'),'utf8');
 if (!toolsUi.includes("Owner outbound transfer desk") || !toolsUi.includes("/api/operations/treasury/transfers")) throw new Error('[Transaction Tools] owner transfer desk is not connected to the backend request API');
 if (!toolsUi.includes("It cannot mint a pending balance inside another wallet or exchange")) throw new Error('[Transaction Tools] external balance limitation must be disclosed');
