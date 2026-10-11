@@ -71,7 +71,6 @@ jobs:
       - name: Check Apple signing configuration
         id: signing
         shell: bash
-        working-directory: frontend-transaction-tools
         run: |
           if [[ -n "$IOS_CERTIFICATE_BASE64" && -n "$IOS_CERTIFICATE_PASSWORD" && -n "$IOS_PROVISIONING_PROFILE_BASE64" && -n "$IOS_TEAM_ID" && -n "$IOS_BUNDLE_ID" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
