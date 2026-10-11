@@ -74,8 +74,7 @@ jobs:
       - name: Add iOS platform
         run: npx cap add ios
       - name: Build iOS Simulator app
-        run: |
-          xcodebuild             -workspace ios/App/App.xcworkspace             -scheme App             -sdk iphonesimulator             -configuration Debug             -derivedDataPath build/ios             CODE_SIGNING_ALLOWED=NO             build
+        run: xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO build
       - name: Package iOS Simulator app
         run: |
           cd build/ios/Build/Products/Debug-iphonesimulator
