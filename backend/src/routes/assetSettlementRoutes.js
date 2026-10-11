@@ -6,6 +6,29 @@ const {createError,createTransactionLog,createUserNotification,createAuditLog}=r
 const {creditAssetBalance,releaseReservedAsset,consumeReservedAsset,debitAvailableAsset,movePendingToAvailable}=require('../../services/assetLedgerService');
 const {verifyTronUsdtDeposit,claimVerifiedDeposit}=require('../../services/tronVerificationService');
 
+// Admin-only treasury readiness. Bitget Wallet is a wallet interface, not a configured server-side custody/signing service.
+router.get('/operations/treasury/status',authAdmin,async(req,res)=>{
+  res.json({
+    success:true,
+    data:{
+      provider:'Bitget Wallet',
+      treasuryConfigured:false,
+      signingConfigured:false,
+      broadcastConfigured:false,
+      outboundSettlementReady:false,
+      enabledOutboundNetworks:[],
+      verifiedInboundAdapters:['USDT/TRC20 (TRON mainnet)'],
+      missing:[
+        'Treasury wallet address and ownership verification',
+        'A supported, authenticated signing/broadcast integration for each enabled chain',
+        'Chain-specific confirmed-receipt verification and idempotent settlement',
+        'Per-network asset/contract allowlist and treasury fee policy'
+      ],
+      message:'Outbound transfers remain disabled. Bitget Wallet connection alone does not configure a server treasury or authorize server-side signing.'
+    }
+  });
+});
+
 // Verify a deposit against confirmed TRON mainnet data without mutating balances.
 router.post('/operations/deposits/:id/verify',authAdmin,async(req,res,next)=>{try{
  const id=Number(req.params.id);if(!Number.isInteger(id)||id<=0)throw createError(400,'Invalid deposit id');
@@ -42,7 +65,39 @@ router.post('/admin/users/:id/add-funds',authAdmin,async(req,res,next)=>{const c
 
 router.post('/admin/users/:id/decrease-funds',authAdmin,async(req,res,next)=>{const c=await pool.getConnection();try{const userId=Number(req.params.id),amount=Number(req.body.amount||0),note=String(req.body.note||'').trim();if(!Number.isInteger(userId)||userId<=0)throw createError(400,'Invalid user id');if(!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid amount');await c.beginTransaction();const [users]=await c.execute('SELECT id FROM users WHERE id=? FOR UPDATE',[userId]);if(!users.length)throw createError(404,'User not found');await debitAvailableAsset(c,{userId,coin:'USDT',network:'INTERNAL',amount,referenceType:'admin_debit',referenceId:userId,note:note||`Manual USDT debit by admin ${req.admin.id}`});await createTransactionLog(c,{userId,type:'admin_debit',amount,status:'completed',referenceId:userId,note:note||`Manual USDT debit by admin ${req.admin.id}`});await createAuditLog(c,{adminId:req.admin.id,action:'decrease_user_funds_ledger',targetUserId:userId,referenceId:userId,note:note||`Decreased ${amount} USDT`});await createUserNotification(c,{userId,title:'Balance updated',message:`Admin decreased ${amount} USDT from your available wallet balance.`,type:'security'});await c.commit();res.json({success:true,message:'Funds decreased from USDT asset ledger',data:{coin:'USDT',amount}});}catch(e){await c.rollback();next(e)}finally{c.release()}});
 
-router.post('/admin/deposits/:id/approve',authAdmin,async(req,res,next)=>{const c=await pool.getConnection();try{const depositId=Number(req.params.id),adminNote=String(req.body?.admin_note||req.body?.note||'').trim();await c.beginTransaction();const [rows]=await c.execute('SELECT * FROM deposits WHERE id=? FOR UPDATE',[depositId]);if(!rows.length)throw createError(404,'Deposit not found');const d=rows[0];if(String(d.status).toLowerCase()!=='pending')throw createError(409,'Deposit already processed');const amount=Number(d.amount||0);if(!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid deposit amount');const coin=String(d.coin||'USDT').trim().toUpperCase(),network=String(d.network||'INTERNAL').trim().toUpperCase();await creditAssetBalance(c,{userId:d.user_id,coin,network,amount,referenceType:'deposit',referenceId:d.id,note:adminNote||'Approved by admin'});await c.execute("UPDATE deposits SET status='approved',admin_note=?,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE id=?",[adminNote||'Approved by admin',depositId]);await createTransactionLog(c,{userId:d.user_id,type:'deposit_approved',amount,status:'completed',referenceId:d.id,note:adminNote||`Deposit #${d.id} approved by admin`});await createAuditLog(c,{adminId:req.admin.id,action:'approve_deposit_ledger',targetUserId:d.user_id,referenceId:d.id,note:adminNote||`Approved deposit #${d.id}`});await createUserNotification(c,{userId:d.user_id,title:'Deposit approved',message:`Your deposit of ${amount} ${coin} has been credited to your wallet.`,type:'general'});await c.commit();res.json({success:true,message:'Deposit approved and asset credited'});}catch(e){await c.rollback();next(e)}finally{c.release()}});
+router.post('/admin/deposits/:id/approve',authAdmin,async(req,res,next)=>{
+ const c=await pool.getConnection();
+ try {
+  const depositId=Number(req.params.id);
+  const adminNote=String(req.body?.admin_note||req.body?.note||'').trim();
+  if(!Number.isInteger(depositId)||depositId<=0)throw createError(400,'Invalid deposit id');
+  await c.beginTransaction();
+  const [rows]=await c.execute('SELECT * FROM deposits WHERE id=? FOR UPDATE',[depositId]);
+  if(!rows.length)throw createError(404,'Deposit not found');
+  const d=rows[0];
+  if(String(d.status||'').toLowerCase()!=='pending')throw createError(409,'Deposit already processed');
+  const amount=Number(d.amount||0);
+  if(!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid deposit amount');
+  const coin=String(d.coin||'USDT').trim().toUpperCase();
+  const requestedNetwork=String(d.network||'').trim().toUpperCase();
+  if(coin!=='USDT'||!['TRC20','TRON'].includes(requestedNetwork))throw createError(409,'Deposit credit is locked until a confirmed on-chain verifier is configured for this asset and network.');
+  const [wallets]=await c.execute("SELECT address FROM deposit_wallets WHERE UPPER(coin)='USDT' AND UPPER(network) IN ('TRC20','TRON') AND status='active' ORDER BY id DESC LIMIT 1");
+  if(!wallets.length||!wallets[0].address)throw createError(503,'No active TRON USDT treasury deposit address is configured');
+  const verification=await verifyTronUsdtDeposit({txid:d.txid,recipientAddress:wallets[0].address,expectedAmount:d.amount});
+  if(!verification.verified)throw createError(422,'Deposit not credited: '+verification.reason);
+  const [duplicates]=await c.execute("SELECT id FROM deposits WHERE id<>? AND LOWER(txid)=LOWER(?) AND status='approved' LIMIT 1 FOR UPDATE",[d.id,d.txid]);
+  if(duplicates.length)throw createError(409,'This blockchain transaction has already been credited to another deposit request');
+  await claimVerifiedDeposit(c,{txid:verification.txid,depositId:d.id,userId:d.user_id,coin,network:'TRC20',amount:d.amount});
+  await creditAssetBalance(c,{userId:d.user_id,coin,network:'TRC20',amount,referenceType:'deposit_admin_approval',referenceId:d.id,note:adminNote||'Verified TRON USDT deposit approved by admin; TXID '+verification.txid});
+  await c.execute("UPDATE deposits SET status='approved',admin_note=?,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE id=?",[adminNote||'Verified on-chain deposit approved',depositId]);
+  await createTransactionLog(c,{userId:d.user_id,type:'deposit_approved',amount,status:'completed',referenceId:d.id,note:'Verified TRON USDT deposit TXID '+verification.txid});
+  await createAuditLog(c,{adminId:req.admin.id,action:'approve_deposit_ledger',targetUserId:d.user_id,referenceId:d.id,note:adminNote||'Verified on-chain deposit approved; TXID '+verification.txid});
+  await createUserNotification(c,{userId:d.user_id,title:'Deposit approved',message:'Your confirmed TRON USDT deposit has been credited to your wallet.',type:'general'});
+  await c.commit();
+  res.json({success:true,message:'Verified on-chain deposit approved and asset credited',data:{depositId,coin,network:'TRC20',txid:verification.txid,verified:true}});
+ } catch(e) { await c.rollback(); next(e); }
+ finally { c.release(); }
+});
 
 // Legacy withdrawal approval is a state transition only; funds were reserved by the user request.
 router.post('/admin/withdrawals/:id/approve',authAdmin,async(req,res,next)=>{const c=await pool.getConnection();try{const withdrawalId=Number(req.params.id),note=String(req.body?.admin_note||req.body?.note||'Settlement authorization approved').trim();await c.beginTransaction();const [rows]=await c.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[withdrawalId]);if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];const status=String(w.status||'').toLowerCase();if(status==='settlement_processing'){await c.rollback();return res.json({success:true,message:'Withdrawal is already in settlement processing',data:{id:w.id,status}});}if(!['pending','pending_authorization','authorized','pending_settlement'].includes(status))throw createError(409,'Withdrawal is not awaiting settlement authorization');await c.execute("UPDATE withdrawals SET status='settlement_processing',authorization_status='authorized',admin_note=?,updated_at=NOW() WHERE id=?",[note,withdrawalId]);await createTransactionLog(c,{userId:w.user_id,type:'withdrawal_settlement_processing',amount:Number(w.amount||0)+Number(w.fee_amount||0),status:'processing',referenceId:w.id,note});await createAuditLog(c,{adminId:req.admin.id,action:'begin_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note});await createUserNotification(c,{userId:w.user_id,title:'Withdrawal settlement started',message:'Your withdrawal has entered settlement processing.',type:'general'});await c.commit();res.json({success:true,message:'Withdrawal moved to settlement processing',data:{id:w.id,status:'settlement_processing'}});}catch(e){await c.rollback();next(e)}finally{c.release()}});
