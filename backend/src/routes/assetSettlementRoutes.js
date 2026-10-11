@@ -6,6 +6,92 @@ const {createError,createTransactionLog,createUserNotification,createAuditLog}=r
 const {creditAssetBalance,releaseReservedAsset,consumeReservedAsset,debitAvailableAsset,movePendingToAvailable}=require('../../services/assetLedgerService');
 const {verifyTronUsdtDeposit,claimVerifiedDeposit}=require('../../services/tronVerificationService');
 
+let treasuryTransferTableReady = false;
+let treasuryTransferTablePromise = null;
+async function ensureTreasuryTransferTable() {
+  if (treasuryTransferTableReady) return;
+  if (!treasuryTransferTablePromise) {
+    treasuryTransferTablePromise = pool.execute(`
+      CREATE TABLE IF NOT EXISTS treasury_outbound_requests (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        request_key VARCHAR(80) NOT NULL,
+        coin VARCHAR(24) NOT NULL,
+        network VARCHAR(32) NOT NULL,
+        destination_kind VARCHAR(24) NOT NULL,
+        destination_address VARCHAR(255) NOT NULL,
+        destination_label VARCHAR(120) NULL,
+        amount DECIMAL(36,18) NOT NULL,
+        status VARCHAR(40) NOT NULL DEFAULT 'awaiting_funding',
+        txid VARCHAR(160) NULL,
+        note VARCHAR(500) NULL,
+        created_by BIGINT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_treasury_outbound_request_key (request_key),
+        KEY idx_treasury_outbound_status_created (status, created_at),
+        KEY idx_treasury_outbound_destination (network, destination_address)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `).then(() => { treasuryTransferTableReady = true; }).catch((err) => {
+      treasuryTransferTablePromise = null;
+      throw err;
+    });
+  }
+  await treasuryTransferTablePromise;
+}
+function validateDestinationAddress(network, address) {
+  const n = String(network || '').trim().toUpperCase();
+  const a = String(address || '').trim();
+  if (['TRON','TRC20'].includes(n)) return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a);
+  if (['ETHEREUM','ERC20','BSC','BEP20','POLYGON','POLYGON POS','ARBITRUM','OPTIMISM','BASE','AVALANCHE C-CHAIN'].includes(n)) return /^0x[a-fA-F0-9]{40}$/.test(a);
+  if (['BITCOIN','BTC'].includes(n)) return /^(bc1[ac-hj-np-z02-9]{11,71}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/i.test(a);
+  return false;
+}
+
+// Owner workspace: create a persistent pending outbound intent only.
+// This endpoint deliberately does not create an external balance, sign, or broadcast a transaction.
+router.get('/operations/treasury/transfers', authAdmin, async (req, res, next) => {
+  try {
+    await ensureTreasuryTransferTable();
+    const [rows] = await pool.execute(
+      'SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at FROM treasury_outbound_requests ORDER BY id DESC LIMIT 100'
+    );
+    res.json({ success: true, data: rows, settlementEnabled: false, message: 'Requests are internal pending intents; external balances change only after a real, confirmed transfer.' });
+  } catch (e) { next(e); }
+});
+
+router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) => {
+  try {
+    await ensureTreasuryTransferTable();
+    const coin = String(req.body?.coin || '').trim().toUpperCase();
+    const network = String(req.body?.network || '').trim().toUpperCase();
+    const destinationKind = String(req.body?.destination_kind || '').trim().toLowerCase();
+    const destinationAddress = String(req.body?.destination_address || '').trim();
+    const destinationLabel = String(req.body?.destination_label || '').trim().slice(0, 120) || null;
+    const note = String(req.body?.note || '').trim().slice(0, 500) || null;
+    const amountText = String(req.body?.amount ?? '').trim();
+    const amount = Number(amountText);
+    const requestKey = String(req.body?.request_key || '').trim();
+    if (!/^[A-Z0-9]{2,24}$/.test(coin)) return res.status(400).json({ success: false, message: 'Choose a supported coin symbol.' });
+    if (!network || network.length > 32) return res.status(400).json({ success: false, message: 'Choose a blockchain network.' });
+    if (!['wallet','exchange'].includes(destinationKind)) return res.status(400).json({ success: false, message: 'Destination type must be wallet or exchange.' });
+    if (!validateDestinationAddress(network, destinationAddress)) return res.status(400).json({ success: false, message: 'Destination address format does not match a supported network. This format check does not prove ownership or account credit.' });
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1e18 || !/^\d+(\.\d{1,18})?$/.test(amountText)) return res.status(400).json({ success: false, message: 'Enter a positive amount with up to 18 decimal places.' });
+    if (!/^VXT-[A-F0-9]{24}$/.test(requestKey)) return res.status(400).json({ success: false, message: 'A valid unique internal request reference is required.' });
+    const [existing] = await pool.execute('SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at FROM treasury_outbound_requests WHERE request_key=? LIMIT 1', [requestKey]);
+    if (existing.length) return res.status(200).json({ success: true, duplicate: true, data: existing[0], message: 'Existing pending request returned. No duplicate request was created.' });
+    const [result] = await pool.execute(
+      `INSERT INTO treasury_outbound_requests
+        (request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'awaiting_funding', NULL, ?, ?, NOW(), NOW())`,
+      [requestKey, coin, network, destinationKind, destinationAddress, destinationLabel, amountText, note, Number(req.admin.id)]
+    );
+    await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_request_created', referenceId: result.insertId, note: `${amountText} ${coin}/${network}; awaiting funding; no transaction broadcast` });
+    const [rows] = await pool.execute('SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at, updated_at FROM treasury_outbound_requests WHERE id=? LIMIT 1', [result.insertId]);
+    res.status(201).json({ success: true, data: rows[0], settlementEnabled: false, message: 'Pending outbound request created. No funds were sent, no external balance was created, and no blockchain TXID exists yet.' });
+  } catch (e) { next(e); }
+});
+
 // Admin-only treasury readiness. Bitget Wallet is a wallet interface, not a configured server-side custody/signing service.
 router.get('/operations/treasury/status',authAdmin,async(req,res)=>{
   res.json({
