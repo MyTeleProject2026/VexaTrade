@@ -119,8 +119,8 @@ function validEvmAddress(value) { return /^0x[a-fA-F0-9]{40}$/.test(String(value
 router.get('/public-chain/evm/balance', async (req, res) => {
   const chainid = String(req.query.chainid || '1').trim();
   const address = String(req.query.address || '').trim();
-  if (!ETHERSCAN_CHAIN_IDS.has(chainid)) {
-    return res.status(400).json({ success: false, message: 'This Etherscan chain ID is not enabled in the Transaction Tools adapter.' });
+  if (!/^[1-9][0-9]{0,9}$/.test(chainid)) {
+    return res.status(400).json({ success: false, message: 'Provide a numeric Etherscan-supported chain ID.' });
   }
   if (!validEvmAddress(address)) {
     return res.status(400).json({ success: false, message: 'Enter a valid 0x-prefixed EVM address.' });
