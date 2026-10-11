@@ -20,6 +20,7 @@ const groups = [
     { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
     { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
     { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
+    { label: "Internal Transfer Approvals", to: "/admin/internal-transfers", icon: ShieldCheck },
     { label: "Withdrawal Fees", to: "/admin/withdrawal-fees", icon: BadgeDollarSign },
     { label: "Withdrawal Settings", to: "/admin/withdrawal-settings", icon: Settings2 },
     { label: "Profit Withdrawals", to: "/admin/profit-withdrawal-requests", icon: CircleDollarSign },
