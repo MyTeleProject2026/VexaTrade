@@ -53,6 +53,13 @@ const completionRoute = adminRoutes.slice(completionStart, completionEnd);
 if (!completionRoute.includes('BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED')) throw new Error('[Settlement] legacy withdrawal completion must fail closed');
 if (completionRoute.includes('consumeReservedAsset') || completionRoute.includes("status='completed'")) throw new Error('[Settlement] manual TXID route must not settle ledger funds');
 
+const approvalStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/approve'");
+const approvalEnd = adminRoutes.indexOf("\\nrouter.", approvalStart + 1);
+if (approvalStart < 0 || approvalEnd < 0) throw new Error('[Settlement] owner approval route missing');
+const approvalRoute = adminRoutes.slice(approvalStart, approvalEnd);
+if (approvalRoute.includes("status='settlement_processing'")) throw new Error('[Settlement] owner approval must not imply blockchain processing');
+if (!approvalRoute.includes('awaiting_treasury_configuration') || !approvalRoute.includes('transactionHash: null')) throw new Error('[Settlement] approval must clearly remain pending with no TXID before broadcast');
+
 const settlement = read('src/routes/assetSettlementRoutes.js');
 if (!settlement.includes("router.get('/operations/treasury/status'")) throw new Error('[Treasury] authenticated readiness endpoint missing');
 if (!settlement.includes('outboundSettlementReady:false')) throw new Error('[Treasury] outbound transfers must remain disabled without configured custody');
