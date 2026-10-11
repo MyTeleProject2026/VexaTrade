@@ -80,9 +80,10 @@ if (!toolsUi.includes("Owner outbound transfer desk") || !toolsUi.includes("/api
 if (!toolsUi.includes("It cannot mint a pending balance inside another wallet or exchange")) throw new Error('[Transaction Tools] external balance limitation must be disclosed');
 
 if (!toolsUi.includes('if(!ownerToken)return <div className="owner-auth-screen"')) throw new Error('[Transaction Tools] owner authentication gate must render before every tool page');
-if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
-if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/balances'")) throw new Error('[Transaction Tools] Coinbase live balance action missing');
-if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/okx/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/coinbase/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/balances'")) throw new Error('[Transaction Tools] Coinbase live balance action missing');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/bitget/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
+if (!toolsUi.includes('function ownerRequest(') || !toolsUi.includes('response.status===401||response.status===403') || !toolsUi.includes('clearOwnerSession(')) throw new Error('[Transaction Tools] expired/denied owner sessions must be cleared');
 if (toolsUi.includes('localStorage.setItem("ownerToken"') || toolsUi.includes("localStorage.setItem('ownerToken'") || toolsUi.includes('localStorage.setItem("token"') || toolsUi.includes("localStorage.setItem('token'")) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
 
 const settlementRoutesSource=read('src/routes/assetSettlementRoutes.js');
