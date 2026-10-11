@@ -269,4 +269,27 @@ router.get('/operations/integrations/providers', authAdmin, async (req, res) => 
     {id:'treasury-signer',name:'Server-side treasury signing service',kind:'transaction-signer',status:missingSigner.length?'not_configured':'configured_not_health_checked',configured:missingSigner.length===0,missingEnvironmentVariables:missingSigner,enabledNetworks:String(process.env.TREASURY_SIGNER_NETWORKS||'').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),broadcastEnabled:false}
   ,...groups],safety:{credentialsReturned:false,outboundBroadcastEnabled:false,note:'Listing a provider is not a live connection. Exchange account reads require valid server-side API credentials; wallet access requires explicit user approval; outbound sends remain disabled until a separately audited signer and confirmed-receipt verifier are implemented.'}});
 });
+
+/* Read-only OKX account balances. API credentials never leave the backend. */
+router.get('/operations/integrations/okx/balances', authAdmin, async (req, res) => {
+  const key=String(process.env.EXCHANGE_OKX_API_KEY||'').trim();
+  const secret=String(process.env.EXCHANGE_OKX_API_SECRET||'').trim();
+  const passphrase=String(process.env.EXCHANGE_OKX_API_PASSPHRASE||'').trim();
+  if(!key||!secret||!passphrase)return res.status(503).json({success:false,message:'OKX read-only balance access is not configured. Add the three OKX API variables to the backend environment.'});
+  const crypto=require('crypto');
+  const timestamp=new Date().toISOString();
+  const requestPath='/api/v5/account/balance';
+  const signature=crypto.createHmac('sha256',secret).update(timestamp+'GET'+requestPath).digest('base64');
+  try{
+    const upstream=await fetch('https://www.okx.com'+requestPath,{method:'GET',headers:{'OK-ACCESS-KEY':key,'OK-ACCESS-SIGN':signature,'OK-ACCESS-TIMESTAMP':timestamp,'OK-ACCESS-PASSPHRASE':passphrase,'Content-Type':'application/json'},signal:AbortSignal.timeout(12000)});
+    const payload=await upstream.json();
+    if(!upstream.ok||String(payload?.code)!=='0')return res.status(502).json({success:false,message:'OKX rejected the read-only balance request. Check API permissions, passphrase, IP allowlist, and server time.'});
+    const details=Array.isArray(payload?.data?.[0]?.details)?payload.data[0].details:[];
+    const balances=details.map(x=>({currency:String(x.ccy||''),equity:String(x.eq||'0'),available:String(x.availBal||'0'),cashBalance:String(x.cashBal||'0'),frozen:String(x.frozenBal||'0'),usdValue:String(x.eqUsd||'0')})).filter(x=>x.currency&&[x.equity,x.available,x.cashBalance,x.frozen,x.usdValue].some(v=>Number(v)!==0));
+    res.json({success:true,provider:'OKX',readOnly:true,fetchedAt:new Date().toISOString(),totalEquityUsd:String(payload?.data?.[0]?.totalEq||'0'),balances,notice:'Read-only account data from OKX. This does not enable withdrawals or authorize transfers.'});
+  }catch(error){
+    res.status(502).json({success:false,message:error?.name==='TimeoutError'?'OKX balance request timed out. Try again later.':'Could not reach OKX for read-only balances. Check backend network access.'});
+  }
+});
+
 module.exports=router;
