@@ -8,7 +8,7 @@ const CHAINS = {
   eth: { name:'Ethereum', symbol:'ETH', native:'ETH', rpc:'https://cloudflare-eth.com', explorer:'https://etherscan.io/tx/', wallet:'https://etherscan.io/address/', usdt:'0xdAC17F958D2ee523a2206206994597C13D831ec7', usdtDecimals:6 },
   bsc: { name:'BNB Chain', symbol:'BNB', native:'BNB', rpc:'https://bsc-dataseed.binance.org', explorer:'https://bscscan.com/tx/', wallet:'https://bscscan.com/address/', usdt:'0x55d398326f99059fF775485246999027B3197955', usdtDecimals:18 },
   btc: { name:'Bitcoin', symbol:'BTC', native:'BTC', api:'https://mempool.space/api', explorer:'https://mempool.space/tx/', wallet:'https://mempool.space/address/' },
-  polygon: { name:'Polygon', symbol:'POL', native:'POL', rpc:'https://polygon-bor-rpc.publicnode.com', explorer:'https://polygonscan.com/tx/', wallet:'https://polygonscan.com/address/', usdt:'0xc2132D05D31c914a87C6611C10748AaCbA', usdtDecimals:6 }
+  polygon: { name:'Polygon', symbol:'POL', native:'POL', rpc:'https://polygon-bor-rpc.publicnode.com', explorer:'https://polygonscan.com/tx/', wallet:'https://polygonscan.com/address/', usdt:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F', usdtDecimals:6 }
 };
 const nav = [{id:'home',label:'Overview',Icon:LayoutDashboard,group:'WORKSPACE'},{id:'verify',label:'Transaction lookup',Icon:FileSearch,group:'WORKSPACE'},{id:'wallet',label:'Wallet balances',Icon:Wallet,group:'WORKSPACE'},{id:'reference',label:'Reference generator',Icon:Fingerprint,group:'TOOLS'},{id:'status',label:'Activity & status',Icon:History,group:'TOOLS'},{id:'transfers',label:'Owner transfer desk',Icon:Send,group:'TOOLS'}];
 const short=(s,a=13,b=8)=>!s||s.length<=a+b+3?s:s.slice(0,a)+'…'+s.slice(-b);
