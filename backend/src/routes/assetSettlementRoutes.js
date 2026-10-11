@@ -87,7 +87,6 @@ router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) 
     const destinationLabel = String(req.body?.destination_label || '').trim().slice(0, 120) || null;
     const note = String(req.body?.note || '').trim().slice(0, 500) || null;
     const amountText = String(req.body?.amount ?? '').trim();
-    const amount = Number(amountText);
     const requestKey = String(req.body?.request_key || '').trim();
     if (!/^[A-Z0-9]{2,24}$/.test(coin)) return res.status(400).json({ success: false, message: 'Choose a supported coin symbol.' });
     if (!network || network.length > 32) return res.status(400).json({ success: false, message: 'Choose a blockchain network.' });
