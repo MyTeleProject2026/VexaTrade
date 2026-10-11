@@ -16,6 +16,26 @@ const fmt=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maxi
 function cfgChainHint(chain){return ['eth','bsc','polygon'].includes(chain)?' · direct wallet sending supported':' · direct wallet sending not enabled for this network';}
 function formatUnits(raw,decimals=18,maxFraction=8){try{const value=BigInt(raw||'0');const scale=10n**BigInt(decimals);const whole=value/scale;const fraction=(value%scale).toString().padStart(decimals,'0').slice(0,maxFraction).replace(/0+$/,'');return whole.toLocaleString()+(fraction?'.'+fraction:'');}catch{return '—';}}
 function formatDecimalNumber(value,maxFraction=8){if(!Number.isFinite(value))return '—';return value.toLocaleString(undefined,{maximumFractionDigits:maxFraction});}
+const EVM_RPC_FALLBACKS={
+ eth:['https://ethereum-rpc.publicnode.com','https://cloudflare-eth.com','https://1rpc.io/eth'],
+ bsc:['https://bsc-rpc.publicnode.com','https://bsc-dataseed.binance.org','https://1rpc.io/bnb'],
+ polygon:['https://polygon-bor-rpc.publicnode.com','https://polygon.drpc.org','https://1rpc.io/matic']
+};
+async function evmRpc(chain,method,params){
+ const urls=[...new Set([CHAINS[chain]?.rpc,...(EVM_RPC_FALLBACKS[chain]||[])].filter(Boolean))];
+ let lastError;
+ for(const url of urls){
+  try{
+   const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+   if(!response.ok)throw Error('HTTP '+response.status);
+   const json=await response.json();
+   if(json.error)throw Error(json.error.message||'RPC request failed');
+   if(json.result===undefined||json.result===null)throw Error('RPC returned no result');
+   return json.result;
+  }catch(error){lastError=error;}
+ }
+ throw Error((CHAINS[chain]?.name||chain)+' public RPC providers are unavailable or rate-limited. '+(lastError?.message||'Try again shortly.'));
+}
 function makeRef(){const b=new Uint8Array(12);crypto.getRandomValues(b);return 'VXT-'+Array.from(b,x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();}
 function App(){
  const [page,setPage]=useState('home'),[chain,setChain]=useState('tron'),[mobile,setMobile]=useState(false),[txid,setTxid]=useState(''),[address,setAddress]=useState(''),[amount,setAmount]=useState('125.00'),[reference,setReference]=useState(''),[receipt,setReceipt]=useState(null),[lookup,setLookup]=useState(null),[balance,setBalance]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[toast,setToast]=useState('');
