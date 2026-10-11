@@ -130,6 +130,16 @@ function App(){
     }
     const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??token?.token_decimal??6);
     setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and configured USDT TRC20 token balance from public TRON chain data. A public address lookup does not prove ownership.'});
+    try{
+     const [nativeResponse,tokenResponse]=await Promise.all([
+      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/transactions?limit=10&only_confirmed=true&order_by=block_timestamp%2Cdesc'),
+      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/transactions/trc20?limit=10&only_confirmed=true&contract_address='+c.usdt)
+     ]);
+     const nativeJson=nativeResponse.ok?await nativeResponse.json():{data:[]},tokenJson=tokenResponse.ok?await tokenResponse.json():{data:[]};
+     const nativeItems=(nativeJson.data||[]).slice(0,10).map(x=>{const value=x.raw_data?.contract?.[0]?.parameter?.value||{};const sun=String(value.amount||'0');return {kind:'TRX transfer',hash:x.txID,when:x.block_timestamp?new Date(x.block_timestamp).toISOString():null,from:value.owner_address||'',to:value.to_address||'',amount:formatUnits(sun,6,6)+' TRX',status:x.ret?.[0]?.contractRet||'confirmed',url:c.explorer+x.txID};}).filter(x=>x.hash);
+     const tokenItems=(tokenJson.data||[]).slice(0,10).map(x=>({kind:'USDT TRC20',hash:x.transaction_id,when:x.block_timestamp?new Date(x.block_timestamp).toISOString():null,from:x.from||'',to:x.to||'',amount:formatUnits(String(x.value||'0'),Number(x.token_info?.decimals??6),6)+' USDT',status:'confirmed token transfer',url:c.explorer+x.transaction_id})).filter(x=>x.hash);
+     setWalletActivity({items:[...nativeItems,...tokenItems].sort((x,y)=>String(y.when||'').localeCompare(String(x.when||''))).slice(0,10),provider:'Public TRON chain indexer',note:'Recent confirmed TRX transfers and USDT TRC20 transfer events. Open each transaction in the explorer to verify confirmations.'});
+    }catch(_){setWalletActivity({items:[],provider:'Public TRON chain indexer',note:'Recent TRON activity could not be loaded. Balance lookup succeeded separately.'});}
    }else if(chain==='btc'){
     let j;
     try{const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Primary provider unavailable');j=await r.json();}
