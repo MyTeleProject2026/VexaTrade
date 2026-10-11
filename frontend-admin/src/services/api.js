@@ -7,7 +7,10 @@ const ADMIN_REQUEST_TIMEOUT_MS = 20000;
 const api = axios.create({ baseURL: API_BASE_URL, timeout: ADMIN_REQUEST_TIMEOUT_MS, headers: { "Content-Type": "application/json" } });
 
 export function getApiErrorMessage(error) {
-  if (error?.code === "ECONNABORTED" || error?.code === "ERR_CANCELED") return "Request timed out. Please retry.";
+  if (error?.code === "ECONNABORTED" || error?.code === "ERR_CANCELED") return "The VexaTrade API did not respond within 20 seconds. Check whether the backend service is running, then retry.";
+  if (!error?.response && (error?.request || error?.message === "Network Error" || error?.message === "Failed to fetch" || error instanceof TypeError)) {
+    return "Cannot reach the VexaTrade API. This is a network/CORS/backend-availability error, not a rejected password. Check the API URL and backend health at /api/health, then retry.";
+  }
   return error?.response?.data?.message || error?.response?.data?.error || error?.message || "Something went wrong";
 }
 
