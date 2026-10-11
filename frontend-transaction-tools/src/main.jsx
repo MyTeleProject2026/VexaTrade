@@ -146,15 +146,10 @@ function App(){
   try{
    const c=CHAINS.eth;
    const rows=await Promise.all(addresses.map(async address=>{
-    const [nativeResponse,tokenResponse]=await Promise.all([
-     fetch(c.rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBalance',params:[address,'latest']})}),
-     fetch(c.rpc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:2,method:'eth_call',params:[{to:c.usdt,data:'0x70a08231'+address.slice(2).toLowerCase().padStart(64,'0')},'latest']})})
-    ]);
-    if(!nativeResponse.ok)throw Error('Ethereum public RPC is unavailable or rate-limited.');
-    const nativeJson=await nativeResponse.json();if(nativeJson.error||!nativeJson.result)throw Error(nativeJson.error?.message||'Could not read ETH balance.');
-    const tokenJson=tokenResponse.ok?await tokenResponse.json():null;
-    const tokenRaw=tokenJson?.result&&!tokenJson?.error?tokenJson.result:null;
-    return {address,eth:formatUnits(nativeJson.result,18,8),usdt:tokenRaw===null?'Unavailable':formatUnits(tokenRaw,6,6),url:c.wallet+address};
+    const nativeRaw=await evmRpc('eth','eth_getBalance',[address,'latest']);
+    let tokenRaw=null;
+    try{tokenRaw=await evmRpc('eth','eth_call',[{to:c.usdt,data:'0x70a08231'+address.slice(2).toLowerCase().padStart(64,'0')},'latest']);}catch(_){}
+    return {address,eth:formatUnits(nativeRaw,18,8),usdt:tokenRaw===null?'Unavailable':formatUnits(tokenRaw,6,6),url:c.wallet+address};
    }));
    setPortfolioRows(rows);
   }catch(err){setPortfolioError(err.message||'Could not retrieve portfolio balances.');}
