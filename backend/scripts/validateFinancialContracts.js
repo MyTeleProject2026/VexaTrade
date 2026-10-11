@@ -71,6 +71,9 @@ if (!settlement.includes('verifyTronUsdtDeposit') || !settlement.includes('claim
 if (!settlement.includes("router.post('/operations/treasury/transfers'") || !settlement.includes("router.get('/operations/treasury/transfers'")) throw new Error('[Treasury] authenticated pending transfer request API missing');
 if (!settlement.includes("'awaiting_funding'") || !settlement.includes("txid, note, created_by")) throw new Error('[Treasury] outbound request queue must retain pending status and transaction evidence fields');
 if (!settlement.includes("No funds were sent") || !settlement.includes("no blockchain TXID exists yet")) throw new Error('[Treasury] pending request response must not imply external payment');
+if (!settlement.includes('isSupportedAssetNetwork') || !settlement.includes('This coin is not supported on the selected network')) throw new Error('[Treasury] outbound requests must enforce a supported coin/network pair');
+if (!settlement.includes('isPositiveDecimal18') || !settlement.includes('up to 18 integer digits')) throw new Error('[Treasury] outbound amount validation must avoid floating-point acceptance and respect DECIMAL precision');
+if (!settlement.includes("insertError.code === 'ER_DUP_ENTRY'") || !settlement.includes('No duplicate request was created')) throw new Error('[Treasury] concurrent idempotent retries must return the existing request safely');
 const toolsUi = fs.readFileSync(path.join(root,'../frontend-transaction-tools/src/main.jsx'),'utf8');
 if (!toolsUi.includes("Owner outbound transfer desk") || !toolsUi.includes("/api/operations/treasury/transfers")) throw new Error('[Transaction Tools] owner transfer desk is not connected to the backend request API');
 if (!toolsUi.includes("It cannot mint a pending balance inside another wallet or exchange")) throw new Error('[Transaction Tools] external balance limitation must be disclosed');
