@@ -112,18 +112,29 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    const [accountResponse,tokenResponse]=await Promise.all([
-     fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
-     fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
-    ]);
-    if(!accountResponse.ok||!tokenResponse.ok)throw Error('The public TRON provider is unavailable or rate-limited.');
-    const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
-    const account=accountJson?.data?.[0]||{},token=(tokenJson.data||[]).find(x=>String(x.tokenId||'').toLowerCase()===c.usdt.toLowerCase()||x.tokenAbbr?.toUpperCase()==='USDT');
-    const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??6);
-    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and USDT TRC20 token balance from public TRON chain data. A public address lookup does not prove ownership.'});
+    let account={},token=null;
+    try{
+     const [accountResponse,tokenResponse]=await Promise.all([
+      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
+      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
+     ]);
+     if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid unavailable');
+     const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
+     account=accountJson?.data?.[0]||{};
+     token=(tokenJson.data||[]).find(x=>String(x.tokenId||'').toLowerCase()===c.usdt.toLowerCase()||x.tokenAbbr?.toUpperCase()==='USDT');
+    }catch(_){
+     const response=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a));
+     if(!response.ok)throw Error('TRON public balance providers are unavailable or rate-limited. Try again shortly.');
+     const scan=await response.json();account={balance:scan.balance||0};
+     token=(scan.trc20token_balances||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT');
+    }
+    const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??token?.token_decimal??6);
+    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and configured USDT TRC20 token balance from public TRON chain data. A public address lookup does not prove ownership.'});
    }else if(chain==='btc'){
-    const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Bitcoin public provider is unavailable or rate-limited.');
-    const j=await r.json(),stats=j.chain_stats||{},m=j.mempool_stats||{};
+    let j;
+    try{const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Primary provider unavailable');j=await r.json();}
+    catch(_){const r=await fetch('https://blockstream.info/api/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Bitcoin public balance providers are unavailable or rate-limited. Try again shortly.');j=await r.json();}
+    const stats=j.chain_stats||{},m=j.mempool_stats||{};
     const sats=Number(stats.funded_txo_sum||0)-Number(stats.spent_txo_sum||0),pending=Number(m.funded_txo_sum||0)-Number(m.spent_txo_sum||0);
     setBalance({address:a,amount:sats/1e8,amountDisplay:formatUnits(String(sats),8,8),asset:'BTC',pending:pending/1e8,pendingDisplay:formatUnits(String(pending),8,8),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'Confirmed Bitcoin UTXO balance; unconfirmed mempool change is shown separately.'});
    }else{
