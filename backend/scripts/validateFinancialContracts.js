@@ -85,7 +85,7 @@ if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/bala
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
 if (toolsUi.includes('localStorage.setItem("ownerToken"') || toolsUi.includes("localStorage.setItem('ownerToken'") || toolsUi.includes('localStorage.setItem("token"') || toolsUi.includes("localStorage.setItem('token'")) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
 
-const settlement=read('src/routes/assetSettlementRoutes.js');
+const settlementRoutesSource=read('src/routes/assetSettlementRoutes.js');
 for (const route of [
   "router.get('/operations/treasury/transfers', authAdmin",
   "router.post('/operations/treasury/transfers', authAdmin",
@@ -94,11 +94,11 @@ for (const route of [
   "router.get('/operations/integrations/okx/balances', authAdmin",
   "router.get('/operations/integrations/coinbase/balances', authAdmin",
   "router.get('/operations/integrations/bitget/balances', authAdmin"
-]) if (!settlement.includes(route)) throw new Error('[Transaction Tools] missing owner auth middleware on '+route);
+]) if (!settlementRoutesSource.includes(route)) throw new Error('[Transaction Tools] missing owner auth middleware on '+route);
 for (const secret of ['EXCHANGE_OKX_API_SECRET','EXCHANGE_COINBASE_API_SECRET','EXCHANGE_BITGET_API_SECRET']) {
-  if (!settlement.includes(secret)) throw new Error('[Exchange] server-side secret configuration missing: '+secret);
+  if (!settlementRoutesSource.includes(secret)) throw new Error('[Exchange] server-side secret configuration missing: '+secret);
 }
-if (!settlement.includes("res.status(503).json({success:false,code:'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED'")) throw new Error('[Treasury] external settlement must remain disabled until audited broadcast and receipt verification are configured');
+if (!settlementRoutesSource.includes("res.status(503).json({success:false,code:'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED'")) throw new Error('[Treasury] external settlement must remain disabled until audited broadcast and receipt verification are configured');
 
 
 const ledgerAdmin = read('src/routes/adminLedgerControlRoutes.js');
