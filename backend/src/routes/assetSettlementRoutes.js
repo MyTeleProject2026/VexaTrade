@@ -64,6 +64,21 @@ function isPositiveDecimal18(value) {
   if (!/^(?:0|[1-9]\d{0,17})(?:\.\d{1,18})?$/.test(s)) return false;
   return /[1-9]/.test(s);
 }
+function normalizeDecimal(value) {
+  const parts = String(value ?? '0').trim().split('.');
+  const whole = (parts[0] || '0').replace(/^0+(?=\\d)/, '');
+  const fraction = (parts[1] || '').replace(/0+$/, '');
+  return fraction ? whole + '.' + fraction : whole;
+}
+function sameTreasuryRequest(row, candidate) {
+  return String(row.coin).toUpperCase() === candidate.coin &&
+    String(row.network).toUpperCase() === candidate.network &&
+    String(row.destination_kind).toLowerCase() === candidate.destinationKind &&
+    String(row.destination_address) === candidate.destinationAddress &&
+    normalizeDecimal(row.amount) === normalizeDecimal(candidate.amount) &&
+    String(row.destination_label || '') === String(candidate.destinationLabel || '') &&
+    String(row.note || '') === String(candidate.note || '');
+}
 
 // Owner workspace: create a persistent pending outbound intent only.
 // This endpoint deliberately does not create an external balance, sign, or broadcast a transaction.
@@ -96,7 +111,11 @@ router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) 
     if (!isPositiveDecimal18(amountText)) return res.status(400).json({ success: false, message: 'Enter a positive amount with up to 18 integer digits and up to 18 decimal places.' });
     if (!/^VXT-[A-F0-9]{24}$/.test(requestKey)) return res.status(400).json({ success: false, message: 'A valid unique internal request reference is required.' });
     const [existing] = await pool.execute('SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at FROM treasury_outbound_requests WHERE request_key=? LIMIT 1', [requestKey]);
-    if (existing.length) return res.status(200).json({ success: true, duplicate: true, data: existing[0], message: 'Existing pending request returned. No duplicate request was created.' });
+    const candidate = { coin, network, destinationKind, destinationAddress, destinationLabel, amount: amountText, note };
+    if (existing.length) {
+      if (!sameTreasuryRequest(existing[0], candidate)) return res.status(409).json({ success: false, message: 'This idempotency reference already belongs to a different transfer request. Use a new reference for a different payment.' });
+      return res.status(200).json({ success: true, duplicate: true, data: existing[0], message: 'Existing pending request returned. No duplicate request was created.' });
+    }
     let result;
     try {
       [result] = await pool.execute(
@@ -114,7 +133,10 @@ router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) 
           'SELECT id, request_key, coin, network, destination_kind, destination_address, destination_label, amount, status, txid, note, created_by, created_at FROM treasury_outbound_requests WHERE request_key=? LIMIT 1',
           [requestKey]
         );
-        if (duplicateRows.length) return res.status(200).json({ success: true, duplicate: true, data: duplicateRows[0], message: 'Existing pending request returned. No duplicate request was created.' });
+        if (duplicateRows.length) {
+          if (!sameTreasuryRequest(duplicateRows[0], candidate)) return res.status(409).json({ success: false, message: 'This idempotency reference already belongs to a different transfer request. Use a new reference for a different payment.' });
+          return res.status(200).json({ success: true, duplicate: true, data: duplicateRows[0], message: 'Existing pending request returned. No duplicate request was created.' });
+        }
       }
       throw insertError;
     }
