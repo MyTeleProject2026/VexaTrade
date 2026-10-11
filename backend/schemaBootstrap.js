@@ -35,6 +35,28 @@ async function tableExists(connection, table) {
   return rows.length > 0;
 }
 
+async function ensureTransferApprovalStatus(connection) {
+  if (!(await tableExists(connection, 'user_transfers'))) {
+    throw new Error('Required table user_transfers does not exist; cannot enable owner approval safely.');
+  }
+  const [rows] = await connection.execute(
+    `SELECT DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, COLUMN_TYPE
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_transfers' AND COLUMN_NAME = 'status'
+     LIMIT 1`
+  );
+  if (!rows.length) throw new Error('Required column user_transfers.status does not exist.');
+  const column = rows[0];
+  const dataType = String(column.DATA_TYPE || '').toLowerCase();
+  const maxLength = Number(column.CHARACTER_MAXIMUM_LENGTH || 0);
+  // Legacy ENUM columns cannot represent pending_owner_approval. Widen only this
+  // state column; preserve all existing row values and all transfer history.
+  if (dataType === 'enum' || ((dataType === 'varchar' || dataType === 'char') && maxLength < 32)) {
+    await connection.execute("ALTER TABLE `user_transfers` MODIFY COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'pending'");
+    console.log('[Schema] Expanded user_transfers.status for owner-approval states');
+  }
+}
+
 async function indexExists(connection, table, indexName) {
   const [rows] = await connection.execute(
     `SELECT 1 FROM information_schema.statistics
@@ -182,6 +204,7 @@ async function ensureFinancialSchema() {
 
     await addColumn(connection, 'user_transfers', 'idempotency_key', 'VARCHAR(128) NULL');
     await addColumn(connection, 'user_transfers', 'request_hash', 'CHAR(64) NULL');
+    await ensureTransferApprovalStatus(connection);
     await ensureUniqueIndex(connection, 'user_transfers', 'uq_user_transfers_sender_idempotency', ['sender_id', 'idempotency_key']);
     await ensureIndex(connection, 'user_transfers', 'idx_user_transfers_sender_request_hash', ['sender_id', 'request_hash']);
 
