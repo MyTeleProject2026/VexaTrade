@@ -4,7 +4,7 @@ import { Activity, ArrowRight, Blocks, Check, ChevronDown, CircleHelp, Copy, Ext
 import './styles.css';
 
 const CHAINS = {
-  tron: { name:'TRON', symbol:'TRX', explorer:'https://tronscan.org/#/transaction/', wallet:'https://tronscan.org/#/address/', api:'https://api.trongrid.io', usdt:'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj' },
+  tron: { name:'TRON', symbol:'TRX', explorer:'https://tronscan.org/#/transaction/', wallet:'https://tronscan.org/#/address/', api:'https://api.trongrid.io', usdt:'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' },
   eth: { name:'Ethereum', symbol:'ETH', explorer:'https://etherscan.io/tx/', wallet:'https://etherscan.io/address/' },
   bsc: { name:'BNB Chain', symbol:'BNB', explorer:'https://bscscan.com/tx/', wallet:'https://bscscan.com/address/' },
   btc: { name:'Bitcoin', symbol:'BTC', explorer:'https://mempool.space/tx/', wallet:'https://mempool.space/address/' },
