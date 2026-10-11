@@ -5,6 +5,7 @@
 - Build command: `npm install && npm run build`
 - Publish directory: `dist`
 - The site includes a web app manifest, branded icon, and service worker for shell/offline fallback.
+- The app header includes an **Install app** action: it invokes the browser's native install prompt where supported, or shows Android Chrome, iPhone Safari, and desktop installation steps. The action reports installed state where the browser exposes it.
 - On Android Chrome, open the deployed HTTPS site and use the browser menu's **Install app** or **Add to Home screen** option when available.
 - Public transaction and wallet lookups still require a network connection. The service worker does not cache API responses or represent cached information as live chain data.
 
