@@ -564,6 +564,23 @@ async function ensureFinancialSchema() {
     `);
 
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS blockchain_transaction_claims (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        network VARCHAR(32) NOT NULL,
+        txid CHAR(64) NOT NULL,
+        deposit_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        coin VARCHAR(32) NOT NULL,
+        amount DECIMAL(36,18) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_blockchain_claim_network_txid (network, txid),
+        UNIQUE KEY uq_blockchain_claim_deposit (deposit_id),
+        KEY idx_blockchain_claim_user_time (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS financial_audit_events (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT NULL,
