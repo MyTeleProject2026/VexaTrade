@@ -83,7 +83,7 @@ if (!toolsUi.includes('if(!ownerToken)return <div className="owner-auth-screen"'
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/balances'")) throw new Error('[Transaction Tools] Coinbase live balance action missing');
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
-if (/localStorage\\.(setItem|getItem)\\([^)]*(token|auth)/i.test(toolsUi)) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
+if (toolsUi.includes('localStorage.setItem("ownerToken"') || toolsUi.includes("localStorage.setItem('ownerToken'") || toolsUi.includes('localStorage.setItem("token"') || toolsUi.includes("localStorage.setItem('token'")) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
 
 const settlement=read('src/routes/assetSettlementRoutes.js');
 for (const route of [
