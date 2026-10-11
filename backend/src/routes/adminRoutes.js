@@ -439,23 +439,15 @@ router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) 
   } catch(error){next(error);}
 });
 
-router.post('/admin/withdrawals/:id/complete', authAdmin, async (req,res,next)=>{
- const connection=await pool.getConnection();
- try{
-  const withdrawalId=Number(req.params.id),txid=String(req.body?.txid||'').trim(),note=String(req.body?.settlement_note||'').trim();
-  if(!txid)throw createError(400,'Real external transaction hash/reference is required');
-  await connection.beginTransaction();
-  const [rows]=await connection.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[withdrawalId]);
-  if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];
-  if(w.status!=='settlement_processing')throw createError(400,'Withdrawal is not in settlement processing');
-  const reservedAmount=Number(w.amount||0)+Number(w.fee_amount||0);
-  await consumeReservedAsset(connection,{userId:w.user_id,coin:w.coin,network:w.network,amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:'External settlement completed: '+txid});
-  await connection.execute("UPDATE withdrawals SET status='completed',txid=?,admin_note=?,updated_at=NOW() WHERE id=?",[txid,note||'External settlement completed',withdrawalId]);
-  await createTransactionLog(connection,{userId:w.user_id,type:'withdrawal_completed',amount:reservedAmount,status:'completed',referenceId:w.id,note:'External settlement reference: '+txid});
-  await createAuditLog(connection,{adminId:req.admin.id,action:'complete_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||('Completed with transaction reference '+txid)});
-  await createUserNotification(connection,{userId:w.user_id,title:'Withdrawal completed',message:'Your withdrawal has been externally settled. Transaction reference: '+txid,type:'security'});
-  await connection.commit();res.json({success:true,message:'Withdrawal settlement completed'});
- }catch(error){await connection.rollback();next(error)}finally{connection.release()}
+router.post('/admin/withdrawals/:id/complete', authAdmin, async (req, res) => {
+  // Manual TXIDs are untrusted input. Until a configured treasury adapter
+  // broadcasts the transaction and verifies its confirmed receipt, do not
+  // consume reserved funds or mark a withdrawal complete.
+  return res.status(503).json({
+    success: false,
+    code: 'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED',
+    message: 'Withdrawal completion is disabled until a treasury signing/broadcast provider and confirmed-receipt verifier are configured. A manually entered transaction hash is not proof of payment. No funds were settled.'
+  });
 });
 
 router.post('/admin/withdrawals/:id/reject', authAdmin, async (req,res,next)=>{
