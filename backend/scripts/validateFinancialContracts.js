@@ -82,6 +82,7 @@ if (!toolsUi.includes("It cannot mint a pending balance inside another wallet or
 if (!toolsUi.includes('if(!ownerToken)return <div className="owner-auth-screen"')) throw new Error('[Transaction Tools] owner authentication gate must render before every tool page');
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
 if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/balances'")) throw new Error('[Transaction Tools] Coinbase live balance action missing');
+if (!toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
 if (/localStorage\\.(setItem|getItem)\\([^)]*(token|auth)/i.test(toolsUi)) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
 
 const settlement=read('src/routes/assetSettlementRoutes.js');
@@ -91,9 +92,10 @@ for (const route of [
   "router.get('/operations/treasury/status',authAdmin",
   "router.get('/operations/integrations/providers', authAdmin",
   "router.get('/operations/integrations/okx/balances', authAdmin",
-  "router.get('/operations/integrations/coinbase/balances', authAdmin"
+  "router.get('/operations/integrations/coinbase/balances', authAdmin",
+  "router.get('/operations/integrations/bitget/balances', authAdmin"
 ]) if (!settlement.includes(route)) throw new Error('[Transaction Tools] missing owner auth middleware on '+route);
-for (const secret of ['EXCHANGE_OKX_API_SECRET','EXCHANGE_COINBASE_API_SECRET']) {
+for (const secret of ['EXCHANGE_OKX_API_SECRET','EXCHANGE_COINBASE_API_SECRET','EXCHANGE_BITGET_API_SECRET']) {
   if (!settlement.includes(secret)) throw new Error('[Exchange] server-side secret configuration missing: '+secret);
 }
 if (!settlement.includes("res.status(503).json({success:false,code:'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED'")) throw new Error('[Treasury] external settlement must remain disabled until audited broadcast and receipt verification are configured');
