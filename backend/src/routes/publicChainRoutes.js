@@ -76,31 +76,36 @@ router.get('/public-chain/tron/transaction/:txid', async (req, res) => {
 
 router.get('/public-chain/tron/address/:address', async (req, res) => {
   const address = String(req.params.address || '').trim();
+  const tokenContract = String(req.query.contract || TRON_USDT).trim();
   if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
     return res.status(400).json({ success: false, message: 'Enter a valid-looking TRON mainnet address.' });
   }
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(tokenContract)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid-looking TRC20 contract address.' });
+  }
 
   const failures = [];
-  // Primary source: TRON Grid. Keep raw integer units to avoid floating-point
-  // truncation for token balances and return explicit source metadata.
+  // Public-chain lookup only. Contract address is explicit and never used to sign.
   try {
     const [accountResponse, tokenResponse] = await Promise.all([
       getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address)),
-      getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address) + '/tokens?limit=200&contract_address=' + encodeURIComponent(TRON_USDT))
+      getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address) + '/tokens?limit=200&contract_address=' + encodeURIComponent(tokenContract))
     ]);
     const account = accountResponse && Array.isArray(accountResponse.data) ? accountResponse.data[0] || {} : {};
     const token = (tokenResponse && Array.isArray(tokenResponse.data) ? tokenResponse.data : []).find(item =>
-      String(item.tokenId || item.token_id || '').toLowerCase() === TRON_USDT.toLowerCase() ||
-      String(item.tokenAbbr || item.token_abbr || '').toUpperCase() === 'USDT'
+      String(item.tokenId || item.token_id || '').toLowerCase() === tokenContract.toLowerCase() ||
+      String(item.tokenAbbr || item.token_abbr || '').toUpperCase() === (tokenContract.toLowerCase() === TRON_USDT.toLowerCase() ? 'USDT' : '')
     );
     return res.json({
       success: true,
       source: 'TRON Grid public API',
       data: {
         address,
+        tokenContract,
         trxSun: String(account.balance || '0'),
-        usdtRaw: String(token && token.balance || '0'),
-        usdtDecimals: Number((token && (token.tokenDecimal ?? token.token_decimal)) ?? 6),
+        tokenRaw: String(token && (token.balance ?? token.quantity) || '0'),
+        tokenSymbol: String(token && (token.tokenAbbr || token.token_abbr || token.tokenName || token.token_name) || (tokenContract.toLowerCase() === TRON_USDT.toLowerCase() ? 'USDT' : 'TRC20')),
+        tokenDecimals: Number((token && (token.tokenDecimal ?? token.token_decimal)) ?? 6),
         checkedAt: new Date().toISOString(),
         explorerUrl: 'https://tronscan.org/#/address/' + address
       }
@@ -109,28 +114,25 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
     failures.push('TRON Grid: ' + (error.message || 'unavailable'));
   }
 
-  // Independent public indexer fallback. A successful response is only accepted
-  // when it identifies the requested address; missing token entries mean zero.
   try {
     const account = await getJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
     const returnedAddress = String(account && (account.address || account.addressTag || '') || '');
-    if (returnedAddress && returnedAddress !== address) {
-      throw new Error('TronScan returned a different address');
-    }
+    if (returnedAddress && returnedAddress !== address) throw new Error('TronScan returned a different address');
     const tokens = Array.isArray(account && account.trc20token_balances) ? account.trc20token_balances : [];
     const token = tokens.find(item =>
-      String(item.tokenId || item.token_id || item.contract_address || '').toLowerCase() === TRON_USDT.toLowerCase()
+      String(item.tokenId || item.token_id || item.contract_address || '').toLowerCase() === tokenContract.toLowerCase()
     );
-    const rawBalance = String(token && (token.balance ?? token.quantity) || '0');
     const decimals = token ? Number(token.tokenDecimal ?? token.token_decimal ?? 6) : 6;
     return res.json({
       success: true,
       source: 'TronScan public API fallback',
       data: {
         address,
+        tokenContract,
         trxSun: String(account && account.balance || '0'),
-        usdtRaw: rawBalance,
-        usdtDecimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 30 ? decimals : 6,
+        tokenRaw: String(token && (token.balance ?? token.quantity) || '0'),
+        tokenSymbol: String(token && (token.tokenAbbr || token.token_abbr || token.tokenName || token.token_name) || (tokenContract.toLowerCase() === TRON_USDT.toLowerCase() ? 'USDT' : 'TRC20')),
+        tokenDecimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 30 ? decimals : 6,
         checkedAt: new Date().toISOString(),
         explorerUrl: 'https://tronscan.org/#/address/' + address
       }
