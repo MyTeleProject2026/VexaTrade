@@ -138,7 +138,7 @@ router.get('/public-chain/evm/balance', async (req, res) => {
     url.searchParams.set('tag', 'latest');
     url.searchParams.set('apikey', apiKey);
     const data = await getJson(url.toString());
-    if (String(data.status) !== '1' || data.result == null || !/^\\d+$/.test(String(data.result))) {
+    if (String(data.status) !== '1' || data.result == null || !/^\d+$/.test(String(data.result))) {
       return res.status(502).json({ success: false, message: String(data.result || data.message || 'Etherscan did not return a valid balance.'), source: 'Etherscan API V2' });
     }
     return res.json({
