@@ -122,7 +122,7 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
       String(item.tokenId || item.token_id || item.contract_address || '').toLowerCase() === TRON_USDT.toLowerCase()
     );
     const rawBalance = String(token && (token.balance ?? token.quantity) || '0');
-    const decimals = Number(token && (token.tokenDecimal ?? token.token_decimal) ?? 6);
+    const decimals = token ? Number(token.tokenDecimal ?? token.token_decimal ?? 6) : 6;
     return res.json({
       success: true,
       source: 'TronScan public API fallback',
