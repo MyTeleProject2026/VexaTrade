@@ -295,6 +295,16 @@ function App(){
     }
     const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??token?.token_decimals??6);
     setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and USDT TRC20 token balance from '+provider+'. Public address data does not prove ownership or reveal exchange-custody balances.',provider});
+    try{
+     const [nativeResponse,tokenResponse]=await Promise.all([
+      fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a)+'/transactions?limit=12&confirmed=false'),
+      fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a)+'/token-transfers?limit=12&confirmed=false')
+     ]);
+     const [nativeJson,tokenJson]=await Promise.all([nativeResponse.json(),tokenResponse.json()]);
+     const nativeItems=nativeResponse.ok&&nativeJson?.success?(nativeJson.data||[]).map(tx=>({kind:'TRON transaction',hash:tx.txid,when:tx.timestamp,from:tx.from,to:tx.to,amount:formatUnits(tx.amountSun||'0',6,6)+' TRX',status:tx.confirmed?'Confirmed':'Included / status pending',url:tx.explorerUrl||c.explorer+tx.txid})): [];
+     const tokenItems=tokenResponse.ok&&tokenJson?.success?(tokenJson.data||[]).map(tx=>({kind:(tx.tokenSymbol||'TRC20 token')+' transfer',hash:tx.txid,when:tx.timestamp,from:tx.from,to:tx.to,amount:formatUnits(tx.amountRaw||'0',Number(tx.decimals||0),6)+' '+(tx.tokenSymbol||'token'),status:tx.confirmed?'Indexed on-chain':'Confirmation status unavailable',url:tx.explorerUrl||c.explorer+tx.txid})): [];
+     setWalletActivity({items:[...nativeItems,...tokenItems].filter(x=>x.hash).sort((x,y)=>String(y.when||'').localeCompare(String(x.when||''))).slice(0,12),provider:'TRON Grid public API via VexaTrade backend',note:'Recent native TRX transactions and TRC20 transfer events. Public indexing can lag. Confirm transaction execution and finality on TronScan; this history does not show private exchange-account deposits.'});
+    }catch(_){setWalletActivity({items:[],provider:'TRON Grid public API',note:'Balances were fetched, but recent activity could not be loaded. Retry or inspect the address on TronScan.'});}
    }else if(chain==='btc'){
     let j;
     try{const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Primary provider unavailable');j=await r.json();}
