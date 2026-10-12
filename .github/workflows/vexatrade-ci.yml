@@ -31,6 +31,8 @@ jobs:
           node --check src/middleware/auth.js
           node --check src/middleware/transactionSecurity.js
           node --check src/routes/transactionSecurityRoutes.js
+          node --check src/routes/publicChainRoutes.js
+          node --check src/routes/tronPublicFallbackRoutes.js
           node --check src/routes/depositRoutes.js
           node --check src/routes/withdrawalRoutes.js
           node --check src/routes/convertRoutes.js
@@ -93,5 +95,21 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend-admin/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+
+  frontend-transaction-tools:
+    name: Transaction Tools build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-transaction-tools/package-lock.json
       - run: npm install --no-audit --no-fund
       - run: npm run build
