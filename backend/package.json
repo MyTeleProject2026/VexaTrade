@@ -9,9 +9,16 @@
     "prestart": "node schemaBootstrap.js",
     "start": "node server.js",
     "server": "node schemaBootstrap.js && node server.js",
-    "sync": "node initSync.js"
+    "sync": "node initSync.js",
+    "alchemy:demo": "node scripts/alchemy-demo.js"
   },
-  "keywords": ["vexatrade","trading","financial-ledger","express","mysql"],
+  "keywords": [
+    "vexatrade",
+    "trading",
+    "financial-ledger",
+    "express",
+    "mysql"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
