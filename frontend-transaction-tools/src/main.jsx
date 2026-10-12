@@ -325,30 +325,33 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    let account={},token=null,provider='TRON Grid public API',lastError=null;
+    let account={},token=null,provider='VexaTrade public-chain proxy',lastError=null;
+    // Prefer the backend proxy first: it avoids browser-side CORS/rate-limit failures
+    // and keeps public provider handling consistent with transaction verification.
     try{
-     const [accountResponse,tokenResponse]=await Promise.all([
-      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
-      fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
-     ]);
-     if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid HTTP '+(!accountResponse.ok?accountResponse.status:tokenResponse.status));
-     const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
-     account=accountJson?.data?.[0]||{};
-     token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT')||null;
-    }catch(gridError){
-     lastError=gridError;
+     const proxy=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a),{headers:{Accept:'application/json'}});
+     const payload=await proxy.json();
+     if(!proxy.ok||payload?.success===false)throw Error(payload?.message||'Backend TRON public provider unavailable');
+     const d=payload.data||{};
+     account={balance:String(d.trxSun??'0')};
+     token={balance:String(d.usdtRaw??'0'),tokenDecimal:Number(d.usdtDecimals??6),tokenId:c.usdt,tokenAbbr:'USDT'};
+     provider=payload.source||provider;
+    }catch(proxyError){
+     lastError=proxyError;
      try{
-      const proxy=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a));
-      const payload=await proxy.json();
-      if(!proxy.ok||payload?.success===false)throw Error(payload?.message||'Backend TRON public provider unavailable');
-      const d=payload.data||{};
-      account={balance:String(d.trxSun||'0')};
-      token={balance:String(d.usdtRaw||'0'),tokenDecimal:Number(d.usdtDecimals??6),tokenId:c.usdt,tokenAbbr:'USDT'};
-      provider=d.source||'VexaTrade public-chain proxy';
-     }catch(proxyError){
-      lastError=proxyError;
+      const [accountResponse,tokenResponse]=await Promise.all([
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+encodeURIComponent(c.usdt))
+      ]);
+      if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid HTTP '+(!accountResponse.ok?accountResponse.status:tokenResponse.status));
+      const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
+      account=accountJson?.data?.[0]||{};
+      token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT')||null;
+      provider='TRON Grid public API';
+     }catch(gridError){
+      lastError=gridError;
       const r=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a),{headers:{Accept:'application/json'}});
-      if(!r.ok)throw Error('TRON Grid and TronScan public providers are unavailable (HTTP '+r.status+'). '+(lastError?.message||'Retry later.'));
+      if(!r.ok)throw Error('VexaTrade proxy, TRON Grid and TronScan public providers are unavailable (HTTP '+r.status+'). '+(lastError?.message||'Retry later.'));
       const j=await r.json();
       if(!j||typeof j!=='object')throw Error('TronScan returned an invalid account response.');
       account={balance:String(j.balance??j.trxBalance??'0')};
