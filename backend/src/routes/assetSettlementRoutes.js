@@ -146,6 +146,61 @@ router.post('/operations/treasury/transfers', authAdmin, async (req, res, next) 
   } catch (e) { next(e); }
 });
 
+// Verify a real outbound transaction on-chain before allowing owner acceptance.
+// This production verifier intentionally supports only USDT on TRON TRC20 for now.
+router.post('/operations/treasury/transfers/:id/verify', authAdmin, async (req, res, next) => {
+  try {
+    await ensureTreasuryTransferTable();
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid transfer request ID.' });
+    const [rows] = await pool.execute('SELECT * FROM treasury_outbound_requests WHERE id=? LIMIT 1', [id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Outbound request not found.' });
+    const row = rows[0];
+    if (String(row.coin).toUpperCase() !== 'USDT' || !['TRC20','TRON'].includes(String(row.network).toUpperCase())) {
+      return res.status(409).json({ success: false, message: 'Server-side outbound verification is currently enabled only for USDT on TRON TRC20. This request remains pending until a chain-specific verifier is configured.' });
+    }
+    if (['completed','confirmed_pending_owner_review'].includes(String(row.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: 'This request has already been verified or completed. Refresh the queue before retrying.' });
+    }
+    if (!['awaiting_funding','pending','awaiting_broadcast'].includes(String(row.status).toLowerCase())) {
+      return res.status(409).json({ success: false, message: 'This request is not in a verifiable pending state.' });
+    }
+    const txid = String(req.body?.txid || row.txid || '').trim();
+    if (!/^[a-fA-F0-9]{64}$/.test(txid)) return res.status(400).json({ success: false, message: 'Paste the actual 64-character TRON TXID returned by the sending wallet. An internal VXT reference is not a TXID.' });
+    const [duplicates] = await pool.execute('SELECT id FROM treasury_outbound_requests WHERE txid=? AND id<>? LIMIT 1', [txid, id]);
+    if (duplicates.length) return res.status(409).json({ success: false, message: 'This TXID is already attached to another outbound request.' });
+    const result = await verifyTronUsdtDeposit({ txid, recipientAddress: row.destination_address, expectedAmount: row.amount });
+    if (!result || result.verified !== true) {
+      return res.status(422).json({ success: false, verified: false, message: result?.reason || 'The blockchain transaction could not be verified against the exact recipient and amount.', details: result || null });
+    }
+    const [updated] = await pool.execute(
+      "UPDATE treasury_outbound_requests SET txid=?, status='confirmed_pending_owner_review', updated_at=NOW() WHERE id=? AND status IN ('awaiting_funding','pending','awaiting_broadcast')",
+      [txid, id]
+    );
+    if (!updated.affectedRows) return res.status(409).json({ success: false, message: 'The request changed while verification was running. Refresh the queue and inspect its current state.' });
+    await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_chain_verified', referenceId: id, note: 'Verified USDT/TRC20 recipient and amount on TRON mainnet; awaiting owner acceptance. TXID: ' + txid });
+    res.json({ success: true, verified: true, data: { id, txid, status: 'confirmed_pending_owner_review', network: 'TRC20', coin: 'USDT', destination_address: row.destination_address, amount: String(row.amount), chainResult: result }, message: 'The actual TRON transaction matches this request on-chain. It is awaiting owner review; this does not prove that an exchange has credited its internal account.' });
+  } catch (e) { next(e); }
+});
+
+router.post('/operations/treasury/transfers/:id/approve', authAdmin, async (req, res, next) => {
+  try {
+    await ensureTreasuryTransferTable();
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid transfer request ID.' });
+    const [rows] = await pool.execute('SELECT * FROM treasury_outbound_requests WHERE id=? LIMIT 1', [id]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Outbound request not found.' });
+    const row = rows[0];
+    if (String(row.status).toLowerCase() !== 'confirmed_pending_owner_review' || !/^[a-fA-F0-9]{64}$/.test(String(row.txid || ''))) {
+      return res.status(409).json({ success: false, message: 'Owner acceptance requires a previously verified on-chain TXID. No balance or status can be approved from an internal reference alone.' });
+    }
+    const [updated] = await pool.execute("UPDATE treasury_outbound_requests SET status='completed', updated_at=NOW() WHERE id=? AND status='confirmed_pending_owner_review'", [id]);
+    if (!updated.affectedRows) return res.status(409).json({ success: false, message: 'The request changed while owner acceptance was running. Refresh the queue.' });
+    await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_owner_accepted', referenceId: id, note: 'Owner accepted a previously verified on-chain transfer. Status means blockchain transfer completed; external exchange account credit is not independently confirmed. TXID: ' + row.txid });
+    res.json({ success: true, data: { id, txid: row.txid, status: 'completed' }, message: 'Owner accepted the verified on-chain transfer. This does not assert that an exchange has credited its internal account balance.' });
+  } catch (e) { next(e); }
+});
+
 // Admin-only treasury readiness. Bitget Wallet is a wallet interface, not a configured server-side custody/signing service.
 router.get('/operations/treasury/status',authAdmin,async(req,res)=>{
   res.json({
