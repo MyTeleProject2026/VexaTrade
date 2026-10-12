@@ -59,6 +59,52 @@ function App(){
   return response;
  }
  useEffect(()=>{const onPrompt=e=>{e.preventDefault();setInstallPrompt(e);};const onInstalled=()=>{setInstalled(true);setInstallPrompt(null);setInstallHelp(false);setToast('VexaTrade Transaction Tools installed');};const standalone=window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true;setInstalled(!!standalone);window.addEventListener('beforeinstallprompt',onPrompt);window.addEventListener('appinstalled',onInstalled);return()=>{window.removeEventListener('beforeinstallprompt',onPrompt);window.removeEventListener('appinstalled',onInstalled);};},[]);
+ useEffect(()=>{
+  const item=sendResult;
+  if(!item?.hash||!item?.chainKey)return;
+  let active=true;
+  const update=(status,extra={})=>{if(!active)return;setReceipt(prev=>prev?.txid===item.hash?{...prev,status,chainStatus:status,checkedAt:new Date().toLocaleString(),...extra}:prev);};
+  const poll=async()=>{
+   try{
+    if(item.chainKey==='tron'){
+     const r=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(item.hash));
+     const j=await r.json();
+     if(!r.ok||j?.success===false)throw Error(j?.message||'TRON public provider temporarily unavailable');
+     const d=j.data||{},block=d.block??d.blockNumber??d.block_number;
+     const result=String(d.contractRet||d.contract_ret||d.receipt?.result||'').toUpperCase();
+     if(result==='FAILED'||result==='OUT_OF_ENERGY'||result==='REVERT'){
+      update('Failed on-chain',{blockNumber:block??null,explorerUrl:item.url});
+     }else if(block&&result==='SUCCESS'){
+      update('Confirmed on-chain',{blockNumber:block,explorerUrl:item.url});
+     }else{
+      update('Submitted · awaiting on-chain confirmation',{blockNumber:block??null,explorerUrl:item.url});
+     }
+    }else if(item.chainKey==='btc'){
+     const r=await fetch('https://mempool.space/api/tx/'+encodeURIComponent(item.hash));
+     if(!r.ok)throw Error('Bitcoin public provider temporarily unavailable');
+     const tx=await r.json();
+     if(tx.status?.confirmed)update('Confirmed on-chain',{blockNumber:tx.status.block_height??null,explorerUrl:item.url});
+     else update('Submitted · awaiting Bitcoin confirmation',{blockNumber:null,explorerUrl:item.url});
+    }else{
+     const tx=await evmRpc(item.chainKey,'eth_getTransactionByHash',[item.hash]);
+     let receiptData=null,receiptError=null;
+     try{receiptData=await evmRpc(item.chainKey,'eth_getTransactionReceipt',[item.hash]);}
+     catch(e){receiptError=e;}
+     if(!tx)throw Error('Transaction not indexed by the selected RPC yet.');
+     if(receiptData&&String(receiptData.status).toLowerCase()==='0x1')update('Confirmed on-chain',{blockNumber:receiptData.blockNumber?Number(BigInt(receiptData.blockNumber)).toLocaleString():null,explorerUrl:item.url});
+     else if(receiptData&&String(receiptData.status).toLowerCase()==='0x0')update('Failed on-chain',{blockNumber:receiptData.blockNumber?Number(BigInt(receiptData.blockNumber)).toLocaleString():null,explorerUrl:item.url});
+     else if(receiptError&&!String(receiptError.message||'').includes('RPC returned no result'))throw receiptError;
+     else update('Submitted · awaiting block confirmation',{blockNumber:null,explorerUrl:item.url});
+    }
+   }catch(error){
+    update('Submitted · confirmation check temporarily unavailable',{verificationNote:error.message||'Check the transaction explorer directly.',explorerUrl:item.url});
+   }
+  };
+  poll();
+  const timer=setInterval(poll,15000);
+  return()=>{active=false;clearInterval(timer);};
+ },[sendResult?.hash,sendResult?.chainKey,apiBase]);
+
  async function installApp(){if(installPrompt){await installPrompt.prompt();const choice=await installPrompt.userChoice;if(choice?.outcome==='accepted')setToast('Installation started');setInstallPrompt(null);return;}setInstallHelp(true);}
  async function loadTransferRequests(token=ownerToken){if(!token){setTransferRows([]);return;}setTransferLoading(true);try{const r=await ownerRequest('/api/operations/treasury/transfers',token);const j=await r.json();if(!r.ok)throw Error(j.message||'Owner authorization failed.');setTransferRows(Array.isArray(j.data)?j.data:[]);setTransferMessage('Owner session connected. These are internal pending requests, not external account balances.');}catch(e){setTransferMessage(e.message||'Unable to load owner requests.');}finally{setTransferLoading(false);}}
  useEffect(()=>{if(page==='transfers'&&ownerToken)loadTransferRequests(ownerToken);},[page,ownerToken]);
