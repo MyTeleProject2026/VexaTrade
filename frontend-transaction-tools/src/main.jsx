@@ -325,11 +325,13 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    // Use the backend's provider failover first so a public TRON indexer outage
-    // does not immediately break the wallet balance page. This is read-only data.
+    // Public balances are fetched from the selected token contract; no wallet
+    // ownership, signing, or external exchange account access is implied.
+    const tokenContract=lookupTokenContract.trim()||c.usdt;
+    if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(tokenContract)){setError('Enter a valid-looking TRON TRC20 contract address, or leave blank for official USDT.');setBusy(false);return;}
     let publicData=null,providerLabel='';
     try{
-     const proxy=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a),{headers:{Accept:'application/json'}});
+     const proxy=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a)+'?contract='+encodeURIComponent(tokenContract),{headers:{Accept:'application/json'}});
      const proxyJson=await proxy.json();
      if(!proxy.ok||proxyJson?.success===false)throw Error(proxyJson?.message||'Backend TRON balance lookup failed');
      publicData=proxyJson?.data||proxyJson;
@@ -338,22 +340,23 @@ function App(){
      try{
       const [accountResponse,tokenResponse]=await Promise.all([
        fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
-       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+encodeURIComponent(tokenContract))
       ]);
       if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid HTTP '+(!accountResponse.ok?accountResponse.status:tokenResponse.status));
       const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
       const account=accountJson?.data?.[0]||{};
-      const token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT');
-      publicData={trxSun:String(account.balance||'0'),usdtRaw:String(token?.balance||'0'),usdtDecimals:Number(token?.tokenDecimal??token?.token_decimal??6),explorerUrl:c.wallet+a};
+      const token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===tokenContract.toLowerCase());
+      publicData={trxSun:String(account.balance||'0'),tokenRaw:String(token?.balance||'0'),tokenSymbol:String(token?.tokenAbbr||token?.token_abbr||'TRC20'),tokenDecimals:Number(token?.tokenDecimal??token?.token_decimal??6),explorerUrl:c.wallet+a};
       providerLabel='TRON Grid public API';
      }catch(directError){
       throw Error('TRON public balance providers are unavailable or rate-limited. '+(proxyError.message||directError.message||'Retry later or use TronScan.'));
      }
     }
     const trxSun=String(publicData.trxSun??publicData.balance??'0');
-    const tokenRaw=String(publicData.usdtRaw??publicData.tokenBalance??'0');
-    const tokenDecimals=Number(publicData.usdtDecimals??6);
-    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:publicData.checkedAt||new Date().toLocaleString(),url:publicData.explorerUrl||c.wallet+a,network:c.name,provider:providerLabel,detail:'TRX native balance and USDT TRC20 token balance from public TRON chain data. Public balance does not prove ownership or show a custodial exchange account balance.'});
+    const tokenRaw=String(publicData.tokenRaw??publicData.usdtRaw??publicData.tokenBalance??'0');
+    const tokenDecimals=Number(publicData.tokenDecimals??publicData.usdtDecimals??6);
+    const tokenSymbol=String(publicData.tokenSymbol||(tokenContract.toLowerCase()===c.usdt.toLowerCase()?'USDT':'TRC20'));
+    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),tokenSymbol,tokenContract,time:publicData.checkedAt||new Date().toLocaleString(),url:publicData.explorerUrl||c.wallet+a,network:c.name,provider:providerLabel,detail:'TRX native balance and '+tokenSymbol+' token balance from public TRON chain data for contract '+tokenContract+'. Public balance does not prove ownership or show a custodial exchange account balance.'});
    }else if(chain==='btc'){
     let j;
     try{const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Primary provider unavailable');j=await r.json();}
