@@ -325,66 +325,35 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
-    let account={},token=null,provider='VexaTrade public-chain proxy',lastError=null;
-    // Prefer the backend proxy first: it avoids browser-side CORS/rate-limit failures
-    // and keeps public provider handling consistent with transaction verification.
+    // Use the backend's provider failover first so a public TRON indexer outage
+    // does not immediately break the wallet balance page. This is read-only data.
+    let publicData=null,providerLabel='';
     try{
      const proxy=await fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a),{headers:{Accept:'application/json'}});
-     const payload=await proxy.json();
-     if(!proxy.ok||payload?.success===false)throw Error(payload?.message||'Backend TRON public provider unavailable');
-     const d=payload.data||{};
-     account={balance:String(d.trxSun??'0')};
-     token={balance:String(d.usdtRaw??'0'),tokenDecimal:Number(d.usdtDecimals??6),tokenId:c.usdt,tokenAbbr:'USDT'};
-     provider=payload.source||provider;
+     const proxyJson=await proxy.json();
+     if(!proxy.ok||proxyJson?.success===false)throw Error(proxyJson?.message||'Backend TRON balance lookup failed');
+     publicData=proxyJson?.data||proxyJson;
+     providerLabel=proxyJson.source||'VexaTrade TRON public-chain proxy';
     }catch(proxyError){
-     lastError=proxyError;
      try{
       const [accountResponse,tokenResponse]=await Promise.all([
        fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)),
-       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+encodeURIComponent(c.usdt))
+       fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+c.usdt)
       ]);
       if(!accountResponse.ok||!tokenResponse.ok)throw Error('TRON Grid HTTP '+(!accountResponse.ok?accountResponse.status:tokenResponse.status));
       const accountJson=await accountResponse.json(),tokenJson=await tokenResponse.json();
-      account=accountJson?.data?.[0]||{};
-      token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT')||null;
-      provider='TRON Grid public API';
-     }catch(gridError){
-      lastError=gridError;
-      const r=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a),{headers:{Accept:'application/json'}});
-      if(!r.ok)throw Error('VexaTrade proxy, TRON Grid and TronScan public providers are unavailable (HTTP '+r.status+'). '+(lastError?.message||'Retry later.'));
-      const j=await r.json();
-      if(!j||typeof j!=='object')throw Error('TronScan returned an invalid account response.');
-      account={balance:String(j.balance??j.trxBalance??'0')};
-      const tokens=Array.isArray(j.trc20token_balances)?j.trc20token_balances:Array.isArray(j.tokenBalances)?j.tokenBalances:[];
-      const t=tokens.find(x=>String(x.tokenId||x.token_id||x.tokenAddress||x.contract_address||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||x.tokenSymbol||'').toUpperCase()==='USDT');
-      token=t?{balance:String(t.balance??t.quantity??'0'),tokenDecimal:Number(t.tokenDecimal??t.token_decimals??6),tokenId:c.usdt,tokenAbbr:'USDT'}:null;
-      provider='TronScan public API';
+      const account=accountJson?.data?.[0]||{};
+      const token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===c.usdt.toLowerCase()||String(x.tokenAbbr||x.token_abbr||'').toUpperCase()==='USDT');
+      publicData={trxSun:String(account.balance||'0'),usdtRaw:String(token?.balance||'0'),usdtDecimals:Number(token?.tokenDecimal??token?.token_decimal??6),explorerUrl:c.wallet+a};
+      providerLabel='TRON Grid public API';
+     }catch(directError){
+      throw Error('TRON public balance providers are unavailable or rate-limited. '+(proxyError.message||directError.message||'Retry later or use TronScan.'));
      }
     }
-    let tokenSymbol='USDT';
-    if(lookupTokenContract.trim()){
-     const customResponse=await fetch(apiBase+'/api/public-chain/tron/token-balance?address='+encodeURIComponent(a)+'&contract='+encodeURIComponent(lookupTokenContract.trim()));
-     const customPayload=await customResponse.json();
-     if(!customResponse.ok||!customPayload?.success)throw Error(customPayload?.message||'Could not fetch the selected TRC20 token balance. Verify the contract address.');
-     const custom=customPayload.data||{};
-     token={balance:String(custom.rawBalance||'0'),tokenDecimal:Number(custom.decimals??0),tokenAbbr:String(custom.tokenSymbol||'TOKEN')};
-     tokenSymbol=token.tokenAbbr;
-     provider=customPayload.source||'VexaTrade TRC20 balance proxy';
-    }
-    const trxSun=String(account.balance||'0'),tokenRaw=String(token?.balance||'0'),tokenDecimals=Number(token?.tokenDecimal??token?.token_decimals??6);
-    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),tokenSymbol,time:new Date().toLocaleString(),url:c.wallet+a,network:c.name,detail:'TRX native balance and '+tokenSymbol+' TRC20 token balance from '+provider+'. Public address data does not prove ownership or reveal exchange-custody balances.',provider});
-    try{
-     const [nativeResponse,tokenResponse,blockResponse]=await Promise.all([
-      fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a)+'/transactions?limit=12&confirmed=false'),
-      fetch(apiBase+'/api/public-chain/tron/address/'+encodeURIComponent(a)+'/token-transfers?limit=12&confirmed=false'),
-      fetch(apiBase+'/api/public-chain/tron/block/latest')
-     ]);
-     const [nativeJson,tokenJson,blockJson]=await Promise.all([nativeResponse.json(),tokenResponse.json(),blockResponse.json()]);
-     const latestBlock=blockResponse.ok&&blockJson?.success?blockJson.data:null;
-     const nativeItems=nativeResponse.ok&&nativeJson?.success?(nativeJson.data||[]).map(tx=>({kind:tx.contractType==='TransferContract'?'TRX transfer':'TRON activity',hash:tx.txid,when:tx.timestamp,from:tx.from,to:tx.to,amount:tx.amountSun===null?(tx.contractType||'Contract activity'):formatUnits(tx.amountSun||'0',6,6)+' TRX',status:tx.confirmed?'Confirmed':'Included / status pending',url:tx.explorerUrl||c.explorer+tx.txid})): [];
-     const tokenItems=tokenResponse.ok&&tokenJson?.success?(tokenJson.data||[]).map(tx=>({kind:(tx.tokenSymbol||'TRC20 token')+' transfer',hash:tx.txid,when:tx.timestamp,from:tx.from,to:tx.to,amount:formatUnits(tx.amountRaw||'0',Number(tx.decimals||0),6)+' '+(tx.tokenSymbol||'token'),status:tx.confirmed?'Indexed on-chain':'Confirmation status unavailable',url:tx.explorerUrl||c.explorer+tx.txid})): [];
-     setWalletActivity({items:[...nativeItems,...tokenItems].filter(x=>x.hash).sort((x,y)=>String(y.when||'').localeCompare(String(x.when||''))).slice(0,12),latestBlock,provider:'TRON Grid public API via VexaTrade backend',note:'Recent native TRX transactions and TRC20 transfer events. Public indexing can lag. Confirm transaction execution and finality on TronScan; this history does not show private exchange-account deposits.'});
-    }catch(_){setWalletActivity({items:[],provider:'TRON Grid public API',note:'Balances were fetched, but recent activity could not be loaded. Retry or inspect the address on TronScan.'});}
+    const trxSun=String(publicData.trxSun??publicData.balance??'0');
+    const tokenRaw=String(publicData.usdtRaw??publicData.tokenBalance??'0');
+    const tokenDecimals=Number(publicData.usdtDecimals??6);
+    setBalance({address:a,amount:Number(trxSun)/1e6,amountDisplay:formatUnits(trxSun,6,6),asset:'TRX',tokenAmount:Number(tokenRaw)/Math.pow(10,tokenDecimals),tokenAmountDisplay:formatUnits(tokenRaw,tokenDecimals,6),time:publicData.checkedAt||new Date().toLocaleString(),url:publicData.explorerUrl||c.wallet+a,network:c.name,provider:providerLabel,detail:'TRX native balance and USDT TRC20 token balance from public TRON chain data. Public balance does not prove ownership or show a custodial exchange account balance.'});
    }else if(chain==='btc'){
     let j;
     try{const r=await fetch(c.api+'/address/'+encodeURIComponent(a));if(!r.ok)throw Error('Primary provider unavailable');j=await r.json();}
