@@ -225,19 +225,19 @@ router.get('/public-chain/tron/block/:height', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Block must be "latest" or a valid non-negative block height.' });
   }
   try {
-    const block = requested === 'latest'
-      ? await getTronGridJson('https://api.trongrid.io/wallet/getnowblock')
-      : await getTronGridJson('https://api.trongrid.io/wallet/getblockbynum', 12000).then(async () => {
-          // The POST-only getblockbynum endpoint is called below with the requested block number.
-          const response = await fetch('https://api.trongrid.io/wallet/getblockbynum', {
-            method: 'POST',
-            headers: { ...tronGridHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ num: Number(requested) }),
-            signal: AbortSignal.timeout(12000)
-          });
-          if (!response.ok) throw Error('TRON Grid HTTP ' + response.status);
-          return response.json();
-        });
+    let block;
+    if (requested === 'latest') {
+      block = await getTronGridJson('https://api.trongrid.io/wallet/getnowblock');
+    } else {
+      const response = await fetch('https://api.trongrid.io/wallet/getblockbynum', {
+        method: 'POST',
+        headers: { ...tronGridHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num: Number(requested) }),
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!response.ok) throw Error('TRON Grid HTTP ' + response.status);
+      block = await response.json();
+    }
     const header = block?.block_header?.raw_data || {};
     const blockNumber = header.number ?? null;
     if (blockNumber === null) return res.status(404).json({ success: false, message: 'TRON block was not found.' });
