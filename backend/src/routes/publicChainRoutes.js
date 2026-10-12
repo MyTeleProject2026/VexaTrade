@@ -187,6 +187,46 @@ router.get('/public-chain/evm/balance', async (req, res) => {
   }
 });
 
+// Etherscan V2 ERC-20 token balance proxy. Token contract and wallet address are public inputs;
+// API credentials remain exclusively in the backend environment.
+router.get('/public-chain/evm/token-balance', async (req, res) => {
+  const chainid = String(req.query.chainid || '1').trim();
+  const address = String(req.query.address || '').trim();
+  const contractaddress = String(req.query.contractaddress || '').trim();
+  const supportedChains = new Set(['1', '56', '137', '8453', '42161', '10', '43114', '11155111']);
+  if (!supportedChains.has(chainid)) {
+    return res.status(400).json({ success: false, message: 'This EVM chain ID is not enabled for Etherscan token-balance lookups.' });
+  }
+  if (!validEvmAddress(address) || !validEvmAddress(contractaddress)) {
+    return res.status(400).json({ success: false, message: 'Provide valid EVM wallet and token contract addresses.' });
+  }
+  const apiKey = String(process.env.ETHERSCAN_API_KEY || '').trim();
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: 'Etherscan provider is not configured. Set ETHERSCAN_API_KEY in the backend service environment.' });
+  }
+  try {
+    const url = new URL('https://api.etherscan.io/v2/api');
+    url.searchParams.set('chainid', chainid);
+    url.searchParams.set('module', 'account');
+    url.searchParams.set('action', 'tokenbalance');
+    url.searchParams.set('contractaddress', contractaddress);
+    url.searchParams.set('address', address);
+    url.searchParams.set('tag', 'latest');
+    url.searchParams.set('apikey', apiKey);
+    const data = await getJson(url.toString());
+    if (String(data.status) !== '1' || data.result == null || !/^\\d+$/.test(String(data.result))) {
+      return res.status(502).json({ success: false, message: String(data.result || data.message || 'Etherscan did not return a valid token balance.'), source: 'Etherscan API V2' });
+    }
+    return res.json({
+      success: true,
+      source: 'Etherscan API V2',
+      data: { address, contractAddress: contractaddress, chainId: chainid, tokenBalanceRaw: String(data.result), checkedAt: new Date().toISOString() }
+    });
+  } catch (error) {
+    return res.status(502).json({ success: false, message: 'Etherscan token balance lookup failed. Retry or use the network explorer.', providerError: error.message || 'provider unavailable' });
+  }
+});
+
 router.get('/public-chain/evm/transaction/:txid', async (req, res) => {
   const chainid = String(req.query.chainid || '1').trim();
   const txid = String(req.params.txid || '').trim();
