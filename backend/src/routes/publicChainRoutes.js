@@ -79,6 +79,10 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
   if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
     return res.status(400).json({ success: false, message: 'Enter a valid-looking TRON mainnet address.' });
   }
+
+  const failures = [];
+  // Primary source: TRON Grid. Keep raw integer units to avoid floating-point
+  // truncation for token balances and return explicit source metadata.
   try {
     const [accountResponse, tokenResponse] = await Promise.all([
       getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address)),
@@ -102,14 +106,44 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
       }
     });
   } catch (error) {
+    failures.push('TRON Grid: ' + (error.message || 'unavailable'));
+  }
+
+  // Independent public indexer fallback. A successful response is only accepted
+  // when it identifies the requested address; missing token entries mean zero.
+  try {
+    const account = await getJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
+    const returnedAddress = String(account && (account.address || account.addressTag || '') || '');
+    if (returnedAddress && returnedAddress !== address) {
+      throw new Error('TronScan returned a different address');
+    }
+    const tokens = Array.isArray(account && account.trc20token_balances) ? account.trc20token_balances : [];
+    const token = tokens.find(item =>
+      String(item.tokenId || item.token_id || item.contract_address || '').toLowerCase() === TRON_USDT.toLowerCase()
+    );
+    const rawBalance = String(token && (token.balance ?? token.quantity) || '0');
+    const decimals = Number(token && (token.tokenDecimal ?? token.token_decimal) ?? 6);
+    return res.json({
+      success: true,
+      source: 'TronScan public API fallback',
+      data: {
+        address,
+        trxSun: String(account && account.balance || '0'),
+        usdtRaw: rawBalance,
+        usdtDecimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 30 ? decimals : 6,
+        checkedAt: new Date().toISOString(),
+        explorerUrl: 'https://tronscan.org/#/address/' + address
+      }
+    });
+  } catch (error) {
+    failures.push('TronScan: ' + (error.message || 'unavailable'));
     return res.status(502).json({
       success: false,
-      message: 'TRON public balance providers are unavailable or rate-limited. Retry later or use TronScan.',
-      providerError: error.message || 'provider unavailable'
+      message: 'TRON public balance providers are unavailable or rate-limited. Retry later or open TronScan.',
+      providers: failures
     });
   }
 });
-
 
 const ETHERSCAN_CHAIN_IDS = new Set(['1', '56', '137', '8453', '42161', '10']);
 function validEvmAddress(value) { return /^0x[a-fA-F0-9]{40}$/.test(String(value || '')); }
