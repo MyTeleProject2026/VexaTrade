@@ -75,17 +75,30 @@ function App(){
   const poll=async()=>{
    try{
     if(item.chainKey==='tron'){
-     const r=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(item.hash));
-     const j=await r.json();
-     if(!r.ok||j?.success===false)throw Error(j?.message||'TRON public provider temporarily unavailable');
-     const d=j.data||{},block=d.block??d.blockNumber??d.block_number;
-     const result=String(d.contractRet||d.contract_ret||d.receipt?.result||'').toUpperCase();
-     if(result==='FAILED'||result==='OUT_OF_ENERGY'||result==='REVERT'){
-      update('Failed on-chain',{blockNumber:block??null,explorerUrl:item.url});
-     }else if(block&&result==='SUCCESS'){
+     let d=null,lastError=null;
+     try{
+      const r=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(item.hash));
+      const j=await r.json();
+      if(!r.ok||j?.success===false)throw Error(j?.message||'VexaTrade TRON proxy unavailable');
+      d=j.data||j;
+     }catch(proxyError){
+      lastError=proxyError;
+      const r=await fetch('https://apilist.tronscanapi.com/api/transaction-info?hash='+encodeURIComponent(item.hash),{headers:{Accept:'application/json'}});
+      if(!r.ok)throw Error('TRON proxy and TronScan are unavailable. '+(lastError?.message||'Retry later.'));
+      d=await r.json();
+      if(!d||(!d.hash&&!d.transactionHash&&!d.txID&&d.confirmed===undefined&&d.block===undefined&&d.blockNumber===undefined))throw Error('TronScan could not verify this TXID.');
+     }
+     const block=d.block??d.blockNumber??d.block_number??null;
+     const result=String(d.contractRet||d.contract_ret||d.receipt?.result||d.result||'').toUpperCase();
+     const confirmed=Boolean(d.confirmed)||Boolean(block);
+     if(['FAILED','OUT_OF_ENERGY','REVERT','REVERTED'].includes(result)){
+      update('Failed on-chain',{blockNumber:block,explorerUrl:item.url});
+     }else if(confirmed&&['SUCCESS','SUCESS'].includes(result)){
       update('Confirmed on-chain',{blockNumber:block,explorerUrl:item.url});
+     }else if(confirmed){
+      update('Included on-chain · checking execution result',{blockNumber:block,explorerUrl:item.url});
      }else{
-      update('Submitted · awaiting on-chain confirmation',{blockNumber:block??null,explorerUrl:item.url});
+      update('Submitted · awaiting on-chain confirmation',{blockNumber:null,explorerUrl:item.url});
      }
     }else if(item.chainKey==='btc'){
      const r=await fetch('https://mempool.space/api/tx/'+encodeURIComponent(item.hash));
