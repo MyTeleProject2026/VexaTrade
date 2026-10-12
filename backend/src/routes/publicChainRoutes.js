@@ -281,8 +281,8 @@ router.get('/public-chain/tron/address/:address/transactions', async (req, res) 
         from: tx.raw_data?.contract?.[0]?.parameter?.value?.owner_address || null,
         to: tx.raw_data?.contract?.[0]?.parameter?.value?.to_address || null,
         contractType: tx.raw_data?.contract?.[0]?.type || null,
-        amountSun: String(tx.raw_data?.contract?.[0]?.parameter?.value?.amount ?? '0'),
-        amountTRX: Number(tx.raw_data?.contract?.[0]?.parameter?.value?.amount ?? 0) / 1e6,
+        amountSun: tx.raw_data?.contract?.[0]?.type === 'TransferContract' ? String(tx.raw_data?.contract?.[0]?.parameter?.value?.amount ?? '0') : null,
+        amountTRX: tx.raw_data?.contract?.[0]?.type === 'TransferContract' ? Number(tx.raw_data?.contract?.[0]?.parameter?.value?.amount ?? 0) / 1e6 : null,
         confirmed: Boolean(tx.ret?.[0]?.contractRet === 'SUCCESS'),
         contractResult: tx.ret?.[0]?.contractRet || null,
         explorerUrl: tx.txID ? 'https://tronscan.org/#/transaction/' + tx.txID : null
