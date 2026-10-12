@@ -8,18 +8,26 @@ const CHAINS = {
   eth: { name:'Ethereum', symbol:'ETH', native:'ETH', chainId:1, rpc:'https://cloudflare-eth.com', explorer:'https://etherscan.io/tx/', wallet:'https://etherscan.io/address/', usdt:'0xdAC17F958D2ee523a2206206994597C13D831ec7', usdtDecimals:6 },
   bsc: { name:'BNB Chain', symbol:'BNB', native:'BNB', chainId:56, rpc:'https://bsc-dataseed.binance.org', explorer:'https://bscscan.com/tx/', wallet:'https://bscscan.com/address/', usdt:'0x55d398326f99059fF775485246999027B3197955', usdtDecimals:18 },
   btc: { name:'Bitcoin', symbol:'BTC', native:'BTC', api:'https://mempool.space/api', explorer:'https://mempool.space/tx/', wallet:'https://mempool.space/address/' },
-  polygon: { name:'Polygon', symbol:'POL', native:'POL', chainId:137, rpc:'https://polygon-bor-rpc.publicnode.com', explorer:'https://polygonscan.com/tx/', wallet:'https://polygonscan.com/address/', usdt:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F', usdtDecimals:6 }
+  polygon: { name:'Polygon', symbol:'POL', native:'POL', chainId:137, rpc:'https://polygon-bor-rpc.publicnode.com', explorer:'https://polygonscan.com/tx/', wallet:'https://polygonscan.com/address/', usdt:'0xc2132D05D31c914a87C6611C10748AEb04B58e8F', usdtDecimals:6 },
+  avalanche: { name:'Avalanche C-Chain', symbol:'AVAX', native:'AVAX', chainId:43114, rpc:'https://api.avax.network/ext/bc/C/rpc', explorer:'https://snowtrace.io/tx/', wallet:'https://snowtrace.io/address/', usdt:'0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7', usdtDecimals:6 },
+  kava: { name:'Kava EVM', symbol:'KAVA', native:'KAVA', chainId:2222, rpc:'https://evm.kava.io', explorer:'https://kavascan.io/tx/', wallet:'https://kavascan.io/address/', usdt:'0x919C1c267BC06a7039e03fcc2eF738525769109c', usdtDecimals:6 },
+  celo: { name:'Celo', symbol:'CELO', native:'CELO', chainId:42220, rpc:'https://forno.celo.org', explorer:'https://celoscan.io/tx/', wallet:'https://celoscan.io/address/', usdt:'0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e', usdtDecimals:6 },
+  kaia: { name:'Kaia', symbol:'KAIA', native:'KAIA', chainId:8217, rpc:'https://public-en.node.kaia.io', explorer:'https://www.kaiascan.io/tx/', wallet:'https://www.kaiascan.io/address/', usdt:'0xd077a400968890eacc75cdc901f0356c943e4fdb', usdtDecimals:6 }
 };
 const nav = [{id:'home',label:'Overview',Icon:LayoutDashboard,group:'WORKSPACE'},{id:'verify',label:'Transaction lookup',Icon:FileSearch,group:'WORKSPACE'},{id:'wallet',label:'Wallet balances',Icon:Wallet,group:'WORKSPACE'},{id:'send',label:'Send from connected wallet',Icon:Send,group:'WORKSPACE'},{id:'reference',label:'Reference generator',Icon:Fingerprint,group:'TOOLS'},{id:'status',label:'Activity & status',Icon:History,group:'TOOLS'},{id:'transfers',label:'Owner transfer desk',Icon:Send,group:'TOOLS'}];
 const short=(s,a=13,b=8)=>!s||s.length<=a+b+3?s:s.slice(0,a)+'…'+s.slice(-b);
 const fmt=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:6}):'—';
-function cfgChainHint(chain){return ['eth','bsc','polygon'].includes(chain)?' · direct wallet sending supported':' · direct wallet sending not enabled for this network';}
+function cfgChainHint(chain){return !['tron','btc'].includes(chain)?' · direct wallet sending supported':' · direct wallet sending not enabled for this network';}
 function formatUnits(raw,decimals=18,maxFraction=8){try{const value=BigInt(raw||'0');const scale=10n**BigInt(decimals);const whole=value/scale;const fraction=(value%scale).toString().padStart(decimals,'0').slice(0,maxFraction).replace(/0+$/,'');return whole.toLocaleString()+(fraction?'.'+fraction:'');}catch{return '—';}}
 function formatDecimalNumber(value,maxFraction=8){if(!Number.isFinite(value))return '—';return value.toLocaleString(undefined,{maximumFractionDigits:maxFraction});}
 const EVM_RPC_FALLBACKS={
  eth:['https://ethereum-rpc.publicnode.com','https://cloudflare-eth.com','https://1rpc.io/eth'],
  bsc:['https://bsc-rpc.publicnode.com','https://bsc-dataseed.binance.org','https://1rpc.io/bnb'],
- polygon:['https://polygon-bor-rpc.publicnode.com','https://polygon.drpc.org','https://1rpc.io/matic']
+ polygon:['https://polygon-bor-rpc.publicnode.com','https://polygon.drpc.org','https://1rpc.io/matic'],
+ avalanche:['https://api.avax.network/ext/bc/C/rpc','https://avalanche-c-chain-rpc.publicnode.com'],
+ kava:['https://evm.kava.io','https://kava-evm.publicnode.com'],
+ celo:['https://forno.celo.org','https://celo.drpc.org'],
+ kaia:['https://public-en.node.kaia.io','https://kaia.drpc.org']
 };
 async function evmRpc(chain,method,params){
  const urls=[...new Set([CHAINS[chain]?.rpc,...(EVM_RPC_FALLBACKS[chain]||[])].filter(Boolean))];
@@ -141,7 +149,7 @@ function App(){
  function go(id){setPage(id);setMobile(false);setError('');}
  async function verify(e){
   e.preventDefault();setError('');setLookup(null);
-  const hash=txid.trim();const isEvm=['eth','bsc','polygon'].includes(chain);
+  const hash=txid.trim();const isEvm=!['tron','btc'].includes(chain);
   if(chain==='tron'&&!/^[a-fA-F0-9]{64}$/.test(hash)){setError('Enter a real 64-character TRON transaction ID. Internal VXT references are not blockchain hashes.');return;}
   if(chain==='btc'&&!/^[a-fA-F0-9]{64}$/.test(hash)){setError('Enter a real 64-character Bitcoin transaction ID.');return;}
   if(isEvm&&!/^0x[a-fA-F0-9]{64}$/.test(hash)){setError('Enter a 0x-prefixed 32-byte transaction hash.');return;}
