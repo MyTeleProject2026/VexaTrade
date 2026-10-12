@@ -169,6 +169,27 @@ function App(){
   setBusy(true);
   try{
    if(chain==='tron'){
+    // Prefer the same-origin backend proxy first. It can fail over between TronScan
+    // and TRON Grid, avoiding browser CORS and direct-provider rate-limit failures.
+    try{
+     const proxyResponse=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(hash),{headers:{Accept:'application/json'}});
+     const proxyJson=await proxyResponse.json();
+     if(proxyResponse.ok&&proxyJson?.success!==false){
+      const data=proxyJson?.data||proxyJson;
+      const transferList=data.tokenTransferInfo||data.token_transfer_info||data.trc20TransferInfo||data.trc20_transfer_info||[];
+      const transfer=(Array.isArray(transferList)?transferList:[transferList]).find(t=>String(t.contract_address||t.contractAddress||t.tokenId||t.token_id||'').toLowerCase()===c.usdt.toLowerCase());
+      const raw=String(transfer?.amount_str??transfer?.amount??transfer?.quant??transfer?.value??'');
+      const decimals=Number(transfer?.decimals??transfer?.tokenDecimal??transfer?.token_decimal??6);
+      const contractResult=String(data.contractRet||data.contract_ret||data.receipt?.result||data.result||'').toUpperCase();
+      const block=data.blockNumber??data.block_number??data.block??null;
+      const confirmed=data.confirmed===true||data.confirmed===1||Boolean(block);
+      const stamp=data.timestamp||data.blockTimeStamp||data.block_timestamp||null;
+      setLookup({id:hash,success:confirmed&&(contractResult==='SUCCESS'||contractResult==='SUCESS'),pending:!confirmed,block:block??'Not confirmed',time:stamp?new Date(Number(stamp)<1e12?Number(stamp)*1000:Number(stamp)).toLocaleString():'Awaiting confirmation',amount:raw?Number(raw)/Math.pow(10,decimals):null,amountDisplay:raw?formatUnits(raw,decimals,6):null,asset:'USDT',to:transfer?.to_address||transfer?.to||transfer?.target||'Not available',isUsdt:!!transfer,url:c.explorer+hash,network:c.name,source:proxyJson.source||'VexaTrade public-chain proxy'});
+      return;
+     }
+    }catch(_){
+     // Continue with public providers below if the backend proxy is unavailable.
+    }
     let tx=null,info=null,ev=null,lastProviderError=null;
     try{
      const [r,i]=await Promise.all([fetch(c.api+'/v1/transactions/'+hash),fetch(c.api+'/wallet/gettransactioninfobyid?value='+encodeURIComponent(hash))]);
