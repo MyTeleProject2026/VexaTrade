@@ -5,6 +5,7 @@ import './styles.css';
 
 const CHAINS = {
   sepolia: { name:'Ethereum Sepolia Testnet', symbol:'Sepolia ETH', native:'Sepolia ETH', chainId:11155111, rpc:'https://ethereum-sepolia-rpc.publicnode.com', explorer:'https://sepolia.etherscan.io/tx/', wallet:'https://sepolia.etherscan.io/address/', testnet:true },
+  'opt-sepolia': { name:'Optimism Sepolia Testnet', symbol:'Sepolia ETH', native:'ETH', chainId:11155420, rpc:'https://sepolia.optimism.io', explorer:'https://sepolia-optimism.etherscan.io/tx/', wallet:'https://sepolia-optimism.etherscan.io/address/', testnet:true },
   tron: { name:'TRON', symbol:'TRX', native:'TRX', chainId:null, explorer:'https://tronscan.org/#/transaction/', wallet:'https://tronscan.org/#/address/', api:'https://api.trongrid.io', usdt:'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' },
   eth: { name:'Ethereum', symbol:'ETH', native:'ETH', chainId:1, rpc:'https://cloudflare-eth.com', explorer:'https://etherscan.io/tx/', wallet:'https://etherscan.io/address/', usdt:'0xdAC17F958D2ee523a2206206994597C13D831ec7', usdtDecimals:6 },
   bsc: { name:'BNB Chain', symbol:'BNB', native:'BNB', chainId:56, rpc:'https://bsc-dataseed.binance.org', explorer:'https://bscscan.com/tx/', wallet:'https://bscscan.com/address/', usdt:'0x55d398326f99059fF775485246999027B3197955', usdtDecimals:18 },
@@ -23,6 +24,7 @@ function formatUnits(raw,decimals=18,maxFraction=8){try{const value=BigInt(raw||
 function formatDecimalNumber(value,maxFraction=8){if(!Number.isFinite(value))return '—';return value.toLocaleString(undefined,{maximumFractionDigits:maxFraction});}
 const EVM_RPC_FALLBACKS={
  sepolia:['https://ethereum-sepolia-rpc.publicnode.com','https://rpc.sepolia.org','https://1rpc.io/sepolia'],
+ 'opt-sepolia':['https://sepolia.optimism.io','https://optimism-sepolia-rpc.publicnode.com'],
  eth:['https://ethereum-rpc.publicnode.com','https://cloudflare-eth.com','https://1rpc.io/eth'],
  bsc:['https://bsc-rpc.publicnode.com','https://bsc-dataseed.binance.org','https://1rpc.io/bnb'],
  polygon:['https://polygon-bor-rpc.publicnode.com','https://polygon.drpc.org','https://1rpc.io/matic'],
@@ -32,6 +34,14 @@ const EVM_RPC_FALLBACKS={
  kaia:['https://public-en.node.kaia.io','https://kaia.drpc.org']
 };
 async function evmRpc(chain,method,params){
+ const alchemyNetwork=chain==='eth'?'eth-mainnet':chain==='opt-sepolia'?'opt-sepolia':null;
+ if(alchemyNetwork){
+  try{
+   const response=await fetch(apiBase+'/api/public-chain/alchemy/rpc',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({network:alchemyNetwork,method,params})});
+   const payload=await response.json();
+   if(response.ok&&payload?.success&&payload.result!==undefined&&payload.result!==null)return payload.result;
+  }catch(_){/* use public RPC fallbacks when Alchemy is not configured */}
+ }
  const urls=[...new Set([CHAINS[chain]?.rpc,...(EVM_RPC_FALLBACKS[chain]||[])].filter(Boolean))];
  let lastError;
  for(const url of urls){
