@@ -127,7 +127,31 @@ function App(){
        if(String(contract||'').toLowerCase()===c.usdt.toLowerCase()&&raw)ev={contract_address:c.usdt,event_name:'Transfer',result:{value:raw,to:t.to_address||t.to||t.target}}; 
        else if(raw) {const displayAmount=Number(raw)/Math.pow(10,decimals); if(Number.isFinite(displayAmount)&&displayAmount>=0) ev=null;}
       }
-     }catch(error){throw Error('TRON lookup providers are unavailable or could not verify this hash. '+(lastProviderError?.message||error.message||'Retry later or open TronScan.'));}
+     }catch(error){
+      // Final public fallback: query TronScan's public transaction-info endpoint directly.
+      // This is read-only and never treats an internal VXT reference as a chain TXID.
+      try{
+       const direct=await fetch('https://apilist.tronscanapi.com/api/transaction-info?hash='+encodeURIComponent(hash),{headers:{Accept:'application/json'}});
+       if(!direct.ok)throw Error('TronScan HTTP '+direct.status);
+       const j=await direct.json();
+       if(!j||(!j.hash&&!j.transactionHash&&!j.txID&&j.confirmed===undefined&&j.block===undefined&&j.blockNumber===undefined))throw Error('Transaction not found by TronScan');
+       tx={txID:j.hash||j.transactionHash||j.txID||hash,block_timestamp:j.timestamp||j.blockTimeStamp||j.block_timestamp};
+       info={blockNumber:j.block||j.blockNumber||j.block_number,blockTimeStamp:j.timestamp||j.blockTimeStamp||j.block_timestamp,receipt:{result:j.contractRet||j.contract_ret||j.receipt?.result},result:j.contractRet||j.contract_ret};
+       const transfers=j.tokenTransferInfo||j.token_transfer_info||j.trc20TransferInfo||j.trc20_transfer_info||[];
+       for(const t of (Array.isArray(transfers)?transfers:[transfers])){
+        const contract=t.contract_address||t.tokenId||t.token_id||t.contractAddress;
+        const raw=String(t.amount_str||t.amount||t.quant||t.value||'');
+        const decimals=Number(t.decimals??t.tokenDecimal??t.token_decimal??6);
+        if(String(contract||'').toLowerCase()===c.usdt.toLowerCase()&&raw){
+         const to=t.to_address||t.to||t.target;
+         ev={contract_address:c.usdt,event_name:'Transfer',result:{value:raw,to}};
+         break;
+        }
+       }
+      }catch(directError){
+       throw Error('TRON lookup providers are unavailable or could not verify this hash. '+(lastProviderError?.message||error.message||directError.message||'Retry later or open TronScan.'));
+      }
+     }
     }
     if(!tx)throw Error('No transaction found on TRON. Check the hash and selected network.');
     const contractResult=String(info?.receipt?.result||info?.result||'').toUpperCase();
