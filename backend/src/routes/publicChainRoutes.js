@@ -470,4 +470,73 @@ router.get('/public-chain/tron/token-balance', async (req, res) => {
   }
 });
 
+
+/* RouteScan indexed EVM ERC-20 activity. Read-only evidence only; it never signs,
+   broadcasts, or fabricates a transaction and it cannot prove an exchange credited a deposit. */
+const ROUTESCAN_CHAIN_IDS = new Set(['1','56','137','8453','42161','10','43114','2222','42220','8217','11155111','11155420']);
+function routescanAddress(value) { return /^0x[a-fA-F0-9]{40}$/.test(String(value || '')); }
+function routescanLimit(value, fallback = 25) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, 100) : fallback;
+}
+async function getRoutescanAddressData(address, endpoint, chainId, limit) {
+  const url = new URL('https://api.routescan.io/v2/network/mainnet/evm/all/address/' + encodeURIComponent(address) + '/' + endpoint);
+  url.searchParams.set('includedChainIds', chainId);
+  url.searchParams.set('limit', String(limit));
+  if (endpoint === 'erc20-holdings') {
+    url.searchParams.set('ecosystem', 'ethereum');
+    url.searchParams.set('count', 'true');
+  }
+  if (endpoint === 'erc20-approvals') {
+    url.searchParams.set('ecosystem', 'ethereum');
+    url.searchParams.set('sort', 'timestamp,desc');
+  }
+  const headers = { ...HEADERS };
+  const apiKey = String(process.env.ROUTESCAN_API_KEY || '').trim();
+  if (apiKey) headers.apikey = apiKey;
+  const response = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw Object.assign(new Error('RouteScan HTTP ' + response.status), { status: response.status });
+  const payload = await response.json();
+  if (!payload || !Array.isArray(payload.items)) throw new Error('RouteScan returned an unexpected response shape.');
+  return { items: payload.items, count: payload.count ?? null, countType: payload.countType ?? null, next: payload.link?.next || null };
+}
+function routescanQuery(req, res) {
+  const address = String(req.params.address || '').trim();
+  const chainId = String(req.query.chainid || '1').trim();
+  const limit = routescanLimit(req.query.limit, 25);
+  if (!routescanAddress(address)) {
+    res.status(400).json({ success: false, message: 'Enter a valid 0x-prefixed EVM wallet address.' });
+    return null;
+  }
+  if (!ROUTESCAN_CHAIN_IDS.has(chainId)) {
+    res.status(400).json({ success: false, message: 'This EVM chain ID is not enabled for RouteScan indexed lookups.' });
+    return null;
+  }
+  return { address, chainId, limit };
+}
+for (const endpoint of ['erc20-transfers', 'erc20-approvals', 'erc20-holdings']) {
+  router.get('/public-chain/evm/address/:address/' + endpoint, async (req, res) => {
+    const query = routescanQuery(req, res);
+    if (!query) return;
+    try {
+      const data = await getRoutescanAddressData(query.address, endpoint, query.chainId, query.limit);
+      return res.json({
+        success: true,
+        source: 'RouteScan indexed public chain data',
+        kind: endpoint,
+        address: query.address,
+        chainId: query.chainId,
+        checkedAt: new Date().toISOString(),
+        data
+      });
+    } catch (error) {
+      return res.status(502).json({
+        success: false,
+        message: 'RouteScan indexed lookup failed. Retry later or open the network explorer.',
+        providerError: error.message || 'provider unavailable'
+      });
+    }
+  });
+}
+
 module.exports = router;
