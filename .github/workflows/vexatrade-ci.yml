@@ -110,6 +110,5 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend-transaction-tools/package-lock.json
       - run: npm install --no-audit --no-fund
       - run: npm run build
