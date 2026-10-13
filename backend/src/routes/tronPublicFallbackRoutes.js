@@ -86,7 +86,19 @@ router.get('/public-chain/tron/address/:address', async (req, res, next) => {
   try {
     const account = await getJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
     if (account && (account.address || account.balance !== undefined || account.trc20token_balances || account.tokenBalances)) {
-      const token = accountToken(account, contractAddress);
+      let token = accountToken(account, contractAddress);
+      if (!token) {
+        // TronScan account responses do not always embed TRC20 balances. Query
+        // its public token-list endpoint before reporting a zero token balance.
+        try {
+          const tokenList = await getJson('https://apilist.tronscanapi.com/api/account/tokens?address=' + encodeURIComponent(address) + '&start=0&limit=200&hidden=0&show=0&sortType=0&sortBy=0');
+          const list = Array.isArray(tokenList?.data) ? tokenList.data : Array.isArray(tokenList?.tokens) ? tokenList.tokens : [];
+          const target = contractAddress.toLowerCase();
+          token = list.find(item => String(item.tokenId || item.token_id || item.contract_address || item.tokenAddress || item.token_info?.address || '').toLowerCase() === target) || null;
+        } catch (tokenListError) {
+          failures.push('TronScan token list: ' + (tokenListError.message || 'unavailable'));
+        }
+      }
       const rawTokenBalance = token?.balance ?? token?.quantity ?? token?.amount ?? '0';
       const decimals = Number(token?.tokenDecimal ?? token?.token_decimal ?? token?.decimals ?? 6);
       return res.json({
