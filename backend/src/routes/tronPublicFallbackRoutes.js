@@ -23,18 +23,16 @@ function firstAccount(payload) {
   return Array.isArray(payload?.data) ? payload.data[0] || null : null;
 }
 
-function tronscanUsdt(account) {
+function accountToken(account, contractAddress) {
   const list = [
     ...(Array.isArray(account?.trc20token_balances) ? account.trc20token_balances : []),
     ...(Array.isArray(account?.tokenBalances) ? account.tokenBalances : []),
     ...(Array.isArray(account?.trc20tokenBalances) ? account.trc20tokenBalances : [])
   ];
+  const target = String(contractAddress || TRON_USDT).toLowerCase();
   return list.find(token => {
     const contract = token?.tokenId || token?.token_id || token?.contract_address || token?.tokenAddress;
-    const symbol = token?.tokenAbbr || token?.token_abbr || token?.tokenSymbol || token?.symbol;
-    return String(contract || '').toLowerCase() === TRON_USDT.toLowerCase() ||
-      (String(symbol || '').toUpperCase() === 'USDT' &&
-       String(token?.tokenName || token?.token_name || token?.name || '').toLowerCase().includes('tether'));
+    return String(contract || '').toLowerCase() === target;
   }) || null;
 }
 
@@ -45,21 +43,25 @@ function tronscanUsdt(account) {
  */
 router.get('/public-chain/tron/address/:address', async (req, res, next) => {
   const address = String(req.params.address || '').trim();
+  const contractAddress = String(req.query.contract || TRON_USDT).trim();
   if (!validTronAddress(address)) {
     return res.status(400).json({ success: false, message: 'Enter a valid-looking TRON mainnet address.' });
+  }
+  if (!validTronAddress(contractAddress)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid-looking TRC20 token contract address.' });
   }
 
   const failures = [];
   try {
     const [accountPayload, tokenPayload] = await Promise.all([
       getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address)),
-      getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address) + '/tokens?limit=200&contract_address=' + encodeURIComponent(TRON_USDT))
+      getJson('https://api.trongrid.io/v1/accounts/' + encodeURIComponent(address) + '/tokens?limit=200&contract_address=' + encodeURIComponent(contractAddress))
     ]);
     const account = firstAccount(accountPayload);
     if (account) {
       const tokens = Array.isArray(tokenPayload?.data) ? tokenPayload.data : [];
       const token = tokens.find(item =>
-        String(item.tokenId || item.token_id || item.token_info?.address || '').toLowerCase() === TRON_USDT.toLowerCase()
+        String(item.tokenId || item.token_id || item.token_info?.address || '').toLowerCase() === contractAddress.toLowerCase()
       );
       return res.json({
         success: true,
@@ -67,8 +69,10 @@ router.get('/public-chain/tron/address/:address', async (req, res, next) => {
         data: {
           address,
           trxSun: String(account.balance ?? '0'),
-          usdtRaw: String(token?.balance ?? '0'),
-          usdtDecimals: Number(token?.tokenDecimal ?? token?.token_decimal ?? token?.token_info?.decimals ?? 6),
+          tokenRaw: String(token?.balance ?? '0'),
+          tokenDecimals: Number(token?.tokenDecimal ?? token?.token_decimal ?? token?.token_info?.decimals ?? 6),
+          tokenSymbol: String(token?.tokenAbbr || token?.token_abbr || token?.token_info?.symbol || (contractAddress.toLowerCase() === TRON_USDT.toLowerCase() ? 'USDT' : 'TRC20')),
+          tokenContract: contractAddress,
           checkedAt: new Date().toISOString(),
           explorerUrl: 'https://tronscan.org/#/address/' + address
         }
@@ -82,7 +86,7 @@ router.get('/public-chain/tron/address/:address', async (req, res, next) => {
   try {
     const account = await getJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
     if (account && (account.address || account.balance !== undefined || account.trc20token_balances || account.tokenBalances)) {
-      const token = tronscanUsdt(account);
+      const token = accountToken(account, contractAddress);
       const rawTokenBalance = token?.balance ?? token?.quantity ?? token?.amount ?? '0';
       const decimals = Number(token?.tokenDecimal ?? token?.token_decimal ?? token?.decimals ?? 6);
       return res.json({
@@ -91,8 +95,10 @@ router.get('/public-chain/tron/address/:address', async (req, res, next) => {
         data: {
           address,
           trxSun: String(account.balance ?? account.totalTrx ?? '0'),
-          usdtRaw: String(rawTokenBalance),
-          usdtDecimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 18 ? decimals : 6,
+          tokenRaw: String(rawTokenBalance),
+          tokenDecimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 18 ? decimals : 6,
+          tokenSymbol: String(token?.tokenAbbr || token?.token_abbr || token?.tokenSymbol || token?.symbol || (contractAddress.toLowerCase() === TRON_USDT.toLowerCase() ? 'USDT' : 'TRC20')),
+          tokenContract: contractAddress,
           checkedAt: new Date().toISOString(),
           explorerUrl: 'https://tronscan.org/#/address/' + address
         }
@@ -103,9 +109,7 @@ router.get('/public-chain/tron/address/:address', async (req, res, next) => {
     failures.push('TronScan: ' + (error.message || 'unavailable'));
   }
 
-  // Let the original route attempt its own response as a final fallback.
   req.tronPublicProviderFailures = failures;
   return next();
 });
-
 module.exports = router;
