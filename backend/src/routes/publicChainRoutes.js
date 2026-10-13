@@ -264,7 +264,18 @@ router.get('/public-chain/evm/transaction/:txid', async (req, res) => {
   if (!ETHERSCAN_CHAIN_IDS.has(chainid)) return res.status(400).json({ success: false, message: 'This Etherscan chain ID is not enabled.' });
   if (!/^0x[a-fA-F0-9]{64}$/.test(txid)) return res.status(400).json({ success: false, message: 'Enter a valid 0x-prefixed transaction hash.' });
   const apiKey = String(process.env.ETHERSCAN_API_KEY || '').trim();
-  if (!apiKey) return res.status(503).json({ success: false, message: 'Etherscan provider is not configured. Set ETHERSCAN_API_KEY in the backend environment.' });
+  if (!apiKey) {
+    try {
+      const tx = await getRoutescanEvm(chainid, { module: 'proxy', action: 'eth_getTransactionByHash', txhash: txid });
+      if (!tx || typeof tx !== 'object') return res.status(404).json({ success: false, message: 'Transaction hash was not found on the selected EVM network.' });
+      let receipt = null;
+      try { receipt = await getRoutescanEvm(chainid, { module: 'proxy', action: 'eth_getTransactionReceipt', txhash: txid }); } catch (_) {}
+      const explorerBase = chainid === '56' ? 'https://bscscan.com/tx/' : chainid === '137' ? 'https://polygonscan.com/tx/' : chainid === '8453' ? 'https://basescan.org/tx/' : chainid === '42161' ? 'https://arbiscan.io/tx/' : chainid === '10' ? 'https://optimistic.etherscan.io/tx/' : chainid === '43114' ? 'https://snowtrace.io/tx/' : chainid === '2222' ? 'https://kavascan.io/tx/' : chainid === '42220' ? 'https://celoscan.io/tx/' : chainid === '8217' ? 'https://www.kaiascan.io/tx/' : 'https://etherscan.io/tx/';
+      return res.json({ success: true, source: 'RouteScan keyless Etherscan-compatible API', data: { hash: tx.hash || txid, from: tx.from || null, to: tx.to || null, valueWei: String(tx.value || '0'), nonce: tx.nonce || null, blockNumber: tx.blockNumber ? Number(BigInt(tx.blockNumber)) : null, status: receipt?.status === '0x1' ? 'success' : receipt?.status === '0x0' ? 'failed' : 'pending_or_unmined', gasUsed: receipt?.gasUsed ? String(BigInt(receipt.gasUsed)) : null, checkedAt: new Date().toISOString(), explorerUrl: explorerBase + txid } });
+    } catch (error) {
+      return res.status(502).json({ success: false, message: 'RouteScan transaction lookup failed. Configure ETHERSCAN_API_KEY or retry later.', providerError: error.message || 'provider unavailable' });
+    }
+  }
   try {
     const url = new URL('https://api.etherscan.io/v2/api');
     url.searchParams.set('chainid', chainid);
