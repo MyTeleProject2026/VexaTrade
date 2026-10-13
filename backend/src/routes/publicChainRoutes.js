@@ -121,11 +121,24 @@ router.get('/public-chain/tron/address/:address', async (req, res) => {
     const account = await getJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
     const returnedAddress = String(account && (account.address || account.addressTag || '') || '');
     if (returnedAddress && returnedAddress !== address) throw new Error('TronScan returned a different address');
-    const tokens = Array.isArray(account && account.trc20token_balances) ? account.trc20token_balances : [];
-    const token = tokens.find(item =>
-      String(item.tokenId || item.token_id || item.contract_address || '').toLowerCase() === tokenContract.toLowerCase()
+    let tokens = Array.isArray(account && account.trc20token_balances) ? account.trc20token_balances : [];
+    let token = tokens.find(item =>
+      String(item.tokenId || item.token_id || item.contract_address || item.tokenAddress || item.token_info?.address || '').toLowerCase() === tokenContract.toLowerCase()
     );
-    const decimals = token ? Number(token.tokenDecimal ?? token.token_decimal ?? 6) : 6;
+    if (!token) {
+      // Some TronScan account payloads omit token holdings. Query its public
+      // account-token endpoint before treating a missing row as zero balance.
+      try {
+        const tokenPayload = await getJson('https://apilist.tronscanapi.com/api/account/tokens?address=' + encodeURIComponent(address) + '&start=0&limit=200&hidden=0&show=0&sortType=0&sortBy=0');
+        tokens = Array.isArray(tokenPayload?.data) ? tokenPayload.data : Array.isArray(tokenPayload?.tokens) ? tokenPayload.tokens : [];
+        token = tokens.find(item =>
+          String(item.tokenId || item.token_id || item.contract_address || item.tokenAddress || item.token_info?.address || '').toLowerCase() === tokenContract.toLowerCase()
+        ) || null;
+      } catch (tokenListError) {
+        failures.push('TronScan token list: ' + (tokenListError.message || 'unavailable'));
+      }
+    }
+    const decimals = token ? Number(token.tokenDecimal ?? token.token_decimal ?? token.token_info?.decimals ?? 6) : 6;
     return res.json({
       success: true,
       source: 'TronScan public API fallback',
