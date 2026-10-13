@@ -77,7 +77,7 @@ if (!settlement.includes("insertError.code === 'ER_DUP_ENTRY'") || !settlement.i
 if (!settlement.includes('sameTreasuryRequest') || !settlement.includes('already belongs to a different transfer request')) throw new Error('[Treasury] reusing an idempotency key with different payment details must fail closed');
 const toolsUi = fs.readFileSync(path.join(root,'../frontend-transaction-tools/src/main.jsx'),'utf8');
 if (!toolsUi.includes("Owner outbound transfer desk") || !toolsUi.includes("/api/operations/treasury/transfers")) throw new Error('[Transaction Tools] owner transfer desk is not connected to the backend request API');
-if (!toolsUi.includes("It cannot mint a pending balance inside another wallet or exchange")) throw new Error('[Transaction Tools] external balance limitation must be disclosed');
+if (!toolsUi.includes("cannot manufacture a TXID") || !toolsUi.includes("cannot mint a pending balance inside another wallet or exchange")) throw new Error('[Transaction Tools] external balance and TXID limitations must be disclosed');
 
 if (!toolsUi.includes('if(!ownerToken)return <div className="owner-auth-screen"')) throw new Error('[Transaction Tools] owner authentication gate must render before every tool page');
 if (!toolsUi.includes("ownerRequest('/api/operations/integrations/okx/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
