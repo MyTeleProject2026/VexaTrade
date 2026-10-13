@@ -4,6 +4,17 @@ const router = express.Router();
 const TRON_USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const HEADERS = { Accept: 'application/json', 'User-Agent': 'VexaTrade-TransactionTools/1.0' };
 
+async function getRoutescanEvm(chainId, params) {
+  const url = new URL('https://api.routescan.io/v2/network/mainnet/evm/' + encodeURIComponent(String(chainId)) + '/etherscan/api');
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  const response = await fetch(url.toString(), { headers: HEADERS, signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw Object.assign(new Error('Routescan HTTP ' + response.status), { status: response.status });
+  const payload = await response.json();
+  if (payload && String(payload.status) === '0') throw new Error(String(payload.result || payload.message || 'Routescan returned no data.'));
+  if (!payload || payload.result === undefined || payload.result === null || payload.result === '') throw new Error('Routescan returned no result.');
+  return payload.result;
+}
+
 async function getJson(url, timeoutMs = 10000) {
   const headers = { ...HEADERS };
   const tronGridKey = String(process.env.TRONGRID_API_KEY || '').trim();
@@ -178,10 +189,12 @@ router.get('/public-chain/evm/balance', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Enter a valid 0x-prefixed EVM address.' });
   }
   const apiKey = String(process.env.ETHERSCAN_API_KEY || '').trim();
-  if (!apiKey) {
-    return res.status(503).json({ success: false, message: 'Etherscan provider is not configured. Set ETHERSCAN_API_KEY in the backend service environment.' });
-  }
   try {
+    if (!apiKey) {
+      const result = await getRoutescanEvm(chainid, { module: 'account', action: 'balance', address, tag: 'latest' });
+      if (!/^[0-9]+$/.test(String(result))) throw new Error('Routescan did not return a valid native balance.');
+      return res.json({ success: true, source: 'Routescan keyless Etherscan-compatible API', data: { address, chainId: chainid, nativeBalanceWei: String(result), checkedAt: new Date().toISOString() } });
+    }
     const url = new URL('https://api.etherscan.io/v2/api');
     url.searchParams.set('chainid', chainid);
     url.searchParams.set('module', 'account');
@@ -217,10 +230,12 @@ router.get('/public-chain/evm/token-balance', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Provide valid EVM wallet and token contract addresses.' });
   }
   const apiKey = String(process.env.ETHERSCAN_API_KEY || '').trim();
-  if (!apiKey) {
-    return res.status(503).json({ success: false, message: 'Etherscan provider is not configured. Set ETHERSCAN_API_KEY in the backend service environment.' });
-  }
   try {
+    if (!apiKey) {
+      const result = await getRoutescanEvm(chainid, { module: 'account', action: 'tokenbalance', contractaddress, address, tag: 'latest' });
+      if (!/^[0-9]+$/.test(String(result))) throw new Error('Routescan did not return a valid token balance.');
+      return res.json({ success: true, source: 'Routescan keyless Etherscan-compatible API', data: { address, contractAddress: contractaddress, chainId: chainid, tokenBalanceRaw: String(result), checkedAt: new Date().toISOString() } });
+    }
     const url = new URL('https://api.etherscan.io/v2/api');
     url.searchParams.set('chainid', chainid);
     url.searchParams.set('module', 'account');
