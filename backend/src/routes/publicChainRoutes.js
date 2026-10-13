@@ -484,7 +484,7 @@ router.get('/public-chain/tron/token-balance', async (req, res) => {
 
 /* RouteScan indexed EVM ERC-20 activity. Read-only evidence only; it never signs,
    broadcasts, or fabricates a transaction and it cannot prove an exchange credited a deposit. */
-const ROUTESCAN_CHAIN_IDS = new Set(['1','56','137','8453','42161','10','43114','2222','42220','8217','11155111','11155420']);
+const ROUTESCAN_CHAIN_IDS = new Set(['1','56','137','8453','42161','10','43114','2222','42220','8217']);
 function routescanAddress(value) { return /^0x[a-fA-F0-9]{40}$/.test(String(value || '')); }
 function routescanLimit(value, fallback = 25) {
   const parsed = Number.parseInt(String(value || ''), 10);
