@@ -5,7 +5,10 @@ const TRON_USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const HEADERS = { Accept: 'application/json', 'User-Agent': 'VexaTrade-TransactionTools/1.0' };
 
 async function getJson(url, timeoutMs = 10000) {
-  const response = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
+  const headers = { ...HEADERS };
+  const tronGridKey = String(process.env.TRONGRID_API_KEY || '').trim();
+  if (tronGridKey && url.startsWith('https://api.trongrid.io/')) headers['TRON-PRO-API-KEY'] = tronGridKey;
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw Object.assign(new Error('HTTP ' + response.status), { status: response.status });
   return response.json();
 }
