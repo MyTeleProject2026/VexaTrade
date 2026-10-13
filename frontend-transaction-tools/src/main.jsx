@@ -349,7 +349,7 @@ function App(){
       const accountJson=await accountResponse.json();
       const account=accountJson?.data?.[0]||{};
       let token=null;
-      if(tokenContract){const tokenResponse=await fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+encodeURIComponent(tokenContract));if(!tokenResponse.ok)throw Error('TRON token API HTTP '+tokenResponse.status);const tokenJson=await tokenResponse.json();token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||'').toLowerCase()===tokenContract.toLowerCase());}
+      if(tokenContract){const tokenResponse=await fetch(c.api+'/v1/accounts/'+encodeURIComponent(a)+'/tokens?limit=200&contract_address='+encodeURIComponent(tokenContract));if(!tokenResponse.ok)throw Error('TRON token API HTTP '+tokenResponse.status);const tokenJson=await tokenResponse.json();token=(tokenJson.data||[]).find(x=>String(x.tokenId||x.token_id||x.token_info?.address||x.contract_address||'').toLowerCase()===tokenContract.toLowerCase());}
       publicData={trxSun:String(account.balance||'0'),tokenRaw:String(token?.balance||'0'),tokenSymbol:String(token?.tokenAbbr||token?.token_abbr||(chain==='tron'?'USDT':'TRC20')),tokenDecimals:Number(token?.tokenDecimal??token?.token_decimal??6),explorerUrl:c.wallet+a};
       providerLabel='TRON Grid public API';
      }catch(directError){
