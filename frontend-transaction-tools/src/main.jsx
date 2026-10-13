@@ -391,7 +391,25 @@ function App(){
       publicData={trxSun:String(account.balance||'0'),tokenRaw:String(token?.balance||'0'),tokenSymbol:String(token?.tokenAbbr||token?.token_abbr||(chain==='tron'?'USDT':'TRC20')),tokenDecimals:Number(token?.tokenDecimal??token?.token_decimal??6),explorerUrl:c.wallet+a};
       providerLabel='TRON Grid public API';
      }catch(directError){
-      throw Error('TRON public balance providers are unavailable or rate-limited. '+(proxyError.message||directError.message||'Retry later or use TronScan.'));
+      // Browser-side final read-only fallback: TronScan's public account and
+      // token endpoints. This avoids making a TronGrid API key mandatory.
+      try{
+       const accountResponse=await fetch('https://apilist.tronscanapi.com/api/account?address='+encodeURIComponent(a),{headers:{Accept:'application/json'}});
+       if(!accountResponse.ok)throw Error('TronScan account HTTP '+accountResponse.status);
+       const account=await accountResponse.json();
+       if(account?.address&&String(account.address)!==a)throw Error('TronScan returned a different account address.');
+       let tokens=Array.isArray(account?.trc20token_balances)?account.trc20token_balances:[];
+       let token=tokens.find(x=>String(x.tokenId||x.token_id||x.contract_address||x.tokenAddress||'').toLowerCase()===tokenContract.toLowerCase());
+       if(tokenContract&&!token){
+        const tokenResponse=await fetch('https://apilist.tronscanapi.com/api/account/tokens?address='+encodeURIComponent(a)+'&start=0&limit=200&hidden=0&show=0&sortType=0&sortBy=0',{headers:{Accept:'application/json'}});
+        if(tokenResponse.ok){const tokenPayload=await tokenResponse.json();tokens=Array.isArray(tokenPayload?.data)?tokenPayload.data:Array.isArray(tokenPayload?.tokens)?tokenPayload.tokens:[];token=tokens.find(x=>String(x.tokenId||x.token_id||x.contract_address||x.tokenAddress||x.token_info?.address||'').toLowerCase()===tokenContract.toLowerCase());}
+       }
+       if(!account||(!account.address&&account.balance===undefined))throw Error('TronScan returned no account record.');
+       publicData={trxSun:String(account.balance??account.totalTrx??'0'),tokenRaw:String(token?.balance??token?.quantity??token?.amount??'0'),tokenSymbol:String(token?.tokenAbbr||token?.token_abbr||token?.tokenSymbol||token?.symbol||(tokenContract.toLowerCase()===c.usdt?.toLowerCase()?'USDT':'TRC20')),tokenDecimals:Number(token?.tokenDecimal??token?.token_decimal??token?.token_info?.decimals??6),explorerUrl:c.wallet+a,checkedAt:new Date().toLocaleString()};
+       providerLabel='TronScan public API fallback';
+      }catch(tronScanError){
+       throw Error('TRON public balance providers are unavailable or rate-limited. TronGrid: '+(directError.message||'unavailable')+'; TronScan: '+(tronScanError.message||'unavailable')+'. Retry later or open the explorer.');
+      }
      }
     }
     const trxSun=String(publicData.trxSun??publicData.balance??'0');
