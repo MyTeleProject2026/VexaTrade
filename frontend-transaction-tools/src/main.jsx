@@ -124,15 +124,17 @@ function App(){
   const update=(status,extra={})=>{if(!active)return;setReceipt(prev=>prev?.txid===item.hash?{...prev,status,chainStatus:status,checkedAt:new Date().toLocaleString(),...extra}:prev);};
   const poll=async()=>{
    try{
-    if(item.chainKey==='tron'){
+    if(item.chainKey==='tron'||item.chainKey==='tron-nile'){
      let d=null,lastError=null;
      try{
-      const r=await fetch(apiBase+'/api/public-chain/tron/transaction/'+encodeURIComponent(item.hash));
+      const route=item.chainKey==='tron-nile'?'/api/public-chain/tron-nile/transaction/':'/api/public-chain/tron/transaction/';
+      const r=await fetch(apiBase+route+encodeURIComponent(item.hash));
       const j=await r.json();
-      if(!r.ok||j?.success===false)throw Error(j?.message||'VexaTrade TRON proxy unavailable');
+      if(!r.ok||j?.success===false)throw Error(j?.message||'VexaTrade public TRON verification endpoint unavailable');
       d=j.data||j;
      }catch(proxyError){
       lastError=proxyError;
+      if(item.chainKey==='tron-nile')throw Error('TRON Nile testnet verification is temporarily unavailable. Check the Nile explorer; mainnet providers are not used for testnet hashes. '+(lastError?.message||'Retry later.'));
       const r=await fetch('https://apilist.tronscanapi.com/api/transaction-info?hash='+encodeURIComponent(item.hash),{headers:{Accept:'application/json'}});
       if(!r.ok)throw Error('TRON proxy and TronScan are unavailable. '+(lastError?.message||'Retry later.'));
       d=await r.json();
