@@ -18,7 +18,7 @@ const TETHER_EVM_USDT = {
 const ERC20_TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 function decimalToTokenUnits(value, decimals) {
   const text = String(value);
-  if (!/^\\d+(?:\\.\\d+)?$/.test(text)) throw new Error('Invalid requested amount.');
+  if (!/^\d+(?:\.\d+)?$/.test(text)) throw new Error('Invalid requested amount.');
   const [whole, fraction = ''] = text.split('.');
   if (fraction.length > decimals) throw new Error('Requested amount has more decimal places than the token supports.');
   return BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0');
