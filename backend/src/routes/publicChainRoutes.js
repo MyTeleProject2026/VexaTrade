@@ -25,6 +25,45 @@ async function getJson(url, timeoutMs = 10000) {
 }
 
 // Public blockchain data only. These endpoints never sign or broadcast transactions.
+router.get('/public-chain/tron-nile/transaction/:txid', async (req, res) => {
+  const txid = String(req.params.txid || '').trim();
+  if (!/^[a-fA-F0-9]{64}$/.test(txid)) {
+    return res.status(400).json({ success: false, message: 'A 64-character TRON Nile testnet transaction ID is required.' });
+  }
+  try {
+    const [txResponse, info] = await Promise.all([
+      getJson('https://nile.trongrid.io/v1/transactions/' + encodeURIComponent(txid)),
+      getJson('https://nile.trongrid.io/wallet/gettransactioninfobyid?value=' + encodeURIComponent(txid))
+    ]);
+    const tx = Array.isArray(txResponse?.data) ? txResponse.data[0] : null;
+    if (!tx) return res.status(404).json({ success: false, message: 'Transaction was not found on TRON Nile testnet.' });
+    const block = info?.blockNumber ?? info?.block_number ?? null;
+    const contractRet = info?.receipt?.result || info?.result || tx?.ret?.[0]?.contractRet || null;
+    return res.json({
+      success: true,
+      source: 'TRON Nile testnet public node',
+      data: {
+        hash: tx.txID || txid,
+        transactionHash: tx.txID || txid,
+        block,
+        blockNumber: block,
+        timestamp: info?.blockTimeStamp || info?.block_timestamp || tx?.raw_data?.timestamp || null,
+        confirmed: Boolean(block),
+        contractRet,
+        tokenTransferInfo: [],
+        network: 'TRON Nile Testnet',
+        testnet: true
+      }
+    });
+  } catch (error) {
+    return res.status(502).json({
+      success: false,
+      message: 'TRON Nile testnet provider is unavailable or rate-limited. Retry or open the Nile explorer.',
+      providers: [error?.message || 'Nile public node unavailable']
+    });
+  }
+});
+
 router.get('/public-chain/tron/transaction/:txid', async (req, res) => {
   const txid = String(req.params.txid || '').trim();
   if (!/^[a-fA-F0-9]{64}$/.test(txid)) {
