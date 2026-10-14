@@ -71,14 +71,25 @@ router.get('/public-chain/tron/transaction/:txid', async (req, res) => {
   }
 
   const failures = [];
-  try {
-    const data = await getJson('https://apilist.tronscanapi.com/api/transaction-info?hash=' + encodeURIComponent(txid));
-    if (data && (data.hash || data.transactionHash || data.txID || data.confirmed !== undefined || data.block !== undefined || data.blockNumber !== undefined)) {
-      return res.json({ success: true, source: 'TronScan public API', data });
+  // Try more than one public TronScan hostname before falling back to TRON Grid.
+  // Public endpoints can rate-limit individual hosts; a failed provider must not be
+  // treated as a failed transaction or as proof of payment.
+  for (const host of ['https://apilist.tronscanapi.com', 'https://apilist.tronscan.org']) {
+    try {
+      const data = await getJson(host + '/api/transaction-info?hash=' + encodeURIComponent(txid));
+      const returnedHash = String(data && (data.hash || data.transactionHash || data.txID || data.txid) || '').toLowerCase();
+      const hasChainEvidence = Boolean(data && (
+        returnedHash === txid.toLowerCase() ||
+        data.block !== undefined || data.blockNumber !== undefined ||
+        data.block_number !== undefined || data.confirmed === true
+      ));
+      if (hasChainEvidence) {
+        return res.json({ success: true, source: host + ' public API', data });
+      }
+      failures.push(host + ': no matching transaction evidence returned.');
+    } catch (error) {
+      failures.push(host + ': ' + (error.message || 'unavailable'));
     }
-    failures.push('TronScan returned no matching transaction.');
-  } catch (error) {
-    failures.push('TronScan: ' + (error.message || 'unavailable'));
   }
 
   try {
