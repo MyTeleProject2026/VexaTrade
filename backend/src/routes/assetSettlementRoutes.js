@@ -6,6 +6,65 @@ const {createError,createTransactionLog,createUserNotification,createAuditLog}=r
 const {creditAssetBalance,releaseReservedAsset,consumeReservedAsset,debitAvailableAsset,movePendingToAvailable}=require('../../services/assetLedgerService');
 const {verifyTronUsdtDeposit,claimVerifiedDeposit}=require('../../services/tronVerificationService');
 
+
+const TETHER_EVM_USDT = {
+  ERC20: { chain: 'Ethereum', rpc: ['https://ethereum-rpc.publicnode.com','https://cloudflare-eth.com'], contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, confirmations: 12, explorer: 'https://etherscan.io/tx/' },
+  POLYGON: { chain: 'Polygon', rpc: ['https://polygon-bor-rpc.publicnode.com','https://polygon.drpc.org'], contract: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, confirmations: 128, explorer: 'https://polygonscan.com/tx/' },
+  AVALANCHE: { chain: 'Avalanche C-Chain', rpc: ['https://api.avax.network/ext/bc/C/rpc','https://avalanche-c-chain-rpc.publicnode.com'], contract: '0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7', decimals: 6, confirmations: 12, explorer: 'https://snowtrace.io/tx/' },
+  KAVA: { chain: 'Kava EVM', rpc: ['https://evm.kava.io','https://kava-evm.publicnode.com'], contract: '0x919C1c267BC06a7039e03fcc2eF738525769109c', decimals: 6, confirmations: 12, explorer: 'https://kavascan.io/tx/' },
+  CELO: { chain: 'Celo', rpc: ['https://forno.celo.org','https://celo.drpc.org'], contract: '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e', decimals: 6, confirmations: 12, explorer: 'https://celoscan.io/tx/' },
+  KAIA: { chain: 'Kaia', rpc: ['https://public-en.node.kaia.io','https://kaia.drpc.org'], contract: '0xd077a400968890eacc75cdc901f0356c943e4fdb', decimals: 6, confirmations: 12, explorer: 'https://www.kaiascan.io/tx/' }
+};
+const ERC20_TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+function decimalToTokenUnits(value, decimals) {
+  const text = String(value);
+  if (!/^\\d+(?:\\.\\d+)?$/.test(text)) throw new Error('Invalid requested amount.');
+  const [whole, fraction = ''] = text.split('.');
+  if (fraction.length > decimals) throw new Error('Requested amount has more decimal places than the token supports.');
+  return BigInt(whole) * (10n ** BigInt(decimals)) + BigInt((fraction + '0'.repeat(decimals)).slice(0, decimals) || '0');
+}
+async function verifyEvmTetherUsdt({ network, txid, recipientAddress, expectedAmount }) {
+  const cfg = TETHER_EVM_USDT[String(network || '').trim().toUpperCase()];
+  if (!cfg) return { verified: false, reason: 'Server verification is not enabled for this token/network. Only Tether-listed USD₮ contracts on Ethereum, Polygon, Avalanche C-Chain, Kava EVM, Celo and Kaia are enabled.' };
+  if (!/^0x[a-fA-F0-9]{64}$/.test(txid)) return { verified: false, reason: 'An actual 0x-prefixed 32-byte EVM transaction hash is required.' };
+  if (!/^0x[a-fA-F0-9]{40}$/.test(String(recipientAddress || ''))) return { verified: false, reason: 'Destination must be a valid EVM address.' };
+  let lastError;
+  const rpc = async (method, params) => {
+    for (const url of cfg.rpc) {
+      try {
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(10000) });
+        if (!response.ok) throw new Error('RPC HTTP ' + response.status);
+        const payload = await response.json();
+        if (payload.error) throw new Error(payload.error.message || 'RPC error');
+        return payload.result;
+      } catch (error) { lastError = error; }
+    }
+    throw new Error(cfg.chain + ' public RPC unavailable: ' + (lastError?.message || 'retry later'));
+  };
+  try {
+    const [tx, receipt] = await Promise.all([rpc('eth_getTransactionByHash', [txid]), rpc('eth_getTransactionReceipt', [txid])]);
+    if (!tx) return { verified: false, reason: 'Transaction was not found on ' + cfg.chain + '.' };
+    if (!receipt) return { verified: false, pending: true, reason: 'Transaction is not mined yet. It has no confirmed receipt, so it cannot be accepted.' };
+    if (String(receipt.status).toLowerCase() !== '0x1') return { verified: false, reason: 'Transaction receipt reports a failed execution.' };
+    const latestHex = await rpc('eth_blockNumber', []);
+    const blockHex = receipt.blockNumber;
+    if (!latestHex || !blockHex) return { verified: false, reason: 'The network did not return a receipt block and latest block.' };
+    const confirmations = Number(BigInt(latestHex) - BigInt(blockHex) + 1n);
+    if (!Number.isFinite(confirmations) || confirmations < cfg.confirmations) return { verified: false, pending: true, confirmations, requiredConfirmations: cfg.confirmations, reason: 'Transaction is successful but needs ' + cfg.confirmations + ' confirmations; currently ' + confirmations + '.' };
+    const expected = decimalToTokenUnits(expectedAmount, cfg.decimals);
+    const recipientTopic = '0x' + String(recipientAddress).slice(2).toLowerCase().padStart(64, '0');
+    const logs = Array.isArray(receipt.logs) ? receipt.logs : [];
+    const matched = logs.some(log => String(log.address || '').toLowerCase() === cfg.contract.toLowerCase()
+      && String(log.topics?.[0] || '').toLowerCase() === ERC20_TRANSFER_TOPIC
+      && String(log.topics?.[2] || '').toLowerCase() === recipientTopic
+      && BigInt(log.data || '0x0') === expected);
+    if (!matched) return { verified: false, reason: 'Confirmed receipt did not contain an exact USD₮ transfer to the requested destination for the requested amount.', chain: cfg.chain, explorer: cfg.explorer + txid, confirmations };
+    return { verified: true, chain: cfg.chain, token: 'USDT', contract: cfg.contract, recipientAddress, amount: String(expectedAmount), confirmations, requiredConfirmations: cfg.confirmations, blockNumber: Number(BigInt(blockHex)), txid, explorer: cfg.explorer + txid, note: 'Verified from public RPC receipt logs. This confirms on-chain transfer only; an exchange controls its own internal deposit-crediting rules.' };
+  } catch (error) {
+    return { verified: false, reason: error?.message || 'Unable to verify the EVM transaction from public RPC.' };
+  }
+}
+
 let treasuryTransferTableReady = false;
 let treasuryTransferTablePromise = null;
 async function ensureTreasuryTransferTable() {
@@ -156,8 +215,12 @@ router.post('/operations/treasury/transfers/:id/verify', authAdmin, async (req, 
     const [rows] = await pool.execute('SELECT * FROM treasury_outbound_requests WHERE id=? LIMIT 1', [id]);
     if (!rows.length) return res.status(404).json({ success: false, message: 'Outbound request not found.' });
     const row = rows[0];
-    if (String(row.coin).toUpperCase() !== 'USDT' || !['TRC20','TRON'].includes(String(row.network).toUpperCase())) {
-      return res.status(409).json({ success: false, message: 'Server-side outbound verification is currently enabled only for USDT on TRON TRC20. This request remains pending until a chain-specific verifier is configured.' });
+    const requestedCoin = String(row.coin).toUpperCase();
+    const requestedNetwork = String(row.network).toUpperCase();
+    const isTronUsdt = requestedCoin === 'USDT' && ['TRC20','TRON'].includes(requestedNetwork);
+    const isSupportedEvmUsdt = requestedCoin === 'USDT' && Object.prototype.hasOwnProperty.call(TETHER_EVM_USDT, requestedNetwork);
+    if (!isTronUsdt && !isSupportedEvmUsdt) {
+      return res.status(409).json({ success: false, message: 'Server-side verification is enabled for USDT on TRON TRC20, Ethereum ERC20, Polygon, Avalanche C-Chain, Kava EVM, Celo and Kaia only. This request remains pending until a verified network-specific adapter is configured.' });
     }
     if (['completed','confirmed_pending_owner_review'].includes(String(row.status).toLowerCase())) {
       return res.status(409).json({ success: false, message: 'This request has already been verified or completed. Refresh the queue before retrying.' });
@@ -166,10 +229,13 @@ router.post('/operations/treasury/transfers/:id/verify', authAdmin, async (req, 
       return res.status(409).json({ success: false, message: 'This request is not in a verifiable pending state.' });
     }
     const txid = String(req.body?.txid || row.txid || '').trim();
-    if (!/^[a-fA-F0-9]{64}$/.test(txid)) return res.status(400).json({ success: false, message: 'Paste the actual 64-character TRON TXID returned by the sending wallet. An internal VXT reference is not a TXID.' });
+    if (isTronUsdt && !/^[a-fA-F0-9]{64}$/.test(txid)) return res.status(400).json({ success: false, message: 'Paste the actual 64-character TRON TXID returned by the sending wallet. An internal VXT reference is not a TXID.' });
+    if (isSupportedEvmUsdt && !/^0x[a-fA-F0-9]{64}$/.test(txid)) return res.status(400).json({ success: false, message: 'Paste the actual 0x-prefixed 32-byte EVM transaction hash returned by the sending wallet. An internal VXT reference is not a TXID.' });
     const [duplicates] = await pool.execute('SELECT id FROM treasury_outbound_requests WHERE txid=? AND id<>? LIMIT 1', [txid, id]);
     if (duplicates.length) return res.status(409).json({ success: false, message: 'This TXID is already attached to another outbound request.' });
-    const result = await verifyTronUsdtDeposit({ txid, recipientAddress: row.destination_address, expectedAmount: row.amount });
+    const result = isTronUsdt
+      ? await verifyTronUsdtDeposit({ txid, recipientAddress: row.destination_address, expectedAmount: row.amount })
+      : await verifyEvmTetherUsdt({ network: requestedNetwork, txid, recipientAddress: row.destination_address, expectedAmount: row.amount });
     if (!result || result.verified !== true) {
       return res.status(422).json({ success: false, verified: false, message: result?.reason || 'The blockchain transaction could not be verified against the exact recipient and amount.', details: result || null });
     }
@@ -178,8 +244,9 @@ router.post('/operations/treasury/transfers/:id/verify', authAdmin, async (req, 
       [txid, id]
     );
     if (!updated.affectedRows) return res.status(409).json({ success: false, message: 'The request changed while verification was running. Refresh the queue and inspect its current state.' });
-    await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_chain_verified', referenceId: id, note: 'Verified USDT/TRC20 recipient and amount on TRON mainnet; awaiting owner acceptance. TXID: ' + txid });
-    res.json({ success: true, verified: true, data: { id, txid, status: 'confirmed_pending_owner_review', network: 'TRC20', coin: 'USDT', destination_address: row.destination_address, amount: String(row.amount), chainResult: result }, message: 'The actual TRON transaction matches this request on-chain. It is awaiting owner review; this does not prove that an exchange has credited its internal account.' });
+    const verifiedChain = isTronUsdt ? 'TRON mainnet' : (TETHER_EVM_USDT[requestedNetwork]?.chain || requestedNetwork);
+    await createAuditLog(pool, { adminId: req.admin.id, action: 'treasury_outbound_chain_verified', referenceId: id, note: 'Verified USDT recipient and exact amount on ' + verifiedChain + '; awaiting owner acceptance. TXID: ' + txid });
+    res.json({ success: true, verified: true, data: { id, txid, status: 'confirmed_pending_owner_review', network: requestedNetwork, coin: 'USDT', destination_address: row.destination_address, amount: String(row.amount), chainResult: result }, message: 'The actual USDT transaction matches this request on ' + verifiedChain + '. It is awaiting owner review; this does not prove that an exchange has credited its internal account.' });
   } catch (e) { next(e); }
 });
 
