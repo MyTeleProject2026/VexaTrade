@@ -243,7 +243,7 @@ function App(){
 
  const c=CHAINS[chain];
  async function copy(value){try{await navigator.clipboard.writeText(value);setToast('Copied to clipboard');}catch{setToast('Clipboard unavailable. Please copy manually.');}}
- function go(id){setPage(id);setMobile(false);setError('');}
+ function go(id){setPage(id);setMobile(false);setError('');setToast('');}
  async function verify(e){
   e.preventDefault();setError('');setLookup(null);
   const hash=txid.trim();const isEvm=!['tron','tron-nile','btc','solana'].includes(chain);
