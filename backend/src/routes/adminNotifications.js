@@ -374,7 +374,7 @@ router.put('/notifications/:id/read', authAdmin, async (req, res, next) => {
 router.get('/notifications/activity', authAdmin, async (req, res, next) => {
   try {
     const limit = Math.min(200, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
-    const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
+    const offset = Math.min(10_000_000, Math.max(0, Number.parseInt(req.query.offset, 10) || 0));
     const category = String(req.query.category || '').trim().toLowerCase().slice(0, 32);
     const [rows] = await pool.execute(
       `SELECT n.id, n.user_id, u.email, u.name, u.uid,
@@ -397,8 +397,10 @@ router.get('/notifications/activity', authAdmin, async (req, res, next) => {
       [category, category]
     );
     const data = rows.map((row) => {
-      let metadata = null;
-      try { metadata = row.metadata_json ? JSON.parse(row.metadata_json) : null; } catch (_) {}
+      let metadata = row.metadata_json ?? null;
+      if (typeof metadata === 'string') {
+        try { metadata = metadata ? JSON.parse(metadata) : null; } catch (_) { metadata = null; }
+      }
       const { metadata_json: _metadataJson, ...rest } = row;
       return { ...rest, id: Number(row.id), user_id: row.user_id == null ? null : Number(row.user_id), is_read: Boolean(row.is_read), metadata };
     });
