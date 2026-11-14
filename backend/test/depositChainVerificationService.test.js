@@ -11,6 +11,7 @@ const {
   ETHEREUM_USDT_CONTRACT,
   TRANSFER_TOPIC
 } = require('../services/depositChainVerificationService');
+const { normalizeDecimal } = require('../services/depositApprovalService');
 
 const TREASURY = '0x1111111111111111111111111111111111111111';
 const TXID = 'a'.repeat(64);
@@ -31,6 +32,12 @@ test('decimal conversion uses exact integer units', () => {
   assert.equal(decimalToUnits('270.000000', 6), 270000000n);
   assert.equal(decimalToUnits('0.257289', 18), 257289000000000000n);
   assert.throws(() => decimalToUnits('1.0000001', 6), /precision/);
+});
+
+test('ledger decimal guard rejects values that would lose precision', () => {
+  assert.equal(normalizeDecimal('270.000000'), '270');
+  assert.equal(normalizeDecimal(0.0000001), '0.0000001');
+  assert.notEqual(normalizeDecimal('0.123456789123456789'), normalizeDecimal(Number('0.123456789123456789')));
 });
 
 test('normalizes 0x-prefixed transaction hashes and extracts indexed addresses', () => {
