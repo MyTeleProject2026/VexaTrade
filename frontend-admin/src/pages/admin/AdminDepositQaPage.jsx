@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Copy, FlaskConical, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { applyQaAction, createInitialQaFixtures } from "./depositQaState.js";
+import { getVerifierQaDiagnostics } from "./depositVerifierQaDiagnostics.js";
 
 const statusStyles = {
   pending_review: "border-amber-400/20 bg-amber-400/10 text-amber-300",
@@ -20,6 +21,8 @@ export default function AdminDepositQaPage() {
   const [reason, setReason] = useState("");
   const [filter, setFilter] = useState("all");
   const [notice, setNotice] = useState("All records below are synthetic browser-only fixtures. Nothing is sent to the backend.");
+  const [diagnosticNetwork, setDiagnosticNetwork] = useState("TRC20");
+  const verifierDiagnostics = getVerifierQaDiagnostics("USDT", diagnosticNetwork);
 
   const visibleFixtures = useMemo(() => fixtures.filter((item) => filter === "all" || item.status === filter), [fixtures, filter]);
   const counts = useMemo(() => ({
@@ -70,6 +73,38 @@ export default function AdminDepositQaPage() {
           <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-300"/>
           <p><strong>Isolation guarantee:</strong> this page uses hard-coded TEST-USD / QA-ONLY fixtures and React memory state. It does not call deposit APIs, write to a database, verify a blockchain transaction, credit an account, or enable a withdrawal. “Evidence reviewed” is not chain verification.</p>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[.2em] text-cyan-300">Static verifier diagnostics</div>
+            <h2 className="mt-1 text-sm font-bold text-white">Approval-route capability map</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-400">This is a code-path explanation, not a live server, database, wallet, or blockchain health check.</p>
+          </div>
+          <label className="text-xs text-slate-400">Test network
+            <select value={diagnosticNetwork} onChange={(event) => setDiagnosticNetwork(event.target.value)} className="ml-2 rounded-lg border border-white/10 bg-[#050812] px-2 py-2 text-xs text-white">
+              <option value="TRC20">USDT · TRC20</option>
+              <option value="ERC20">USDT · ERC20</option>
+              <option value="BEP20">USDT · BEP20</option>
+            </select>
+          </label>
+        </div>
+        <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-white">Route scope: USDT / {diagnosticNetwork}</span>
+            <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide ${verifierDiagnostics.routeStatus === "route-supported" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-300" : "border-rose-400/20 bg-rose-400/10 text-rose-300"}`}>{verifierDiagnostics.routeStatus.replaceAll("-", " ")}</span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-amber-100">{verifierDiagnostics.notice}</p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-300">Credit remains disabled in this QA panel</p>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {verifierDiagnostics.runtimeChecks.map((check) => <div key={check.key} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-[#050812]/60 p-3">
+            <span className="text-xs text-slate-300">{check.label}</span>
+            <span className="shrink-0 rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{check.status}</span>
+          </div>)}
+        </div>
+        <p className="mt-3 text-[10px] leading-4 text-slate-500">No API request is made. All runtime checks intentionally remain “not checked”; this panel cannot verify deposits, change settings, or credit balances.</p>
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
