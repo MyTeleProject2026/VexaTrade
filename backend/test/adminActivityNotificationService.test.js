@@ -4,6 +4,7 @@ const {
   normalizeCategory,
   normalizeAdminActivityPayload,
   recordAdminActivityNotification,
+  startMarketAlertMonitor,
 } = require('../services/adminActivityNotificationService');
 
 test('normalizes event categories into the supported admin feed categories', () => {
@@ -53,6 +54,51 @@ test('persists activity with a parameterized idempotent insert', async () => {
   assert.equal(saved.id, 91);
   assert.equal(saved.is_read, false);
   assert.deepEqual(saved.metadata, { depositId: 501 });
+});
+
+
+test('market monitor emits threshold-crossing public ticker alerts only', async () => {
+  const inserted = [];
+  let requestConfig;
+  const fakePool = {
+    async execute(sql, values) {
+      if (!/INSERT IGNORE INTO admin_activity_notifications/.test(sql)) {
+        throw new Error('Unexpected SQL in market monitor test');
+      }
+      inserted.push(values);
+      return [{ affectedRows: 1, insertId: inserted.length }];
+    },
+  };
+  const httpClient = {
+    async get(url, config) {
+      assert.match(url, /api\\/v3\\/ticker\\/24hr$/);
+      requestConfig = config;
+      return {
+        data: [
+          { symbol: 'BTCUSDT', priceChangePercent: '6.25', lastPrice: '99000' },
+          { symbol: 'ETHUSDT', priceChangePercent: '1.10', lastPrice: '3200' },
+        ],
+      };
+    },
+  };
+  const stop = startMarketAlertMonitor(fakePool, {
+    httpClient,
+    symbols: ['BTCUSDT', 'ETHUSDT'],
+    thresholdPercent: 5,
+    intervalMs: 60_000,
+    startImmediately: false,
+  });
+  try {
+    await stop.pollNow();
+  } finally {
+    stop();
+  }
+  assert.deepEqual(JSON.parse(requestConfig.params.symbols), ['BTCUSDT', 'ETHUSDT']);
+  assert.equal(inserted.length, 1);
+  assert.equal(inserted[0][2], 'market');
+  assert.equal(inserted[0][3], 'market.price_movement');
+  assert.match(inserted[0][4], /BTCUSDT/);
+  assert.match(inserted[0][5], /\\+6.25%/);
 });
 
 test('returns null when an idempotent activity event already exists', async () => {
