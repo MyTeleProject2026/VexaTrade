@@ -13,7 +13,7 @@ test('normalizes backend activity payloads and rejects malformed ids', () => {
   });
   assert.equal(event.id, 4);
   assert.equal(event.user_id, 12);
-  assert.equal(event.category, 'general');
+  assert.equal(event.category, 'trading');
   assert.equal(event.is_read, false);
   assert.equal(normalizeAdminActivityEvent({ id: 'invalid' }), null);
 });
