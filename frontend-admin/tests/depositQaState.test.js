@@ -48,7 +48,7 @@ test("keeps every initial fixture synthetic and outside monetary states", () => 
   for (const fixture of fixtures) {
     assert.equal(fixture.asset, "TEST-USD");
     assert.equal(fixture.network, "QA-ONLY");
-    assert.match(fixture.id, /^QA-DEP-\\d+$/);
+    assert.match(fixture.id, /^QA-DEP-\d+$/);
     assert.match(fixture.txid, /^qa_tx_/);
     assert.ok(["pending_review", "duplicate_flagged"].includes(fixture.status));
     assert.ok(!["credited", "settled", "withdrawable", "approved"].includes(fixture.status));
