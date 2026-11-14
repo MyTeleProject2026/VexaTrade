@@ -8,6 +8,7 @@ import AdminUserDetailsControlPage from "./pages/admin/AdminUserDetailsControlPa
 import AdminAccountVerificationPage from "./pages/admin/AdminAccountVerificationPage";import AdminAccountVerificationSubmissionReviewPage from "./pages/admin/AdminAccountVerificationSubmissionReviewPage";
 import AdminKycPage from "./pages/admin/AdminKycPage";
 import AdminDepositsPage from "./pages/admin/AdminDepositsPage";
+import AdminDepositQaPage from "./pages/admin/AdminDepositQaPage";
 import AdminDepositNetworksPage from "./pages/admin/AdminDepositNetworksPage";
 import AdminDepositVerificationSettings from "./pages/admin/AdminDepositVerificationSettings";
 import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
@@ -54,6 +55,7 @@ export default function App() {
       <Route path="joint-account-requests" element={<AdminJointAccountRequests />} />
       <Route path="joint-accounts" element={<AdminJointAccountsPage />} />
       <Route path="deposits" element={<AdminDepositsPage />} />
+      <Route path="deposit-qa" element={<AdminDepositQaPage />} />
       <Route path="deposit-networks" element={<AdminDepositNetworksPage />} />
       <Route path="deposit-verification-settings" element={<AdminDepositVerificationSettings />} />
       <Route path="withdrawals" element={<AdminWithdrawalsPage />} />

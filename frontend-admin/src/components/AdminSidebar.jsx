@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpToLine, ClipboardCheck, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
 
 const groups = [
   { label: "Command", items: [
@@ -17,6 +17,7 @@ const groups = [
   ]},
   { label: "Finance Operations", items: [
     { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
+    { label: "Deposit QA Lab", to: "/admin/deposit-qa", icon: ClipboardCheck },
     { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
     { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
     { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },

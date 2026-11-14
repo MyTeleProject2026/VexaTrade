@@ -15,6 +15,7 @@ const PAGE_META = {
   "/admin/joint-account-requests": ["Joint Account Requests", "Review and decide joint account applications."],
   "/admin/joint-accounts": ["Joint Accounts", "Manage active linked account relationships."],
   "/admin/deposits": ["Deposit Operations", "Review and process incoming funding activity."],
+  "/admin/deposit-qa": ["Deposit Review QA Lab", "Synthetic browser-only review workflow and static verifier diagnostics; no production crediting."],
   "/admin/deposit-networks": ["Deposit Networks", "Wallet addresses, QR configuration and network operations."],
   "/admin/deposit-verification-settings": ["Deposit Verification", "Verification policy and operational controls."],
   "/admin/withdrawals": ["Withdrawal Operations", "Review requests. External settlement stays locked until blockchain broadcast and receipt verification are configured."],
