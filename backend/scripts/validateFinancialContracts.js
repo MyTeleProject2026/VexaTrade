@@ -103,7 +103,11 @@ if (!settlementRoutesSource.includes("res.status(503).json({success:false,code:'
 
 
 const ledgerAdmin = read('src/routes/adminLedgerControlRoutes.js');
-if (!ledgerAdmin.includes('verifyTronUsdtDeposit') || !ledgerAdmin.includes('claimVerifiedDeposit')) throw new Error('[Deposit] duplicate admin approval route is not protected by confirmed chain verification');
+if (!ledgerAdmin.includes('verifyPendingDeposit') || !ledgerAdmin.includes('approveVerifiedDeposit')) throw new Error('[Deposit] canonical admin approval route must use the shared verified-deposit service');
+const depositApproval = read('services/depositApprovalService.js');
+if (!depositApproval.includes('claimVerifiedDeposit') || !depositApproval.includes('verifyDepositOnChain')) throw new Error('[Deposit] shared approval service must verify chain data and claim TXIDs uniquely');
+const chainVerifier = read('services/depositChainVerificationService.js');
+if (!chainVerifier.includes('verifyTronUsdtDeposit') || !chainVerifier.includes('verifyEthereumDeposit')) throw new Error('[Deposit] TRON and Ethereum chain verifiers must both be wired');
 const tronVerifier = read('services/tronVerificationService.js');
 if (!tronVerifier.includes('USDT_TRC20_MAINNET') || !tronVerifier.includes('walletsolidity/gettransactioninfobyid')) throw new Error('[Deposit] confirmed TRON receipt verifier missing');
 

@@ -9,7 +9,7 @@ const router = express.Router();
 // are merged into these defaults.
 const DEFAULT_ASSETS = [
   { coin: 'BTC', name: 'Bitcoin', networks: ['BTC'] },
-  { coin: 'ETH', name: 'Ethereum', networks: ['ERC20'] },
+  { coin: 'ETH', name: 'Ethereum', networks: ['ETH'] },
   { coin: 'USDT', name: 'Tether USD', networks: ['TRC20', 'ERC20', 'BEP20', 'SOLANA', 'POLYGON', 'ARBITRUM', 'OPTIMISM'] },
   { coin: 'USDC', name: 'USD Coin', networks: ['ERC20', 'BEP20', 'SOLANA', 'POLYGON', 'ARBITRUM', 'OPTIMISM'] },
   { coin: 'BNB', name: 'BNB', networks: ['BEP20'] },

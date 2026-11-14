@@ -11,7 +11,6 @@ const {
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
 const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, movePendingToAvailable } = require('../../services/assetLedgerService');
-const { verifyTronUsdtDeposit, claimVerifiedDeposit } = require('../../services/tronVerificationService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -258,65 +257,7 @@ router.get('/admin/deposits', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const depositId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT * FROM deposits WHERE id = ? FOR UPDATE`, [depositId]);
-    if (!rows.length) throw createError(404, "Deposit not found");
-    const deposit = rows[0];
-    if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
-    const amount = Number(deposit.amount || 0);
-    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid deposit amount");
-    const coin = String(deposit.coin || "USDT").trim().toUpperCase();
-    const network = String(deposit.network || "INTERNAL").trim().toUpperCase();
-    if (coin !== "USDT" || !["TRC20", "TRON"].includes(network)) {
-      throw createError(409, "Deposit credit is locked for this asset/network until a verified blockchain adapter is configured.");
-    }
-    const [wallets] = await connection.execute("SELECT address FROM deposit_wallets WHERE UPPER(coin)='USDT' AND UPPER(network) IN ('TRC20','TRON') AND status='active' ORDER BY id DESC LIMIT 1");
-    if (!wallets.length || !wallets[0].address) throw createError(503, "No active TRON USDT treasury deposit address is configured");
-    const verification = await verifyTronUsdtDeposit({ txid: deposit.txid, recipientAddress: wallets[0].address, expectedAmount: deposit.amount });
-    if (!verification.verified) throw createError(422, "Deposit not credited: " + verification.reason);
-    const [duplicates] = await connection.execute("SELECT id FROM deposits WHERE id<>? AND LOWER(txid)=LOWER(?) AND status='approved' LIMIT 1 FOR UPDATE", [deposit.id, deposit.txid]);
-    if (duplicates.length) throw createError(409, "This blockchain transaction has already been credited to another deposit request");
-    await claimVerifiedDeposit(connection, { txid: verification.txid, depositId: deposit.id, userId: deposit.user_id, coin, network: "TRC20", amount: deposit.amount });
-    await creditAssetBalance(connection, {
-      userId: deposit.user_id,
-      coin,
-      network: "TRC20",
-      amount,
-      referenceType: "deposit_admin_approval",
-      referenceId: deposit.id,
-      note: adminNote || `Verified TRON USDT deposit #${deposit.id} approved by admin; TXID ${verification.txid}`
-    });
-    await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, approved_at = COALESCE(approved_at, NOW()), updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
-    await createTransactionLog(connection, { userId: deposit.user_id, type: "deposit_approved", amount, status: "completed", referenceId: deposit.id, note: adminNote || `Deposit #${deposit.id} approved by admin` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "approve_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved deposit #${deposit.id}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit approved", message: `Your deposit of ${amount} ${deposit.coin || "USDT"} has been approved.`, type: "general" });
-    await connection.commit();
-    res.json({ success: true, message: "Deposit approved" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
-
-router.post('/admin/deposits/:id/reject', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const depositId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT * FROM deposits WHERE id = ? FOR UPDATE`, [depositId]);
-    if (!rows.length) throw createError(404, "Deposit not found");
-    const deposit = rows[0];
-    if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
-    await connection.execute(`UPDATE deposits SET status = 'rejected', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Rejected by admin", depositId]);
-    await createAuditLog(connection, { adminId: req.admin.id, action: "reject_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Rejected deposit #${deposit.id}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit rejected", message: adminNote || "Your deposit request has been rejected.", type: "security" });
-    await connection.commit();
-    res.json({ success: true, message: "Deposit rejected" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
+// Deposit approval and rejection are defined once in adminLedgerControlRoutes.
 
 // ─── Admin Deposit Networks ────────────────────────────────────────
 router.get('/admin/deposit-networks', authAdmin, async (req, res, next) => {
