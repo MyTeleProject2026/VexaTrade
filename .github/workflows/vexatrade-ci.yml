@@ -82,6 +82,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend-user/package-lock.json
       - run: npm install --no-audit --no-fund
+      - name: Verify Platform Center module card is present
+        run: test -f src/components/platform/PlatformModuleCard.jsx
       - run: npm run build
 
   frontend-admin:
