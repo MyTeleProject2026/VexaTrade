@@ -10,7 +10,7 @@ const {
   createTransactionLog, createUserNotification, createAuditLog, toNumber
 } = require('../utils/helpers');
 const storage = require('../../cloudinaryStorage');
-const { releaseReservedAsset, consumeReservedAsset } = require('../../services/assetLedgerService');
+const { releaseReservedAsset, consumeReservedAsset, creditAssetBalance, movePendingToAvailable } = require('../../services/assetLedgerService');
 const upload = multer({ storage });
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status = 'pending'");
     const [tradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades");
     const [todayTradesRow] = await pool.execute("SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at) = CURDATE()");
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance), 0) AS total FROM users");
+    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance), 0) AS total FROM user_assets WHERE coin = 'USDT'");
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status = 'pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status = 'pending'");
     res.json({
@@ -112,18 +112,41 @@ router.post('/admin/users/:id/add-funds', authAdmin, async (req, res, next) => {
     const userId = Number(req.params.id);
     const amount = Number(req.body.amount || 0);
     const note = String(req.body.note || "").trim();
-    if (!Number.isFinite(userId) || userId <= 0) throw createError(400, "Invalid user id");
+    if (!Number.isInteger(userId) || userId <= 0) throw createError(400, "Invalid user id");
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid amount");
+
     await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT id, balance FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    const [rows] = await connection.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!rows.length) throw createError(404, "User not found");
-    await connection.execute(`UPDATE users SET balance = balance + ?, updated_at = NOW() WHERE id = ?`, [amount, userId]);
-    await createTransactionLog(connection, { userId, type: "admin_credit", amount, status: "completed", referenceId: userId, note: note || `Manual fund added by admin ${req.admin.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "add_user_funds", targetUserId: userId, referenceId: userId, note: note || `Added ${amount} funds` });
-    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin added ${amount} to your balance.`, type: "general" });
+
+    const { creditAssetBalance } = require('../../services/assetLedgerService');
+    await creditAssetBalance(connection, {
+      userId,
+      coin: 'USDT',
+      network: 'INTERNAL',
+      amount,
+      referenceType: 'admin_credit',
+      referenceId: userId,
+      note: note || `Manual USDT credit added by admin ${req.admin.id}`
+    });
+
+    await createTransactionLog(connection, {
+      userId,
+      type: "admin_credit",
+      amount,
+      status: "completed",
+      referenceId: userId,
+      note: note || `Manual USDT credit added by admin ${req.admin.id}`
+    });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "add_user_funds", targetUserId: userId, referenceId: userId, note: note || `Added ${amount} USDT funds` });
+    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin added ${amount} USDT to your available balance.`, type: "general" });
+
     await connection.commit();
     res.json({ success: true, message: "Funds added" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 router.post('/admin/users/:id/decrease-funds', authAdmin, async (req, res, next) => {
@@ -132,20 +155,41 @@ router.post('/admin/users/:id/decrease-funds', authAdmin, async (req, res, next)
     const userId = Number(req.params.id);
     const amount = Number(req.body.amount || 0);
     const note = String(req.body.note || "").trim();
-    if (!Number.isFinite(userId) || userId <= 0) throw createError(400, "Invalid user id");
+    if (!Number.isInteger(userId) || userId <= 0) throw createError(400, "Invalid user id");
     if (!Number.isFinite(amount) || amount <= 0) throw createError(400, "Invalid amount");
+
     await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT id, balance FROM users WHERE id = ? FOR UPDATE`, [userId]);
+    const [rows] = await connection.execute('SELECT id FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!rows.length) throw createError(404, "User not found");
-    const currentBalance = Number(rows[0].balance || 0);
-    if (currentBalance < amount) throw createError(400, "User balance insufficient");
-    await connection.execute(`UPDATE users SET balance = balance - ?, updated_at = NOW() WHERE id = ?`, [amount, userId]);
-    await createTransactionLog(connection, { userId, type: "admin_debit", amount, status: "completed", referenceId: userId, note: note || `Manual deduction by admin ${req.admin.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "decrease_user_funds", targetUserId: userId, referenceId: userId, note: note || `Decreased ${amount} funds` });
-    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin decreased ${amount} from your balance.`, type: "security" });
+
+    const { debitAvailableAsset } = require('../../services/assetLedgerService');
+    await debitAvailableAsset(connection, {
+      userId,
+      coin: 'USDT',
+      network: 'INTERNAL',
+      amount,
+      referenceType: 'admin_debit',
+      referenceId: userId,
+      note: note || `Manual USDT deduction by admin ${req.admin.id}`
+    });
+
+    await createTransactionLog(connection, {
+      userId,
+      type: "admin_debit",
+      amount,
+      status: "completed",
+      referenceId: userId,
+      note: note || `Manual USDT deduction by admin ${req.admin.id}`
+    });
+    await createAuditLog(connection, { adminId: req.admin.id, action: "decrease_user_funds", targetUserId: userId, referenceId: userId, note: note || `Decreased ${amount} USDT funds` });
+    await createUserNotification(connection, { userId, title: "Balance updated", message: `Admin decreased ${amount} USDT from your available balance.`, type: "security" });
+
     await connection.commit();
     res.json({ success: true, message: "Funds decreased" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 // ─── Admin KYC ──────────────────────────────────────────────────────
@@ -213,44 +257,7 @@ router.get('/admin/deposits', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const depositId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT * FROM deposits WHERE id = ? FOR UPDATE`, [depositId]);
-    if (!rows.length) throw createError(404, "Deposit not found");
-    const deposit = rows[0];
-    if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
-    const amount = Number(deposit.amount || 0);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, deposit.user_id]);
-    await connection.execute(`UPDATE deposits SET status = 'approved', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Approved by admin", depositId]);
-    await createTransactionLog(connection, { userId: deposit.user_id, type: "deposit_approved", amount, status: "completed", referenceId: deposit.id, note: adminNote || `Deposit #${deposit.id} approved by admin` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: "approve_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved deposit #${deposit.id}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit approved", message: `Your deposit of ${amount} ${deposit.coin || "USDT"} has been approved.`, type: "general" });
-    await connection.commit();
-    res.json({ success: true, message: "Deposit approved" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
-
-router.post('/admin/deposits/:id/reject', authAdmin, async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const depositId = Number(req.params.id);
-    const adminNote = String(req.body?.admin_note || "").trim();
-    await connection.beginTransaction();
-    const [rows] = await connection.execute(`SELECT * FROM deposits WHERE id = ? FOR UPDATE`, [depositId]);
-    if (!rows.length) throw createError(404, "Deposit not found");
-    const deposit = rows[0];
-    if (deposit.status !== "pending") throw createError(400, "Deposit already processed");
-    await connection.execute(`UPDATE deposits SET status = 'rejected', admin_note = ?, updated_at = NOW() WHERE id = ?`, [adminNote || "Rejected by admin", depositId]);
-    await createAuditLog(connection, { adminId: req.admin.id, action: "reject_deposit", targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Rejected deposit #${deposit.id}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: "Deposit rejected", message: adminNote || "Your deposit request has been rejected.", type: "security" });
-    await connection.commit();
-    res.json({ success: true, message: "Deposit rejected" });
-  } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
-});
+// Deposit approval and rejection are defined once in adminLedgerControlRoutes.
 
 // ─── Admin Deposit Networks ────────────────────────────────────────
 router.get('/admin/deposit-networks', authAdmin, async (req, res, next) => {
@@ -363,33 +370,53 @@ router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) 
   try {
     const withdrawalId = Number(req.params.id);
     const note = String(req.body?.settlement_note || '').trim();
-    const [rows] = await pool.execute('SELECT * FROM withdrawals WHERE id=?',[withdrawalId]);
-    if (!rows.length) throw createError(404,'Withdrawal not found');
-    const w=rows[0];
-    if (w.status !== 'pending_settlement') throw createError(400,'Withdrawal is not authorized for settlement');
-    await pool.execute("UPDATE withdrawals SET status='settlement_processing',admin_note=?,updated_at=NOW() WHERE id=?",[note||'Settlement processing',withdrawalId]);
-    await createAuditLog(pool,{adminId:req.admin.id,action:'begin_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||'Settlement processing started'});
-    res.json({success:true,message:'Withdrawal moved to settlement processing'});
-  } catch(error){next(error);}
+    const [rows] = await pool.execute('SELECT * FROM withdrawals WHERE id=?', [withdrawalId]);
+    if (!rows.length) throw createError(404, 'Withdrawal not found');
+    const w = rows[0];
+    if (w.status !== 'pending_settlement') {
+      throw createError(400, 'Withdrawal is not awaiting owner approval');
+    }
+
+    // Approval is not a broadcast. Keep the request pending until a real,
+    // configured treasury integration can sign, broadcast, and verify receipt.
+    const approvalNote = note
+      ? `Owner approved; awaiting treasury funding/signing/broadcast. ${note}`
+      : 'Owner approved; awaiting treasury funding/signing/broadcast. No blockchain transaction has been sent.';
+    await pool.execute(
+      'UPDATE withdrawals SET admin_note=?, updated_at=NOW() WHERE id=? AND status=?',
+      [approvalNote, withdrawalId, 'pending_settlement']
+    );
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: 'approve_withdrawal_pending_treasury',
+      targetUserId: w.user_id,
+      referenceId: w.id,
+      note: approvalNote
+    });
+    return res.json({
+      success: true,
+      message: 'Owner approval recorded. The withdrawal remains pending until treasury funding, signing, broadcast, and confirmed-receipt verification are configured.',
+      data: {
+        withdrawalId,
+        status: 'pending_settlement',
+        transactionHash: null,
+        settlement: 'awaiting_treasury_configuration'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/admin/withdrawals/:id/complete', authAdmin, async (req,res,next)=>{
- const connection=await pool.getConnection();
- try{
-  const withdrawalId=Number(req.params.id),txid=String(req.body?.txid||'').trim(),note=String(req.body?.settlement_note||'').trim();
-  if(!txid)throw createError(400,'Real external transaction hash/reference is required');
-  await connection.beginTransaction();
-  const [rows]=await connection.execute('SELECT * FROM withdrawals WHERE id=? FOR UPDATE',[withdrawalId]);
-  if(!rows.length)throw createError(404,'Withdrawal not found');const w=rows[0];
-  if(w.status!=='settlement_processing')throw createError(400,'Withdrawal is not in settlement processing');
-  const reservedAmount=Number(w.amount||0)+Number(w.fee_amount||0);
-  await consumeReservedAsset(connection,{userId:w.user_id,coin:w.coin,network:w.network,amount:reservedAmount,referenceType:'withdrawal',referenceId:w.id,note:'External settlement completed: '+txid});
-  await connection.execute("UPDATE withdrawals SET status='completed',txid=?,admin_note=?,updated_at=NOW() WHERE id=?",[txid,note||'External settlement completed',withdrawalId]);
-  await createTransactionLog(connection,{userId:w.user_id,type:'withdrawal_completed',amount:reservedAmount,status:'completed',referenceId:w.id,note:'External settlement reference: '+txid});
-  await createAuditLog(connection,{adminId:req.admin.id,action:'complete_withdrawal_settlement',targetUserId:w.user_id,referenceId:w.id,note:note||('Completed with transaction reference '+txid)});
-  await createUserNotification(connection,{userId:w.user_id,title:'Withdrawal completed',message:'Your withdrawal has been externally settled. Transaction reference: '+txid,type:'security'});
-  await connection.commit();res.json({success:true,message:'Withdrawal settlement completed'});
- }catch(error){await connection.rollback();next(error)}finally{connection.release()}
+router.post('/admin/withdrawals/:id/complete', authAdmin, async (req, res) => {
+  // Manual TXIDs are untrusted input. Until a configured treasury adapter
+  // broadcasts the transaction and verifies its confirmed receipt, do not
+  // consume reserved funds or mark a withdrawal complete.
+  return res.status(503).json({
+    success: false,
+    code: 'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED',
+    message: 'Withdrawal completion is disabled until a treasury signing/broadcast provider and confirmed-receipt verifier are configured. A manually entered transaction hash is not proof of payment. No funds were settled.'
+  });
 });
 
 router.post('/admin/withdrawals/:id/reject', authAdmin, async (req,res,next)=>{
@@ -421,6 +448,117 @@ router.delete('/admin/audit-logs', authAdmin, async (req, res, next) => {
     await pool.execute(`DELETE FROM admin_audit_logs`);
     res.json({ success: true, message: "Audit logs cleared" });
   } catch (error) { next(error); }
+});
+
+// ─── Admin Short-Term Trade Operations ─────────────────────────────
+router.get('/admin/trades', authAdmin, async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT t.*, u.uid, u.name AS user_name, u.email AS user_email
+       FROM trades t
+       LEFT JOIN users u ON u.id = t.user_id
+       ORDER BY t.id DESC LIMIT 500`
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/admin/trades/:id/override', authAdmin, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const tradeId = Number(req.params.id);
+    const requestedResult = String(req.body?.result || '').trim().toLowerCase();
+    const requestedExitPrice = Number(req.body?.exit_price);
+    if (!Number.isInteger(tradeId) || tradeId <= 0) throw createError(400, 'Invalid trade id');
+    if (!['win', 'loss', 'tie'].includes(requestedResult)) throw createError(400, 'Result must be win, loss or tie');
+
+    await connection.beginTransaction();
+    const [rows] = await connection.execute('SELECT * FROM trades WHERE id = ? FOR UPDATE', [tradeId]);
+    if (!rows.length) throw createError(404, 'Trade not found');
+    const trade = rows[0];
+    if (String(trade.status).toLowerCase() !== 'open') throw createError(409, 'Only open trades can be overridden');
+
+    let exitPrice = Number.isFinite(requestedExitPrice) && requestedExitPrice > 0
+      ? requestedExitPrice
+      : Number(trade.entry_price || 0);
+    if (!Number.isFinite(exitPrice) || exitPrice <= 0) throw createError(400, 'A valid exit price is required');
+
+    const stake = Number(trade.amount || 0);
+    if (!Number.isFinite(stake) || stake <= 0) throw createError(400, 'Invalid trade stake');
+    const payout = Number(trade.payout_percent || 0);
+    const profit = requestedResult === 'win'
+      ? Number((stake * payout / 100).toFixed(18))
+      : 0;
+
+    if (requestedResult === 'win' || requestedResult === 'tie') {
+      await movePendingToAvailable(connection, {
+        userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+        amount: stake, entryType: 'trade_admin_override_return',
+        referenceType: 'trade', referenceId: trade.id,
+        note: `Admin override ${requestedResult}: stake returned`
+      });
+      if (requestedResult === 'win' && profit > 0) {
+        await creditAssetBalance(connection, {
+          userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+          amount: profit, referenceType: 'trade_admin_override',
+          referenceId: trade.id, note: 'Admin-set trade override profit'
+        });
+        await connection.execute(
+          `UPDATE user_targets
+           SET current_profit = LEAST(target_amount, current_profit + ?),
+               status = CASE WHEN current_profit >= target_amount THEN 'achieved' ELSE 'active' END,
+               updated_at = NOW()
+           WHERE user_id = ? AND status = 'active'`,
+          [profit, trade.user_id]
+        );
+      }
+    } else {
+      await consumePendingAsset(connection, {
+        userId: trade.user_id, coin: 'USDT', network: 'INTERNAL',
+        amount: stake, referenceType: 'trade_admin_override',
+        referenceId: trade.id, note: 'Admin-set losing trade override'
+      });
+    }
+
+    await connection.execute(
+      `UPDATE trades
+       SET status='completed', result=?, exit_price=?, settled_at=NOW()
+       WHERE id=?`,
+      [requestedResult, exitPrice, trade.id]
+    );
+
+    await createTransactionLog(connection, {
+      userId: trade.user_id,
+      type: requestedResult === 'win' ? 'trade_profit' : (requestedResult === 'tie' ? 'trade_tie' : 'trade_loss'),
+      amount: requestedResult === 'win' ? profit : stake,
+      status: 'completed',
+      referenceId: trade.id,
+      note: `Admin override: ${trade.pair} ${requestedResult}; exit ${exitPrice}`
+    });
+    await createUserNotification(connection, {
+      userId: trade.user_id,
+      title: requestedResult === 'win' ? 'Trade completed' : (requestedResult === 'tie' ? 'Trade tied' : 'Trade completed'),
+      message: `Trade #${trade.id} was settled as ${requestedResult.toUpperCase()} by an administrator.`,
+      type: 'trade'
+    });
+    await createAuditLog(connection, {
+      adminId: req.admin.id,
+      action: 'override_trade',
+      targetUserId: trade.user_id,
+      referenceId: trade.id,
+      note: `Trade #${trade.id} overridden to ${requestedResult} at exit ${exitPrice}`
+    });
+
+    await connection.commit();
+    res.json({
+      success: true,
+      message: `Trade #${trade.id} overridden to ${requestedResult}`,
+      data: { tradeId: trade.id, result: requestedResult, exitPrice, profit }
+    });
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    next(error);
+  } finally { connection.release(); }
 });
 
 // ─── Admin Trade Rules ──────────────────────────────────────────────
@@ -457,11 +595,37 @@ router.get('/admin/trade-rules', authAdmin, async (req, res, next) => {
 router.put('/admin/trade-rules/:id', authAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const timerSeconds = Number(req.body.timer_seconds);
+    const minAmount = Number(req.body.min_amount || 0);
+    const maxAmount = Number(req.body.max_amount || 0);
     const payoutPercent = Number(req.body.payout_percent);
     const status = String(req.body.status || "active").toLowerCase();
-    if (payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
-    await pool.execute(`UPDATE trade_rules SET payout_percent = ?, status = ? WHERE id = ?`, [payoutPercent, status, id]);
-    await createAuditLog(pool, { adminId: req.admin.id, action: "update_trade_rule", referenceId: id, note: `Updated trade rule #${id}` });
+    if (!Number.isInteger(id) || id <= 0) throw createError(400, "Invalid trade rule id");
+    if (!Number.isInteger(timerSeconds) || timerSeconds <= 0 || timerSeconds > 86400) throw createError(400, "Timer must be a whole number of seconds between 1 and 86400");
+    if (minAmount < 0 || maxAmount < 0 || (maxAmount > 0 && maxAmount < minAmount)) throw createError(400, "Invalid trade amount limits");
+    if (!Number.isFinite(payoutPercent) || payoutPercent < 0 || payoutPercent > 100) throw createError(400, "Invalid payout percent");
+    if (!["active", "inactive"].includes(status)) throw createError(400, "Invalid status");
+
+    const [existing] = await pool.execute(
+      "SELECT id FROM trade_rules WHERE timer_seconds = ? AND id <> ? LIMIT 1",
+      [timerSeconds, id]
+    );
+    if (existing.length) throw createError(409, "A trade rule for this duration already exists");
+
+    const [result] = await pool.execute(
+      `UPDATE trade_rules
+       SET timer_seconds=?, min_amount=?, max_amount=?, payout_percent=?, status=?
+       WHERE id=?`,
+      [timerSeconds, minAmount, maxAmount, payoutPercent, status, id]
+    );
+    if (!result.affectedRows) throw createError(404, "Trade rule not found");
+
+    await createAuditLog(pool, {
+      adminId: req.admin.id,
+      action: "update_trade_rule",
+      referenceId: id,
+      note: `Updated trade rule #${id}`
+    });
     res.json({ success: true, message: "Trade rule updated" });
   } catch (error) { next(error); }
 });
@@ -490,6 +654,8 @@ router.get('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
       pnl_reference:String(settings.pnl_reference||"live_market"),
       pnl_refresh_seconds:Number(settings.pnl_refresh_seconds||5),
       realized_pnl_on_sell:settings.realized_pnl_on_sell!=="false",
+      win_threshold_bps:Number(settings.win_threshold_bps||1),
+      loss_threshold_bps:Number(settings.loss_threshold_bps||1),
       manual_outcome_override:false,
       rows
     }});
@@ -518,6 +684,8 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     const pnlReference=String(req.body.pnl_reference||"live_market").trim().toLowerCase();
     const pnlRefreshSeconds=Number(req.body.pnl_refresh_seconds||5);
     const realizedPnlOnSell=req.body.realized_pnl_on_sell!==false;
+    const winThresholdBps=Number(req.body.win_threshold_bps ?? 1);
+    const lossThresholdBps=Number(req.body.loss_threshold_bps ?? 1);
     // Spot is an immediate market execution product. It does not expose a
     // per-user or per-order forced WIN/LOSS switch. Outcomes/valuation are
     // derived from the public market execution price.
@@ -526,6 +694,8 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     if(!settlementReceiptRequired) throw createError(400,"Settlement receipt must remain enabled");
     if(pnlReference!=="live_market") throw createError(400,"Unsupported P/L reference");
     if(!Number.isInteger(pnlRefreshSeconds)||pnlRefreshSeconds<1||pnlRefreshSeconds>60) throw createError(400,"P/L refresh must be 1-60 seconds");
+    if(!Number.isFinite(winThresholdBps)||winThresholdBps<0||winThresholdBps>100000) throw createError(400,"Invalid WIN threshold");
+    if(!Number.isFinite(lossThresholdBps)||lossThresholdBps<0||lossThresholdBps>100000) throw createError(400,"Invalid LOSS threshold");
     if(req.body.manual_outcome_override===true) throw createError(400,"Per-user WIN/LOSS outcome overrides are not supported");
     if(!Number.isFinite(max)||max<=0) throw createError(400,"Invalid maximum order limit");
     if(!Number.isFinite(min)||min<=0||min>max) throw createError(400,"Invalid minimum order limit");
@@ -534,12 +704,12 @@ router.put('/admin/spot-trade-settings', authAdmin, async (req,res,next)=>{
     if(!Number.isInteger(quoteTtl)||quoteTtl<5||quoteTtl>120) throw createError(400,"Quote TTL must be 5-120 seconds");
     if(!Number.isInteger(maxOrdersPerDay)||maxOrdersPerDay<0||maxOrdersPerDay>10000) throw createError(400,"Invalid daily order limit");
     if(!supportedPairs.length) throw createError(400,"At least one supported pair is required");
-    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage],["settlement_model",settlementModel],["settlement_price_source",settlementPriceSource],["settlement_receipt_required",settlementReceiptRequired?"true":"false"],["pnl_enabled",pnlEnabled?"true":"false"],["pnl_reference",pnlReference],["pnl_refresh_seconds",String(pnlRefreshSeconds)],["realized_pnl_on_sell",realizedPnlOnSell?"true":"false"],["manual_outcome_override","false"]]){
+    for(const [key,value] of [["trading_enabled",enabled?"true":"false"],["max_order_usdt",String(max)],["min_order_usdt",String(min)],["max_slippage_bps",String(slippage)],["trading_fee_bps",String(feeBps)],["quote_ttl_seconds",String(quoteTtl)],["max_orders_per_day",String(maxOrdersPerDay)],["buy_enabled",buyEnabled?"true":"false"],["sell_enabled",sellEnabled?"true":"false"],["supported_pairs",supportedPairs.join(",")],["maintenance_message",maintenanceMessage],["settlement_model",settlementModel],["settlement_price_source",settlementPriceSource],["settlement_receipt_required",settlementReceiptRequired?"true":"false"],["pnl_enabled",pnlEnabled?"true":"false"],["pnl_reference",pnlReference],["pnl_refresh_seconds",String(pnlRefreshSeconds)],["realized_pnl_on_sell",realizedPnlOnSell?"true":"false"],["win_threshold_bps",String(winThresholdBps)],["loss_threshold_bps",String(lossThresholdBps)],["manual_outcome_override","false"]]){
       await db.execute(`INSERT INTO spot_trade_settings(setting_key,setting_value,status,updated_by) VALUES(?,?,'active',?)
         ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),status='active',updated_by=VALUES(updated_by)`,[key,value,req.admin.id]);
     }
     await createAuditLog(db,{adminId:req.admin.id,action:"update_spot_trade_settings",note:`Spot trading ${enabled?"enabled":"disabled"}; max order ${max} USDT`});
-    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage,settlement_model:settlementModel,settlement_price_source:settlementPriceSource,settlement_receipt_required:settlementReceiptRequired,pnl_enabled:pnlEnabled,pnl_reference:pnlReference,pnl_refresh_seconds:pnlRefreshSeconds,realized_pnl_on_sell:realizedPnlOnSell,manual_outcome_override:false}});
+    await db.commit();res.json({success:true,message:"Spot trading settings updated",data:{trading_enabled:enabled,max_order_usdt:max,min_order_usdt:min,max_slippage_bps:slippage,trading_fee_bps:feeBps,quote_ttl_seconds:quoteTtl,max_orders_per_day:maxOrdersPerDay,buy_enabled:buyEnabled,sell_enabled:sellEnabled,supported_pairs:supportedPairs,maintenance_message:maintenanceMessage,settlement_model:settlementModel,settlement_price_source:settlementPriceSource,settlement_receipt_required:settlementReceiptRequired,pnl_enabled:pnlEnabled,pnl_reference:pnlReference,pnl_refresh_seconds:pnlRefreshSeconds,realized_pnl_on_sell:realizedPnlOnSell,win_threshold_bps:winThresholdBps,loss_threshold_bps:lossThresholdBps,manual_outcome_override:false}});
   }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
 });
 
@@ -625,9 +795,15 @@ router.post('/admin/funds/:id/complete', authAdmin, async (req, res, next) => {
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already completed" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
     const profit = toNumber(fund.earned_profit);
-    const totalReturn = principal + profit;
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [totalReturn, fund.user_id]);
+    const totalReturn = principal;
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: totalReturn,
+      entryType: 'fund_admin_completion_return', referenceType: 'user_fund', referenceId: fundId,
+      note: `Admin completed ${fund.plan_name}`
+    });
     await connection.execute(`UPDATE user_funds SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createTransactionLog(connection, { userId: fund.user_id, type: 'funds_return', amount: totalReturn, status: 'completed', referenceId: fundId, note: `Admin completed fund ${fund.plan_name}; return from pending ledger` });
+    await createAuditLog(connection, { adminId: req.admin.id, action: 'admin_complete_fund', targetUserId: fund.user_id, referenceId: fundId, note: `Completed ${fund.plan_name}; returned ${totalReturn} USDT from pending ledger` });
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Completed", message: `${fund.plan_name} completed. Total return: ${totalReturn.toFixed(2)} USDT`, type: "funds" });
     await connection.commit();
     res.json({ success: true, message: "Fund completed", data: { id: fundId, total_return: totalReturn } });
@@ -645,8 +821,14 @@ router.post('/admin/funds/:id/cancel', authAdmin, async (req, res, next) => {
     if (fund.status === "completed") { await connection.rollback(); return res.status(400).json({ success: false, message: "Completed fund cannot be cancelled" }); }
     if (fund.status === "cancelled") { await connection.rollback(); return res.status(400).json({ success: false, message: "Already cancelled" }); }
     const principal = toNumber(fund.locked_principal || fund.amount);
-    await connection.execute(`UPDATE users SET balance = balance + ? WHERE id = ?`, [principal, fund.user_id]);
+    await movePendingToAvailable(connection, {
+      userId: fund.user_id, coin: 'USDT', network: 'INTERNAL', amount: principal,
+      entryType: 'fund_admin_cancellation_return', referenceType: 'user_fund', referenceId: fundId,
+      note: `Admin cancelled ${fund.plan_name}`
+    });
     await connection.execute(`UPDATE user_funds SET status = 'cancelled', completed_at = NOW(), updated_at = NOW() WHERE id = ?`, [fundId]);
+    await createTransactionLog(connection, { userId: fund.user_id, type: 'funds_return', amount: principal, status: 'completed', referenceId: fundId, note: `Admin cancelled fund ${fund.plan_name}; principal returned from pending ledger` });
+    await createAuditLog(connection, { adminId: req.admin.id, action: 'admin_cancel_fund', targetUserId: fund.user_id, referenceId: fundId, note: `Cancelled ${fund.plan_name}; returned ${principal} USDT from pending ledger` });
     await createUserNotification(connection, { userId: fund.user_id, title: "Fund Cancelled", message: `Your fund has been cancelled. ${principal.toFixed(2)} USDT returned.`, type: "funds" });
     await connection.commit();
     res.json({ success: true, message: "Fund cancelled", data: { id: fundId, principal_returned: principal } });

@@ -15,7 +15,7 @@ function NavItem({ to, icon: Icon, label, activeClass = "", normalClass = "" }) 
     <NavLink to={to} className="flex flex-1 justify-center">
       {({ isActive }) => (
         <div
-          className={`flex min-w-[54px] flex-col items-center gap-1.5 ${
+          className={`flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-1.5 transition ${
             isActive ? activeClass : normalClass
           }`}
         >
@@ -32,7 +32,7 @@ function FloatingActionItem({ icon: Icon, label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex min-w-[110px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#0a0e1a] px-4 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition hover:bg-[#0f1420]"
+      className="vexa-floating-action"
     >
       <Icon size={18} strokeWidth={2.2} />
       <span>{label}</span>
@@ -78,10 +78,10 @@ export default function MobileBottomNav() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl">
+    <div className="vexa-mobile-nav fixed inset-x-0 bottom-0 z-[55] md:hidden">
       <div
         ref={menuRef}
-        className="relative mx-auto flex max-w-md items-end justify-around px-2 pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
+        className="relative mx-auto flex w-full max-w-2xl items-end justify-around px-1.5 pt-2 pb-[max(9px,env(safe-area-inset-bottom))] sm:px-3"
       >
         <NavItem
           to="/dashboard"
@@ -118,10 +118,10 @@ export default function MobileBottomNav() {
           <button
             type="button"
             onClick={() => setTradeMenuOpen((prev) => !prev)}
-            className="flex flex-col items-center"
+            className="group flex flex-col items-center"
           >
             <div
-              className={`relative flex h-16 w-16 items-center justify-center rounded-full text-black shadow-[0_0_35px_rgba(34,211,238,0.35)] transition ${
+              className={`relative -mt-7 flex h-14 w-14 items-center justify-center rounded-full border border-cyan-200/20 text-black shadow-[0_0_30px_rgba(34,211,238,0.30)] transition-transform duration-200 group-active:scale-95 ${
                 tradeActive || tradeMenuOpen ? "bg-cyan-500" : "bg-cyan-500/80"
               }`}
             >

@@ -5,17 +5,94 @@ const normalizeCoin = value => String(value || '').trim().toUpperCase();
 const normalizeNetwork = value => String(value || '').trim().toUpperCase() || 'INTERNAL';
 
 async function ensureAssetRow(connection, userId, coin) {
-  const [rows] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[userId,coin]);
+  const normalizedUserId = Number(userId);
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) throw createError(400, 'Invalid user id for asset ledger');
+  const [users] = await connection.execute('SELECT id FROM users WHERE id=? LIMIT 1 FOR UPDATE',[normalizedUserId]);
+  if (!users.length) throw createError(409, `Cannot modify asset ledger: user ${normalizedUserId} does not exist`);
+  const [rows] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[normalizedUserId,coin]);
   if (rows.length) return rows[0];
-  await connection.execute('INSERT INTO user_assets (user_id, coin, balance, avg_price, available_balance, reserved_balance, pending_balance) VALUES (?, ?, 0, 0, 0, 0, 0)',[userId,coin]);
+  await connection.execute('INSERT INTO user_assets (user_id, coin, balance, avg_price, available_balance, reserved_balance, pending_balance) VALUES (?, ?, 0, 0, 0, 0, 0)',[normalizedUserId,coin]);
   const [created] = await connection.execute('SELECT * FROM user_assets WHERE user_id = ? AND coin = ? FOR UPDATE',[userId,coin]);
   return created[0];
+}
+async function ensureLegacyUsdtAvailable(connection, userId) {
+  // The asset ledger is authoritative. A legacy/incomplete row can, however,
+  // contain the old total in balance while all bucket columns are still zero.
+  // Repair that impossible/incomplete state once, inside the caller's transaction,
+  // so every balance-sensitive feature uses the same available USDT source.
+  const [assets] = await connection.execute(
+    "SELECT balance,available_balance,reserved_balance,pending_balance FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1 FOR UPDATE",
+    [userId]
+  );
+  if (assets.length) {
+    const row = assets[0];
+    const balance = Number(row.balance || 0);
+    const available = Number(row.available_balance || 0);
+    const reserved = Number(row.reserved_balance || 0);
+    const pending = Number(row.pending_balance || 0);
+    if (balance > 0 && available === 0 && reserved === 0 && pending === 0) {
+      await connection.execute(
+        "UPDATE user_assets SET available_balance=?, balance=? WHERE user_id=? AND coin='USDT'",
+        [balance, balance, userId]
+      );
+      return balance;
+    }
+    return available;
+  }
+
+  const [users] = await connection.execute('SELECT balance FROM users WHERE id=? FOR UPDATE', [userId]);
+  const legacyBalance = Number(users[0]?.balance || 0);
+  if (!Number.isFinite(legacyBalance) || legacyBalance <= 0) return 0;
+  await connection.execute(
+    "INSERT INTO user_assets (user_id,coin,balance,avg_price,available_balance,reserved_balance,pending_balance) VALUES (?, 'USDT', ?, 1, ?, 0, 0)",
+    [userId, legacyBalance, legacyBalance]
+  );
+  return legacyBalance;
+}
+
+async function getUserUsdtAvailable(connection, userId) {
+  // Lock through the legacy/reconciliation helper so a partially migrated
+  // USDT row cannot make the wallet appear to have zero funds.
+  return ensureLegacyUsdtAvailable(connection, userId);
+}
+
+async function getUserUsdtSnapshot(connection, userId) {
+  // Every wallet/profit screen must read the same authoritative bucket state.
+  // Reconcile legacy rows first, then return all USDT buckets from one locked row.
+  await ensureLegacyUsdtAvailable(connection, userId);
+  const [[row]] = await connection.execute(
+    `SELECT balance, available_balance, reserved_balance, pending_balance
+     FROM user_assets
+     WHERE user_id=? AND coin='USDT'
+     LIMIT 1
+     FOR UPDATE`,
+    [userId]
+  );
+  if (!row) {
+    return { balance: 0, available: 0, reserved: 0, pending: 0 };
+  }
+  const available = Number(row.available_balance || 0);
+  const reserved = Number(row.reserved_balance || 0);
+  const pending = Number(row.pending_balance || 0);
+  const derivedTotal = available + reserved + pending;
+  const storedTotal = Number(row.balance || 0);
+  // balance is a derived compatibility field. Repair it when an old row drifted
+  // from its authoritative bucket totals, without inventing or changing funds.
+  if (Math.abs(storedTotal - derivedTotal) > 1e-12) {
+    await connection.execute(
+      `UPDATE user_assets
+       SET balance=available_balance+reserved_balance+pending_balance
+       WHERE user_id=? AND coin='USDT'`,
+      [userId]
+    );
+  }
+  return { balance: derivedTotal, available, reserved, pending };
 }
 async function syncTotal(connection,userId,coin){ await connection.execute('UPDATE user_assets SET balance = available_balance + reserved_balance + pending_balance WHERE user_id=? AND coin=?',[userId,coin]); }
 async function recordLedger(connection,{userId,coin,network,bucket,entryType,amount,referenceType,referenceId,note}){
   const normalizedCoin=normalizeCoin(coin), normalizedNetwork=normalizeNetwork(network), value=Number(amount);
   await connection.execute(`INSERT INTO asset_ledger_entries (user_id,coin,network,bucket,entry_type,amount,reference_type,reference_id,note) VALUES (?,?,?,?,?,?,?,?,?)`,[userId,normalizedCoin,normalizedNetwork,bucket,entryType,value,referenceType||null,referenceId||null,note||null]);
-  try { await connection.execute(`INSERT INTO financial_audit_events (user_id,action,coin,network,amount,reference_type,reference_id,metadata) VALUES (?,?,?,?,?,?,?,JSON_OBJECT('bucket',?, 'entry_type',?, 'note',?))`,[userId,entryType,normalizedCoin,normalizedNetwork,value,referenceType||null,referenceId||null,bucket,entryType,note||null]); } catch (_) { /* migration may not yet be applied; ledger remains authoritative */ }
+  await connection.execute(`INSERT INTO financial_audit_events (user_id,action,coin,network,amount,reference_type,reference_id,metadata) VALUES (?,?,?,?,?,?,?,JSON_OBJECT('bucket',?, 'entry_type',?, 'note',?))`,[userId,entryType,normalizedCoin,normalizedNetwork,value,referenceType||null,referenceId||null,bucket,entryType,note||null]);
 }
 async function creditAssetBalance(connection,{userId,coin,network,amount,referenceType,referenceId,note}){
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid asset credit');
@@ -53,4 +130,4 @@ async function consumePendingAsset(connection,{userId,coin,network,amount,refere
   coin=normalizeCoin(coin);network=normalizeNetwork(network);amount=Number(amount);if(!coin||!Number.isFinite(amount)||amount<=0)throw createError(400,'Invalid pending asset settlement');
   await ensureAssetRow(connection,userId,coin);const [u]=await connection.execute('UPDATE user_assets SET pending_balance=pending_balance-? WHERE user_id=? AND coin=? AND pending_balance>=?',[amount,userId,coin,amount]);if(u.affectedRows!==1)throw createError(409,'Unable to settle pending asset balance');await syncTotal(connection,userId,coin);await recordLedger(connection,{userId,coin,network,bucket:'pending',entryType:'asset_consumed',amount,referenceType,referenceId,note});
 }
-module.exports={ensureAssetRow,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};
+module.exports={ensureAssetRow,ensureLegacyUsdtAvailable,getUserUsdtAvailable,getUserUsdtSnapshot,syncTotal,recordLedger,creditAssetBalance,debitAvailableAsset,moveAvailableToPending,increasePendingAsset,movePendingToAvailable,reserveAssetBalance,releaseReservedAsset,consumeReservedAsset,consumePendingAsset,normalizeCoin,normalizeNetwork,ASSET_PRECISION};

@@ -1,0 +1,1 @@
+import {DigitalLayout,RunningPositions} from "./DigitalOptionsShared";export default function DigitalOptionsPositionPage(){return <DigitalLayout title="Digital Option Position" subtitle="Detailed live position monitor and settlement controls."><RunningPositions/></DigitalLayout>}

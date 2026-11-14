@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell, Menu, Wallet } from "lucide-react";
 import UserSidebar from "../components/UserSidebar";
 import MobileBottomNav from "../components/MobileBottomNav";
+import TradeTopNavBar from "../components/TradeTopNavBar";
 import PasscodeLockScreen from "../components/PasscodeLockScreen";
 import { userApi } from "../services/api";
 
@@ -43,7 +44,9 @@ function getPageMeta(pathname) {
 }
 
 function shouldShowBackButton(pathname) {
-  return ["/deposit", "/withdraw", "/kyc", "/convert", "/transactions", "/profile/user-center", "/loan", "/legal-documents", "/support"].some((route) => pathname.startsWith(route));
+  const nestedRoutes = ["/funds/", "/assets/", "/profile/", "/deposit/", "/withdraw/", "/transactions/", "/loan/", "/legal-documents/", "/support/", "/convert/", "/kyc/"];
+  return ["/deposit", "/withdraw", "/kyc", "/convert", "/transactions", "/profile/user-center", "/loan", "/legal-documents", "/support"].some((route) => pathname.startsWith(route)) ||
+    nestedRoutes.some((route) => pathname.startsWith(route));
 }
 
 function getStoredToken() {
@@ -121,9 +124,11 @@ export default function UserLayout() {
     }
 
     loadUnreadStatus();
+    interval = window.setInterval(loadUnreadStatus, 30000);
     return () => {
       ignore = true;
       if (timeoutId) window.clearTimeout(timeoutId);
+      if (interval) window.clearInterval(interval);
     };
   }, [location.pathname]);
 
@@ -132,6 +137,14 @@ export default function UserLayout() {
     if (location.pathname === "/notifications") { navigate("/dashboard"); return; }
     if (location.pathname === "/profile/user-center") { navigate("/profile"); return; }
     if (location.pathname === "/loan" || location.pathname === "/legal-documents" || location.pathname === "/kyc" || location.pathname === "/support") { navigate("/profile"); return; }
+    if (location.pathname.startsWith("/funds/")) { navigate("/funds"); return; }
+    if (location.pathname.startsWith("/assets/")) { navigate("/assets"); return; }
+    if (location.pathname.startsWith("/profile/")) { navigate("/profile"); return; }
+    if (location.pathname.startsWith("/deposit/")) { navigate("/deposit"); return; }
+    if (location.pathname.startsWith("/withdraw/")) { navigate("/withdraw"); return; }
+    if (location.pathname.startsWith("/transactions/")) { navigate("/transactions"); return; }
+    if (location.pathname.startsWith("/convert/")) { navigate("/convert"); return; }
+    if (location.pathname.startsWith("/kyc/")) { navigate("/kyc"); return; }
     navigate(-1);
   }
 
@@ -153,8 +166,8 @@ export default function UserLayout() {
   if (isPasscodeLocked) return <PasscodeLockScreen onUnlock={handlePasscodeUnlock} />;
 
   return (
-    <div className="min-h-screen bg-[#050812] text-white">
-      <div className="flex min-h-screen">
+    <div className="vexa-app-shell min-h-screen bg-[#050812] text-white">
+      <div className="flex min-h-0 min-h-screen">
         <aside className="hidden md:block md:shrink-0">
           <div className="h-screen sticky top-0"><UserSidebar /></div>
         </aside>
@@ -168,12 +181,12 @@ export default function UserLayout() {
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl safe-top">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="vexa-topbar sticky top-0 z-30 border-b border-white/10 bg-[#0a0e1a]/95 backdrop-blur-xl safe-top">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
                 {showBackButton ? (
-                  <button type="button" onClick={handleBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white" aria-label="Go back"><ArrowLeft size={18} /></button>
+                  <button type="button" onClick={handleBack} className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-white shadow-inner shadow-white/[0.03] transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-cyan-200 active:scale-[0.97]" aria-label="Go back"><ArrowLeft size={18} className="transition-transform group-hover:-translate-x-0.5" /></button>
                 ) : (
                   <button type="button" onClick={() => setSidebarOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-white md:hidden" aria-label="Open menu"><Menu size={18} /></button>
                 )}
@@ -192,8 +205,8 @@ export default function UserLayout() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto pb-20 md:pb-6"><Outlet /></main>
-          <div className="md:hidden safe-bottom"><MobileBottomNav /></div>
+          <main className="vexa-scroll-shell min-h-0 flex-1 overflow-y-auto overscroll-y-auto pb-32 md:pb-8"><TradeTopNavBar /><div className="mx-auto w-full max-w-[1600px] min-w-0"><Outlet /></div></main>
+          <div className="md:hidden"><MobileBottomNav /></div>
         </div>
       </div>
     </div>

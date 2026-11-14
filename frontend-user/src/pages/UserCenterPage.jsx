@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
   Users,
   Wallet,
+  LogOut,
 } from "lucide-react";
 import { userApi, getApiErrorMessage } from "../services/api";
 import { getFullImageUrl } from "../utils/image";
@@ -566,6 +567,12 @@ export default function UserCenterPage() {
   const avatarUrl = useMemo(() => getFullImageUrl(profile.avatar_url), [profile.avatar_url]);
   const editAvatarSrc = useMemo(() => getFullImageUrl(editForm.avatarPreview), [editForm.avatarPreview]);
 
+  function handleLogout() {
+    ["userToken", "token", "accessToken", "userRefreshToken", "user", "userData", "role"].forEach((key) => localStorage.removeItem(key));
+    ["VexaTrade_passcode_verified", "vexa_trade_platform_unlocked"].forEach((key) => sessionStorage.removeItem(key));
+    navigate("/login", { replace: true });
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center bg-[#050812]">
@@ -600,14 +607,24 @@ export default function UserCenterPage() {
             <p className="mt-0.5 text-xs text-slate-400 sm:text-sm">Profile, security, and preference settings</p>
           </div>
           
-          <button
-            onClick={forceRefreshUserData}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-50 sm:px-4 sm:py-2"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            <span className="text-xs sm:text-sm">{refreshing ? "Refreshing..." : "Refresh"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={forceRefreshUserData}
+              disabled={refreshing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-black transition hover:bg-amber-400 disabled:opacity-50 sm:px-4 sm:py-2"
+            >
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+              <span className="text-xs sm:text-sm">{refreshing ? "Refreshing..." : "Refresh"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 sm:text-sm"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
+          </div>
         </div>
         
         {/* Balance Display */}

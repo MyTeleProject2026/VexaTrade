@@ -21,6 +21,37 @@ export function runSingleUserAction(actionName, operation) {
 
   const promise = Promise.resolve()
     .then(operation)
+    .then((response) => {
+      // One successful financial action produces one browser event. Pages that
+      // own affected data can refresh only that data set instead of polling or
+      // reloading the whole application.
+      if (typeof window !== "undefined") {
+        const responseData = response?.data?.data ?? response?.data ?? {};
+        window.dispatchEvent(new CustomEvent("vexa:financial-action-complete", {
+          detail: { action: key, data: responseData },
+        }));
+
+        const actionMap = {
+          "convert-submit": "convert",
+          "transfer-submit": "transfer",
+          "trade-submit": "trade",
+          "funds-submit": "funds",
+          "loan-submit": "loan",
+          "profit-withdrawal-submit": "profit-withdrawal",
+        };
+        const receiptAction = actionMap[key];
+        if (receiptAction) {
+          window.dispatchEvent(new CustomEvent("vexa:transaction-complete", {
+            detail: {
+              action: receiptAction,
+              status: String(responseData?.status || "completed"),
+              data: responseData,
+            },
+          }));
+        }
+      }
+      return response;
+    })
     .finally(() => {
       if (inFlightActions.get(key) === promise) inFlightActions.delete(key);
     });

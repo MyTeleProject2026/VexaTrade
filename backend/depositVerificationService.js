@@ -39,6 +39,8 @@ async function syncVerificationSettingsFromWallets() {
     const activeNetworks = Object.keys(networkAddresses);
     if (activeNetworks.length) {
       await pool.execute(`UPDATE network_verification_settings SET is_active=0 WHERE network NOT IN (${activeNetworks.map(() => '?').join(',')})`, activeNetworks);
+    } else {
+      await pool.execute(`UPDATE network_verification_settings SET is_active=0`);
     }
     console.log('[Sync] Verification settings synchronized successfully.');
   } catch (error) {
@@ -46,15 +48,15 @@ async function syncVerificationSettingsFromWallets() {
   }
 }
 
-async function getNetworkSettings(network) {
+async function getNetworkSettings(network, connection = pool) {
   try {
-    const [rows] = await pool.execute(`SELECT * FROM network_verification_settings WHERE network=? AND is_active=1 LIMIT 1`, [String(network || '').trim().toUpperCase()]);
+    const [rows] = await connection.execute(`SELECT * FROM network_verification_settings WHERE network=? AND is_active=1 LIMIT 1`, [String(network || '').trim().toUpperCase()]);
     return rows[0] || null;
   } catch (_) { return null; }
 }
 
 async function updateNetworkSetting(id, updates) {
-  const allowed = new Set(['network','explorer_api_url','address_prefix','address_suffix','token_type','tolerance_percent','is_active']);
+  const allowed = new Set(['network','explorer_api_url','api_key','address_prefix','address_suffix','token_type','contract_address','tolerance_percent','minimum_deposit','is_active']);
   const fields=[]; const values=[];
   for (const [key,val] of Object.entries(updates || {})) {
     if (!allowed.has(key)) continue;
@@ -72,28 +74,57 @@ async function getAllNetworkSettings() {
   return rows;
 }
 
-async function verifyDepositManually(deposit) {
+async function verifyDepositManually(deposit, connection = pool) {
   const depositId=Number(deposit?.id);
   const coin=String(deposit?.coin || 'USDT').trim().toUpperCase();
   const network=String(deposit?.network || 'INTERNAL').trim().toUpperCase();
   const amount=Number(deposit?.amount);
   const proof=deposit?.proof;
-  const depositAddress=String(deposit?.address || '').trim();
+  const txid=String(deposit?.txid || '').trim();
 
   if (!proof || ['null','undefined'].includes(String(proof).toLowerCase())) return {success:false,reason:'Transaction receipt not uploaded. Please upload a valid receipt image.'};
-  if (!depositAddress || ['null','undefined'].includes(depositAddress.toLowerCase())) return {success:false,reason:'Deposit address not found. Please use a valid deposit address.'};
-  const settings=await getNetworkSettings(network);
-  if (!settings) return {success:false,reason:`Network "${network}" verification settings not configured. Please contact support.`};
-  const actualPrefix=String(settings.address_prefix || '').trim();
-  const actualSuffix=String(settings.address_suffix || '').trim();
-  if (!actualPrefix || !actualSuffix) return {success:false,reason:`Address verification pattern not configured for ${network}. Please contact support.`};
-  const addressMatches=depositAddress.toLowerCase().startsWith(actualPrefix.toLowerCase()) && depositAddress.toLowerCase().endsWith(actualSuffix.toLowerCase());
-  if (!addressMatches) return {success:false,reason:`Deposit address mismatch. Expected address starting with "${actualPrefix}" and ending with "${actualSuffix}".`};
+  if (network !== 'INTERNAL' && !txid) return {success:false,reason:'Transaction hash/reference is required for external-network deposits.'};
+
+  // The deposit destination is optional in older records. When it is missing,
+  // resolve the authoritative destination from the active platform wallet
+  // for the exact coin/network. This keeps legacy deposits reviewable without
+  // inventing a user-supplied address.
+  const [walletRows]=await connection.execute(
+    `SELECT address FROM deposit_wallets
+     WHERE UPPER(coin)=? AND UPPER(network)=? AND status='active'
+     ORDER BY id DESC LIMIT 1`,
+    [coin,network]
+  );
+  const configuredAddress=String(walletRows[0]?.address || '').trim();
+  if (!configuredAddress) return {success:false,reason:'Active deposit wallet is not configured for '+coin+'/'+network+'.'};
+
+  const rawDepositAddress=String(deposit?.address || '').trim();
+  const addressWasOmitted=!rawDepositAddress || ['null','undefined'].includes(rawDepositAddress.toLowerCase());
+  const depositAddress=addressWasOmitted ? configuredAddress : rawDepositAddress;
+  if (!addressWasOmitted && configuredAddress.toLowerCase() !== depositAddress.toLowerCase()) {
+    return {success:false,reason:'Deposit address does not match the active platform wallet for this coin/network.'};
+  }
+
   if (!Number.isFinite(amount) || amount<=0) return {success:false,reason:'Invalid amount submitted. Please enter a valid amount.'};
-  const minimumDeposit=Number(settings.minimum_deposit || DEFAULT_MIN_DEPOSIT);
-  if (amount < minimumDeposit) return {success:false,reason:`Amount ${amount} is below the minimum deposit of ${minimumDeposit} ${coin}.`};
-  const tolerance=Math.max(0,Math.min(Number(settings.tolerance_percent ?? DEFAULT_TOLERANCE_PERCENT),100))/100;
-  return {success:true,actualAmount:amount,expectedAmount:amount,minAllowed:amount*(1-tolerance),maxAllowed:amount*(1+tolerance),coin,network,toAddress:depositAddress,receiptUploaded:true,addressVerified:true,amountVerified:true,depositId};
+
+  // INTERNAL deposits are constrained by the active platform wallet above.
+  // External networks additionally require an active network-verification policy.
+  const settings=network === 'INTERNAL' ? null : await getNetworkSettings(network, connection);
+  if (network !== 'INTERNAL' && !settings) return {success:false,reason:'Network "' + network + '" verification settings not configured. Please contact support.'};
+  const minimumDeposit=Number(settings?.minimum_deposit ?? DEFAULT_MIN_DEPOSIT);
+  if (!Number.isFinite(minimumDeposit) || minimumDeposit < 0) return {success:false,reason:'Invalid minimum-deposit configuration for ' + network + '.'};
+  if (amount < minimumDeposit) return {success:false,reason:'Amount ' + amount + ' is below the minimum deposit of ' + minimumDeposit + ' ' + coin + '.'};
+
+  if (network !== 'INTERNAL') {
+    const actualPrefix=String(settings?.address_prefix || '').trim();
+    const actualSuffix=String(settings?.address_suffix || '').trim();
+    if (!actualPrefix || !actualSuffix) return {success:false,reason:'Address verification pattern not configured for ' + network + '. Please contact support.'};
+    const normalizedAddress=depositAddress.toLowerCase();
+    const addressMatches=normalizedAddress.startsWith(actualPrefix.toLowerCase()) && normalizedAddress.endsWith(actualSuffix.toLowerCase());
+    if (!addressMatches) return {success:false,reason:'Deposit address mismatch. Expected address starting with "' + actualPrefix + '" and ending with "' + actualSuffix + '".'};
+  }
+
+  const tolerance=Math.max(0,Math.min(Number(settings?.tolerance_percent ?? DEFAULT_TOLERANCE_PERCENT),100))/100;  return {success:true,actualAmount:amount,expectedAmount:amount,minAllowed:amount*(1-tolerance),maxAllowed:amount*(1+tolerance),coin,network,toAddress:depositAddress,receiptUploaded:true,addressVerified:true,amountVerified:true,depositId};
 }
 
 async function rejectDeposit(connection, dep, reason) {
@@ -103,16 +134,37 @@ async function rejectDeposit(connection, dep, reason) {
   await createUserNotification(connection,{userId:dep.user_id,title:'Deposit rejected',message:`Your deposit #${dep.id} has been rejected. ${reason}`,type:'deposit'});
 }
 
-async function approveDeposit(connection, dep, verification) {
+async function markDepositPendingReview(connection, dep, reason) {
+  const note=`Verification pending admin review: ${reason}`;
+  const [[current]] = await connection.execute(`SELECT admin_note FROM deposits WHERE id=? AND status='pending' FOR UPDATE`, [dep.id]);
+  if (String(current?.admin_note || '') !== note) {
+    await connection.execute(
+      `UPDATE deposits SET admin_note=?, updated_at=NOW() WHERE id=? AND status='pending'`,
+      [note, dep.id]
+    );
+  } else {
+    return;
+  }
+  await createAuditLog(connection,{
+    adminId:0,
+    action:'deposit_prevalidation_pending',
+    targetUserId:dep.user_id,
+    referenceId:dep.id,
+    note
+  });
+}
+
+async function approveDeposit(connection, dep, verification, adminId = 0, adminNote = '') {
   const amount=Number(verification.actualAmount ?? dep.amount);
   const coin=String(verification.coin || dep.coin || 'USDT').trim().toUpperCase();
   const network=String(verification.network || dep.network || 'INTERNAL').trim().toUpperCase();
   if (!Number.isFinite(amount) || amount<=0) throw createError(400,'Invalid deposit amount');
 
   await creditAssetBalance(connection,{userId:dep.user_id,coin,network,amount,referenceType:'deposit',referenceId:dep.id,note:`Auto-approved deposit #${dep.id} via manual verification`});
-  await connection.execute(`UPDATE deposits SET status='approved', admin_note='Auto-approved: Manual verification passed', approved_at=COALESCE(approved_at,NOW()), updated_at=NOW() WHERE id=?`, [dep.id]);
-  await createTransactionLog(connection,{userId:dep.user_id,type:'deposit_approved',amount,status:'completed',referenceId:dep.id,note:`${coin}/${network} auto-approved deposit #${dep.id}`});
-  await createAuditLog(connection,{adminId:0,action:'auto_approve_deposit',targetUserId:dep.user_id,referenceId:dep.id,note:`${amount} ${coin}/${network}`});
+  const note = String(adminNote || '').trim() || 'Deposit approved after verification';
+  await connection.execute(`UPDATE deposits SET status='approved', admin_note=?, approved_at=COALESCE(approved_at,NOW()), updated_at=NOW() WHERE id=?`, [note, dep.id]);
+  await createTransactionLog(connection,{userId:dep.user_id,type:'deposit_approved',amount,status:'completed',referenceId:dep.id,note:`${coin}/${network} approved deposit #${dep.id}`});
+  await createAuditLog(connection,{adminId:Number(adminId)||0,action:'approve_deposit',targetUserId:dep.user_id,referenceId:dep.id,note:`${amount} ${coin}/${network}: ${note}`});
   await createUserNotification(connection,{userId:dep.user_id,title:'Deposit approved',message:`${amount} ${coin} is now available in your wallet.`,type:'deposit'});
 }
 
@@ -128,11 +180,19 @@ async function processPendingDeposits() {
         if (!locked.length || String(locked[0].status).toLowerCase()!=='pending') { await connection.rollback(); continue; }
         const dep=locked[0];
         const elapsedHours=(Date.now()-new Date(dep.created_at).getTime())/(1000*60*60);
-        if (!Number.isFinite(elapsedHours) || elapsedHours>=24) await rejectDeposit(connection,dep,'Timeout (24 hours)');
-        else {
-          const verification=await verifyDepositManually(dep);
-          if (!verification.success) await rejectDeposit(connection,dep,verification.reason);
-          else await approveDeposit(connection,dep,verification);
+        if (!Number.isFinite(elapsedHours) || elapsedHours>=24) {
+          await rejectDeposit(connection,dep,'Timeout (24 hours)');
+        } else {
+          const verification=await verifyDepositManually(dep, connection);
+          if (!verification.success) {
+            // Verification is a pre-check, not an automatic settlement decision.
+            // Keep the request pending so the authenticated admin deposit-review
+            // route remains the single authority that can approve/reject funds.
+            await markDepositPendingReview(connection,dep,verification.reason);
+          } else {
+            await markDepositPendingReview(connection,dep,'All automated checks passed; awaiting authenticated administrator approval.');
+            console.log(`[DepositVerification] Deposit #${dep.id} passed pre-validation and remains pending for admin review.`);
+          }
         }
         await connection.commit();
       } catch (error) {
@@ -145,4 +205,4 @@ async function processPendingDeposits() {
   } finally { connection.release(); }
 }
 
-module.exports={processPendingDeposits,syncVerificationSettingsFromWallets,getNetworkSettings,getAllNetworkSettings,updateNetworkSetting,extractPrefixSuffix,verifyDepositManually};
+module.exports={processPendingDeposits,syncVerificationSettingsFromWallets,getNetworkSettings,getAllNetworkSettings,updateNetworkSetting,extractPrefixSuffix,verifyDepositManually,approveDeposit};

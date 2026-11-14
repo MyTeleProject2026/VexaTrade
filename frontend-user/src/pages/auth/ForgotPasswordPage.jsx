@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
 
               <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                 <div className="text-xs uppercase tracking-[0.28em] text-slate-500">Recovery</div>
-                <div className="mt-3 text-sm leading-6 text-slate-300">This screen is styled and ready. When you want, I can wire it to a real backend reset-password endpoint next.</div>
+                <div className="mt-3 text-sm leading-6 text-slate-300">This recovery screen is ready for the VexaTrade account recovery flow. Enter your email above to request a secure reset link.</div>
               </div>
             </div>
           </div>

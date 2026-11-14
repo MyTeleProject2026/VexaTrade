@@ -20,6 +20,7 @@ import MarketChart from "../components/MarketChart";
 import {
   tradeApi,
   userApi,
+  marketApi,
   getApiErrorMessage,
 } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
@@ -125,7 +126,7 @@ function resultLabel(trade) {
   if (outcome === "win") return "WIN";
   if (outcome === "loss") return "LOSS";
   if (outcome === "tie") return "TIE";
-  if (["open", "pending"].includes(outcome)) return "OPEN";
+  if (["open", "pending"].includes(outcome)) return "PENDING";
   return String(trade?.status || "PENDING").toUpperCase();
 }
 function resultTone(trade) {
@@ -302,7 +303,7 @@ function RunningTradeModal({ trade, remainingSeconds, livePrice, onClose }) {
           </div>
 
           <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] leading-5 text-slate-400">
-            The live price is informational during the countdown. Final WIN/LOSS/TIE and settlement are determined by the backend settlement process at expiry.
+            The live price is informational during the countdown. Final WIN/LOSS/TIE and settlement are processed through the Vexa Blockchain Ecosystem settlement framework.
           </div>
 
           <button onClick={onClose} className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white hover:bg-white/10">
@@ -323,7 +324,7 @@ function Metric({ label, value }) {
   );
 }
 
-export default function TradePage() {
+export default function TradePage({ embedded = false } = {}) {
   const navigate = useNavigate();
   const token =
     localStorage.getItem("userToken") ||
@@ -342,7 +343,8 @@ export default function TradePage() {
   const [tradeHistory, setTradeHistory] = useState([]);
   const [pair, setPair] = useState("BTCUSDT");
   const [direction, setDirection] = useState("bullish");
-  const [timer, setTimer] = useState(60);
+  const requestedTimer = Number(new URLSearchParams(window.location.search).get("duration") || sessionStorage.getItem("vexa_short_term_duration") || 60);
+  const [timer, setTimer] = useState(Number.isInteger(requestedTimer) && requestedTimer > 0 ? requestedTimer : 60);
   const [amount, setAmount] = useState("");
   const [timeframe, setTimeframe] = useState("5m");
   const [activeSection, setActiveSection] = useState("trade");
@@ -372,13 +374,7 @@ export default function TradePage() {
     return map;
   }, [marketRows]);
   const selectedMarket = marketMap[String(pair).toUpperCase()] || null;
-  const timerOptions = useMemo(() => {
-    const configured = rules
-      .filter((rule) => String(rule.status || "active").toLowerCase() === "active")
-      .map((rule) => Number(rule.timer_seconds))
-      .filter((seconds) => Number.isInteger(seconds) && seconds > 0 && seconds <= 86400);
-    return [...new Set([...DEFAULT_TIMER_OPTIONS, ...configured])].sort((a, b) => a - b);
-  }, [rules]);
+  const timerOptions = DEFAULT_TIMER_OPTIONS;
 
   useEffect(() => {
     if (!timerOptions.includes(Number(timer))) setTimer(timerOptions[0] || 60);
@@ -499,6 +495,37 @@ export default function TradePage() {
     void finalizeExpiredTrade();
   }, [remainingSeconds, runningTrade]);
 
+  // The terminal uses the live market stream for price/countdown updates.
+  // Financial state is refreshed after a completed action, when the page regains
+  // focus, and once at expiry. No repeating API polling loop is used.
+  useEffect(() => {
+    const handleFinancialAction = (event) => {
+      const action = String(event?.detail?.action || "");
+      if (action === "trade-submit") {
+        void refreshOpenTrades(false);
+        void refreshTradeHistory(false);
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        void refreshOpenTrades(false);
+        void refreshTradeHistory(false);
+        void refreshWalletBalance(false);
+      }
+    };
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
   async function loadTradePage() {
     // Never gate the trading terminal on a batch of API reads. Render the shell
     // immediately and hydrate each independent section as its own read completes.
@@ -547,6 +574,19 @@ export default function TradePage() {
     }
   }
 
+  async function refreshWalletBalance(showErrorOnFailure = false) {
+    try {
+      const response = await userApi.getWalletSummary(token);
+      const data = response.data?.data || {};
+      const balance = Number(data.balance || 0);
+      setWallet({ balance: Number.isFinite(balance) ? balance : 0 });
+      return Number.isFinite(balance) ? balance : 0;
+    } catch (error) {
+      if (showErrorOnFailure) showError(getApiErrorMessage(error) || "Wallet balance could not be refreshed.");
+      return null;
+    }
+  }
+
   async function refreshOpenTrades(showSpinner = false) {
     if (showSpinner) setRefreshing(true);
     try {
@@ -581,7 +621,7 @@ export default function TradePage() {
     shownSettledTradeIdRef.current = id;
     setSettlementPending(false);
     setResultReceipt(settled);
-    setActiveSection("history");
+    if (!embedded) setActiveSection("history");
   }
 
   async function finalizeExpiredTrade() {
@@ -593,6 +633,7 @@ export default function TradePage() {
     // One controlled history read at expiry. No polling/retry loop and no broad
     // wallet/target refresh is triggered automatically.
     await refreshTradeHistory(false);
+    await refreshWalletBalance(false);
     if (shownSettledTradeIdRef.current !== id) setSettlementPending(true);
   }
 
@@ -646,6 +687,8 @@ export default function TradePage() {
       return;
     }
 
+    const freshBalance = await refreshWalletBalance(true);
+    const authoritativeBalance = freshBalance === null ? Number(wallet.balance || 0) : freshBalance;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       showError("Enter a valid USDT amount.");
@@ -659,8 +702,8 @@ export default function TradePage() {
       showError(`Maximum trade amount is ${formatAmount(activeRule.max_amount)} USDT.`);
       return;
     }
-    if (numericAmount > Number(wallet.balance || 0)) {
-      showError("Insufficient available USDT balance.");
+    if (numericAmount > authoritativeBalance) {
+      showError("Insufficient available USDT balance. Available: " + formatAmount(authoritativeBalance) + " USDT.");
       return;
     }
 
@@ -712,11 +755,20 @@ export default function TradePage() {
       setTradeReview(null);
       setAmount("");
       setRunningTrade(placedTrade);
-      setShowRunningTrade(true);
+      setShowRunningTrade(false);
       setSettlementPending(false);
-      setActiveSection("orders");
+      try {
+        sessionStorage.setItem("vexa_short_term_active_position", JSON.stringify(placedTrade));
+        sessionStorage.removeItem("vexa_short_term_receipt");
+      } catch (_) {}
+      if (!embedded) setActiveSection("orders");
+      // A submitted timed trade enters the dedicated full-screen live-position route.
+      // The legacy compact modal is intentionally not used.
+      // The receipt is shown only after the authoritative expiry/settlement flow.
+      navigate("/trade/short-term/position", { replace: true });
       setOpenTrades(prev => [placedTrade, ...prev.filter(item => Number(item?.id) !== tradeId)]);
       setWallet(prev => ({ ...prev, balance: Math.max(0, Number(prev.balance || 0) - Number(placedTrade.amount || 0)) }));
+      void refreshWalletBalance(false);
       showSuccess(`Trade #${tradeId} placed at ${formatPrice(placedTrade.entryPrice)}.`);
     } catch (err) {
       showError(getApiErrorMessage(err) || "Trade could not be placed.");
@@ -810,7 +862,7 @@ export default function TradePage() {
         </div>
       </header>
 
-      <section className="border-b border-white/10 bg-[#050812]/90 px-2.5 py-2 backdrop-blur-xl sm:px-4">
+      {!embedded && <section className="border-b border-white/10 bg-[#050812]/90 px-2.5 py-2 backdrop-blur-xl sm:px-4">
         <div className="mx-auto max-w-5xl rounded-xl border border-white/10 bg-white/[0.025] p-1 shadow-lg shadow-black/20">
           <div className="grid grid-cols-2 gap-1">
             <button type="button" onClick={() => navigate("/trade")} aria-current="page" className="min-h-0 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-left text-cyan-100 shadow-inner shadow-cyan-400/5 transition active:scale-[0.99]">
@@ -825,10 +877,10 @@ export default function TradePage() {
             </button>
           </div>
         </div>
-      </section>
+      </section>}
 
       <main className="mx-auto max-w-5xl">
-        <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
+        {!embedded && <section className="border-b border-white/10 bg-[#070c17] px-3 pt-2 sm:px-4">
           <div className="flex gap-1 overflow-x-auto pb-2">
             {["trade", "orders", "history"].map((section) => (
               <button
@@ -841,9 +893,9 @@ export default function TradePage() {
               </button>
             ))}
           </div>
-        </section>
+        </section>}
 
-        {activeSection === "trade" && (
+        {(embedded || activeSection === "trade") && (
           <>
             <section className="border-b border-white/10 p-2.5 sm:p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -915,7 +967,7 @@ export default function TradePage() {
                   <div className="grid grid-cols-3 gap-1.5">
                     {timerOptions.map((seconds) => (
                       <button key={seconds} type="button" onClick={() => setTimer(seconds)} className={`rounded-xl border py-2 text-xs font-semibold ${Number(timer) === seconds ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-white/10 bg-[#050812] text-slate-400 hover:text-white"}`}>
-                        {seconds < 60 ? `${seconds}s` : `${seconds / 60}m`}
+                        {seconds === 60 ? "60-second" : seconds === 180 ? "180-Second" : "300-Second"}
                       </button>
                     ))}
                   </div>
@@ -960,7 +1012,7 @@ export default function TradePage() {
                 </div>
 
                 <div className="mt-3 rounded-xl border border-cyan-400/10 bg-cyan-400/5 p-2.5 text-[10px] leading-4 text-slate-400">
-                  Entry price is captured from the live market stream at the exact BUY/SELL action. Final settlement uses the backend expiry process.
+                  Entry price is captured from the live market stream at the exact BUY/SELL action. Final settlement follows the Vexa Blockchain Ecosystem settlement framework.
                 </div>
 
                 <button
@@ -976,7 +1028,7 @@ export default function TradePage() {
           </>
         )}
 
-        {activeSection === "orders" && (
+        {!embedded && activeSection === "orders" && (
           <section className="p-2.5 sm:p-3">
             <div className="mb-3 flex items-end justify-between">
               <div>
@@ -988,21 +1040,28 @@ export default function TradePage() {
             {settlementPending && (
               <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-400/15 bg-amber-400/5 p-3 text-[11px] text-amber-200">
                 <Clock3 size={14} />
-                Trade expiry reached. Settlement is still being processed by the backend. Refresh Orders/History when the final receipt is available.
+                Trade expiry reached. The Vexa Blockchain Ecosystem is processing the settlement result. Refresh Orders/History when the final receipt is available.
               </div>
             )}
             <div className="space-y-2">
               {openTrades.length ? openTrades.map((trade) => (
                 <OpenTradeCard key={trade.id} trade={trade} onOpen={() => {
                   lastPlacedTradeIdRef.current = Number(trade.id);
-                  setRunningTrade({
-                    ...trade,
-                    entryPrice: Number(trade.entry_price || 0),
-                    payoutPercent: Number(trade.payout_percent || 0),
-                    endTime: trade.end_time,
-                    timer: Number(trade.timer_seconds || trade.timer || 60),
-                  });
-                  setShowRunningTrade(true);
+                  setPair(String(trade.pair || pair).toUpperCase());
+                  try {
+                    sessionStorage.setItem("vexa_short_term_active_position", JSON.stringify({
+                      ...trade,
+                      id: trade.id,
+                      pair: trade.pair,
+                      direction: trade.direction,
+                      entryPrice: Number(trade.entry_price || trade.entryPrice || 0),
+                      payoutPercent: Number(trade.payout_percent || trade.payoutPercent || 0),
+                      endTime: trade.end_time || trade.endTime,
+                      timer: Number(trade.timer_seconds || trade.timer || 60),
+                    }));
+                    sessionStorage.removeItem("vexa_short_term_receipt");
+                  } catch (_) {}
+                  navigate("/trade/short-term/position", { replace: true });
                 }} />
               )) : (
                 <EmptyState icon={BarChart3} title="No open trades" body="Your active positions will appear here after a successful BUY or SELL." />
@@ -1011,7 +1070,7 @@ export default function TradePage() {
           </section>
         )}
 
-        {activeSection === "history" && (
+        {!embedded && activeSection === "history" && (
           <section className="p-3 sm:p-4">
             <div className="mb-3 flex items-end justify-between">
               <div>
@@ -1035,22 +1094,15 @@ export default function TradePage() {
         )}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
+      {!embedded && <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-[#070c17]/95 px-2 py-1 backdrop-blur sm:hidden">
         <div className="mx-auto flex max-w-lg justify-around">
           <BottomNavButton active={activeSection === "trade"} icon={TrendingUp} label="Trade" onClick={() => setActiveSection("trade")} />
           <BottomNavButton active={activeSection === "orders"} icon={BarChart3} label="Orders" onClick={() => setActiveSection("orders")} />
           <BottomNavButton active={activeSection === "history"} icon={History} label="History" onClick={() => setActiveSection("history")} />
         </div>
-      </div>
+      </div>}
 
-      {runningTrade && showRunningTrade && (
-        <RunningTradeModal
-          trade={runningTrade}
-          remainingSeconds={remainingSeconds}
-          livePrice={livePrice}
-          onClose={() => setShowRunningTrade(false)}
-        />
-      )}
+
       {tradeReview && (
         <TradeReviewModal
           review={tradeReview}
@@ -1077,15 +1129,15 @@ function TradeReviewModal({ review, placing, onBack, onConfirm }) {
       <div className="w-full max-w-md rounded-t-3xl border border-white/10 bg-[#080d19] p-4 shadow-2xl sm:rounded-3xl">
         <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-300">Step 2 of 3</div>
         <h2 className="mt-1 text-lg font-bold text-white">Review Short-Term Trade</h2>
-        <p className="mt-1 text-[10px] text-slate-500">The backend will create exactly one timed position after you confirm.</p>
+        <p className="mt-1 text-[10px] text-slate-500">The Vexa Blockchain Ecosystem will process the confirmed timed position according to the platform settlement framework.</p>
         <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-[#050812] p-4 text-xs">
           <ReceiptRow label="Pair" value={review.pair} />
           <ReceiptRow label="Side" value={isBuy ? "BUY" : "SELL"} valueClassName={isBuy ? "text-emerald-300" : "text-red-300"} />
-          <ReceiptRow label="Duration" value={review.timer < 60 ? `${review.timer}s` : `${review.timer / 60}m`} />
+          <ReceiptRow label="Duration" value={review.timer === 60 ? "60-second" : review.timer === 180 ? "180-Second" : "300-Second"} />
           <ReceiptRow label="Stake" value={`${formatAmount(review.amount)} USDT`} />
           <ReceiptRow label="Captured entry" value={formatPrice(review.entryPrice)} />
           <ReceiptRow label="Payout" value={`${formatPercent(review.payoutPercent)}%`} />
-          <div className="border-t border-white/10 pt-2 text-[10px] leading-4 text-slate-500">Final settlement is performed by the backend at expiry. No secure-transaction page is inserted between review and placement.</div>
+          <div className="border-t border-white/10 pt-2 text-[10px] leading-4 text-slate-500">Final settlement is completed through the Vexa Blockchain Ecosystem framework at expiry. No secure-transaction page is inserted between review and placement.</div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" disabled={placing} onClick={onBack} className="rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 disabled:opacity-50">Back</button>
@@ -1119,6 +1171,9 @@ function DepthRow({ row, maxTotal, side }) {
 function OpenTradeCard({ trade, onOpen }) {
   const end = trade.end_time || trade.endTime;
   const remaining = secondsUntil(end);
+  const entry = Number(trade.entry_price || trade.entryPrice || 0);
+  const current = Number(trade.livePrice || 0);
+  const delta = entry > 0 && current > 0 ? ((current - entry) / entry) * 100 : 0;
   return (
     <button type="button" onClick={onOpen} className="w-full rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-left transition hover:border-cyan-400/20 hover:bg-[#0b1120]">
       <div className="flex items-center justify-between gap-3">
@@ -1128,17 +1183,18 @@ function OpenTradeCard({ trade, onOpen }) {
           </div>
           <div className="min-w-0">
             <div className="truncate text-xs font-bold text-white">{trade.pair}</div>
-            <div className="text-[10px] text-slate-500">{trade.direction === "bullish" ? "BUY" : "SELL"} · {trade.timer_seconds || trade.timer}s</div>
+            <div className="text-[10px] text-slate-500">{trade.direction === "bullish" ? "BUY" : "SELL"} · {trade.timer_seconds === 60 ? "60-second" : trade.timer_seconds === 180 ? "180-Second" : trade.timer_seconds === 300 ? "300-Second" : `${trade.timer_seconds || trade.timer}s`}</div>
           </div>
         </div>
         <div className="text-right">
           <div className="text-sm font-bold tabular-nums text-white">{formatCountdown(remaining)}</div>
-          <div className="text-[9px] text-amber-300">remaining</div>
+          <div className="text-[9px] text-cyan-300">● LIVE PROCESSING</div>
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-2">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-2 sm:grid-cols-4">
         <Metric label="Stake" value={`${formatAmount(trade.amount)} USDT`} />
         <Metric label="Entry" value={formatPrice(trade.entry_price)} />
+        <Metric label="Live price" value={Number(trade.livePrice || 0) > 0 ? formatPrice(trade.livePrice) : "Streaming…"} />
         <div className="rounded-xl border border-white/10 bg-[#050812] p-2.5 text-center">
           <div className="text-[9px] uppercase tracking-wider text-slate-500">Status</div>
           <div className="mt-1"><StatusPill trade={trade} /></div>

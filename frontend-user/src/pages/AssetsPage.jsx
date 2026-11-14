@@ -206,12 +206,12 @@ function PortfolioCard({ title, value, subtext, icon: Icon, tone = "text-white" 
 }
 
 // ✅ FIX: AssetRow with proper coin logos
-function AssetRow({ item }) {
+function AssetRow({ item, onClick }) {
   const pnlPositive = Number(item.spotPnl || 0) >= 0;
   const logo = item.logo || COIN_LOGOS[item.symbol] || { icon: item.symbol[0], color: "#6B7280" };
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/5 bg-white/[0.02] px-3 py-3 sm:px-4">
+    <button type="button" onClick={onClick} className="flex w-full items-center justify-between gap-3 rounded-[24px] border border-white/5 bg-white/[0.02] px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-white/[0.04] sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
         <div
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${item.accent} text-lg font-bold text-white ring-1 ring-white/10 sm:h-12 sm:w-12`}
@@ -256,7 +256,7 @@ function AssetRow({ item }) {
           </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -920,15 +920,39 @@ export default function AssetsPage() {
   useEffect(() => {
     loadData();
 
-    const handleTransactionComplete = (event) => {
+    // Financial actions can change the authoritative wallet buckets immediately.
+    // Refresh the complete Assets view after an action instead of refreshing only
+    // the portfolio rows, so Available USDT, open-trade totals and notifications
+    // stay synchronized with the same backend ledger source.
+    const handleFinancialAction = (event) => {
       const action = String(event?.detail?.action || "").toLowerCase();
       if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {
-        refreshPortfolioAssets();
+        void loadData(true);
       }
     };
 
+    const handleTransactionComplete = (event) => {
+      const action = String(event?.detail?.action || "").toLowerCase();
+      if (["deposit", "withdrawal", "convert", "transfer", "trade", "funds", "loan", "profit-withdrawal"].includes(action)) {
+        void loadData(true);
+      }
+    };
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") void loadData(true);
+    };
+
+    window.addEventListener("vexa:financial-action-complete", handleFinancialAction);
     window.addEventListener("vexa:transaction-complete", handleTransactionComplete);
-    return () => window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("vexa:financial-action-complete", handleFinancialAction);
+      window.removeEventListener("vexa:transaction-complete", handleTransactionComplete);
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   // Portfolio value is derived from the actual coin holdings. `wallet.balance`
@@ -1020,6 +1044,12 @@ export default function AssetsPage() {
             </div>
           )}
 
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+            <span>Available USDT <b className="text-cyan-300">{formatMoney(wallet.balance)} USDT</b></span>
+            {Number(wallet.pending_balance || 0) > 0 && <span>Pending <b className="text-amber-300">{formatMoney(wallet.pending_balance)} USDT</b></span>}
+            {Number(wallet.reserved_balance || 0) > 0 && <span>Reserved <b className="text-amber-300">{formatMoney(wallet.reserved_balance)} USDT</b></span>}
+          </div>
+
           <button
             type="button"
             onClick={() => navigate("/transactions")}
@@ -1062,12 +1092,7 @@ export default function AssetsPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white sm:text-3xl">Portfolio</h2>
 
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.06]"
-          >
-            <SlidersHorizontal size={17} />
-          </button>
+          <button type="button" onClick={() => navigate("/assets/select")} className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.06] sm:text-sm"><SlidersHorizontal size={17} />Manage assets</button>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1118,7 +1143,7 @@ export default function AssetsPage() {
         <div className="space-y-2.5">
           {normalizedHoldings.length > 0 ? (
             normalizedHoldings.map((item) => (
-              <AssetRow key={item.symbol} item={item} />
+              <AssetRow key={item.symbol} item={item} onClick={() => navigate(`/assets/${encodeURIComponent(item.symbol)}`)} />
             ))
           ) : (
             <div className="rounded-[24px] border border-white/10 bg-[#0a0e1a] p-8 text-center text-slate-400">
@@ -1142,14 +1167,7 @@ export default function AssetsPage() {
           </button>
         </div>
 
-        <div className="mt-4">
-          <HistoryRow
-            title="Place an order"
-            date={new Date().toLocaleString()}
-            amount={`-${formatMoney(displayBalance > 0 ? Math.min(displayBalance, 371) : 0)} USDT`}
-            negative
-          />
-        </div>
+        <button type="button" onClick={() => navigate("/transactions")} className="mt-4 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[.02] p-3 text-left transition hover:bg-white/[.05]"><div><div className="text-sm font-medium text-white">Open wallet transaction history</div><div className="mt-1 text-xs text-slate-500">View deposits, withdrawals, transfers, conversions and trading records.</div></div><ChevronRight size={18} className="text-slate-400"/></button>
       </section>
 
       {/* QR Transfer Modal */}

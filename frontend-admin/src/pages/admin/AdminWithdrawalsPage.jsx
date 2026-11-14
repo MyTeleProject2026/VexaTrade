@@ -70,6 +70,7 @@ export default function AdminWithdrawalsPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [treasuryStatus, setTreasuryStatus] = useState(null);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -80,7 +81,23 @@ export default function AdminWithdrawalsPage() {
 
   useEffect(() => {
     fetchWithdrawals(true);
+    fetchTreasuryStatus();
   }, [token]);
+
+  async function fetchTreasuryStatus() {
+    try {
+      const response = await adminApi.getTreasuryStatus(token);
+      setTreasuryStatus(response.data?.data || null);
+    } catch {
+      setTreasuryStatus({
+        provider: "Bitget Wallet",
+        treasuryConfigured: false,
+        outboundSettlementReady: false,
+        enabledOutboundNetworks: [],
+        message: "Treasury readiness could not be verified. Outbound settlement remains disabled."
+      });
+    }
+  }
 
 
 
@@ -109,7 +126,7 @@ export default function AdminWithdrawalsPage() {
   }
 
   async function handleApprove(id) {
-    const confirmed = window.confirm("Begin settlement processing for this authorized withdrawal?");
+    const confirmed = window.confirm("Record owner approval? This will not send a blockchain transaction. Transfers remain pending until treasury funding, signing, broadcast, and receipt verification are configured.");
     if (!confirmed) return;
 
     try {
@@ -118,7 +135,7 @@ export default function AdminWithdrawalsPage() {
       setSuccess("");
 
       await adminApi.approveWithdrawal(id, {}, token);
-      const successMsg = `Withdrawal #${id} moved to settlement processing.`;
+      const successMsg = `Withdrawal #${id} approved by owner. No blockchain transaction was sent; it remains pending treasury configuration.`;
       setSuccess(successMsg);
       // ✅ ADDED: Success toast
       addToast(successMsg, "success");
@@ -160,24 +177,6 @@ export default function AdminWithdrawalsPage() {
     } finally {
       setActionLoading("");
     }
-  }
-
-  async function handleComplete(id) {
-    const txid = window.prompt("Enter the REAL external blockchain transaction hash/reference:");
-    if (txid === null) return;
-    if (!String(txid).trim()) {
-      const errorMsg = "A real external transaction hash/reference is required to complete settlement.";
-      setError(errorMsg); addToast(errorMsg, "error"); return;
-    }
-    const settlementNote = window.prompt("Settlement note (optional):", "");
-    if (settlementNote === null) return;
-    try {
-      setActionLoading(`complete-${id}`); setError(""); setSuccess("");
-      await adminApi.completeWithdrawal(id, { txid: String(txid).trim(), settlement_note: settlementNote }, token);
-      const successMsg = `Withdrawal #${id} settlement completed with recorded transaction reference.`;
-      setSuccess(successMsg); addToast(successMsg, "success"); await fetchWithdrawals(false, false);
-    } catch (err) { const errorMsg = getApiErrorMessage(err); setError(errorMsg); addToast(errorMsg, "error"); }
-    finally { setActionLoading(""); }
   }
 
   function handleFilterChange(e) {
@@ -260,7 +259,30 @@ export default function AdminWithdrawalsPage() {
 
   return (
     <div className="space-y-5">
-      {/* ✅ ADDED: Toast Container */}
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-100">
+        <strong className="font-semibold">On-chain settlement is locked.</strong> A manually entered TXID is not proof that a payment was sent. VexaTrade will only mark a withdrawal complete after a configured treasury provider broadcasts the transfer and verifies its confirmed receipt.
+      </div>
+      <section className="rounded-2xl border border-amber-500/20 bg-[#0a0e1a] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Treasury provider readiness</p>
+            <p className="mt-2 text-sm font-semibold text-white">{treasuryStatus?.provider || "Bitget Wallet"} · {treasuryStatus?.outboundSettlementReady ? "Configured" : "Not configured"}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">{treasuryStatus?.message || "Checking authenticated treasury configuration…"}</p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+            {treasuryStatus?.outboundSettlementReady ? "Settlement enabled" : "Outbound transfers locked"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <InfoBox label="Outbound networks enabled" value={(treasuryStatus?.enabledOutboundNetworks || []).length ? treasuryStatus.enabledOutboundNetworks.join(", ") : "None"} />
+          <InfoBox label="Receipt policy" value="Confirmed chain receipt required; manual TXID is never accepted as proof." />
+        </div>
+        {Array.isArray(treasuryStatus?.missing) && treasuryStatus.missing.length > 0 && (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-400">
+            {treasuryStatus.missing.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        )}
+      </section>
       <ToastContainer />
 
       <section className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.10),transparent_18%),linear-gradient(180deg,#111827_0%,#020617_100%)] p-5 shadow-xl">
@@ -273,7 +295,7 @@ export default function AdminWithdrawalsPage() {
               Withdrawal Management
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Monitor authorization and settlement stages. Completion requires a real external transaction reference.
+              Monitor owner approval and settlement stages. Owner approval does not send funds; completion requires a real broadcast and verified chain receipt.
             </p>
           </div>
 
@@ -484,8 +506,8 @@ export default function AdminWithdrawalsPage() {
 
                     {canBeginSettlement || isProcessing || canCancel ? (
                       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                        {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Starting..." : "Begin Settlement"}</button> : null}
-                        {isProcessing ? <button type="button" disabled={actionLoading === `complete-${w.id}`} onClick={() => handleComplete(w.id)} className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50">{actionLoading === `complete-${w.id}` ? "Completing..." : "Record Real TXID & Complete"}</button> : null}
+                        {canBeginSettlement ? <button type="button" disabled={actionLoading === `approve-${w.id}`} onClick={() => handleApprove(w.id)} className="rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-50">{actionLoading === `approve-${w.id}` ? "Saving..." : "Approve Request (No Send)"}</button> : null}
+                        {isProcessing ? <button type="button" disabled title="Locked until a configured treasury provider broadcasts and verifies the blockchain receipt" className="cursor-not-allowed rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200/80">Blockchain provider required</button> : null}
                         {canCancel ? <button type="button" disabled={actionLoading === `reject-${w.id}`} onClick={() => handleReject(w.id)} className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">{actionLoading === `reject-${w.id}` ? "Cancelling..." : "Cancel & Release Asset"}</button> : null}
                       </div>
                     ) : (

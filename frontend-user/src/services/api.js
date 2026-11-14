@@ -184,6 +184,7 @@ export const userApi = {
   setUserTarget: (payload, token) => appApiClient.post("/api/user/target/set", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   updateTargetProfit: (payload, token) => appApiClient.post("/api/user/target/update-profit", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getWithdrawalSettings: () => appApiClient.get("/api/withdrawal-settings"),
+  getProfitWithdrawalAvailability: (token) => appApiClient.get("/api/withdraw/profit-availability", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   requestProfitWithdrawal: (payload, token) => appApiClient.post("/api/withdraw/profit-request", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getProfitWithdrawalHistory: (token) => appApiClient.get("/api/withdraw/profit-history", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getNotifications: (token) => appApiClient.get("/api/user/notifications", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
@@ -198,6 +199,8 @@ export const userApi = {
   approveJointWithdrawal: (payload, token) => appApiClient.post("/api/joint-account/approve-withdrawal", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   submitKyc: (formData, token) => appApiClient.post("/api/kyc/upload", formData, { headers: { Authorization: `Bearer ${getUserToken(token)}`, "Content-Type": "multipart/form-data" } }),
   getUserAssets: (token) => appApiClient.get("/api/user/assets", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  getAsset: (coin, token) => appApiClient.get(`/api/user/assets/${encodeURIComponent(coin)}`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  getSupportedAssets: (token) => appApiClient.get("/api/supported-assets", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getCombinedJointBalance: (token) => appApiClient.get("/api/joint-account/combined-balance", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getWalletSummary: (token) => appApiClient.get("/api/wallet/summary", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   getTransactions: (token) => appApiClient.get("/api/transactions", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
@@ -217,6 +220,8 @@ export const marketApi = {
   home: () => appApiClient.get("/api/market/home"),
   list: () => appApiClient.get("/api/market/list"),
   price: (symbol) => appApiClient.get(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
+  ticker: (symbol) => appApiClient.get(`/api/market/ticker?symbol=${encodeURIComponent(symbol)}`),
+  klines: (symbol, interval = "1m", limit = 300) => appApiClient.get(`/api/market/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${Number(limit)}`),
 };
 
 export const depositApi = {
@@ -252,13 +257,24 @@ export const spotTradeApi = {
   },
 };
 
+export const digitalOptionsApi = {
+  settings: (token) => appApiClient.get('/api/digital-options/settings', { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  active: (token) => appApiClient.get('/api/digital-options/active', { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  history: (token) => appApiClient.get('/api/digital-options/history', { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  place: (payload, token) => { const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey('digital-options'); return appApiClient.post('/api/digital-options/place', { ...payload, idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, 'Idempotency-Key': idempotencyKey } }); },
+  cashout: (id, token) => { const idempotencyKey = createIdempotencyKey('digital-options-cashout'); return appApiClient.post(`/api/digital-options/cashout/${id}`, { idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, 'Idempotency-Key': idempotencyKey } }); },
+};
+
 export const fundsApi = {
   plans: (token) => appApiClient.get("/api/funds/plans", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   summary: (token) => appApiClient.get("/api/funds/summary", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   active: (token) => appApiClient.get("/api/funds/active", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   history: (token) => appApiClient.get("/api/funds/history", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   latestCompleted: (token) => appApiClient.get("/api/funds/completed-latest", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
-  apply: (payload, token) => appApiClient.post("/api/funds/apply", payload, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  profits: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/profits`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  transactions: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}/transactions`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  getById: (fundId, token) => appApiClient.get(`/api/funds/${encodeURIComponent(fundId)}`, { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  apply: (payload, token) => { const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("funds-apply"); return appApiClient.post("/api/funds/apply", { ...payload, idempotencyKey }, { headers: { Authorization: `Bearer ${getUserToken(token)}`, "Idempotency-Key": idempotencyKey } }); },
 };
 
 export const convertApi = {
@@ -280,3 +296,8 @@ export const newsApi = {
 };
 
 export default appApiClient;
+
+
+// Account verification workflow
+export const getAccountVerification = (token) => appApiClient.get("/api/account-verification/status", { headers: { Authorization: `Bearer ${getUserToken(token)}` } });
+export const submitAccountVerification = (step, formData, token) => appApiClient.post(`/api/account-verification/steps/${Number(step)}/submit`, formData, { headers: { Authorization: `Bearer ${getUserToken(token)}`, "Content-Type": "multipart/form-data" }, timeout: 60000 });

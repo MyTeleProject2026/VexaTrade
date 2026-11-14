@@ -184,15 +184,22 @@ export default function AdminTradesPage() {
         throw new Error("Admin token missing. Please login again.");
       }
 
-      const [tradeRes, queueRes] = await Promise.all([
-        adminApi.getTrades(token),
-        adminApi.getTradeOutcomeQueue(token),
-      ]);
-
+      // Load the core trade list independently from the optional outcome queue.
+      // A queue/schema/API failure must not turn the entire Admin Trades page into
+      // a generic external-server error when the authoritative trades endpoint is healthy.
+      const tradeRes = await adminApi.getTrades(token);
       setTrades(Array.isArray(tradeRes.data?.data) ? tradeRes.data.data : []);
-      setQueueItems(Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
-      
-      // ✅ ADDED: Success toast for initial load
+
+      try {
+        const queueRes = await adminApi.getTradeOutcomeQueue(token);
+        setQueueItems(Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
+        setQueueError("");
+      } catch (queueErr) {
+        const queueMsg = getApiErrorMessage(queueErr);
+        setQueueItems([]);
+        setQueueError(queueMsg);
+      }
+
       addToast("Trades loaded successfully", "success");
     } catch (err) {
       const errorMsg = getApiErrorMessage(err);
@@ -208,13 +215,17 @@ export default function AdminTradesPage() {
     try {
       setRefreshing(true);
 
-      const [tradeRes, queueRes] = await Promise.all([
-        adminApi.getTrades(token),
-        adminApi.getTradeOutcomeQueue(token),
-      ]);
-
+      const tradeRes = await adminApi.getTrades(token);
       setTrades(Array.isArray(tradeRes.data?.data) ? tradeRes.data.data : []);
-      setQueueItems(Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
+
+      try {
+        const queueRes = await adminApi.getTradeOutcomeQueue(token);
+        setQueueItems(Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
+        setQueueError("");
+      } catch (queueErr) {
+        setQueueItems([]);
+        setQueueError(getApiErrorMessage(queueErr));
+      }
     } catch (err) {
       console.error("Live refresh failed:", err);
     } finally {
@@ -669,6 +680,14 @@ export default function AdminTradesPage() {
                       className="rounded-xl bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
                     >
                       {savingOverrideId === trade.id ? "Processing..." : "Force Loss"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOverrideTrade(trade.id, "tie")}
+                      disabled={savingOverrideId === trade.id}
+                      className="rounded-lg border border-slate-500/20 bg-slate-500/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-500/20 disabled:opacity-50"
+                    >
+                      {savingOverrideId === trade.id ? "Processing..." : "Set Tie"}
                     </button>
                   </div>
                 </div>

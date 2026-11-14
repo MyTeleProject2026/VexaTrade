@@ -7,7 +7,10 @@ const ADMIN_REQUEST_TIMEOUT_MS = 20000;
 const api = axios.create({ baseURL: API_BASE_URL, timeout: ADMIN_REQUEST_TIMEOUT_MS, headers: { "Content-Type": "application/json" } });
 
 export function getApiErrorMessage(error) {
-  if (error?.code === "ECONNABORTED" || error?.code === "ERR_CANCELED") return "Request timed out. Please retry.";
+  if (error?.code === "ECONNABORTED" || error?.code === "ERR_CANCELED") return "The VexaTrade API did not respond within 20 seconds. Check whether the backend service is running, then retry.";
+  if (!error?.response && (error?.request || error?.message === "Network Error" || error?.message === "Failed to fetch" || error instanceof TypeError)) {
+    return "Cannot reach the VexaTrade API. This is a network/CORS/backend-availability error, not a rejected password. Check the API URL and backend health at /api/health, then retry.";
+  }
   return error?.response?.data?.message || error?.response?.data?.error || error?.message || "Something went wrong";
 }
 
@@ -39,6 +42,11 @@ export const adminApi = {
   sendNotification: (payload, token) => api.post("/api/admin/notifications/send", payload, authHeaders(token)),
   sendNotificationWithEmail: (data, token) => api.post("/api/admin/notifications/send", data, authHeaders(token)),
   getUsers: (token) => api.get("/api/admin/users", authHeaders(token)),
+  getAccountVerificationSubmissions: (params, token) => api.get("/api/admin/account-verification/submissions", { ...authHeaders(token), params: params || {} }),
+  getAccountVerification: (userId, token) => api.get(`/api/admin/account-verification/${userId}`, authHeaders(token)),
+  saveAccountVerification: (userId, payload, token) => api.put(`/api/admin/account-verification/${userId}`, payload, authHeaders(token)),
+  reviewAccountVerification: (submissionId, payload, token) => api.post(`/api/admin/account-verification/submissions/${submissionId}/review`, payload, authHeaders(token)),
+  finalReviewAccountVerification: (userId, payload, token) => api.post(`/api/admin/account-verification/${userId}/final-review`, payload, authHeaders(token)),
   getUserDetails: (userId, token) => api.get(`/api/admin/users/${userId}`, authHeaders(token)),
   getUserById: (userId, token) => api.get(`/api/admin/users/${userId}`, authHeaders(token)),
   addUserFunds: (userId, payload, token) => api.post(`/api/admin/users/${userId}/add-funds`, payload, authHeaders(token)),
@@ -59,8 +67,9 @@ export const adminApi = {
   approveKyc: (id, payload, token) => api.post(`/api/admin/kyc/${id}/approve`, payload || {}, authHeaders(token)),
   rejectKyc: (id, payload, token) => api.post(`/api/admin/kyc/${id}/reject`, payload || {}, authHeaders(token)),
   getDeposits: (token) => api.get("/api/admin/deposits", authHeaders(token)),
-  approveDeposit: (id, payload, token) => api.post(`/api/operations/deposits/${id}/approve`, payload || {}, authHeaders(token)),
-  rejectDeposit: (id, payload, token) => api.post(`/api/operations/deposits/${id}/reject`, payload || {}, authHeaders(token)),
+  approveDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/approve`, payload || {}, authHeaders(token)),
+  verifyDepositOnChain: (id, token) => api.post(`/api/operations/deposits/${id}/verify`, {}, authHeaders(token)),
+  rejectDeposit: (id, payload, token) => api.post(`/api/admin/deposits/${id}/reject`, payload || {}, authHeaders(token)),
   getDepositNetworks: (token) => api.get("/api/admin/deposit-networks", authHeaders(token)),
   createDepositNetwork: (payload, token) => api.post("/api/admin/deposit-networks", payload, authHeaders(token)),
   updateDepositNetwork: (id, payload, token) => api.put(`/api/admin/deposit-networks/${id}`, payload, authHeaders(token)),
@@ -68,9 +77,12 @@ export const adminApi = {
   generateWalletQr: (payload, token) => api.post("/api/admin/generate-wallet-qr", payload, authHeaders(token)),
   uploadDepositNetworkQr: (formData, token) => api.post("/api/admin/deposit-networks/upload-qr", formData, { headers: { Authorization: `Bearer ${getAdminToken(token)}`, "Content-Type": "multipart/form-data" } }),
   getNetworkVerificationSettings: (token) => api.get("/api/admin/network-verification-settings", authHeaders(token)),
+  createNetworkVerificationSetting: (payload, token) => api.post("/api/admin/network-verification-settings", payload, authHeaders(token)),
   updateNetworkVerificationSetting: (id, payload, token) => api.put(`/api/admin/network-verification-settings/${id}`, payload, authHeaders(token)),
   syncNetworkVerificationSettings: (token) => api.post("/api/admin/network-verification-settings/sync", {}, authHeaders(token)),
+  deleteNetworkVerificationSetting: (id, token) => api.delete(`/api/admin/network-verification-settings/${id}`, authHeaders(token)),
   getWithdrawals: (token) => api.get("/api/admin/withdrawals", authHeaders(token)),
+  getTreasuryStatus: (token) => api.get("/api/operations/treasury/status", authHeaders(token)),
   approveWithdrawal: (id, payload, token) => api.post(`/api/admin/withdrawals/${id}/approve`, payload || {}, authHeaders(token)),
   rejectWithdrawal: (id, payload, token) => api.post(`/api/operations/withdrawals/${id}/reject`, { ...(payload || {}), note: payload?.note ?? payload?.settlement_note ?? "Withdrawal rejected" }, authHeaders(token)),
   completeWithdrawal: (id, payload, token) => api.post(`/api/operations/withdrawals/${id}/settle`, { ...(payload || {}), note: payload?.note ?? payload?.settlement_note ?? "Manual treasury settlement" }, authHeaders(token)),
@@ -82,7 +94,13 @@ export const adminApi = {
   updateWithdrawalSettings: (payload, token) => api.put("/api/admin/withdrawal-settings", payload, authHeaders(token)),
   getProfitWithdrawalRequests: (token) => api.get("/api/admin/profit-withdrawal-requests", authHeaders(token)),
   approveProfitWithdrawal: (id, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/approve`, {}, authHeaders(token)),
+  settleProfitWithdrawal: (id, payload, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/settle`, payload || {}, authHeaders(token)),
   rejectProfitWithdrawal: (id, token) => api.post(`/api/admin/profit-withdrawal-requests/${id}/reject`, {}, authHeaders(token)),
+  getDigitalOptionsPending: (token) => api.get('/api/admin/digital-options/pending', authHeaders(token)),
+  getDigitalOptionsHistory: (token) => api.get('/api/admin/digital-options/history', authHeaders(token)),
+  getDigitalOptionsSettings: (token) => api.get('/api/admin/digital-options/settings', authHeaders(token)),
+  updateDigitalOptionsSettings: (payload, token) => api.put('/api/admin/digital-options/settings', payload, authHeaders(token)),
+  overrideDigitalOption: (payload, token) => api.post('/api/admin/digital-options/override', payload, authHeaders(token)),
   getTrades: (token) => api.get("/api/admin/trades", authHeaders(token)),
   overrideTrade: (id, payload, token) => api.post(`/api/admin/trades/${id}/override`, payload, authHeaders(token)),
   getTradeRules: (token) => api.get("/api/admin/trade-rules", authHeaders(token)),

@@ -28,6 +28,7 @@ async function settleDailyFunds() {
         fp.name AS plan_name, fp.compound_percentage AS plan_compound_percentage
       FROM user_funds uf
       INNER JOIN fund_plans fp ON fp.id = uf.plan_id
+      INNER JOIN users u ON u.id = uf.user_id
       WHERE uf.status = 'active'
       ORDER BY uf.id ASC
     `);
@@ -40,6 +41,15 @@ async function settleDailyFunds() {
     let completedCount = 0;
 
     for (const fund of activeFunds) {
+      // A fund must always resolve to a real user before any ledger mutation.
+      // The users FK on user_assets correctly rejects orphan IDs; isolate a bad
+      // legacy fund so it cannot roll back settlement for every other user.
+      const [[owner]] = await connection.execute('SELECT id FROM users WHERE id=? LIMIT 1',[fund.user_id]);
+      if (!owner) {
+        console.error(`[FundSettlement] Skipping orphan fund #${fund.id}: user #${fund.user_id} does not exist.`);
+        continue;
+      }
+
       const totalDays = Number(fund.total_days || 0);
       let currentDay = Number(fund.current_day || 0);
       let currentPrincipal = Number(fund.locked_principal || fund.amount || 0);
@@ -110,6 +120,23 @@ async function settleDailyFunds() {
           referenceId: fund.id,
           note: `Compounded ${compoundAmount} USDT into ${fund.plan_name}`,
         });
+      }
+
+      // Synchronize the user's profit target from this same settlement event.
+      // This records earned profit consistently even when part of the profit is compounded;
+      // spendable withdrawal remains capped by the authoritative USDT available balance.
+      if (dailyProfit > 0) {
+        await connection.execute(
+          `UPDATE user_targets
+           SET current_profit = LEAST(target_amount, current_profit + ?),
+               status = CASE
+                 WHEN current_profit + ? >= target_amount THEN 'achieved'
+                 ELSE 'active'
+               END,
+               updated_at = NOW()
+           WHERE user_id = ? AND status = 'active'`,
+          [dailyProfit, dailyProfit, fund.user_id]
+        );
       }
 
       if (profitToWallet > 0) {

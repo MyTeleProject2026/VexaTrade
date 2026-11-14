@@ -12,8 +12,16 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState({ min_withdrawal_from_profit: 10, max_withdrawal_from_profit: 1000, restriction_message: "⚠️ Target not achieved yet. You can only withdraw from your profits." });
   const [loadingSettings, setLoadingSettings] = useState(true);
+  const [availability, setAvailability] = useState({ currentProfit: Number(currentProfit || 0), pendingProfit: 0, walletAvailable: 0, availableProfit: Number(currentProfit || 0) });
 
-  useEffect(() => { if (isOpen) { setStep(0); loadSettings(); } }, [isOpen]);
+  useEffect(() => { if (isOpen) { setStep(0); loadSettings(); loadAvailability(); } }, [isOpen]);
+
+  async function loadAvailability() {
+    try {
+      const res = await userApi.getProfitWithdrawalAvailability(token);
+      if (res.data?.success && res.data?.data) setAvailability(res.data.data);
+    } catch (err) { console.error("Failed to load profit withdrawal availability:", err); }
+  }
 
   async function loadSettings() {
     try { setLoadingSettings(true); const res = await userApi.getWithdrawalSettings(); if (res.data?.success) setSettings(res.data.data); }
@@ -26,7 +34,8 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
     if (!value || value <= 0) { showError("Please enter a valid amount"); return false; }
     if (value < settings.min_withdrawal_from_profit) { showError(`Minimum withdrawal amount is ${settings.min_withdrawal_from_profit} USDT`); return false; }
     if (value > settings.max_withdrawal_from_profit) { showError(`Maximum withdrawal amount per request is ${settings.max_withdrawal_from_profit} USDT`); return false; }
-    if (value > currentProfit) { showError(`You only have ${currentProfit.toFixed(2)} USDT in profits. Cannot withdraw more.`); return false; }
+    const availableProfit = Number(availability.availableProfit || 0);
+    if (value > availableProfit) { showError(`Only ${availableProfit.toFixed(2)} USDT of withdrawable profit is currently available.`); return false; }
     return true;
   }
 
@@ -49,8 +58,10 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
   }
 
   if (!isOpen) return null;
-  const remainingProfit = currentProfit - Number(amount || 0);
-  const progressPercent = targetAmount > 0 ? (currentProfit / targetAmount) * 100 : 0;
+  const displayedProfit = Number(availability.currentProfit ?? currentProfit ?? 0);
+  const availableProfit = Number(availability.availableProfit || 0);
+  const remainingProfit = Math.max(0, availableProfit - Number(amount || 0));
+  const progressPercent = targetAmount > 0 ? (displayedProfit / targetAmount) * 100 : 0;
   const stages = ["Configure", "Review", "Security", "Processing", "Complete"];
 
   return (
@@ -64,9 +75,9 @@ export default function ProfitWithdrawalModal({ isOpen, onClose, onSuccess, curr
         <div className="max-h-[78vh] overflow-y-auto p-5">
           {step === 0 && <div className="space-y-4">
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3"><div className="flex items-start gap-2"><AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" /><p className="text-xs leading-5 text-amber-300">{settings.restriction_message}</p></div></div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex justify-between text-sm"><span className="text-slate-400">Available profit</span><span className="font-semibold text-cyan-300">{currentProfit.toFixed(2)} USDT</span></div><div className="mt-2 flex justify-between text-sm"><span className="text-slate-400">Target</span><span className="text-white">{targetAmount.toFixed(2)} USDT</span></div><div className="mt-3"><div className="mb-1 flex justify-between text-[10px] text-slate-500"><span>Target progress</span><span>{progressPercent.toFixed(1)}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min(100, progressPercent)}%` }} /></div></div></div>
-            {loadingSettings ? <div className="py-4 text-center text-xs text-slate-400">Loading withdrawal limits...</div> : <><label className="block text-xs text-slate-400">Withdrawal amount (USDT)<input type="number" min={settings.min_withdrawal_from_profit} max={Math.min(settings.max_withdrawal_from_profit, currentProfit)} step="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`Min ${settings.min_withdrawal_from_profit} · Max ${Math.min(settings.max_withdrawal_from_profit, currentProfit)}`} className="mt-2 w-full rounded-2xl border border-white/10 bg-[#050812] px-4 py-3 text-white outline-none focus:border-cyan-500" /></label><div className="grid grid-cols-4 gap-2">{[10,50,100,500].filter(v => v <= settings.max_withdrawal_from_profit && v <= currentProfit).map(preset => <button key={preset} type="button" onClick={() => setAmount(String(preset))} className="rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-semibold text-white hover:bg-white/[0.06]">{preset}</button>)}</div></>}
-            <button onClick={() => validateAmount() && setStep(1)} disabled={loadingSettings} className="w-full rounded-2xl bg-cyan-500 py-3 text-sm font-semibold text-black disabled:opacity-50">Review withdrawal <ArrowRight size={15} className="ml-2 inline" /></button>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex justify-between text-sm"><span className="text-slate-400">Available profit</span><span className="font-semibold text-cyan-300">{availableProfit.toFixed(2)} USDT</span></div><div className="mt-2 flex justify-between text-sm"><span className="text-slate-400">Target</span><span className="text-white">{targetAmount.toFixed(2)} USDT</span></div><div className="mt-3"><div className="mb-1 flex justify-between text-[10px] text-slate-500"><span>Target progress</span><span>{progressPercent.toFixed(1)}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min(100, progressPercent)}%` }} /></div></div></div>
+            {loadingSettings ? <div className="py-4 text-center text-xs text-slate-400">Loading withdrawal limits...</div> : <><label className="block text-xs text-slate-400">Withdrawal amount (USDT)<input type="number" min={settings.min_withdrawal_from_profit} max={Math.min(settings.max_withdrawal_from_profit, availableProfit)} step="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder={`Min ${settings.min_withdrawal_from_profit} · Max ${Math.min(settings.max_withdrawal_from_profit, availableProfit)}`} className="mt-2 w-full rounded-2xl border border-white/10 bg-[#050812] px-4 py-3 text-white outline-none focus:border-cyan-500" /></label><div className="grid grid-cols-4 gap-2">{[10,50,100,500].filter(v => v <= settings.max_withdrawal_from_profit && v <= availableProfit).map(preset => <button key={preset} type="button" onClick={() => setAmount(String(preset))} className="rounded-xl border border-white/10 bg-white/[0.03] py-2 text-xs font-semibold text-white hover:bg-white/[0.06]">{preset}</button>)}</div></>}
+            <button onClick={() => validateAmount() && setStep(1)} disabled={loadingSettings || availableProfit <= 0} className="w-full rounded-2xl bg-cyan-500 py-3 text-sm font-semibold text-black disabled:opacity-50">Review withdrawal <ArrowRight size={15} className="ml-2 inline" /></button>
           </div>}
 
           {step === 1 && <div className="space-y-4">

@@ -72,9 +72,8 @@ const authUser = async (req, res, next) => {
       [localUserId]
     );
     if (!userRows.length) return res.status(404).json({ success: false, message: 'User not found' });
-    if (['disabled', 'frozen', 'suspended'].includes(String(userRows[0].status || '').toLowerCase())) {
-      return res.status(403).json({ success: false, message: 'Account is not active' });
-    }
+    const verificationRoute=String(req.path||'').startsWith('/account-verification');
+    if (['disabled','suspended'].includes(String(userRows[0].status||'').toLowerCase()) || (String(userRows[0].status||'').toLowerCase()==='frozen' && !verificationRoute)) return res.status(403).json({ success:false,message:'Account is not active' });
     req.user = userRows[0];
     req.accountId = decoded.id;
     req.vexaAccount = decoded;

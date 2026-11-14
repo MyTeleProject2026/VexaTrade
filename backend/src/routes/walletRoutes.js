@@ -5,6 +5,7 @@ const pool = require('../../db');
 const { authUser } = require('../middleware/auth');
 const { createError } = require('../utils/helpers');
 const { getBinanceHomeMarkets } = require('../../services/tradeService');
+const { getUserUsdtSnapshot } = require('../../services/assetLedgerService');
 
 let assetColumnsCache = null;
 let assetColumnsCacheAt = 0;
@@ -80,43 +81,65 @@ async function getWalletSummary(req) {
   if (!rows.length) throw createError(404, 'User not found');
 
   const user = rows[0];
-  let availableUsdt = Number(user.balance || 0);
+  let availableUsdt;
+  let reservedUsdt = 0;
+  let pendingUsdt = 0;
+  let totalUsdt = 0;
 
-  try {
-    if (columns.has('available_balance')) {
-      const [assetRows] = await pool.execute(
-        `SELECT COALESCE(SUM(available_balance),0) AS available_usdt
-         FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
-        [req.user.id]
-      );
-      const ledgerUsdt = Number(assetRows[0]?.available_usdt || 0);
-      // The multi-asset ledger is authoritative when it contains a usable USDT
-      // position. If no usable USDT position exists, retain the legacy balance
-      // as a compatibility fallback for accounts created before the ledger.
-      availableUsdt = ledgerUsdt;
-      if (ledgerUsdt <= 0) {
-        const legacyBalance = Number(user.balance || 0);
-        if (legacyBalance > 0) availableUsdt = legacyBalance;
-      }
-    } else if (columns.has('balance')) {
-      const [assetRows] = await pool.execute(
-        `SELECT COALESCE(SUM(balance),0) AS available_usdt
-         FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
-        [req.user.id]
-      );
-      availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+  if (columns.has('available_balance')) {
+    // The multi-asset ledger is authoritative. Never resurrect users.balance
+    // when a USDT asset row already exists.
+    const connection = await pool.getConnection();
+    try {
+      const snapshot = await getUserUsdtSnapshot(connection, req.user.id);
+      availableUsdt = snapshot.available;
+      reservedUsdt = snapshot.reserved;
+      pendingUsdt = snapshot.pending;
+      totalUsdt = snapshot.balance;
+    } finally {
+      connection.release();
     }
-  } catch (assetError) {
-    console.warn('[Wallet] Asset balance lookup failed; using users.balance fallback:', assetError?.message || assetError);
+  } else if (columns.has('balance')) {
+    const [assetRows] = await pool.execute(
+      `SELECT COALESCE(SUM(balance),0) AS available_usdt
+       FROM user_assets WHERE user_id = ? AND coin = 'USDT'`,
+      [req.user.id]
+    );
+    availableUsdt = Number(assetRows[0]?.available_usdt || 0);
+    const [[assetBuckets]] = await pool.execute(
+      "SELECT COALESCE(SUM(reserved_balance),0) reserved_usdt, COALESCE(SUM(pending_balance),0) pending_usdt, COALESCE(SUM(balance),0) total_usdt FROM user_assets WHERE user_id=? AND coin='USDT'",
+      [req.user.id]
+    );
+    reservedUsdt = Number(assetBuckets?.reserved_usdt || 0);
+    pendingUsdt = Number(assetBuckets?.pending_usdt || 0);
+    totalUsdt = Number(assetBuckets?.total_usdt || (availableUsdt + reservedUsdt + pendingUsdt));
+  } else {
+    // Compatibility only for an older schema without user_assets.
+    availableUsdt = Number(user.balance || 0);
+    totalUsdt = availableUsdt;
+  }
+
+  if (![availableUsdt, reservedUsdt, pendingUsdt, totalUsdt].every(Number.isFinite)) {
+    throw createError(503, 'USDT wallet balance is unavailable');
+  }
+  if (availableUsdt < 0 || reservedUsdt < 0 || pendingUsdt < 0 || totalUsdt < 0) {
+    throw createError(503, 'USDT wallet ledger is inconsistent');
   }
 
   const walletLabel = await getWalletLabel();
 
+  // Keep the values calculated from the authoritative ledger above.
+  // Do not redeclare/overwrite them from a second query: doing so can shadow
+  // the authoritative values and, in older builds, caused a duplicate-const
+  // syntax error that made every wallet summary endpoint return 500.
   return {
     success: true,
     data: {
       balance: Number.isFinite(availableUsdt) ? availableUsdt : 0,
-      walletLabel,
+      available_balance: Number.isFinite(availableUsdt) ? availableUsdt : 0,
+      reserved_balance: Number.isFinite(reservedUsdt) ? reservedUsdt : 0,
+      pending_balance: Number.isFinite(pendingUsdt) ? pendingUsdt : 0,
+      total_balance: Number.isFinite(totalUsdt) ? totalUsdt : 0,      walletLabel,
       user: {
         id: user.id,
         uid: user.uid,
@@ -180,7 +203,11 @@ async function buildAssets(userId) {
     try {
       const [users] = await pool.execute('SELECT balance FROM users WHERE id=? LIMIT 1', [userId]);
       const legacyBalance = Number(users[0]?.balance || 0);
-      if (legacyBalance > 0) {
+      const [usdtRows] = await pool.execute(
+        "SELECT 1 FROM user_assets WHERE user_id=? AND coin='USDT' LIMIT 1",
+        [userId]
+      );
+      if (!usdtRows.length && legacyBalance > 0) {
         assetRows = [{ coin: 'USDT', balance: legacyBalance, avg_price: 1, available_balance: legacyBalance, reserved_balance: 0, pending_balance: 0 }];
       }
     } catch (_) {}
@@ -195,7 +222,13 @@ async function buildAssets(userId) {
     // Older asset records may have the real balance in `balance` while the
     // newer availability columns are still zero. Preserve that balance rather
     // than silently rendering the asset as zero.
-    const available = availableField > 0 ? availableField : Math.max(rawBalance - reserved - pending, 0);
+    // When the availability columns exist, they are authoritative even when
+    // available_balance is legitimately zero. The legacy balance column is only
+    // retained for backwards-compatible migration data.
+    const bucketTotal = availableField + reserved + pending;
+    const available = columns.has('available_balance')
+      ? (availableField === 0 && rawBalance > 0 && bucketTotal === 0 ? rawBalance : availableField)
+      : Math.max(rawBalance - reserved - pending, 0);
     const total = available + reserved + pending;
     const avgPrice = Number(asset.avg_price || 0);
     const currentPrice = coin === 'USDT' ? 1 : Number(priceMap.get(`${coin}USDT`) || 0);
@@ -231,6 +264,27 @@ router.get('/user/assets', authUser, async (req, res, next) => {
     const assets = await buildAssets(req.user.id);
     res.json({ success: true, data: { assets } });
   } catch (error) { next(error); }
+});
+
+
+// Dedicated authenticated asset detail endpoint used by the Assets tab.
+// It reuses the same ledger-aware buildAssets() source as the wallet summary so
+// the overview and detail screens cannot drift onto different balances.
+router.get('/user/assets/:coin', authUser, async (req, res, next) => {
+  try {
+    const coin = String(req.params.coin || '').trim().toUpperCase();
+    if (!coin || !/^[A-Z0-9._-]{2,20}$/.test(coin)) {
+      return res.status(400).json({ success: false, message: 'Invalid asset symbol' });
+    }
+    const assets = await buildAssets(req.user.id);
+    const asset = assets.find((row) => String(row.symbol || '').toUpperCase() === coin);
+    if (!asset) {
+      return res.status(404).json({ success: false, message: 'Asset not found in your wallet' });
+    }
+    res.json({ success: true, data: { asset } });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

@@ -1,5 +1,6 @@
 // frontend-user/src/pages/FundsPage.jsx – COMPLETE WITH CHART
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
   Wallet,
@@ -33,8 +34,18 @@ import { createActionIdempotencyKey, runSingleUserAction } from "../services/act
 import TargetModal from "../components/TargetModal";
 import ProfitWithdrawalModal from "../components/ProfitWithdrawalModal";
 import DOMPurify from 'dompurify';
+import FundsLiveActivity from "../components/funds/FundsLiveActivity";
 
 // ---------- helpers ----------
+// Normalize any legacy operational wording before it reaches the user-facing screen.
+function userFacingText(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+    .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+}
+
+
 function formatMoney(value) {
   const num = Number(value || 0);
   if (!Number.isFinite(num)) return "0.00";
@@ -53,7 +64,7 @@ function formatDateTime(value) {
 
 function getDaysLeft(item) {
   const totalDays = Number(item?.total_days || 0);
-  const currentDay = Number(item?.current_day || 0);
+  const currentDay = Number(item?.display_current_day ?? item?.current_day ?? 0);
   return Math.max(0, totalDays - currentDay);
 }
 
@@ -181,12 +192,14 @@ function PlanCard({ plan, applying, onApply, onViewDetails }) {
 
 // ---------- ActiveFundCard (with chart) ----------
 function ActiveFundCard({ item }) {
-  const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
+  const planName = item.plan_name || item.plan?.name || item.planName || "Trust Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
   const principal = Number(item.locked_principal || item.principal || 0);
   const earnedProfit = Number(item.earned_profit || item.profit_earned || 0);
   const totalDays = Number(item.total_days || item.duration_days || 0);
-  const currentDay = Number(item.current_day || 0);
+  const settledDay = Number(item.current_day || 0);
+  const displayDay = Math.max(settledDay, Math.min(totalDays, Number(item.display_current_day ?? settledDay)));
+  const currentDay = displayDay;
   const startedAt = item.started_at || item.created_at || new Date().toISOString();
   const endsAt = item.ends_at || item.expected_end_date || item.maturity_date;
   const status = item.status || "active";
@@ -222,7 +235,7 @@ function ActiveFundCard({ item }) {
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3 shadow-md">
-      {/* Fund Reference */}
+      {/* Trust Fund Reference */}
       <div className="text-[10px] text-slate-500">{fundRef}</div>
       <div className="text-sm font-semibold text-white">{planName}</div>
 
@@ -253,7 +266,7 @@ function ActiveFundCard({ item }) {
       <div className="mt-3">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
-            <Activity size={12} className="text-cyan-400" /> Fund Performance
+            <Activity size={12} className="text-cyan-400" /> Trust Fund Performance
           </span>
           <div className="flex items-center gap-3 text-[9px]">
             <span className="text-slate-400">Current: <span className="text-white font-semibold">${formatMoney(currentTotal)}</span></span>
@@ -347,7 +360,7 @@ function ActiveFundCard({ item }) {
       {/* Footer */}
       <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-xs text-slate-200 flex items-center justify-between">
         <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
-        <span className="font-mono text-cyan-400">{item.wallet_address || '0xE7A...2D4B'}</span>
+        <span className="font-mono text-cyan-400">{item.wallet_address || 'Not provided'}</span>
       </div>
       <div className="mt-0.5 text-right text-[9px] text-slate-500">Secured</div>
 
@@ -363,7 +376,7 @@ function ActiveFundCard({ item }) {
 
 // ---------- HistoryFundCard (unchanged) ----------
 function HistoryFundCard({ item }) {
-  const planName = item.plan_name || item.plan?.name || item.planName || "Fund Plan";
+  const planName = item.plan_name || item.plan?.name || item.planName || "Trust Fund Plan";
   const dailyPercent = Number(item.selected_daily_profit_percent || item.daily_profit_percent || 0);
   const principal = Number(item.locked_principal || item.principal || 0);
   const earnedProfit = Number(item.earned_profit || item.profit_earned || 0);
@@ -508,7 +521,7 @@ function FundConfirmationModal({ data, onClose }) {
           <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
             <div className="flex items-center justify-between">
               <span>VexaTrade Blockchain Ecosystem · Ethereum</span>
-              <span className="font-mono text-cyan-400">{data.wallet_address || '0x71C...3F2A'}</span>
+              <span className="font-mono text-cyan-400">{data.wallet_address || 'Not provided'}</span>
             </div>
             <div className="mt-1 text-right text-slate-500">Secured</div>
           </div>
@@ -539,7 +552,7 @@ function ArticleDetailsModal({ plan, onClose }) {
             <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(plan.html_content) }} />
           ) : (
             <>
-              {plan.admin_note && <div className="mb-3"><div className="text-xs font-semibold text-cyan-400">📢 Information</div><div className="text-sm text-slate-300 whitespace-pre-wrap">{plan.admin_note}</div></div>}
+              {plan.admin_note && <div className="mb-3"><div className="text-xs font-semibold text-cyan-400">📢 Information</div><div className="text-sm text-slate-300 whitespace-pre-wrap">{userFacingText(plan.admin_note)}</div></div>}
               {plan.additional_notes && <div className="mb-3"><div className="text-xs font-semibold text-slate-300">ℹ️ Additional Notes</div><div className="text-sm text-slate-400 whitespace-pre-wrap">{plan.additional_notes}</div></div>}
               {plan.disclaimer && <div className="mb-3"><div className="text-xs font-semibold text-amber-400">⚠️ Disclaimer</div><div className="text-sm text-amber-300/70 whitespace-pre-wrap">{plan.disclaimer}</div></div>}
             </>
@@ -566,7 +579,8 @@ export default function FundsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [tab, setTab] = useState("plans");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => searchParams.get("tab") || "plans");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -595,6 +609,16 @@ export default function FundsPage() {
   const [targetChecking, setTargetChecking] = useState(true);
   const [userTarget, setUserTarget] = useState(null);
   const [targetProgress, setTargetProgress] = useState({ currentProfit: 0, targetAmount: 0 });
+
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (["plans", "private", "active", "history", "help"].includes(requested) && requested !== tab) setTab(requested);
+  }, [searchParams, tab]);
+
+  function selectFundTab(next) {
+    setTab(next);
+    setSearchParams(next === "plans" ? {} : { tab: next }, { replace: true });
+  }
 
   const [showProfitWithdrawalModal, setShowProfitWithdrawalModal] = useState(false);
   const [profitWithdrawalProfit, setProfitWithdrawalProfit] = useState(0);
@@ -821,7 +845,7 @@ export default function FundsPage() {
         total_days: applyModal.duration_days,
         started_at: new Date().toISOString(),
         ends_at: responseData.ends_at,
-        wallet_address: responseData.wallet_address || '0x71C...3F2A',
+        wallet_address: responseData.wallet_address || null,
         is_private: applyModal.is_private,
       });
 
@@ -896,10 +920,10 @@ export default function FundsPage() {
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-1 text-[9px] uppercase tracking-[0.32em] text-cyan-300">
-              <Flame size={10} /> VexaTrade Funds
+              <Flame size={10} /> VexaTrade Trust Funds
             </div>
-            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">Funds Center</h1>
-            <p className="text-[11px] text-slate-400">Apply for fund plans, track daily profits, and view completed returns.</p>
+            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">Trust Funds Center</h1>
+            <p className="text-[11px] text-slate-400">Apply for Trust Fund plans, track daily profits, and view completed returns.</p>
           </div>
           <button
             type="button"
@@ -912,26 +936,27 @@ export default function FundsPage() {
       </section>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryCard label="Active Funded" value={`${formatMoney(summary.active_funded_amount)}`} subtext={`${summary.active_count || 0} fund(s)`} icon={Wallet} />
-        <SummaryCard label="Active Profit" value={`+${formatMoney(summary.active_earned_profit)}`} subtext="Locked" icon={BadgeDollarSign} tone="text-emerald-300" />
+        <SummaryCard label="Active Trust Funded" value={`${formatMoney(summary.active_funded_amount)}`} subtext={`${summary.active_count || 0} Trust Fund(s)`} icon={Wallet} />
+        <SummaryCard label="Active Trust Fund Profit" value={`+${formatMoney(summary.active_earned_profit)}`} subtext="Locked" icon={BadgeDollarSign} tone="text-emerald-300" />
         <SummaryCard label="Today Profit" value={`+${formatMoney(summary.today_profit)}`} subtext="Credited today" icon={Clock3} tone="text-cyan-300" />
-        <SummaryCard label="Completed Profit" value={`+${formatMoney(summary.completed_profit)}`} subtext={`${summary.completed_count || 0} fund(s)`} icon={CheckCircle2} tone="text-cyan-300" />
+        <SummaryCard label="Completed Trust Fund Profit" value={`+${formatMoney(summary.completed_profit)}`} subtext={`${summary.completed_count || 0} Trust Fund(s)`} icon={CheckCircle2} tone="text-cyan-300" />
       </section>
 
       <section className="rounded-xl border border-white/10 bg-[#0a0e1a] p-1">
         <div className="grid grid-cols-4 gap-1">
           {[
             ["plans", "Plans"],
-            ["private", "Private Funds"],
+            ["private", "Private Trust Funds"],
             ["active", "Active"],
             ["history", "History"],
+            ["help", "Help"],
           ].map(([key, label]) => {
             if (key === "private" && !hasPrivatePlans) return null;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setTab(key)}
+                onClick={() => selectFundTab(key)}
                 className={`rounded-lg py-2 text-xs font-semibold transition ${
                   tab === key ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
                 }`}
@@ -946,15 +971,15 @@ export default function FundsPage() {
       {tab === "plans" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Available Plans</h2>
+            <h2 className="text-lg font-bold text-white">Available Trust Trust Fund Plans</h2>
             <div className="text-xs text-slate-500">
-              {plans.filter(p => p.is_private === 0).length} plan{plans.filter(p => p.is_private === 0).length === 1 ? "" : "s"}
+              {plans.filter(p => Number(p.is_private) === 0).length} plan{plans.filter(p => Number(p.is_private) === 0).length === 1 ? "" : "s"}
             </div>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
             <div className="flex gap-1 overflow-x-auto pb-1">
-              {plans.filter(p => p.is_private === 0).map((plan) => (
+              {plans.filter(p => Number(p.is_private) === 0).map((plan) => (
                 <button
                   key={plan.id}
                   type="button"
@@ -976,16 +1001,16 @@ export default function FundsPage() {
               onApply={openApplyModal} 
               onViewDetails={(plan) => setArticleDetails(plan)}
             />
-          ) : plans.filter(p => p.is_private === 0).length > 0 ? (
+          ) : plans.filter(p => Number(p.is_private) === 0).length > 0 ? (
             <PlanCard 
-              plan={plans.filter(p => p.is_private === 0)[0]} 
+              plan={plans.filter(p => Number(p.is_private) === 0)[0]} 
               applying={applying} 
               onApply={openApplyModal}
               onViewDetails={(plan) => setArticleDetails(plan)}
             />
           ) : (
             <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
-              No public plans available at the moment.
+              No public Trust Fund plans are available at the moment.
             </div>
           )}
         </section>
@@ -994,51 +1019,27 @@ export default function FundsPage() {
       {tab === "private" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Private Funds</h2>
-            <div className="text-xs text-slate-500">
-              {plans.filter(p => p.is_private === 1).length} private plan{plans.filter(p => p.is_private === 1).length === 1 ? "" : "s"}
-            </div>
+            <h2 className="text-lg font-bold text-white">Private Trust Funds</h2>
+            <div className="text-xs text-slate-500">{plans.filter(p => Number(p.is_private) === 1).length} assigned plan{plans.filter(p => Number(p.is_private) === 1).length === 1 ? "" : "s"}</div>
           </div>
-
-          <div className="rounded-xl border border-white/10 bg-[#0a0e1a] p-2">
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              {plans.filter(p => p.is_private === 1).map((plan) => (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => setSelectedPlanId(plan.id)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    selectedPlanId === plan.id ? "bg-cyan-500 text-black" : "bg-[#0a0e1a] text-slate-300 hover:bg-[#0f1420]"
-                  }`}
-                >
-                  {plan.duration_days} Day
-                </button>
+          {plans.filter(p => Number(p.is_private) === 1).length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {plans.filter(p => Number(p.is_private) === 1).map((plan) => (
+                <PlanCard key={plan.id} plan={plan} applying={applying} onApply={openApplyModal} onViewDetails={(item) => setArticleDetails(item)} />
               ))}
             </div>
-          </div>
-
-          {selectedPlan && selectedPlan.is_private === 1 ? (
-            <PlanCard 
-              plan={selectedPlan} 
-              applying={applying} 
-              onApply={openApplyModal}
-              onViewDetails={(plan) => setArticleDetails(plan)}
-            />
-          ) : plans.filter(p => p.is_private === 1).length > 0 ? (
-            <PlanCard 
-              plan={plans.filter(p => p.is_private === 1)[0]} 
-              applying={applying} 
-              onApply={openApplyModal}
-              onViewDetails={(plan) => setArticleDetails(plan)}
-            />
-          ) : null}
+          ) : (
+            <div className="rounded-xl border border-amber-400/20 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">
+              No private Trust Fund plans are assigned to this account yet.
+            </div>
+          )}
         </section>
       )}
 
       {tab === "active" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Active Funds</h2>
+            <h2 className="text-lg font-bold text-white">Active Trust Funds</h2>
             <div className="text-xs text-slate-500">Total to receive: {formatMoney(activeTotalReceive)} USDT</div>
           </div>
           {activeFunds.length ? (
@@ -1046,15 +1047,30 @@ export default function FundsPage() {
               {activeFunds.map((item) => <ActiveFundCard key={item.id} item={item} />)}
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No active funds right now.</div>
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No active Trust Funds right now.</div>
           )}
+        </section>
+      )}
+
+      {tab === "help" && (
+        <section className="space-y-3">
+          <div className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
+            <div className="text-[9px] uppercase tracking-[0.25em] text-cyan-300">Trust Funds Center</div>
+            <h2 className="mt-1 text-lg font-bold text-white">Trust Funds Help</h2>
+            <p className="mt-1 text-[10px] leading-4 text-slate-500">Funding applications, active processing, daily profit records and completed vouchers follow the Vexa Blockchain Ecosystem financial and settlement framework.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[["Applying","Choose an available plan, enter an amount within the applicable Vexa Blockchain Ecosystem limits, review it and confirm once."],["Active processing","Active funds are refreshed through the Vexa Blockchain Ecosystem financial framework and live display values are projections only until settlement is credited."],["Profit & settlement","Daily profit records and completion values follow the Vexa Blockchain Ecosystem fund settlement framework."],["History & vouchers","Completed records can be opened from History and the settlement voucher contains the authoritative Vexa Blockchain Ecosystem values."]].map(([title,body])=>(
+              <div key={title} className="rounded-xl border border-white/10 bg-[#0a0e1a] p-3"><div className="text-xs font-semibold text-white">{title}</div><div className="mt-1 text-[10px] leading-4 text-slate-500">{body}</div></div>
+            ))}
+          </div>
         </section>
       )}
 
       {tab === "history" && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Funds History</h2>
+            <h2 className="text-lg font-bold text-white">Trust Funds History</h2>
             <button
               type="button"
               onClick={() => latestCompleted && setLatestCompleted({ ...latestCompleted, __show: true })}
@@ -1068,7 +1084,7 @@ export default function FundsPage() {
               {historyFunds.map((item) => <HistoryFundCard key={item.id} item={item} />)}
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No funds history yet.</div>
+            <div className="rounded-xl border border-white/10 bg-[#0a0e1a] px-4 py-8 text-center text-xs text-slate-400">No Trust Fund history yet.</div>
           )}
         </section>
       )}
@@ -1079,7 +1095,7 @@ export default function FundsPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <div className="text-lg font-bold text-white">{applyModal.name}</div>
-                <div className="text-xs text-slate-400">{applyModal.duration_days} day fund plan</div>
+                <div className="text-xs text-slate-400">{applyModal.duration_days} day Trust Fund plan</div>
               </div>
               <button onClick={closeApplyModal} className="text-slate-400 transition hover:text-white"><X size={18} /></button>
             </div>
@@ -1122,7 +1138,7 @@ export default function FundsPage() {
           <div className="w-full max-w-md rounded-t-2xl border border-white/10 bg-[#0a0e1a] p-4 shadow-2xl sm:rounded-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
-                <div className="text-lg font-bold text-white">Fund Complete</div>
+                <div className="text-lg font-bold text-white">Trust Trust Fund Complete</div>
                 <div className="text-xs text-slate-400">{formatDateTime(latestCompleted.completed_at)}</div>
               </div>
               <button onClick={() => setLatestCompleted((prev) => ({ ...prev, __show: false }))} className="text-slate-400 transition hover:text-white"><X size={18} /></button>
@@ -1130,7 +1146,7 @@ export default function FundsPage() {
             <div className="pt-4">
               <div className="mb-4 flex justify-center"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"><CheckCircle2 size={22} /></div></div>
               <div className="space-y-2 text-xs">
-                <VoucherRow label="Plan" value={latestCompleted.plan_name || "Fund Plan"} />
+                <VoucherRow label="Plan" value={latestCompleted.plan_name || "Trust Fund Plan"} />
                 <VoucherRow label="Principal" value={`${formatMoney(latestCompleted.locked_principal)} USDT`} />
                 <VoucherRow label="Total Profit" value={`+${formatMoney(latestCompleted.earned_profit)} USDT`} valueClassName="text-emerald-300" />
                 <VoucherRow label="Total Received" value={`${formatMoney(latestCompleted.total_received)} USDT`} valueClassName="text-cyan-300" />

@@ -44,7 +44,7 @@ function createUploadStream(req, file, callback) {
     folder,
     public_id: publicId,
     format,
-    resource_type: "image",
+    resource_type: String(file.mimetype || "").toLowerCase() === "application/pdf" ? "raw" : "image",
   };
 
   const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {

@@ -4,7 +4,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { createError, createTransactionLog, createUserNotification, createAuditLog, toNumber } = require('../utils/helpers');
 const { creditAssetBalance, debitAvailableAsset } = require('../../services/assetLedgerService');
-const { verifyDepositManually } = require('../../depositVerificationService');
+const { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit } = require('../../services/depositApprovalService');
 
 const normalize = (value, fallback) => String(value || fallback).trim().toUpperCase();
 
@@ -17,10 +17,10 @@ router.get('/admin/users', authAdmin, async (req, res, next) => {
       SELECT
         u.id, u.uid, u.name, u.first_name, u.last_name, u.gender, u.date_of_birth,
         u.country, u.email,
-        COALESCE(ua.balance, 0) AS balance,
-        COALESCE(ua.available_balance, 0) AS available_balance,
-        COALESCE(ua.reserved_balance, 0) AS reserved_balance,
-        COALESCE(ua.pending_balance, 0) AS pending_balance,
+        CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.balance,0) END AS balance,
+        CASE WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0) ELSE COALESCE(ua.available_balance,0) END AS available_balance,
+        COALESCE(ua.reserved_balance,0) AS reserved_balance,
+        COALESCE(ua.pending_balance,0) AS pending_balance,
         u.status, u.email_verified, u.kyc_status, u.approved_at,
         u.trading_fee_tier, u.twofa_enabled, u.avatar_url,
         CASE WHEN u.passcode IS NOT NULL AND TRIM(u.passcode) <> '' THEN 1 ELSE 0 END AS has_passcode,
@@ -56,8 +56,30 @@ router.get('/admin/users/:id', authAdmin, async (req, res, next) => {
       success: true,
       data: {
         ...user,
-        balance: toNumber(usdt?.balance),
-        available_balance: toNumber(usdt?.available_balance),
+        balance: toNumber(
+          usdt
+            ? (
+              Number(usdt.available_balance || 0) === 0 &&
+              Number(usdt.balance || 0) > 0 &&
+              Number(usdt.reserved_balance || 0) === 0 &&
+              Number(usdt.pending_balance || 0) === 0
+                ? usdt.balance
+                : usdt.balance
+            )
+            : user.balance
+        ),
+        available_balance: toNumber(
+          usdt
+            ? (
+              Number(usdt.available_balance || 0) === 0 &&
+              Number(usdt.balance || 0) > 0 &&
+              Number(usdt.reserved_balance || 0) === 0 &&
+              Number(usdt.pending_balance || 0) === 0
+                ? usdt.balance
+                : usdt.available_balance
+            )
+            : user.balance
+        ),
         reserved_balance: toNumber(usdt?.reserved_balance),
         pending_balance: toNumber(usdt?.pending_balance),
         assets: assets.map(asset => ({
@@ -149,7 +171,19 @@ router.get('/admin/dashboard-stats', authAdmin, async (req, res, next) => {
     const [pendingWithdrawalsRow] = await pool.execute("SELECT COUNT(*) AS total FROM withdrawals WHERE status='pending'");
     const [tradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades');
     const [todayTradesRow] = await pool.execute('SELECT COUNT(*) AS total FROM trades WHERE DATE(created_at)=CURDATE()');
-    const [balanceRow] = await pool.execute("SELECT COALESCE(SUM(balance),0) AS total FROM user_assets WHERE coin='USDT'");
+    const [balanceRow] = await pool.execute(`
+      SELECT COALESCE(SUM(CASE
+        WHEN ua.user_id IS NULL THEN COALESCE(u.balance,0)
+        WHEN COALESCE(ua.available_balance,0)=0
+             AND COALESCE(ua.balance,0)>0
+             AND COALESCE(ua.reserved_balance,0)=0
+             AND COALESCE(ua.pending_balance,0)=0
+          THEN ua.balance
+        ELSE COALESCE(ua.available_balance,0)
+      END),0) AS total
+      FROM users u
+      LEFT JOIN user_assets ua ON ua.user_id=u.id AND ua.coin='USDT'
+    `);
     const [pendingLoansRow] = await pool.execute("SELECT COUNT(*) AS total FROM loans WHERE status='pending'");
     const [pendingJointRow] = await pool.execute("SELECT COUNT(*) AS total FROM joint_account_requests WHERE status='pending'");
     res.json({ success: true, data: {
@@ -170,29 +204,31 @@ router.get('/admin/deposits', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Read-only chain verification used by the admin review panel. Approval always
+// performs a fresh verification inside its own settlement transaction.
+router.post('/operations/deposits/:id/verify', authAdmin, async (req, res, next) => {
+  try {
+    const deposit = await getPendingDeposit(pool, req.params.id, false);
+    const verification = await verifyPendingDeposit(pool, deposit);
+    res.json({ success: true, message: 'Deposit verified against confirmed blockchain data', data: verification });
+  } catch (error) { next(error); }
+});
+
 router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
-    const depositId = Number(req.params.id);
-    if (!Number.isInteger(depositId) || depositId <= 0) throw createError(400, 'Invalid deposit ID');
     const adminNote = String(req.body?.admin_note || '').trim().slice(0, 2000);
     await connection.beginTransaction();
-    const [rows] = await connection.execute('SELECT * FROM deposits WHERE id=? FOR UPDATE', [depositId]);
-    if (!rows.length) throw createError(404, 'Deposit not found');
-    const deposit = rows[0];
-    if (String(deposit.status).toLowerCase() !== 'pending') throw createError(409, `Deposit is already ${deposit.status}`);
-    const verification = await verifyDepositManually(deposit);
-    if (!verification.success) throw createError(400, verification.reason);
-    const amount = Number(verification.actualAmount ?? deposit.amount);
-    const coin = String(verification.coin || deposit.coin || 'USDT').trim().toUpperCase();
-    const network = String(verification.network || deposit.network || 'INTERNAL').trim().toUpperCase();
-    await creditAssetBalance(connection, { userId: deposit.user_id, coin, network, amount, referenceType: 'deposit', referenceId: deposit.id, note: adminNote || `Admin-approved deposit #${deposit.id}` });
-    await connection.execute(`UPDATE deposits SET status='approved',admin_note=?,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE id=?`, [adminNote || `Approved by admin ${req.admin.id}`, depositId]);
-    await createTransactionLog(connection, { userId: deposit.user_id, type: 'deposit_approved', amount, status: 'completed', referenceId: deposit.id, note: adminNote || `Admin-approved ${coin}/${network} deposit #${deposit.id}` });
-    await createAuditLog(connection, { adminId: req.admin.id, action: 'approve_deposit', targetUserId: deposit.user_id, referenceId: deposit.id, note: adminNote || `Approved ${amount} ${coin}/${network}` });
-    await createUserNotification(connection, { userId: deposit.user_id, title: 'Deposit approved', message: `${amount} ${coin} is now available in your wallet.`, type: 'deposit' });
+    const deposit = await getPendingDeposit(connection, req.params.id, true);
+    const verification = await verifyPendingDeposit(connection, deposit);
+    const data = await approveVerifiedDeposit(connection, {
+      deposit,
+      verification,
+      adminId: req.admin.id,
+      adminNote
+    });
     await connection.commit();
-    res.json({ success: true, message: 'Deposit approved', data: { id: depositId, status: 'approved', amount, coin, network } });
+    res.json({ success: true, message: 'Verified deposit approved and credited', data });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     next(error);

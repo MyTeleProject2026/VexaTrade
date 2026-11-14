@@ -44,4 +44,71 @@ const admin=read('src/routes/adminControlCenterRoutes.js');
 for (const control of ['support','assets','assetLedger','loans']) if (!admin.includes(control)) throw new Error(`[Admin] control surface missing: ${control}`);
 const userApi=fs.readFileSync(path.join(root,'../frontend-user/src/services/api.js'),'utf8');
 for (const apiRoute of ['/api/spot/orders','/api/deposits/request','/api/withdrawals/request','/api/convert/execute','/api/user/transfer','/api/funds/apply','/api/loans/apply','/api/withdraw/profit-request','/api/transactions']) if (!userApi.includes(apiRoute)) throw new Error(`[Frontend API] missing ${apiRoute}`);
+// Blockchain settlement guardrails: never accept a manually entered TXID as payment proof.
+const adminRoutes = read('src/routes/adminRoutes.js');
+const completionStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/complete'");
+const completionEnd = adminRoutes.indexOf("\nrouter.", completionStart + 1);
+if (completionStart < 0 || completionEnd < 0) throw new Error('[Settlement] legacy withdrawal completion route missing');
+const completionRoute = adminRoutes.slice(completionStart, completionEnd);
+if (!completionRoute.includes('BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED')) throw new Error('[Settlement] legacy withdrawal completion must fail closed');
+if (completionRoute.includes('consumeReservedAsset') || completionRoute.includes("status='completed'")) throw new Error('[Settlement] manual TXID route must not settle ledger funds');
+
+const approvalStart = adminRoutes.indexOf("router.post('/admin/withdrawals/:id/approve'");
+const approvalEnd = adminRoutes.indexOf("\nrouter.", approvalStart + 1);
+if (approvalStart < 0 || approvalEnd < 0) throw new Error('[Settlement] owner approval route missing');
+const approvalRoute = adminRoutes.slice(approvalStart, approvalEnd);
+if (approvalRoute.includes("status='settlement_processing'")) throw new Error('[Settlement] owner approval must not imply blockchain processing');
+if (!approvalRoute.includes('awaiting_treasury_configuration') || !approvalRoute.includes('transactionHash: null')) throw new Error('[Settlement] approval must clearly remain pending with no TXID before broadcast');
+const adminWithdrawalsUi = fs.readFileSync(path.join(root,'../frontend-admin/src/pages/admin/AdminWithdrawalsPage.jsx'),'utf8');
+if (!adminWithdrawalsUi.includes('Approve Request (No Send)')) throw new Error('[Admin UI] withdrawal approval must not be presented as a send action');
+if (!adminWithdrawalsUi.includes('This will not send a blockchain transaction')) throw new Error('[Admin UI] approval confirmation must disclose that no blockchain transaction is sent');
+if (!adminWithdrawalsUi.includes('No blockchain transaction was sent')) throw new Error('[Admin UI] approval success must not imply funds were broadcast');
+
+const settlement = read('src/routes/assetSettlementRoutes.js');
+if (!settlement.includes("router.get('/operations/treasury/status'")) throw new Error('[Treasury] authenticated readiness endpoint missing');
+if (!settlement.includes('outboundSettlementReady:false')) throw new Error('[Treasury] outbound transfers must remain disabled without configured custody');
+if (!settlement.includes('verifyTronUsdtDeposit') || !settlement.includes('claimVerifiedDeposit')) throw new Error('[Deposit] confirmed chain verification and unique TXID claims missing');
+if (!settlement.includes("router.post('/operations/treasury/transfers'") || !settlement.includes("router.get('/operations/treasury/transfers'")) throw new Error('[Treasury] authenticated pending transfer request API missing');
+if (!settlement.includes("'awaiting_funding'") || !settlement.includes("txid, note, created_by")) throw new Error('[Treasury] outbound request queue must retain pending status and transaction evidence fields');
+if (!settlement.includes("No funds were sent") || !settlement.includes("no blockchain TXID exists yet")) throw new Error('[Treasury] pending request response must not imply external payment');
+if (!settlement.includes('isSupportedAssetNetwork') || !settlement.includes('This coin is not supported on the selected network')) throw new Error('[Treasury] outbound requests must enforce a supported coin/network pair');
+if (!settlement.includes('isPositiveDecimal18') || !settlement.includes('up to 18 integer digits')) throw new Error('[Treasury] outbound amount validation must avoid floating-point acceptance and respect DECIMAL precision');
+if (!settlement.includes("insertError.code === 'ER_DUP_ENTRY'") || !settlement.includes('No duplicate request was created')) throw new Error('[Treasury] concurrent idempotent retries must return the existing request safely');
+if (!settlement.includes('sameTreasuryRequest') || !settlement.includes('already belongs to a different transfer request')) throw new Error('[Treasury] reusing an idempotency key with different payment details must fail closed');
+const toolsUi = fs.readFileSync(path.join(root,'../frontend-transaction-tools/src/main.jsx'),'utf8');
+if (!toolsUi.includes("Owner outbound transfer desk") || !toolsUi.includes("/api/operations/treasury/transfers")) throw new Error('[Transaction Tools] owner transfer desk is not connected to the backend request API');
+if (!toolsUi.includes("cannot manufacture a TXID") || !toolsUi.includes("create a spend-restricted pending balance in an unrelated wallet/exchange")) throw new Error('[Transaction Tools] external balance and TXID limitations must be disclosed');
+
+if (!toolsUi.includes('if(!ownerToken)return <div className="owner-auth-screen"')) throw new Error('[Transaction Tools] owner authentication gate must render before every tool page');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/okx/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/okx/balances'")) throw new Error('[Transaction Tools] OKX live balance action missing');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/coinbase/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/coinbase/balances'")) throw new Error('[Transaction Tools] Coinbase live balance action missing');
+if (!toolsUi.includes("ownerRequest('/api/operations/integrations/bitget/balances'") && !toolsUi.includes("fetch(apiBase+'/api/operations/integrations/bitget/balances'")) throw new Error('[Transaction Tools] Bitget live balance action missing');
+if (!toolsUi.includes('function ownerRequest(') || !toolsUi.includes('response.status===401||response.status===403') || !toolsUi.includes('clearOwnerSession(')) throw new Error('[Transaction Tools] expired/denied owner sessions must be cleared');
+if (toolsUi.includes('localStorage.setItem("ownerToken"') || toolsUi.includes("localStorage.setItem('ownerToken'") || toolsUi.includes('localStorage.setItem("token"') || toolsUi.includes("localStorage.setItem('token'")) throw new Error('[Transaction Tools] owner auth token must not be persisted in localStorage');
+
+const settlementRoutesSource=read('src/routes/assetSettlementRoutes.js');
+for (const route of [
+  "router.get('/operations/treasury/transfers', authAdmin",
+  "router.post('/operations/treasury/transfers', authAdmin",
+  "router.get('/operations/treasury/status',authAdmin",
+  "router.get('/operations/integrations/providers', authAdmin",
+  "router.get('/operations/integrations/okx/balances', authAdmin",
+  "router.get('/operations/integrations/coinbase/balances', authAdmin",
+  "router.get('/operations/integrations/bitget/balances', authAdmin"
+]) if (!settlementRoutesSource.includes(route)) throw new Error('[Transaction Tools] missing owner auth middleware on '+route);
+for (const secret of ['EXCHANGE_OKX_API_SECRET','EXCHANGE_COINBASE_API_SECRET','EXCHANGE_BITGET_API_SECRET']) {
+  if (!settlementRoutesSource.includes(secret)) throw new Error('[Exchange] server-side secret configuration missing: '+secret);
+}
+if (!settlementRoutesSource.includes("res.status(503).json({success:false,code:'BLOCKCHAIN_SETTLEMENT_NOT_CONFIGURED'")) throw new Error('[Treasury] external settlement must remain disabled until audited broadcast and receipt verification are configured');
+
+
+const ledgerAdmin = read('src/routes/adminLedgerControlRoutes.js');
+if (!ledgerAdmin.includes('verifyPendingDeposit') || !ledgerAdmin.includes('approveVerifiedDeposit')) throw new Error('[Deposit] canonical admin approval route must use the shared verified-deposit service');
+const depositApproval = read('services/depositApprovalService.js');
+if (!depositApproval.includes('claimVerifiedDeposit') || !depositApproval.includes('verifyDepositOnChain')) throw new Error('[Deposit] shared approval service must verify chain data and claim TXIDs uniquely');
+const chainVerifier = read('services/depositChainVerificationService.js');
+if (!chainVerifier.includes('verifyTronUsdtDeposit') || !chainVerifier.includes('verifyEthereumDeposit')) throw new Error('[Deposit] TRON and Ethereum chain verifiers must both be wired');
+const tronVerifier = read('services/tronVerificationService.js');
+if (!tronVerifier.includes('USDT_TRC20_MAINNET') || !tronVerifier.includes('walletsolidity/gettransactioninfobyid')) throw new Error('[Deposit] confirmed TRON receipt verifier missing');
+
 console.log('VexaTrade financial contract validation passed.');

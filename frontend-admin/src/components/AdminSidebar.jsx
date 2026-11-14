@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpToLine, BarChart3, BadgeDollarSign, CandlestickChart, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpToLine, ClipboardCheck, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
 
 const groups = [
   { label: "Command", items: [
@@ -9,15 +9,19 @@ const groups = [
   ]},
   { label: "Accounts", items: [
     { label: "All Users", to: "/admin/users", icon: Users },
+    { label: "Account Verification", to: "/admin/account-verification", icon: ShieldCheck },
+    { label: "External Wallet Verification Review", to: "/admin/account-verification/submissions", icon: FileClock },
     { label: "KYC & Identity", to: "/admin/kyc", icon: ShieldCheck },
     { label: "Joint Account Requests", to: "/admin/joint-account-requests", icon: Handshake },
     { label: "Joint Accounts", to: "/admin/joint-accounts", icon: UserCog },
   ]},
   { label: "Finance Operations", items: [
     { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
+    { label: "Deposit QA Lab", to: "/admin/deposit-qa", icon: ClipboardCheck },
     { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
     { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
     { label: "Withdrawals", to: "/admin/withdrawals", icon: ArrowUpToLine },
+    { label: "Internal Transfer Approvals", to: "/admin/internal-transfers", icon: ShieldCheck },
     { label: "Withdrawal Fees", to: "/admin/withdrawal-fees", icon: BadgeDollarSign },
     { label: "Withdrawal Settings", to: "/admin/withdrawal-settings", icon: Settings2 },
     { label: "Profit Withdrawals", to: "/admin/profit-withdrawal-requests", icon: CircleDollarSign },
@@ -25,13 +29,15 @@ const groups = [
     { label: "Loan Settings", to: "/admin/loan-settings", icon: HandCoins },
   ]},
   { label: "Trading Operations", items: [
-    { label: "Trading Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
-    { label: "Funds", to: "/admin/funds", icon: WalletCards },
-    { label: "Private Fund Rules", to: "/admin/fund-rules", icon: Settings2 },
+    { label: "Trading & Funds Control", to: "/admin/trading-funds-control", icon: CandlestickChart },
     { label: "Short-Term Trades", to: "/admin/trades", icon: BarChart3 },
+    { label: "Long-Horizon Digital Options", to: "/admin/digital-options", icon: Timer },
+    { label: "Long-Horizon Digital Options Rules", to: "/admin/digital-options-rules", icon: Settings2 },
     { label: "Short-Term Trade Rules", to: "/admin/trade-rules", icon: Settings2 },
     { label: "Spot / Long-Term Market", to: "/admin/spot-trade", icon: CandlestickChart },
+    { label: "Spot / Long-Term Trading Control", to: "/admin/spots/long-term-trading", icon: SlidersHorizontal },
     { label: "Spot / Long-Term Settlement Rules", to: "/admin/spot-settlement-rules", icon: Settings2 },
+    { label: "Spot / Long-Term Trade Rules", to: "/admin/spots/long-term-trade-rules", icon: Settings2 },
   ]},
   { label: "Platform", items: [
     { label: "General Settings", to: "/admin/platform-settings", icon: Settings2 },

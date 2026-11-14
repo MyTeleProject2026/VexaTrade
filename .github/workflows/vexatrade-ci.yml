@@ -31,6 +31,9 @@ jobs:
           node --check src/middleware/auth.js
           node --check src/middleware/transactionSecurity.js
           node --check src/routes/transactionSecurityRoutes.js
+          node --check src/routes/publicChainRoutes.js
+          node --check src/routes/tronPublicFallbackRoutes.js
+          node --check src/routes/treasuryTransferRoutes.js
           node --check src/routes/depositRoutes.js
           node --check src/routes/withdrawalRoutes.js
           node --check src/routes/convertRoutes.js
@@ -41,6 +44,7 @@ jobs:
           node --check src/routes/loanRoutes.js
           node --check src/routes/profitWithdrawalRoutes.js
           node --check src/routes/adminRoutes.js
+          node --check src/routes/adminLedgerControlRoutes.js
           node --check src/routes/adminControlCenterRoutes.js
           node --check src/routes/adminNotifications.js
           node --check src/routes/vexaAccountSso.js
@@ -52,6 +56,10 @@ jobs:
           node --check src/routes/legalRoutes.js
           node --check src/routes/supportRoutes.js
           node --check services/assetLedgerService.js
+          node --check services/tronVerificationService.js
+          node --check services/depositChainVerificationService.js
+          node --check services/depositApprovalService.js
+          npm run test:deposits
           node scripts/validateFinancialContracts.js
       - name: Validate runtime dependency graph
         run: |
@@ -91,5 +99,22 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend-admin/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - name: Run isolated deposit QA state tests
+        run: npm test
+      - run: npm run build
+
+  frontend-transaction-tools:
+    name: Transaction Tools build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-transaction-tools
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - run: npm install --no-audit --no-fund
       - run: npm run build

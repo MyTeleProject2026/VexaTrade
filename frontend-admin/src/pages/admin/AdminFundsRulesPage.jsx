@@ -688,7 +688,7 @@ export default function AdminFundsRulesPage() {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function handleCreateRule() {
+  async function handleCreateRule(forcePrivate = false) {
     if (!createForm.name || !createForm.name.trim()) {
       addToast("Rule name is required", "error");
       return;
@@ -713,7 +713,7 @@ export default function AdminFundsRulesPage() {
         max_daily_profit_percent: Number(createForm.max_daily_profit_percent || 0),
         user_limit_count: createForm.user_limit_count === "" ? null : Number(createForm.user_limit_count),
         status: createForm.status || "active",
-        is_private: createForm.is_private || 0,
+        is_private: forcePrivate ? 1 : (createForm.is_private || 0),
         compound_percentage: createForm.compound_percentage || 100,
       };
 
@@ -1104,10 +1104,7 @@ export default function AdminFundsRulesPage() {
               </div>
             </div>
 
-            <button onClick={async () => {
-              setCreateForm(prev => ({ ...prev, is_private: 1 }));
-              await handleCreateRule();
-            }} disabled={creating} className="mt-4 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-cyan-400 disabled:opacity-50">
+            <button onClick={() => handleCreateRule(true)} disabled={creating} className="mt-4 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-cyan-400 disabled:opacity-50">
               {creating ? "Creating..." : (contentMode === "html" ? "Create Private HTML Plan" : "Create Private Rule")}
             </button>
           </section>

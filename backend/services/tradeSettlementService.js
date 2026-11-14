@@ -1,7 +1,7 @@
 // backend/services/tradeSettlementService.js
 const pool = require('../db');
 const { getBinancePrice } = require('./tradeService');
-const { createUserNotification } = require('../src/utils/helpers');
+const { createUserNotification, createTransactionLog } = require('../src/utils/helpers');
 const { movePendingToAvailable, creditAssetBalance, consumePendingAsset } = require('./assetLedgerService');
 
 async function settleExpiredTrades(limit = 100) {
@@ -135,6 +135,18 @@ async function settleExpiredTrades(limit = 100) {
         title: tied ? 'Trade tied' : (won ? 'Trade won' : 'Trade lost'),
         message: notificationMessage,
         type: 'trade',
+      });
+
+      // Settlement already changed the authoritative asset buckets above. Record a
+      // transaction entry here as the user's financial history counterpart to the
+      // asset ledger, without creating any second balance movement.
+      await createTransactionLog(connection, {
+        userId: current.user_id,
+        type: won ? 'trade_profit' : (tied ? 'trade_tie' : 'trade_loss'),
+        amount: won ? profit : stake,
+        status: 'completed',
+        referenceId: current.id,
+        note: `Short-Term ${current.pair} ${result}; stake ${stake.toFixed(18)} USDT; exit ${exitPrice}`
       });
 
       await connection.commit();

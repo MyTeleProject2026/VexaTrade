@@ -1,23 +1,11 @@
-import { ArrowRight, BarChart3, Clock3, History, ShieldCheck, Zap } from "lucide-react";
+import { ArrowRight, BarChart3, Clock3, History, ShieldCheck, WalletCards, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TradeSectionLayout from "../TradeSectionLayout";
-
-export default function ShortTermHomePage(){
- const navigate=useNavigate();
- const cards=[
-  ["/trade/short-term/market","Live Market","Charts, price and order-book depth",BarChart3],
-  ["/trade/short-term/trade","Open Trade","Use the existing protected trading terminal",Zap],
-  ["/trade/short-term/running","Running Trades","Monitor active timed contracts",Clock3],
-  ["/trade/short-term/history","Trade History","Review completed settlements",History],
- ];
- return <TradeSectionLayout title="Short-Term Trading" subtitle="Dedicated full-screen trading sections" mode="short">
-  <div className="space-y-2.5">
-   <section className="rounded-2xl border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 to-[#0a0e1a] p-4">
-    <div className="text-[9px] uppercase tracking-[.25em] text-cyan-300">VexaTrade</div><h1 className="mt-1 text-xl font-bold">Short-Term</h1><p className="mt-1 text-[10px] leading-4 text-slate-500">Each major function now has its own screen while the existing TradePage, APIs, authentication and settlement logic remain the source of truth.</p>
-    <button onClick={()=>navigate("/trade/short-term/trade")} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 py-2.5 text-xs font-bold text-black">Open Trading Terminal <ArrowRight size={14}/></button>
-   </section>
-   <div className="grid gap-2 sm:grid-cols-2">{cards.map(([path,label,desc,Icon])=><button key={path} onClick={()=>navigate(path)} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-3 text-left hover:border-cyan-400/20"><Icon size={17} className="text-cyan-300"/><div className="mt-2 text-xs font-semibold">{label}</div><div className="mt-1 text-[9px] leading-4 text-slate-500">{desc}</div></button>)}</div>
-   <div className="flex gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/5 p-3 text-[9px] leading-4 text-slate-500"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-300"/>Existing server rules, wallet checks, idempotency and result handling are preserved. This layer only reorganizes the user-facing navigation.</div>
-  </div>
- </TradeSectionLayout>;
-}
+const DURATIONS=[{seconds:60,label:"60-second",detail:"1 minute",badge:"60S"},{seconds:180,label:"180-Second",detail:"3 minutes",badge:"180S"},{seconds:300,label:"300-Second",detail:"5 minutes",badge:"300S"}];
+const CARDS=[["/trade/short-term/market","Live Market","Live price, candles and market depth",BarChart3],["/trade/short-term/trade","Trading Terminal","BUY / SELL, duration and stake",Zap],["/trade/short-term/running","Running Positions","Full-screen countdown and live monitor",Clock3],["/trade/short-term/history","Trade History","Completed settlement records",History]];
+export default function ShortTermHomePage(){const navigate=useNavigate();const choose=s=>{sessionStorage.setItem("vexa_short_term_duration",String(s));navigate("/trade/short-term/trade?duration="+s)};return <TradeSectionLayout title="Short-Term Trading" subtitle="Timed execution terminal" mode="short"><div className="space-y-4">
+<section className="rounded-[28px] border border-cyan-300/15 bg-gradient-to-br from-cyan-300/10 via-[#0a0e1a] to-[#050812] p-5 shadow-[0_18px_55px_rgba(0,0,0,.25)]"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-300/10 text-cyan-300"><Zap size={20}/></div><div><div className="text-[9px] font-bold uppercase tracking-[.26em] text-cyan-300">SHORT-TERM TERMINAL</div><h1 className="mt-1 text-xl font-bold">Timed BUY / SELL trading</h1><p className="mt-1 text-[10px] leading-5 text-slate-400">Choose the exact duration below. The next screen uses your connected available USDT balance, live market price and existing execution flow.</p></div></div><button onClick={()=>navigate("/trade/short-term/trade")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-300 py-3 text-xs font-bold text-[#031016]">Open Trading Terminal <ArrowRight size={14}/></button></section>
+<section className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="flex items-center justify-between"><div><b className="text-sm">Duration selection</b><div className="text-[9px] text-slate-500">Select one before entering the order terminal.</div></div><span className="rounded-full border border-cyan-300/10 bg-cyan-300/5 px-2 py-1 text-[8px] text-cyan-300">REQUIRED</span></div><div className="mt-3 grid grid-cols-3 gap-2">{DURATIONS.map(d=><button key={d.seconds} onClick={()=>choose(d.seconds)} className="rounded-2xl border border-white/10 bg-[#050812] p-3 text-left transition hover:border-cyan-300/25 hover:bg-cyan-300/[.05] active:scale-[.98]"><div className="flex items-center justify-between"><Clock3 size={14} className="text-cyan-300"/><span className="text-[7px] font-bold text-slate-600">{d.badge}</span></div><div className="mt-2 text-xs font-bold">{d.label}</div><div className="mt-0.5 text-[8px] text-slate-500">{d.detail}</div></button>)}</div></section>
+<section className="grid gap-2 sm:grid-cols-2">{CARDS.map(([to,t,d,I])=><button key={to} onClick={()=>navigate(to)} className="group rounded-2xl border border-white/10 bg-[#0a0e1a] p-4 text-left transition hover:border-cyan-300/20"><div className="flex items-center justify-between"><I size={17} className="text-cyan-300"/><ArrowRight size={13} className="text-slate-600 group-hover:text-cyan-300"/></div><div className="mt-3 text-xs font-bold">{t}</div><div className="mt-1 text-[9px] leading-4 text-slate-500">{d}</div></button>)}</section>
+<div className="flex gap-2 rounded-2xl border border-emerald-300/10 bg-emerald-300/[.04] p-3 text-[9px] leading-4 text-slate-500"><ShieldCheck size={14} className="shrink-0 text-emerald-300"/><span><b className="text-slate-300">Live connected flow.</b> Wallet validation, market pricing, order creation, countdown, settlement and history remain on the existing APIs.</span></div>
+</div></TradeSectionLayout>}

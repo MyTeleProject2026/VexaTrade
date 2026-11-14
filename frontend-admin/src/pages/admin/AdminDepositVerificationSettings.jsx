@@ -3,105 +3,20 @@ import { useEffect, useState } from "react";
 import { adminApi, getApiErrorMessage } from "../../services/api";
 import useToast from "../../components/ToastNotification";
 
-export default function AdminDepositVerificationSettings() {
-  const token = localStorage.getItem("adminToken") || "";
-  const { addToast, ToastContainer } = useToast();
-  const [settings, setSettings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+const EMPTY={network:"",explorer_api_url:"https://api.etherscan.io/api",api_key:"",address_prefix:"",address_suffix:"",token_type:"token",contract_address:"",tolerance_percent:10,minimum_deposit:0.01,is_active:1};
 
-  const fetchSettings = async () => {
-    try {
-      const res = await adminApi.getNetworkVerificationSettings(token);
-      setSettings(res.data?.data || []);
-    } catch (err) {
-      addToast(getApiErrorMessage(err), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const updateSetting = async (id, field, value) => {
-    try {
-      await adminApi.updateNetworkVerificationSetting(id, { [field]: value }, token);
-      addToast("Setting updated", "success");
-      fetchSettings();
-    } catch (err) {
-      addToast(getApiErrorMessage(err), "error");
-    }
-  };
-
-  // ✅ Sync function
-  const syncSettings = async () => {
-    try {
-      setSyncing(true);
-      await adminApi.syncNetworkVerificationSettings(token);
-      addToast("Settings synchronized from deposit wallets", "success");
-      await fetchSettings();
-    } catch (err) {
-      addToast(getApiErrorMessage(err), "error");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <div className="space-y-4">
-      <ToastContainer />
-
-      {/* Header with Sync button */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Network Verification Settings</h1>
-        <button
-          onClick={syncSettings}
-          disabled={syncing}
-          className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50"
-        >
-          {syncing ? "Syncing..." : "🔄 Sync from Wallets"}
-        </button>
-      </div>
-
-      <p className="text-sm text-slate-400">
-        Prefix and suffix are automatically extracted from deposit wallet addresses.
-        Click "Sync from Wallets" to update verification settings based on your deposit networks.
-      </p>
-
-      <div className="grid gap-4">
-        {settings.map((s) => (
-          <div key={s.id} className="rounded-2xl border border-white/10 bg-[#0a0e1a] p-4">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold text-white">{s.network}</div>
-              <span className={`text-xs ${s.is_active === 1 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {s.is_active === 1 ? '✅ Active' : '❌ Inactive'}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <div>
-                <label className="text-xs text-slate-400">Prefix</label>
-                <input
-                  value={s.address_prefix || ''}
-                  onChange={(e) => updateSetting(s.id, 'address_prefix', e.target.value)}
-                  className="w-full rounded border border-white/10 bg-[#050812] px-2 py-1 text-white"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400">Suffix</label>
-                <input
-                  value={s.address_suffix || ''}
-                  onChange={(e) => updateSetting(s.id, 'address_suffix', e.target.value)}
-                  className="w-full rounded border border-white/10 bg-[#050812] px-2 py-1 text-white"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+export default function AdminDepositVerificationSettings(){
+ const token=localStorage.getItem("adminToken")||localStorage.getItem("admin_token")||"";
+ const {addToast,ToastContainer}=useToast();
+ const [settings,setSettings]=useState([]),[form,setForm]=useState(EMPTY),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[syncing,setSyncing]=useState(false);
+ const fetchSettings=async()=>{try{const r=await adminApi.getNetworkVerificationSettings(token);setSettings(Array.isArray(r.data?.data)?r.data.data:[])}catch(e){addToast(getApiErrorMessage(e),"error")}finally{setLoading(false)}};
+ useEffect(()=>{fetchSettings()},[]);
+ const update=async(id,field,value)=>{try{await adminApi.updateNetworkVerificationSetting(id,{[field]:value},token);addToast("Verification setting updated","success");await fetchSettings()}catch(e){addToast(getApiErrorMessage(e),"error")}};
+ const create=async e=>{e.preventDefault();setSaving(true);try{if(!form.network.trim()||!form.explorer_api_url.trim()||!form.address_prefix.trim()||!form.address_suffix.trim())throw new Error("Network, explorer URL, address prefix and suffix are required.");await adminApi.createNetworkVerificationSetting(form,token);setForm(EMPTY);addToast("Verification network created","success");await fetchSettings()}catch(e){addToast(getApiErrorMessage(e),"error")}finally{setSaving(false)}};
+ const sync=async()=>{setSyncing(true);try{await adminApi.syncNetworkVerificationSettings(token);addToast("Verification settings synchronized","success");await fetchSettings()}catch(e){addToast(getApiErrorMessage(e),"error")}finally{setSyncing(false)}};
+ const remove=async id=>{if(!window.confirm("Delete this verification setting? Existing deposits are not deleted."))return;try{await adminApi.deleteNetworkVerificationSetting(id,token);addToast("Verification setting deleted","success");await fetchSettings()}catch(e){addToast(getApiErrorMessage(e),"error")}};
+ const fields=[["network","Network"],["explorer_api_url","Explorer API URL"],["address_prefix","Address prefix"],["address_suffix","Address suffix"],["token_type","Token type"],["contract_address","Contract address"],["tolerance_percent","Tolerance %"],["minimum_deposit","Minimum deposit"]];
+ return <div className="space-y-4 text-sm text-slate-200"><ToastContainer/><div className="flex flex-wrap justify-between gap-3"><div><h1 className="text-xl font-semibold text-white">Deposit Verification Control</h1><p className="text-xs text-slate-400">Backend network validation rules for pending deposits.</p></div><button onClick={sync} disabled={syncing} className="rounded-xl bg-cyan-500 px-3 py-2 text-xs font-semibold text-black disabled:opacity-50">{syncing?"Syncing...":"Sync from active wallets"}</button></div>
+ <form onSubmit={create} className="space-y-3 rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="font-semibold text-white">Add verification network</div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{fields.map(([k,l])=><label key={k}><span className="mb-1 block text-[11px] text-slate-400">{l}</span><input value={form[k]??""} onChange={e=>setForm(v=>({...v,[k]:e.target.value}))} className="w-full rounded-lg border border-white/10 bg-[#050812] px-2 py-2 text-xs text-white"/></label>)}</div><button disabled={saving} className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-black disabled:opacity-50">{saving?"Creating...":"Create verification network"}</button></form>
+ {loading?<div className="text-xs text-slate-400">Loading...</div>:<div className="grid gap-3">{settings.map(s=><div key={s.id} className="space-y-3 rounded-2xl border border-white/10 bg-[#0a0e1a] p-4"><div className="flex justify-between gap-2"><div><div className="font-semibold text-white">{s.network}</div><div className="text-[10px] text-slate-500">{Number(s.is_active)?"Active":"Inactive"}</div></div><div className="flex gap-2"><button onClick={()=>update(s.id,"is_active",Number(s.is_active)?0:1)} className="rounded-lg border border-white/10 px-2 py-1 text-[11px]">{Number(s.is_active)?"Disable":"Enable"}</button><button onClick={()=>remove(s.id)} className="rounded-lg border border-red-400/20 px-2 py-1 text-[11px] text-red-300">Delete</button></div></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{fields.map(([k,l])=><label key={k}><span className="mb-1 block text-[11px] text-slate-400">{l}</span><input defaultValue={s[k]??""} onBlur={e=>String(e.target.value)!==String(s[k]??"")&&update(s.id,k,e.target.value)} className="w-full rounded-lg border border-white/10 bg-[#050812] px-2 py-2 text-xs text-white"/></label>)}</div><div className="text-[10px] text-slate-500">Prefix/suffix is only a configuration check; it is not cryptographic proof of blockchain ownership.</div></div>)}</div>}</div>
 }

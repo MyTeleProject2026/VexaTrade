@@ -12,6 +12,12 @@ const { generateNotificationEmail } = require('../../services/emailTemplates');
 router.post('/notifications/send', authAdmin, async (req, res, next) => {
   try {
     const { user_id, title, message, type, send_email } = req.body;
+    const brandUserText = (value) => String(value ?? "")
+      .replace(/\\badmins?\\b/gi, "Blockchain Ecosystem")
+      .replace(/\\bback[- ]?office\\b/gi, "Blockchain Ecosystem");
+
+    const brandedTitle = brandUserText(title);
+    const brandedMessage = brandUserText(message);
 
     // 📩 Log full request
     console.log('📩 [NOTIFICATION] Received:', {
@@ -49,7 +55,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     const [result] = await pool.query(
       `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
        VALUES (?, ?, ?, ?, 0, NOW())`,
-      [user_id, title, message, type || 'general']
+      [user_id, brandedTitle, brandedMessage, type || 'general']
     );
 
     const notificationId = result.insertId;
@@ -62,8 +68,8 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       console.log(`📧 [NOTIFICATION] Attempting to send email to ${user.email}...`);
 
       const emailHtml = generateNotificationEmail({
-        title,
-        message,
+        title: brandedTitle,
+        message: brandedMessage,
         type: type || 'general',
         userName: user.name || user.email,
         userEmail: user.email,
@@ -73,7 +79,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
 
       await sendEmail({
         to: user.email,
-        subject: `[VexaTrade] ${title}`,
+        subject: `[VexaTrade] ${brandedTitle}`,
         html: emailHtml,
       });
 
@@ -111,7 +117,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
       data: {
         notification_id: notificationId,
         user_id: user_id,
-        title: title,
+        title: brandedTitle,
         type: type || 'general',
         email_sent: emailSent,
         email_error: emailError,
@@ -127,7 +133,7 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
 // ──────────────────────────────────────────────────────────────
 // GET: System notifications for admin dashboard
 // ──────────────────────────────────────────────────────────────
-router.get('/admin/notifications', authAdmin, async (req, res, next) => {
+router.get('/notifications', authAdmin, async (req, res, next) => {
   try {
     const notifications = [];
 
@@ -219,27 +225,39 @@ router.get('/admin/notifications', authAdmin, async (req, res, next) => {
 // ──────────────────────────────────────────────────────────────
 // PUT: Mark system notification as read
 // ──────────────────────────────────────────────────────────────
-router.put('/admin/notifications/:id/read', authAdmin, async (req, res, next) => {
-  // System notifications are dynamic (read state is not stored)
-  // Just return success
+router.put('/notifications/:id/read', authAdmin, async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '').trim();
 
-    const [result] = await pool.query(
-      'UPDATE user_notifications SET is_read = 1 WHERE id = ?',
-      [id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
+    // Dashboard/system notifications are generated from live counts and use
+    // synthetic IDs such as "deposits-pending-123". They do not exist in
+    // user_notifications, so never send those IDs to an integer DB column.
+    if (!/^\\d+$/.test(id)) {
+      return res.json({
+        success: true,
+        message: 'System notification acknowledged',
+        data: { id, persistent: false }
       });
     }
 
-    res.json({
+    const notificationId = Number(id);
+    if (!Number.isSafeInteger(notificationId) || notificationId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+    }
+
+    const [result] = await pool.execute(
+      'UPDATE user_notifications SET is_read = 1 WHERE id = ?',
+      [notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+
+    return res.json({
       success: true,
-      message: 'Notification marked as read'
+      message: 'Notification marked as read',
+      data: { id: notificationId, persistent: true }
     });
   } catch (error) {
     next(error);

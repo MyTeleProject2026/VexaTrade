@@ -2,6 +2,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("./db");
+const { authAdmin } = require("./src/middleware/auth");
+
+// Every fund-rule and private-plan-management operation is admin-only.
+router.use(authAdmin);
 
 // ==========================
 // HELPER: Convert status string to integer
@@ -97,8 +101,14 @@ router.post("/", async (req, res) => {
 
     const isActive = statusToInt(status);
     const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
-    const compoundPct = Number(compound_percentage || 100);
+    const compoundPct = Number(compound_percentage === "" || compound_percentage === null || compound_percentage === undefined ? 100 : compound_percentage);
+    if (!Number.isFinite(compoundPct) || compoundPct < 0 || compoundPct > 100) {
+      return res.status(400).json({ success: false, message: "Compound percentage must be between 0 and 100" });
+    }
     const userLimit = user_limit_count === null || user_limit_count === "" ? null : Number(user_limit_count);
+    if (userLimit !== null && (!Number.isInteger(userLimit) || userLimit < 0)) {
+      return res.status(400).json({ success: false, message: "User limit must be a non-negative integer" });
+    }
 
     const [result] = await pool.execute(
       `INSERT INTO fund_plans (
@@ -227,8 +237,14 @@ router.put("/:id", async (req, res) => {
 
     const isActive = statusToInt(status);
     const isPrivate = is_private === 1 || is_private === true ? 1 : 0;
-    const compoundPct = Number(compound_percentage || 100);
+    const compoundPct = Number(compound_percentage === "" || compound_percentage === null || compound_percentage === undefined ? 100 : compound_percentage);
+    if (!Number.isFinite(compoundPct) || compoundPct < 0 || compoundPct > 100) {
+      return res.status(400).json({ success: false, message: "Compound percentage must be between 0 and 100" });
+    }
     const userLimit = user_limit_count === null || user_limit_count === "" ? null : Number(user_limit_count);
+    if (userLimit !== null && (!Number.isInteger(userLimit) || userLimit < 0)) {
+      return res.status(400).json({ success: false, message: "User limit must be a non-negative integer" });
+    }
 
     await pool.execute(
       `UPDATE fund_plans SET
