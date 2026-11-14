@@ -133,12 +133,14 @@ function startMarketAlertMonitor(pool, options = {}) {
     ? Math.max(15_000, Number(options.intervalMs))
     : MARKET_ALERT_INTERVAL_MS;
   let running = false;
+  const httpClient = options.httpClient || axios;
+  const pollImmediately = options.startImmediately !== false;
 
   const poll = async () => {
     if (running) return;
     running = true;
     try {
-      const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr', { params: { symbols: JSON.stringify(symbols) }, timeout: 8_000 });
+      const response = await httpClient.get('https://api.binance.com/api/v3/ticker/24hr', { params: { symbols: JSON.stringify(symbols) }, timeout: 8_000 });
       const bySymbol = new Map((Array.isArray(response.data) ? response.data : []).map((row) => [row.symbol, row]));
       const dayKey = new Date().toISOString().slice(0, 10);
       for (const symbol of symbols) {
@@ -172,10 +174,12 @@ function startMarketAlertMonitor(pool, options = {}) {
     }
   };
 
-  poll();
+  if (pollImmediately) poll();
   const timer = setInterval(poll, intervalMs);
   if (typeof timer.unref === 'function') timer.unref();
-  return () => clearInterval(timer);
+  const stop = () => clearInterval(timer);
+  stop.pollNow = poll;
+  return stop;
 }
 
 module.exports = {
