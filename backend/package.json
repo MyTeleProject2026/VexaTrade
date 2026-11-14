@@ -10,7 +10,8 @@
     "start": "node server.js",
     "server": "node schemaBootstrap.js && node server.js",
     "sync": "node initSync.js",
-    "alchemy:demo": "node scripts/alchemy-demo.js"
+    "alchemy:demo": "node scripts/alchemy-demo.js",
+    "test:deposits": "node --test test/depositChainVerificationService.test.js"
   },
   "keywords": [
     "vexatrade",

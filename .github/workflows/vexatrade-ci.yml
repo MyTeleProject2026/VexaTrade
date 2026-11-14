@@ -57,6 +57,9 @@ jobs:
           node --check src/routes/supportRoutes.js
           node --check services/assetLedgerService.js
           node --check services/tronVerificationService.js
+          node --check services/depositChainVerificationService.js
+          node --check services/depositApprovalService.js
+          npm run test:deposits
           node scripts/validateFinancialContracts.js
       - name: Validate runtime dependency graph
         run: |
