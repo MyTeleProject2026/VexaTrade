@@ -138,7 +138,6 @@ test("prepends audit entries without mutating the existing audit history", () =>
 
 
 test("freezes the shared fixture templates while returning editable copies", () => {
-  const { INITIAL_QA_FIXTURES } = await import("../src/pages/admin/depositQaState.js");
   assert.ok(Object.isFrozen(INITIAL_QA_FIXTURES));
   assert.ok(INITIAL_QA_FIXTURES.every((fixture) => Object.isFrozen(fixture)));
   const editable = createInitialQaFixtures();
