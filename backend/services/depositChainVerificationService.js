@@ -152,7 +152,7 @@ async function verifyEthereumDeposit({ txid, recipientAddress, expectedAmount, a
     return {
       verified: true,
       txid: cleanTxid,
-      coin: expectedCoin,
+      coin: expectedCoin === 'ETHEREUM' ? 'ETH' : expectedCoin,
       network: expectedCoin === 'USDT' ? 'ERC20' : 'ETH',
       claimNetwork: 'ETHEREUM_MAINNET',
       contractAddress: expectedCoin === 'USDT' ? ETHEREUM_USDT_CONTRACT : null,
@@ -189,12 +189,14 @@ async function verifyDepositOnChain(deposit, connection) {
   else if (network === 'ETH') walletNetworks = ['ETH'];
   else return { verified: false, reason: 'Deposit verification is not configured for ' + coin + '/' + network + '.' };
 
-  const placeholders = walletNetworks.map(() => '?').join(',');
+  const walletCoins = coin === 'ETH' || coin === 'ETHEREUM' ? ['ETH', 'ETHEREUM'] : [coin];
+  const coinPlaceholders = walletCoins.map(() => '?').join(',');
+  const networkPlaceholders = walletNetworks.map(() => '?').join(',');
   const [wallets] = await connection.execute(
     `SELECT address FROM deposit_wallets
-     WHERE UPPER(coin)=? AND UPPER(network) IN (${placeholders}) AND status='active'
+     WHERE UPPER(coin) IN (${coinPlaceholders}) AND UPPER(network) IN (${networkPlaceholders}) AND status='active'
      ORDER BY id DESC LIMIT 1`,
-    [coin, ...walletNetworks]
+    [...walletCoins, ...walletNetworks]
   );
   const recipientAddress = String(wallets[0]?.address || '').trim();
   if (!recipientAddress) {
