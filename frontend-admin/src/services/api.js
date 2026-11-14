@@ -38,6 +38,7 @@ export const adminApi = {
   getDashboardStats: (token) => api.get("/api/admin/dashboard-stats", authHeaders(token)),
   getControlCenterHealth: (token) => api.get("/api/admin/control-center/health", authHeaders(token)),
   getNotifications: (token) => api.get("/api/admin/notifications", authHeaders(token)),
+  getNotificationHistory: (limit = 100, offset = 0, token) => api.get("/api/admin/notifications/history", { ...authHeaders(token), params: { limit, offset } }),
   markNotificationRead: (id, token) => api.put(`/api/admin/notifications/${id}/read`, {}, authHeaders(token)),
   sendNotification: (payload, token) => api.post("/api/admin/notifications/send", payload, authHeaders(token)),
   sendNotificationWithEmail: (data, token) => api.post("/api/admin/notifications/send", data, authHeaders(token)),
