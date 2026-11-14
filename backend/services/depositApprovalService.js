@@ -52,7 +52,7 @@ async function approveVerifiedDeposit(connection, { deposit, verification, admin
     depositId: deposit.id,
     userId: deposit.user_id,
     coin,
-    network,
+    network: verification.claimNetwork || network,
     amount: deposit.amount
   });
 
