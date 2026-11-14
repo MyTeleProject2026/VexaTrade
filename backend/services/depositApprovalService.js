@@ -5,6 +5,28 @@ const { creditAssetBalance } = require('./assetLedgerService');
 const { claimVerifiedDeposit } = require('./tronVerificationService');
 const { verifyDepositOnChain } = require('./depositChainVerificationService');
 
+function expandScientificDecimal(value) {
+  const raw = String(value);
+  if (!/[eE]/.test(raw)) return raw;
+  const [coefficient, exponentText] = raw.toLowerCase().split('e');
+  const exponent = Number(exponentText);
+  const [whole, fraction = ''] = coefficient.split('.');
+  const digits = whole + fraction;
+  const point = whole.length + exponent;
+  if (point <= 0) return '0.' + '0'.repeat(-point) + digits;
+  if (point >= digits.length) return digits + '0'.repeat(point - digits.length);
+  return digits.slice(0, point) + '.' + digits.slice(point);
+}
+
+function normalizeDecimal(value) {
+  const raw = expandScientificDecimal(String(value).trim());
+  if (!/^\\d+(?:\\.\\d+)?$/.test(raw)) return null;
+  const [whole, fraction = ''] = raw.split('.');
+  const normalizedWhole = whole.replace(/^0+(?=\\d)/, '');
+  const normalizedFraction = fraction.replace(/0+$/, '');
+  return normalizedFraction ? normalizedWhole + '.' + normalizedFraction : normalizedWhole;
+}
+
 async function getPendingDeposit(connection, depositId, lock = false) {
   const id = Number(depositId);
   if (!Number.isInteger(id) || id <= 0) throw createError(400, 'Invalid deposit ID');
@@ -32,10 +54,15 @@ async function approveVerifiedDeposit(connection, { deposit, verification, admin
     throw createError(422, 'A successful blockchain verification is required before crediting this deposit.');
   }
   const amount = Number(deposit.amount);
+  const sourceAmount = normalizeDecimal(deposit.amount);
+  const ledgerAmount = normalizeDecimal(amount);
   const coin = String(deposit.coin || verification.coin || '').trim().toUpperCase();
   const network = String(verification.network || deposit.network || '').trim().toUpperCase();
-  if (!Number.isFinite(amount) || amount <= 0 || !coin || !network) {
+  if (!Number.isFinite(amount) || amount <= 0 || !coin || !network || !sourceAmount) {
     throw createError(400, 'Deposit asset, network or amount is invalid.');
+  }
+  if (sourceAmount !== ledgerAmount) {
+    throw createError(422, 'Deposit amount precision exceeds the safe precision supported by the current asset ledger. No balance was credited.');
   }
 
   const normalizedTxid = String(verification.txid).replace(/^0x/i, '').toLowerCase();
