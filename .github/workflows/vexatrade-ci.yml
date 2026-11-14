@@ -97,6 +97,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend-admin/package-lock.json
       - run: npm install --no-audit --no-fund
+      - name: Run isolated deposit QA state tests
+        run: npm test
       - run: npm run build
 
   frontend-transaction-tools:
