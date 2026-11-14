@@ -138,7 +138,7 @@ function startMarketAlertMonitor(pool, options = {}) {
     if (running) return;
     running = true;
     try {
-      const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr', { timeout: 8_000 });
+      const response = await axios.get('https://api.binance.com/api/v3/ticker/24hr', { params: { symbols: JSON.stringify(symbols) }, timeout: 8_000 });
       const bySymbol = new Map((Array.isArray(response.data) ? response.data : []).map((row) => [row.symbol, row]));
       const dayKey = new Date().toISOString().slice(0, 10);
       for (const symbol of symbols) {
