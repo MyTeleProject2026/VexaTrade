@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { generateAutoResponse } = require('./autoResponses');
 const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
+const { syncUserFromVexaAccount } = require('../middleware/auth');
 
 // ✅ Updated to your actual admin ID (from admins table)
 const DEFAULT_ADMIN_ID = 30001;
@@ -130,7 +131,35 @@ function setupChatHandlers(io) {
           currentUser.role = decoded.role;
           currentUser.token = token;
         } else {
-          currentUser.id = userId;
+          let decoded;
+          try {
+            if (!JWT_SECRET || !token) throw new Error('Missing user session token');
+            decoded = jwt.verify(String(token), JWT_SECRET);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'Valid user session required' });
+            return;
+          }
+          if (decoded.role !== 'user' || !decoded.id || !decoded.email) {
+            socket.emit('auth_error', { message: 'Valid user session required' });
+            return;
+          }
+          let localUserId;
+          try {
+            localUserId = await syncUserFromVexaAccount(decoded.id, decoded.email);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'User account could not be verified' });
+            return;
+          }
+          if (String(localUserId) !== String(userId)) {
+            socket.emit('auth_error', { message: 'User session does not match this account' });
+            return;
+          }
+          const [userRows] = await pool.execute('SELECT id, status FROM users WHERE id = ? LIMIT 1', [localUserId]);
+          if (!userRows.length || ['disabled', 'suspended', 'frozen'].includes(String(userRows[0].status || '').toLowerCase())) {
+            socket.emit('auth_error', { message: 'User account is not active' });
+            return;
+          }
+          currentUser.id = localUserId;
           currentUser.name = name || 'User';
           currentUser.role = 'user';
           currentUser.token = token;
