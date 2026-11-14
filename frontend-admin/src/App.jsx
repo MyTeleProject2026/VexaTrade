@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
+import AdminNotificationPages from "./admin/pages/AdminNotificationPages";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminControlCenterPage from "./pages/admin/AdminControlCenterPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
@@ -45,6 +46,7 @@ export default function App() {
     <Route path="/admin" element={<PrivateRoute><AdminLayout /></PrivateRoute>}>
       <Route index element={<Navigate to="control-center" replace />} />
       <Route path="dashboard" element={<AdminDashboardPage />} />
+      <Route path="notifications" element={<AdminNotificationPages />} />
       <Route path="control-center" element={<AdminControlCenterPage />} />
       <Route path="users" element={<AdminUsersPage />} />
       <Route path="users/:id" element={<AdminUserDetailsControlPage />} />

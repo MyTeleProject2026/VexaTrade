@@ -1,11 +1,12 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, ArrowUpToLine, ClipboardCheck, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpToLine, ClipboardCheck, BarChart3, BadgeDollarSign, CandlestickChart, Timer, ChevronDown, ChevronRight, CircleDollarSign, FileClock, HandCoins, Handshake, Landmark, LayoutDashboard, LifeBuoy, LogOut, Network, Newspaper, Bell, Scale, Settings2, SlidersHorizontal, ShieldCheck, UserCog, Users, WalletCards, Wrench } from "lucide-react";
 
 const groups = [
   { label: "Command", items: [
     { label: "Control Center", to: "/admin/control-center", icon: Activity },
     { label: "Dashboard", to: "/admin/dashboard", icon: LayoutDashboard },
+    { label: "Notifications Inbox", to: "/admin/notifications", icon: Bell },
   ]},
   { label: "Accounts", items: [
     { label: "All Users", to: "/admin/users", icon: Users },
