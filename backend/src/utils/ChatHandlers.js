@@ -145,7 +145,7 @@ function setupChatHandlers(io) {
 
         // Join a room named after the user ID for targeted emits
         socket.join(`user_${userId}`);
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           socket.join('admins');
         }
 
@@ -153,7 +153,7 @@ function setupChatHandlers(io) {
         socket.emit('authenticated', { success: true, userId, role });
 
         // If admin, load their conversations immediately
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, userId);
         }
       } catch (error) {
@@ -169,7 +169,7 @@ function setupChatHandlers(io) {
           socket.emit('error', { message: 'Not authenticated' });
           return;
         }
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, currentUser.id);
         }
         // For regular users we could load their conversations too if needed
@@ -220,7 +220,7 @@ function setupChatHandlers(io) {
         );
 
         // Mark messages as read for this user
-        const senderType = currentUser.role === 'admin' ? 'user' : 'admin';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'user' : 'admin';
         await pool.query(
           `UPDATE chat_messages 
            SET is_read = 1, read_at = NOW()
@@ -229,7 +229,7 @@ function setupChatHandlers(io) {
         );
 
         // Reset unread count for this user
-        const field = currentUser.role === 'admin' ? 'unread_admin' : 'unread_user';
+        const field = ['admin', 'super_admin'].includes(currentUser.role) ? 'unread_admin' : 'unread_user';
         await pool.query(
           `UPDATE conversations SET ${field} = 0 WHERE id = ?`,
           [conversationId]
@@ -260,7 +260,7 @@ function setupChatHandlers(io) {
 
         let convId = conversationId;
         const trimmedMessage = message.trim();
-        const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'admin' : 'user';
 
         // Determine admin ID for new conversations
         let adminId;
@@ -459,7 +459,7 @@ function setupChatHandlers(io) {
         }
 
         const msg = message[0];
-        const isAdmin = currentUser.role === 'admin';
+        const isAdmin = ['admin', 'super_admin'].includes(currentUser.role);
         const isSender = msg.sender_id === currentUser.id;
 
         // Only admin or the sender can delete
@@ -489,7 +489,7 @@ function setupChatHandlers(io) {
 
         socket.emit('message_deleted', { conversationId, messageId });
 
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, currentUser.id);
         }
       } catch (error) {
@@ -508,8 +508,8 @@ function setupChatHandlers(io) {
         }
 
         // Determine which unread counter to reset
-        const field = currentUser.role === 'admin' ? 'unread_admin' : 'unread_user';
-        const senderType = currentUser.role === 'admin' ? 'user' : 'admin';
+        const field = ['admin', 'super_admin'].includes(currentUser.role) ? 'unread_admin' : 'unread_user';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'user' : 'admin';
 
         await pool.query(
           `UPDATE conversations SET ${field} = 0 WHERE id = ?`,
