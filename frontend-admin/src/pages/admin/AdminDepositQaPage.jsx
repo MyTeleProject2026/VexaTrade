@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Copy, FlaskConical, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
+import { applyQaAction } from "./depositQaState.js";
 
 const initialFixtures = [
   { id: "QA-DEP-001", asset: "TEST-USD", network: "QA-ONLY", amount: "250.00", txid: "qa_tx_demo_001", status: "pending_review", note: "Synthetic evidence review case." },
@@ -37,9 +38,16 @@ export default function AdminDepositQaPage() {
   }), [fixtures]);
 
   function recordAction(item, nextStatus, note) {
-    const timestamp = new Date().toISOString();
-    setFixtures((current) => current.map((row) => row.id === item.id ? { ...row, status: nextStatus, reviewNote: note } : row));
-    setAudit((current) => [{ id: `${item.id}-${Date.now()}`, fixtureId: item.id, previous: item.status, next: nextStatus, note, timestamp, environment: "browser-local-qa" }, ...current]);
+    const result = applyQaAction(
+      { fixtures, audit },
+      { fixtureId: item.id, nextStatus, note, timestamp: new Date().toISOString() }
+    );
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setFixtures(result.fixtures);
+    setAudit(result.audit);
     setNotice(`${item.id} updated in this browser session only. No production record or balance was changed.`);
     setRejectingId("");
     setReason("");
