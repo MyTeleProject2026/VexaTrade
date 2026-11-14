@@ -20,9 +20,9 @@ function expandScientificDecimal(value) {
 
 function normalizeDecimal(value) {
   const raw = expandScientificDecimal(String(value).trim());
-  if (!/^\\d+(?:\\.\\d+)?$/.test(raw)) return null;
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
   const [whole, fraction = ''] = raw.split('.');
-  const normalizedWhole = whole.replace(/^0+(?=\\d)/, '');
+  const normalizedWhole = whole.replace(/^0+(?=\d)/, '');
   const normalizedFraction = fraction.replace(/0+$/, '');
   return normalizedFraction ? normalizedWhole + '.' + normalizedFraction : normalizedWhole;
 }
