@@ -18,6 +18,11 @@ function expandScientificDecimal(value) {
   return digits.slice(0, point) + '.' + digits.slice(point);
 }
 
+function normalizeLedgerCoin(value) {
+  const coin = String(value || '').trim().toUpperCase();
+  return coin === 'ETHEREUM' ? 'ETH' : coin;
+}
+
 function normalizeDecimal(value) {
   const raw = expandScientificDecimal(String(value).trim());
   if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
@@ -56,7 +61,7 @@ async function approveVerifiedDeposit(connection, { deposit, verification, admin
   const amount = Number(deposit.amount);
   const sourceAmount = normalizeDecimal(deposit.amount);
   const ledgerAmount = normalizeDecimal(amount);
-  const coin = String(deposit.coin || verification.coin || '').trim().toUpperCase();
+  const coin = normalizeLedgerCoin(verification.coin || deposit.coin);
   const network = String(verification.network || deposit.network || '').trim().toUpperCase();
   if (!Number.isFinite(amount) || amount <= 0 || !coin || !network || !sourceAmount) {
     throw createError(400, 'Deposit asset, network or amount is invalid.');
@@ -142,4 +147,4 @@ async function approveVerifiedDeposit(connection, { deposit, verification, admin
   };
 }
 
-module.exports = { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit, normalizeDecimal };
+module.exports = { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit, normalizeDecimal, normalizeLedgerCoin };
