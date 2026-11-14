@@ -73,3 +73,39 @@ test("does not mutate the supplied QA state when an action is applied", () => {
   assert.equal(state.fixtures[0].status, originalStatus);
   assert.equal(state.audit.length, 0);
 });
+
+
+test("rejects missing and invalid audit timestamps without changing QA state", () => {
+  const state = { fixtures: createInitialQaFixtures(), audit: [] };
+  const missing = applyQaAction(state, { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp: "" });
+  const invalid = applyQaAction(state, { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp: "not-a-date" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /timestamp/i);
+  assert.equal(invalid.ok, false);
+  assert.match(invalid.error, /timestamp/i);
+  assert.equal(state.fixtures[0].status, "pending_review");
+  assert.equal(state.audit.length, 0);
+});
+
+test("generates a unique audit ID when a timestamp collision occurs", () => {
+  const timestamp = "2026-11-15T00:00:00.000Z";
+  const existing = { id: `QA-DEP-001-${timestamp}` };
+  const result = applyQaAction(
+    { fixtures: createInitialQaFixtures(), audit: [existing] },
+    { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.audit[0].id, `QA-DEP-001-${timestamp}-2`);
+  assert.equal(new Set(result.audit.map((entry) => entry.id)).size, result.audit.length);
+});
+
+test("rejects malformed QA state collections instead of throwing", () => {
+  const result = applyQaAction({ fixtures: null, audit: [] }, {
+    fixtureId: "QA-DEP-001",
+    nextStatus: "evidence_reviewed",
+    note: "",
+    timestamp: "2026-11-15T00:00:00.000Z",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /invalid QA state/i);
+});
