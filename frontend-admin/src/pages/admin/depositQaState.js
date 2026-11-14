@@ -1,8 +1,8 @@
 export const INITIAL_QA_FIXTURES = Object.freeze([
-  { id: "QA-DEP-001", asset: "TEST-USD", network: "QA-ONLY", amount: "250.00", txid: "qa_tx_demo_001", status: "pending_review", note: "Synthetic evidence review case." },
-  { id: "QA-DEP-002", asset: "TEST-USD", network: "QA-ONLY", amount: "75.50", txid: "qa_tx_demo_002", status: "pending_review", note: "Synthetic rejection case." },
-  { id: "QA-DEP-003", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture A." },
-  { id: "QA-DEP-004", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture B." },
+  Object.freeze({ id: "QA-DEP-001", asset: "TEST-USD", network: "QA-ONLY", amount: "250.00", txid: "qa_tx_demo_001", status: "pending_review", note: "Synthetic evidence review case." }),
+  Object.freeze({ id: "QA-DEP-002", asset: "TEST-USD", network: "QA-ONLY", amount: "75.50", txid: "qa_tx_demo_002", status: "pending_review", note: "Synthetic rejection case." }),
+  Object.freeze({ id: "QA-DEP-003", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture A." }),
+  Object.freeze({ id: "QA-DEP-004", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture B." }),
 ]);
 
 export function createInitialQaFixtures() {
@@ -28,8 +28,12 @@ export function applyQaAction({ fixtures, audit }, { fixtureId, nextStatus, note
   if (nextStatus === "rejected" && !String(note || "").trim()) {
     return { ok: false, error: "A rejection reason is required." };
   }
-  if (typeof timestamp !== "string" || !timestamp.trim() || Number.isNaN(Date.parse(timestamp))) {
-    return { ok: false, error: "A valid audit timestamp is required." };
+  const validIsoTimestamp = typeof timestamp === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp)
+    && !Number.isNaN(Date.parse(timestamp))
+    && new Date(timestamp).toISOString() === timestamp;
+  if (!validIsoTimestamp) {
+    return { ok: false, error: "A valid ISO 8601 UTC audit timestamp is required." };
   }
 
   const cleanNote = String(note || "").trim();
