@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyQaAction, createInitialQaFixtures } from "../src/pages/admin/depositQaState.js";
+import { applyQaAction, createInitialQaFixtures, INITIAL_QA_FIXTURES } from "../src/pages/admin/depositQaState.js";
 
 function runAction(state, fixtureId, nextStatus, note = "", timestamp = "2026-11-15T00:00:00.000Z") {
   return applyQaAction(state, { fixtureId, nextStatus, note, timestamp });
@@ -71,5 +71,87 @@ test("does not mutate the supplied QA state when an action is applied", () => {
   const result = runAction(state, "QA-DEP-001", "evidence_reviewed", "Synthetic-only check.");
   assert.equal(result.ok, true);
   assert.equal(state.fixtures[0].status, originalStatus);
+  assert.equal(state.audit.length, 0);
+});
+
+
+test("rejects missing and invalid audit timestamps without changing QA state", () => {
+  const state = { fixtures: createInitialQaFixtures(), audit: [] };
+  const missing = applyQaAction(state, { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp: "" });
+  const invalid = applyQaAction(state, { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp: "not-a-date" });
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /timestamp/i);
+  assert.equal(invalid.ok, false);
+  assert.match(invalid.error, /timestamp/i);
+  assert.equal(state.fixtures[0].status, "pending_review");
+  assert.equal(state.audit.length, 0);
+});
+
+test("generates a unique audit ID when a timestamp collision occurs", () => {
+  const timestamp = "2026-11-15T00:00:00.000Z";
+  const existing = { id: `QA-DEP-001-${timestamp}` };
+  const result = applyQaAction(
+    { fixtures: createInitialQaFixtures(), audit: [existing] },
+    { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "", timestamp }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.audit[0].id, `QA-DEP-001-${timestamp}-2`);
+  assert.equal(new Set(result.audit.map((entry) => entry.id)).size, result.audit.length);
+});
+
+test("rejects malformed QA state collections instead of throwing", () => {
+  const result = applyQaAction({ fixtures: null, audit: [] }, {
+    fixtureId: "QA-DEP-001",
+    nextStatus: "evidence_reviewed",
+    note: "",
+    timestamp: "2026-11-15T00:00:00.000Z",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /invalid QA state/i);
+});
+
+
+test("prepends audit entries without mutating the existing audit history", () => {
+  const timestamp = "2026-11-15T01:00:00.000Z";
+  const previousEntry = {
+    id: "prior-entry",
+    fixtureId: "QA-DEP-002",
+    previous: "pending_review",
+    next: "rejected",
+    note: "Prior synthetic review.",
+    timestamp: "2026-11-14T23:00:00.000Z",
+    environment: "browser-local-qa",
+  };
+  const audit = [previousEntry];
+  const result = applyQaAction(
+    { fixtures: createInitialQaFixtures(), audit },
+    { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "  reviewed  ", timestamp }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0], previousEntry);
+  assert.equal(result.audit.length, 2);
+  assert.equal(result.audit[0].note, "reviewed");
+  assert.equal(result.audit[1], previousEntry);
+  assert.notEqual(result.audit, audit);
+});
+
+
+test("freezes the shared fixture templates while returning editable copies", () => {
+  assert.ok(Object.isFrozen(INITIAL_QA_FIXTURES));
+  assert.ok(INITIAL_QA_FIXTURES.every((fixture) => Object.isFrozen(fixture)));
+  const editable = createInitialQaFixtures();
+  assert.equal(Object.isFrozen(editable), false);
+  assert.equal(Object.isFrozen(editable[0]), false);
+});
+
+test("requires canonical UTC ISO timestamps for audit history", () => {
+  const state = { fixtures: createInitialQaFixtures(), audit: [] };
+  const timezoneLess = runAction(state, "QA-DEP-001", "evidence_reviewed", "", "2026-11-15T00:00:00");
+  const offsetTimestamp = runAction(state, "QA-DEP-001", "evidence_reviewed", "", "2026-11-15T00:00:00.000+01:00");
+  assert.equal(timezoneLess.ok, false);
+  assert.equal(offsetTimestamp.ok, false);
+  assert.match(timezoneLess.error, /ISO 8601 UTC/i);
+  assert.equal(state.fixtures[0].status, "pending_review");
   assert.equal(state.audit.length, 0);
 });
