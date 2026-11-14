@@ -10,6 +10,9 @@ export function createInitialQaFixtures() {
 }
 
 export function applyQaAction({ fixtures, audit }, { fixtureId, nextStatus, note, timestamp }) {
+  if (!Array.isArray(fixtures) || !Array.isArray(audit)) {
+    return { ok: false, error: "Invalid QA state." };
+  }
   const fixture = fixtures.find((item) => item.id === fixtureId);
   if (!fixture) return { ok: false, error: "QA fixture not found." };
   if (!["evidence_reviewed", "rejected"].includes(nextStatus)) {
@@ -25,13 +28,23 @@ export function applyQaAction({ fixtures, audit }, { fixtureId, nextStatus, note
   if (nextStatus === "rejected" && !String(note || "").trim()) {
     return { ok: false, error: "A rejection reason is required." };
   }
+  if (typeof timestamp !== "string" || !timestamp.trim() || Number.isNaN(Date.parse(timestamp))) {
+    return { ok: false, error: "A valid audit timestamp is required." };
+  }
 
   const cleanNote = String(note || "").trim();
   const updatedFixtures = fixtures.map((item) => item.id === fixtureId
     ? { ...item, status: nextStatus, reviewNote: cleanNote }
     : item);
+  const baseAuditId = `${fixtureId}-${timestamp}`;
+  let auditId = baseAuditId;
+  let collisionSuffix = 2;
+  while (audit.some((entry) => entry.id === auditId)) {
+    auditId = `${baseAuditId}-${collisionSuffix}`;
+    collisionSuffix += 1;
+  }
   const entry = {
-    id: `${fixtureId}-${timestamp}`,
+    id: auditId,
     fixtureId,
     previous: fixture.status,
     next: nextStatus,
