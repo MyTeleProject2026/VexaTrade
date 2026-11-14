@@ -98,7 +98,7 @@ test('market monitor emits threshold-crossing public ticker alerts only', async 
   assert.equal(inserted[0][2], 'market');
   assert.equal(inserted[0][3], 'market.price_movement');
   assert.match(inserted[0][4], /BTCUSDT/);
-  assert.match(inserted[0][5], /\\+6.25%/);
+  assert.equal(inserted[0][5].includes('+6.25%'), true);
 });
 
 test('returns null when an idempotent activity event already exists', async () => {
