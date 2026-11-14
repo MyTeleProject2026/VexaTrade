@@ -1,13 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Copy, FlaskConical, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
-import { applyQaAction } from "./depositQaState.js";
-
-const initialFixtures = [
-  { id: "QA-DEP-001", asset: "TEST-USD", network: "QA-ONLY", amount: "250.00", txid: "qa_tx_demo_001", status: "pending_review", note: "Synthetic evidence review case." },
-  { id: "QA-DEP-002", asset: "TEST-USD", network: "QA-ONLY", amount: "75.50", txid: "qa_tx_demo_002", status: "pending_review", note: "Synthetic rejection case." },
-  { id: "QA-DEP-003", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture A." },
-  { id: "QA-DEP-004", asset: "TEST-USD", network: "QA-ONLY", amount: "40.00", txid: "qa_tx_duplicate_003", status: "duplicate_flagged", note: "Duplicate identifier fixture B." },
-];
+import { applyQaAction, createInitialQaFixtures } from "./depositQaState.js";
 
 const statusStyles = {
   pending_review: "border-amber-400/20 bg-amber-400/10 text-amber-300",
@@ -21,7 +14,7 @@ function StatusPill({ status }) {
 }
 
 export default function AdminDepositQaPage() {
-  const [fixtures, setFixtures] = useState(initialFixtures);
+  const [fixtures, setFixtures] = useState(createInitialQaFixtures);
   const [audit, setAudit] = useState([]);
   const [rejectingId, setRejectingId] = useState("");
   const [reason, setReason] = useState("");
@@ -54,7 +47,7 @@ export default function AdminDepositQaPage() {
   }
 
   function resetFixtures() {
-    setFixtures(initialFixtures);
+    setFixtures(createInitialQaFixtures());
     setAudit([]);
     setRejectingId("");
     setReason("");
