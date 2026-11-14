@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CheckCheck, Clock3, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import io from "socket.io-client";
 import { adminApi, getApiErrorMessage } from "../../services/api";
@@ -53,6 +53,7 @@ export default function AdminNotificationPages() {
   const [historyItems, setHistoryItems] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
   const [activityUnreadCount, setActivityUnreadCount] = useState(0);
+  const seenActivityIdsRef = useRef(new Set());
   const [liveConnected, setLiveConnected] = useState(false);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -76,6 +77,7 @@ export default function AdminNotificationPages() {
       if (activityResult.status === "fulfilled") {
         const rows = getRows(activityResult.value).map(normalizeAdminActivityEvent).filter(Boolean);
         setActivityItems(rows);
+        seenActivityIdsRef.current = new Set(rows.map((item) => item.id));
       }
       if (unreadResult.status === "fulfilled") {
         const payload = unreadResult.value?.data?.data ?? unreadResult.value?.data ?? {};
@@ -136,11 +138,11 @@ export default function AdminNotificationPages() {
     socket.on("admin_activity_notification", (rawEvent) => {
       const event = normalizeAdminActivityEvent(rawEvent);
       if (!event) return;
-      setActivityItems((current) => {
-        const alreadyPresent = current.some((item) => Number(item.id) === event.id);
-        if (!alreadyPresent && !event.is_read) setActivityUnreadCount((count) => count + 1);
-        return mergeAdminActivityEvent(current, event);
-      });
+      if (!seenActivityIdsRef.current.has(event.id)) {
+        seenActivityIdsRef.current.add(event.id);
+        if (!event.is_read) setActivityUnreadCount((count) => count + 1);
+      }
+      setActivityItems((current) => mergeAdminActivityEvent(current, event));
     });
     return () => {
       setLiveConnected(false);
