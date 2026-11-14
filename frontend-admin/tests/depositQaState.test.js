@@ -109,3 +109,29 @@ test("rejects malformed QA state collections instead of throwing", () => {
   assert.equal(result.ok, false);
   assert.match(result.error, /invalid QA state/i);
 });
+
+
+test("prepends audit entries without mutating the existing audit history", () => {
+  const timestamp = "2026-11-15T01:00:00.000Z";
+  const previousEntry = {
+    id: "prior-entry",
+    fixtureId: "QA-DEP-002",
+    previous: "pending_review",
+    next: "rejected",
+    note: "Prior synthetic review.",
+    timestamp: "2026-11-14T23:00:00.000Z",
+    environment: "browser-local-qa",
+  };
+  const audit = [previousEntry];
+  const result = applyQaAction(
+    { fixtures: createInitialQaFixtures(), audit },
+    { fixtureId: "QA-DEP-001", nextStatus: "evidence_reviewed", note: "  reviewed  ", timestamp }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0], previousEntry);
+  assert.equal(result.audit.length, 2);
+  assert.equal(result.audit[0].note, "reviewed");
+  assert.equal(result.audit[1], previousEntry);
+  assert.notEqual(result.audit, audit);
+});
