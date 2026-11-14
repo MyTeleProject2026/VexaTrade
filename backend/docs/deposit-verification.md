@@ -8,7 +8,7 @@ or transaction hash by itself is never sufficient.
 
 - USDT / TRC20 (or legacy TRON network label): existing TRON solidified-node verifier.
 - USDT / ERC20: Ethereum Mainnet USDT contract and confirmed Transfer logs.
-- ETH or ETHEREUM / ETH: successful Ethereum Mainnet native-value transfer.
+- ETH or legacy ETHEREUM / ETH: successful Ethereum Mainnet native-value transfer; both labels resolve to the canonical `ETH` user asset ledger entry. Active treasury wallet rows may use either `ETH` or legacy `ETHEREUM` as the coin symbol.
 
 Other asset/network combinations remain blocked until a dedicated verifier is
 implemented and tested.
@@ -42,3 +42,6 @@ configured and the API deployment has the Mainnet RPC setting.
 
 The backend deployment must run the updated code before the new verification endpoint
 is available. No existing deposit is automatically approved by this change.
+
+
+The platform's default native Ethereum asset/network pair is `ETH/ETH`. Do not configure `ETH/ERC20` as a native-ETH deposit pair; ERC20 is used for token transfers such as USDT.
