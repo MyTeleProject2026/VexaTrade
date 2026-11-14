@@ -4,7 +4,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { createError, createTransactionLog, createUserNotification, createAuditLog, toNumber } = require('../utils/helpers');
 const { creditAssetBalance, debitAvailableAsset } = require('../../services/assetLedgerService');
-const { verifyTronUsdtDeposit, claimVerifiedDeposit } = require('../../services/tronVerificationService');
+const { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit } = require('../../services/depositApprovalService');
 
 const normalize = (value, fallback) => String(value || fallback).trim().toUpperCase();
 
@@ -204,78 +204,31 @@ router.get('/admin/deposits', authAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Read-only chain verification used by the admin review panel. Approval always
+// performs a fresh verification inside its own settlement transaction.
+router.post('/operations/deposits/:id/verify', authAdmin, async (req, res, next) => {
+  try {
+    const deposit = await getPendingDeposit(pool, req.params.id, false);
+    const verification = await verifyPendingDeposit(pool, deposit);
+    res.json({ success: true, message: 'Deposit verified against confirmed blockchain data', data: verification });
+  } catch (error) { next(error); }
+});
+
 router.post('/admin/deposits/:id/approve', authAdmin, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
-    const depositId = Number(req.params.id);
     const adminNote = String(req.body?.admin_note || '').trim().slice(0, 2000);
-    if (!Number.isInteger(depositId) || depositId <= 0) throw createError(400, 'Invalid deposit ID');
     await connection.beginTransaction();
-    const [rows] = await connection.execute('SELECT * FROM deposits WHERE id=? FOR UPDATE', [depositId]);
-    if (!rows.length) throw createError(404, 'Deposit not found');
-    const deposit = rows[0];
-    if (String(deposit.status || '').toLowerCase() !== 'pending') throw createError(409, 'Deposit is already processed');
-    const coin = String(deposit.coin || '').trim().toUpperCase();
-    const networkInput = String(deposit.network || '').trim().toUpperCase();
-    const amount = Number(deposit.amount);
-    if (coin !== 'USDT' || !['TRC20', 'TRON'].includes(networkInput)) {
-      throw createError(409, 'Deposit credit is locked until a confirmed blockchain adapter is configured for this asset/network.');
-    }
-    if (!Number.isFinite(amount) || amount <= 0) throw createError(400, 'Invalid deposit amount');
-    const [wallets] = await connection.execute(
-      "SELECT address FROM deposit_wallets WHERE UPPER(coin)='USDT' AND UPPER(network) IN ('TRC20','TRON') AND status='active' ORDER BY id DESC LIMIT 1"
-    );
-    if (!wallets.length || !wallets[0].address) throw createError(503, 'No active TRON USDT treasury deposit address is configured');
-    const verification = await verifyTronUsdtDeposit({
-      txid: deposit.txid,
-      recipientAddress: wallets[0].address,
-      expectedAmount: deposit.amount
+    const deposit = await getPendingDeposit(connection, req.params.id, true);
+    const verification = await verifyPendingDeposit(connection, deposit);
+    const data = await approveVerifiedDeposit(connection, {
+      deposit,
+      verification,
+      adminId: req.admin.id,
+      adminNote
     });
-    if (!verification.verified) throw createError(422, 'Deposit not credited: ' + verification.reason);
-    const [duplicates] = await connection.execute(
-      "SELECT id FROM deposits WHERE id<>? AND LOWER(txid)=LOWER(?) AND status='approved' LIMIT 1 FOR UPDATE",
-      [deposit.id, deposit.txid]
-    );
-    if (duplicates.length) throw createError(409, 'This blockchain transaction has already been credited to another deposit request');
-    await claimVerifiedDeposit(connection, {
-      txid: verification.txid, depositId: deposit.id, userId: deposit.user_id,
-      coin, network: 'TRC20', amount: deposit.amount
-    });
-    await creditAssetBalance(connection, {
-      userId: deposit.user_id, coin, network: 'TRC20', amount,
-      referenceType: 'deposit_admin_approval', referenceId: deposit.id,
-      note: adminNote || 'Verified TRON USDT deposit approved; TXID ' + verification.txid
-    });
-    await connection.execute(
-      "UPDATE deposits SET status='approved', admin_note=?, approved_at=COALESCE(approved_at,NOW()), updated_at=NOW() WHERE id=?",
-      [adminNote || 'Verified on-chain deposit approved', depositId]
-    );
-    await createTransactionLog(connection, {
-      userId: deposit.user_id, type: 'deposit_approved', amount, status: 'completed',
-      referenceId: deposit.id, note: 'Verified TRON USDT deposit TXID ' + verification.txid
-    });
-    await createAuditLog(connection, {
-      adminId: req.admin.id, action: 'approve_deposit_ledger', targetUserId: deposit.user_id,
-      referenceId: deposit.id, note: adminNote || 'Verified on-chain deposit approved; TXID ' + verification.txid
-    });
-    await createUserNotification(connection, {
-      userId: deposit.user_id, title: 'Deposit approved',
-      message: 'Your confirmed TRON USDT deposit has been credited to your wallet.', type: 'general'
-    });
-    const [[wallet]] = await connection.execute(
-      'SELECT balance, available_balance, reserved_balance, pending_balance FROM user_assets WHERE user_id=? AND coin=? LIMIT 1 FOR UPDATE',
-      [deposit.user_id, coin]
-    );
     await connection.commit();
-    res.json({ success: true, message: 'Verified on-chain deposit approved', data: {
-      id: depositId, status: 'approved', amount, coin, network: 'TRC20', txid: verification.txid,
-      wallet: {
-        balance: Number(wallet?.balance || 0),
-        available_balance: Number(wallet?.available_balance || 0),
-        reserved_balance: Number(wallet?.reserved_balance || 0),
-        pending_balance: Number(wallet?.pending_balance || 0)
-      }
-    } });
+    res.json({ success: true, message: 'Verified deposit approved and credited', data });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     next(error);
