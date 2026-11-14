@@ -387,8 +387,8 @@ router.get('/notifications/activity', authAdmin, async (req, res, next) => {
          ON r.notification_id = n.id AND r.admin_id = ?
        WHERE (? = '' OR n.category = ?)
        ORDER BY n.id DESC
-       LIMIT ? OFFSET ?`,
-      [req.admin.id, category, category, limit, offset]
+       LIMIT ${limit} OFFSET ${offset}`,
+      [req.admin.id, category, category]
     );
     const [countRows] = await pool.execute(
       `SELECT COUNT(*) AS total
