@@ -8,10 +8,11 @@ const {
   normalizeTxid,
   topicAddress,
   verifyEthereumDeposit,
+  verifyDepositOnChain,
   ETHEREUM_USDT_CONTRACT,
   TRANSFER_TOPIC
 } = require('../services/depositChainVerificationService');
-const { normalizeDecimal } = require('../services/depositApprovalService');
+const { normalizeDecimal, normalizeLedgerCoin } = require('../services/depositApprovalService');
 
 const TREASURY = '0x1111111111111111111111111111111111111111';
 const TXID = 'a'.repeat(64);
@@ -38,6 +39,9 @@ test('ledger decimal guard rejects values that would lose precision', () => {
   assert.equal(normalizeDecimal('270.000000'), '270');
   assert.equal(normalizeDecimal(0.0000001), '0.0000001');
   assert.notEqual(normalizeDecimal('0.123456789123456789'), normalizeDecimal(Number('0.123456789123456789')));
+  assert.equal(normalizeLedgerCoin('ETHEREUM'), 'ETH');
+  assert.equal(normalizeLedgerCoin('ETH'), 'ETH');
+  assert.equal(normalizeLedgerCoin('USDT'), 'USDT');
 });
 
 test('normalizes 0x-prefixed transaction hashes and extracts indexed addresses', () => {
@@ -96,6 +100,32 @@ test('verifies native ETH only when destination and exact wei amount match', asy
     });
     assert.equal(result.verified, true);
     assert.equal(result.network, 'ETH');
+    assert.equal(result.coin, 'ETH');
+  } finally { restore(); }
+});
+
+test('resolves legacy ETHEREUM/ETH deposit wallet rows and returns canonical ETH', async () => {
+  process.env.ETHEREUM_RPC_URL = 'https://rpc.example.invalid';
+  process.env.ETHEREUM_MIN_CONFIRMATIONS = '1';
+  const restore = mockEthereumRpc({
+    eth_chainId: '0x1',
+    eth_getTransactionByHash: { hash: '0x' + TXID, to: TREASURY, value: '0x38d7ea4c6800' },
+    eth_getTransactionReceipt: { transactionHash: '0x' + TXID, status: '0x1', blockNumber: '0x10', logs: [] },
+    eth_blockNumber: '0x10'
+  });
+  const calls = [];
+  const connection = { execute: async (sql, params) => {
+    calls.push({ sql, params });
+    return [[{ address: TREASURY }]];
+  }};
+  try {
+    const result = await verifyDepositOnChain({
+      coin: 'ETHEREUM', network: 'ETH', txid: TXID, amount: '0.0000625'
+    }, connection);
+    assert.equal(result.verified, true);
+    assert.equal(result.coin, 'ETH');
+    assert.equal(result.network, 'ETH');
+    assert.deepEqual(calls[0].params, ['ETH', 'ETHEREUM', 'ETH']);
   } finally { restore(); }
 });
 
