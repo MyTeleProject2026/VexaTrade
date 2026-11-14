@@ -5,6 +5,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { sendEmail } = require('../../services/emailService');
 const { generateNotificationEmail } = require('../../services/emailTemplates');
+const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
 
 // ──────────────────────────────────────────────────────────────
 // POST: Send notification to user (with email ALWAYS)
@@ -59,6 +60,17 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     );
 
     const notificationId = result.insertId;
+
+    // Mirror the outgoing user notification into persistent admin activity.
+    await recordAdminActivityNotification(pool, {
+      eventKey: `user-notification:${notificationId}`,
+      userId: Number(user_id),
+      category: type || 'general',
+      eventType: `user_notification.${String(type || 'general').toLowerCase()}`,
+      title: brandedTitle,
+      message: brandedMessage,
+      metadata: { source: 'admin_notifications_send', notificationId },
+    });
 
     // ─── ALWAYS SEND EMAIL (for testing) ─────────────────────
     let emailSent = false;
