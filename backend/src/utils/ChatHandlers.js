@@ -1,6 +1,9 @@
 // backend/src/utils/ChatHandlers.js
 const pool = require('../../db');
+const jwt = require('jsonwebtoken');
 const { generateAutoResponse } = require('./autoResponses');
+const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
+const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
 
 // ✅ Updated to your actual admin ID (from admins table)
 const DEFAULT_ADMIN_ID = 30001;
@@ -108,10 +111,30 @@ function setupChatHandlers(io) {
           return;
         }
 
-        currentUser.id = userId;
-        currentUser.name = name || 'User';
-        currentUser.role = role || 'user';
-        currentUser.token = token;
+        const requestedRole = String(role || 'user').trim().toLowerCase();
+        if (requestedRole === 'admin' || requestedRole === 'super_admin') {
+          let decoded;
+          try {
+            if (!JWT_SECRET || !token) throw new Error('Missing admin session token');
+            decoded = jwt.verify(String(token), JWT_SECRET);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'Valid admin session required' });
+            return;
+          }
+          if (!['admin', 'super_admin'].includes(decoded.role) || String(decoded.id) !== String(userId)) {
+            socket.emit('auth_error', { message: 'Admin session does not match this account' });
+            return;
+          }
+          currentUser.id = decoded.id;
+          currentUser.name = name || 'Admin';
+          currentUser.role = decoded.role;
+          currentUser.token = token;
+        } else {
+          currentUser.id = userId;
+          currentUser.name = name || 'User';
+          currentUser.role = 'user';
+          currentUser.token = token;
+        }
 
         // Store socket ID for this user
         connectedUsers.set(userId, {
@@ -309,6 +332,22 @@ function setupChatHandlers(io) {
           senderType: senderType
         };
 
+        if (senderType === 'user') {
+          try {
+            await recordAdminActivityNotification(pool, {
+              eventKey: `chat:user-message:${result.insertId}`,
+              userId: conversation.user_id,
+              category: 'chat',
+              eventType: 'chat.user_message',
+              title: 'New user support-chat message',
+              message: `User ${conversation.user_id} sent a message in support chat #${convId}: "${trimmedMessage.slice(0, 180)}"`,
+              metadata: { conversationId: Number(convId), messageId: Number(result.insertId), preview: trimmedMessage.slice(0, 180) },
+            });
+          } catch (activityError) {
+            console.error('[AdminActivity] Failed to record user chat message:', activityError.message);
+          }
+        }
+
         // 6. Emit the message to the recipient and sender
         console.log(`📤 Emitting user message to user_${recipientId}`);
         io.to(`user_${recipientId}`).emit('new_message', messageData);
@@ -331,6 +370,19 @@ function setupChatHandlers(io) {
                VALUES (?, ?, 'admin', ?)`,
               [convId, conversation.admin_id, autoReply]
             );
+            try {
+              await recordAdminActivityNotification(pool, {
+                eventKey: `chat:ai-response:${autoResult.insertId}`,
+                userId: conversation.user_id,
+                category: 'chat',
+                eventType: 'chat.ai_response',
+                title: 'VexaTrade AI support response',
+                message: `AI response sent in support chat #${convId}: "${String(autoReply).slice(0, 180)}"`,
+                metadata: { conversationId: Number(convId), messageId: Number(autoResult.insertId), isAutoReply: true, preview: String(autoReply).slice(0, 180) },
+              });
+            } catch (activityError) {
+              console.error('[AdminActivity] Failed to record AI chat response:', activityError.message);
+            }
             console.log(`✅ Auto-reply saved ID: ${autoResult.insertId}`);
 
             // Update conversation with the auto‑reply as last message
