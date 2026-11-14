@@ -6,7 +6,9 @@ export function normalizeAdminActivityEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
   const id = Number(event.id);
   if (!Number.isSafeInteger(id) || id <= 0) return null;
-  const category = String(event.category || 'general').trim().toLowerCase();
+  const rawCategory = String(event.category || 'general').trim().toLowerCase();
+  const aliases = { withdraw: 'withdrawal', funds: 'funding', fund: 'funding', trade: 'trading', crypto: 'market', support: 'chat' };
+  const category = aliases[rawCategory] || rawCategory;
   const date = event.created_at ? new Date(event.created_at) : null;
   return {
     ...event,
