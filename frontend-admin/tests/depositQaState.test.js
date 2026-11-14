@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyQaAction, createInitialQaFixtures } from "../src/pages/admin/depositQaState.js";
+import { applyQaAction, createInitialQaFixtures, INITIAL_QA_FIXTURES } from "../src/pages/admin/depositQaState.js";
 
 function runAction(state, fixtureId, nextStatus, note = "", timestamp = "2026-11-15T00:00:00.000Z") {
   return applyQaAction(state, { fixtureId, nextStatus, note, timestamp });
@@ -134,4 +134,25 @@ test("prepends audit entries without mutating the existing audit history", () =>
   assert.equal(result.audit[0].note, "reviewed");
   assert.equal(result.audit[1], previousEntry);
   assert.notEqual(result.audit, audit);
+});
+
+
+test("freezes the shared fixture templates while returning editable copies", () => {
+  const { INITIAL_QA_FIXTURES } = await import("../src/pages/admin/depositQaState.js");
+  assert.ok(Object.isFrozen(INITIAL_QA_FIXTURES));
+  assert.ok(INITIAL_QA_FIXTURES.every((fixture) => Object.isFrozen(fixture)));
+  const editable = createInitialQaFixtures();
+  assert.equal(Object.isFrozen(editable), false);
+  assert.equal(Object.isFrozen(editable[0]), false);
+});
+
+test("requires canonical UTC ISO timestamps for audit history", () => {
+  const state = { fixtures: createInitialQaFixtures(), audit: [] };
+  const timezoneLess = runAction(state, "QA-DEP-001", "evidence_reviewed", "", "2026-11-15T00:00:00");
+  const offsetTimestamp = runAction(state, "QA-DEP-001", "evidence_reviewed", "", "2026-11-15T00:00:00.000+01:00");
+  assert.equal(timezoneLess.ok, false);
+  assert.equal(offsetTimestamp.ok, false);
+  assert.match(timezoneLess.error, /ISO 8601 UTC/i);
+  assert.equal(state.fixtures[0].status, "pending_review");
+  assert.equal(state.audit.length, 0);
 });
