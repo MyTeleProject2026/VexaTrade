@@ -76,7 +76,7 @@ test('verifies native ETH only when destination and exact wei amount match', asy
   process.env.ETHEREUM_MIN_CONFIRMATIONS = '1';
   const restore = mockEthereumRpc({
     eth_chainId: '0x1',
-    eth_getTransactionByHash: { hash: '0x' + TXID, to: TREASURY, value: '0x38bca5a16000' },
+    eth_getTransactionByHash: { hash: '0x' + TXID, to: TREASURY, value: '0x38d7ea4c6800' },
     eth_getTransactionReceipt: { transactionHash: '0x' + TXID, status: '0x1', blockNumber: '0x10', logs: [] },
     eth_blockNumber: '0x10'
   });
