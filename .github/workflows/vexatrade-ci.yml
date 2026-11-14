@@ -47,6 +47,9 @@ jobs:
           node --check src/routes/adminLedgerControlRoutes.js
           node --check src/routes/adminControlCenterRoutes.js
           node --check src/routes/adminNotifications.js
+          node --check services/adminActivityNotificationService.js
+          node --check src/utils/ChatHandlers.js
+          npm run test:notifications
           node --check src/routes/vexaAccountSso.js
           node --check src/routes/securityRoutes.js
           node --check src/routes/jointAccountRoutes.js
@@ -100,7 +103,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend-admin/package-lock.json
       - run: npm install --no-audit --no-fund
-      - name: Run isolated deposit QA state tests
+      - name: Run frontend regression tests
         run: npm test
       - run: npm run build
 

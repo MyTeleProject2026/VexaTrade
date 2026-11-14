@@ -5,6 +5,7 @@ const pool = require('../../db');
 const { authAdmin } = require('../middleware/auth');
 const { sendEmail } = require('../../services/emailService');
 const { generateNotificationEmail } = require('../../services/emailTemplates');
+const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
 
 // ──────────────────────────────────────────────────────────────
 // POST: Send notification to user (with email ALWAYS)
@@ -59,6 +60,17 @@ router.post('/notifications/send', authAdmin, async (req, res, next) => {
     );
 
     const notificationId = result.insertId;
+
+    // Mirror the outgoing user notification into persistent admin activity.
+    await recordAdminActivityNotification(pool, {
+      eventKey: `user-notification:${notificationId}`,
+      userId: Number(user_id),
+      category: type || 'general',
+      eventType: `user_notification.${String(type || 'general').toLowerCase()}`,
+      title: brandedTitle,
+      message: brandedMessage,
+      metadata: { source: 'admin_notifications_send', notificationId },
+    });
 
     // ─── ALWAYS SEND EMAIL (for testing) ─────────────────────
     let emailSent = false;
@@ -364,6 +376,102 @@ router.put('/notifications/:id/read', authAdmin, async (req, res, next) => {
       success: true,
       message: 'Notification marked as read'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+/* Persistent admin activity feed: read state is scoped to each admin account. */
+router.get('/notifications/activity', authAdmin, async (req, res, next) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
+    const offset = Math.min(10_000_000, Math.max(0, Number.parseInt(req.query.offset, 10) || 0));
+    const category = String(req.query.category || '').trim().toLowerCase().slice(0, 32);
+    const [rows] = await pool.execute(
+      `SELECT n.id, n.user_id, u.email, u.name, u.uid,
+              n.category, n.event_type, n.title, n.message, n.metadata_json,
+              n.created_at,
+              CASE WHEN r.notification_id IS NULL THEN 0 ELSE 1 END AS is_read
+       FROM admin_activity_notifications n
+       LEFT JOIN users u ON u.id = n.user_id
+       LEFT JOIN admin_activity_notification_reads r
+         ON r.notification_id = n.id AND r.admin_id = ?
+       WHERE (? = '' OR n.category = ?)
+       ORDER BY n.id DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      [req.admin.id, category, category]
+    );
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) AS total
+       FROM admin_activity_notifications n
+       WHERE (? = '' OR n.category = ?)`,
+      [category, category]
+    );
+    const data = rows.map((row) => {
+      let metadata = row.metadata_json ?? null;
+      if (typeof metadata === 'string') {
+        try { metadata = metadata ? JSON.parse(metadata) : null; } catch (_) { metadata = null; }
+      }
+      const { metadata_json: _metadataJson, ...rest } = row;
+      return { ...rest, id: Number(row.id), user_id: row.user_id == null ? null : Number(row.user_id), is_read: Boolean(row.is_read), metadata };
+    });
+    res.json({ success: true, data, pagination: { total: Number(countRows[0]?.total || 0), limit, offset } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/notifications/activity/unread-count', authAdmin, async (req, res, next) => {
+  try {
+    const [[row]] = await pool.execute(
+      `SELECT COUNT(*) AS count
+       FROM admin_activity_notifications n
+       LEFT JOIN admin_activity_notification_reads r
+         ON r.notification_id = n.id AND r.admin_id = ?
+       WHERE r.notification_id IS NULL`,
+      [req.admin.id]
+    );
+    res.json({ success: true, data: { count: Number(row?.count || 0) } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/notifications/activity/:id/read', authAdmin, async (req, res, next) => {
+  try {
+    const notificationId = Number(req.params.id);
+    if (!Number.isSafeInteger(notificationId) || notificationId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid activity notification ID' });
+    }
+    const [[existing]] = await pool.execute(
+      'SELECT id FROM admin_activity_notifications WHERE id = ? LIMIT 1',
+      [notificationId]
+    );
+    if (!existing) return res.status(404).json({ success: false, message: 'Activity notification not found' });
+    await pool.execute(
+      `INSERT IGNORE INTO admin_activity_notification_reads (notification_id, admin_id, read_at)
+       VALUES (?, ?, NOW())`,
+      [notificationId, req.admin.id]
+    );
+    res.json({ success: true, data: { id: notificationId, is_read: true } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/notifications/activity/read-all', authAdmin, async (req, res, next) => {
+  try {
+    const [result] = await pool.execute(
+      `INSERT IGNORE INTO admin_activity_notification_reads (notification_id, admin_id, read_at)
+       SELECT n.id, ?, NOW()
+       FROM admin_activity_notifications n
+       LEFT JOIN admin_activity_notification_reads r
+         ON r.notification_id = n.id AND r.admin_id = ?
+       WHERE r.notification_id IS NULL`,
+      [req.admin.id, req.admin.id]
+    );
+    res.json({ success: true, data: { marked_read: Number(result.affectedRows || 0) } });
   } catch (error) {
     next(error);
   }

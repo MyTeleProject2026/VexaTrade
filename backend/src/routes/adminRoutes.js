@@ -393,6 +393,12 @@ router.post('/admin/withdrawals/:id/approve', authAdmin, async (req, res, next) 
       referenceId: w.id,
       note: approvalNote
     });
+    await createUserNotification(pool, {
+      userId: w.user_id,
+      title: 'Withdrawal approved for processing',
+      message: `Your withdrawal request #${withdrawalId} was approved by an administrator. It has not been broadcast or paid; it remains pending treasury configuration and confirmed-receipt verification.`,
+      type: 'withdrawal',
+    });
     return res.json({
       success: true,
       message: 'Owner approval recorded. The withdrawal remains pending until treasury funding, signing, broadcast, and confirmed-receipt verification are configured.',

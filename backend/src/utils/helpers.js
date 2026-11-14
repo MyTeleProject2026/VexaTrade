@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
+const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
 
 // ✅ Aligned fallback to match the one in auth.js / middleware
 const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key_2024_secure';
@@ -152,11 +153,28 @@ async function createUserNotification(connection, payload) {
   try {
     const brandedTitle = replaceAdminBrand(title);
     const brandedMessage = replaceAdminBrand(message);
-    await connection.execute(
+    const [result] = await connection.execute(
       `INSERT INTO user_notifications (user_id, title, message, type, is_read, created_at)
        VALUES (?, ?, ?, ?, 0, NOW())`,
       [userId, brandedTitle, brandedMessage, type]
     );
+
+    // Mirror committed user-facing events into the durable admin activity stream.
+    // This shares the caller's DB transaction, so rolled-back operations do not
+    // leave phantom admin notifications.
+    try {
+      await recordAdminActivityNotification(connection, {
+        eventKey: `user-notification:${result.insertId}`,
+        userId,
+        category: type,
+        eventType: `user_notification.${String(type || 'general').toLowerCase()}`,
+        title: brandedTitle,
+        message: brandedMessage,
+        metadata: { source: 'user_notifications', notificationId: result.insertId },
+      });
+    } catch (activityError) {
+      console.error('[AdminActivity] Could not mirror user notification:', activityError.message);
+    }
   } catch (_) {
     // Silent fail for logs; non-critical
   }

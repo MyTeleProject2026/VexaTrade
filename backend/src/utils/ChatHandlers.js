@@ -1,6 +1,10 @@
 // backend/src/utils/ChatHandlers.js
 const pool = require('../../db');
+const jwt = require('jsonwebtoken');
 const { generateAutoResponse } = require('./autoResponses');
+const { recordAdminActivityNotification } = require('../../services/adminActivityNotificationService');
+const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
+const { syncUserFromVexaAccount } = require('../middleware/auth');
 
 // ✅ Updated to your actual admin ID (from admins table)
 const DEFAULT_ADMIN_ID = 30001;
@@ -108,10 +112,58 @@ function setupChatHandlers(io) {
           return;
         }
 
-        currentUser.id = userId;
-        currentUser.name = name || 'User';
-        currentUser.role = role || 'user';
-        currentUser.token = token;
+        const requestedRole = String(role || 'user').trim().toLowerCase();
+        if (requestedRole === 'admin' || requestedRole === 'super_admin') {
+          let decoded;
+          try {
+            if (!JWT_SECRET || !token) throw new Error('Missing admin session token');
+            decoded = jwt.verify(String(token), JWT_SECRET);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'Valid admin session required' });
+            return;
+          }
+          if (!['admin', 'super_admin'].includes(decoded.role) || String(decoded.id) !== String(userId)) {
+            socket.emit('auth_error', { message: 'Admin session does not match this account' });
+            return;
+          }
+          currentUser.id = decoded.id;
+          currentUser.name = name || 'Admin';
+          currentUser.role = decoded.role;
+          currentUser.token = token;
+        } else {
+          let decoded;
+          try {
+            if (!JWT_SECRET || !token) throw new Error('Missing user session token');
+            decoded = jwt.verify(String(token), JWT_SECRET);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'Valid user session required' });
+            return;
+          }
+          if (decoded.role !== 'user' || !decoded.id || !decoded.email) {
+            socket.emit('auth_error', { message: 'Valid user session required' });
+            return;
+          }
+          let localUserId;
+          try {
+            localUserId = await syncUserFromVexaAccount(decoded.id, decoded.email);
+          } catch (_) {
+            socket.emit('auth_error', { message: 'User account could not be verified' });
+            return;
+          }
+          if (String(localUserId) !== String(userId)) {
+            socket.emit('auth_error', { message: 'User session does not match this account' });
+            return;
+          }
+          const [userRows] = await pool.execute('SELECT id, status FROM users WHERE id = ? LIMIT 1', [localUserId]);
+          if (!userRows.length || ['disabled', 'suspended', 'frozen'].includes(String(userRows[0].status || '').toLowerCase())) {
+            socket.emit('auth_error', { message: 'User account is not active' });
+            return;
+          }
+          currentUser.id = localUserId;
+          currentUser.name = name || 'User';
+          currentUser.role = 'user';
+          currentUser.token = token;
+        }
 
         // Store socket ID for this user
         connectedUsers.set(userId, {
@@ -122,7 +174,7 @@ function setupChatHandlers(io) {
 
         // Join a room named after the user ID for targeted emits
         socket.join(`user_${userId}`);
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           socket.join('admins');
         }
 
@@ -130,7 +182,7 @@ function setupChatHandlers(io) {
         socket.emit('authenticated', { success: true, userId, role });
 
         // If admin, load their conversations immediately
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, userId);
         }
       } catch (error) {
@@ -146,7 +198,7 @@ function setupChatHandlers(io) {
           socket.emit('error', { message: 'Not authenticated' });
           return;
         }
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, currentUser.id);
         }
         // For regular users we could load their conversations too if needed
@@ -197,7 +249,7 @@ function setupChatHandlers(io) {
         );
 
         // Mark messages as read for this user
-        const senderType = currentUser.role === 'admin' ? 'user' : 'admin';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'user' : 'admin';
         await pool.query(
           `UPDATE chat_messages 
            SET is_read = 1, read_at = NOW()
@@ -206,7 +258,7 @@ function setupChatHandlers(io) {
         );
 
         // Reset unread count for this user
-        const field = currentUser.role === 'admin' ? 'unread_admin' : 'unread_user';
+        const field = ['admin', 'super_admin'].includes(currentUser.role) ? 'unread_admin' : 'unread_user';
         await pool.query(
           `UPDATE conversations SET ${field} = 0 WHERE id = ?`,
           [conversationId]
@@ -237,7 +289,7 @@ function setupChatHandlers(io) {
 
         let convId = conversationId;
         const trimmedMessage = message.trim();
-        const senderType = currentUser.role === 'admin' ? 'admin' : 'user';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'admin' : 'user';
 
         // Determine admin ID for new conversations
         let adminId;
@@ -309,6 +361,22 @@ function setupChatHandlers(io) {
           senderType: senderType
         };
 
+        if (senderType === 'user') {
+          try {
+            await recordAdminActivityNotification(pool, {
+              eventKey: `chat:user-message:${result.insertId}`,
+              userId: conversation.user_id,
+              category: 'chat',
+              eventType: 'chat.user_message',
+              title: 'New user support-chat message',
+              message: `User ${conversation.user_id} sent a message in support chat #${convId}: "${trimmedMessage.slice(0, 180)}"`,
+              metadata: { conversationId: Number(convId), messageId: Number(result.insertId), preview: trimmedMessage.slice(0, 180) },
+            });
+          } catch (activityError) {
+            console.error('[AdminActivity] Failed to record user chat message:', activityError.message);
+          }
+        }
+
         // 6. Emit the message to the recipient and sender
         console.log(`📤 Emitting user message to user_${recipientId}`);
         io.to(`user_${recipientId}`).emit('new_message', messageData);
@@ -331,6 +399,19 @@ function setupChatHandlers(io) {
                VALUES (?, ?, 'admin', ?)`,
               [convId, conversation.admin_id, autoReply]
             );
+            try {
+              await recordAdminActivityNotification(pool, {
+                eventKey: `chat:ai-response:${autoResult.insertId}`,
+                userId: conversation.user_id,
+                category: 'chat',
+                eventType: 'chat.ai_response',
+                title: 'VexaTrade AI support response',
+                message: `AI response sent in support chat #${convId}: "${String(autoReply).slice(0, 180)}"`,
+                metadata: { conversationId: Number(convId), messageId: Number(autoResult.insertId), isAutoReply: true, preview: String(autoReply).slice(0, 180) },
+              });
+            } catch (activityError) {
+              console.error('[AdminActivity] Failed to record AI chat response:', activityError.message);
+            }
             console.log(`✅ Auto-reply saved ID: ${autoResult.insertId}`);
 
             // Update conversation with the auto‑reply as last message
@@ -407,7 +488,7 @@ function setupChatHandlers(io) {
         }
 
         const msg = message[0];
-        const isAdmin = currentUser.role === 'admin';
+        const isAdmin = ['admin', 'super_admin'].includes(currentUser.role);
         const isSender = msg.sender_id === currentUser.id;
 
         // Only admin or the sender can delete
@@ -437,7 +518,7 @@ function setupChatHandlers(io) {
 
         socket.emit('message_deleted', { conversationId, messageId });
 
-        if (currentUser.role === 'admin') {
+        if (['admin', 'super_admin'].includes(currentUser.role)) {
           await loadAdminConversations(socket, currentUser.id);
         }
       } catch (error) {
@@ -456,8 +537,8 @@ function setupChatHandlers(io) {
         }
 
         // Determine which unread counter to reset
-        const field = currentUser.role === 'admin' ? 'unread_admin' : 'unread_user';
-        const senderType = currentUser.role === 'admin' ? 'user' : 'admin';
+        const field = ['admin', 'super_admin'].includes(currentUser.role) ? 'unread_admin' : 'unread_user';
+        const senderType = ['admin', 'super_admin'].includes(currentUser.role) ? 'user' : 'admin';
 
         await pool.query(
           `UPDATE conversations SET ${field} = 0 WHERE id = ?`,

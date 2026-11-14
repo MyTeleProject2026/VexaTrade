@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const router = express.Router();
 const pool = require("../../db");
 const { authUser } = require("../middleware/auth");
-const { createError, createTransactionLog } = require("../utils/helpers");
+const { createError, createTransactionLog, createUserNotification } = require("../utils/helpers");
 const { getBinancePrice } = require("../../services/tradeService");
 const { ensureAssetRow, syncTotal, recordLedger } = require("../../services/assetLedgerService");
 const { transactionSecurity } = require("../middleware/transactionSecurity");
@@ -77,6 +77,7 @@ router.post("/spot/orders",authUser,transactionSecurity("spot-trade"),async(req,
   }
   const [result]=await db.execute(`INSERT INTO spot_orders(user_id,symbol,side,order_type,quantity,requested_price,execution_price,quote_amount,status,idempotency_key,request_hash,cost_basis_price,realized_pnl,realized_pnl_pct,outcome,filled_at) VALUES(?,?,?,?,?,?,?,?, 'filled',?,?,?,?,?,?,NOW())`,[req.user.id,symbol,side,type,quantity,Number.isFinite(requestedPrice)&&requestedPrice>0?requestedPrice:null,price,quoteAmount,idempotencyKey,requestHash,side==='sell'?(Number(baseAsset.avg_price||0)||null):null,side==='sell'?realizedPnl:null,side==='sell'?realizedPnlPct:null,side==='sell'?outcome:null]);
   await createTransactionLog(db,{userId:req.user.id,type:side==="buy"?"spot_buy":"spot_sell",amount:quoteAmount,status:"completed",referenceId:result.insertId,note:`${symbol} ${side} market order filled at ${price}`});
+  await createUserNotification(db,{userId:req.user.id,title:'Spot order filled',message:`${symbol} ${side} market order filled at ${price}. Quantity: ${quantity}; quote amount: ${quoteAmount} USDT.`,type:'trade'});
   await db.commit();res.json({success:true,message:"Spot order filled",data:{orderId:result.insertId,symbol,side,orderType:type,quantity,executionPrice:price,quoteAmount,feeAmount,feeBps,costBasisPrice:side==='sell'?(Number(baseAsset.avg_price||0)||null):null,realizedPnl:side==='sell'?realizedPnl:null,realizedPnlPct:side==='sell'?realizedPnlPct:null,outcome:side==='sell'?outcome:null,status:"filled",filledAt:new Date().toISOString()}});
  }catch(e){try{await db.rollback()}catch(_){}next(e)}finally{db.release()}
 });
