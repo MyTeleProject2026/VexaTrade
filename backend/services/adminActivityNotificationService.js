@@ -97,8 +97,10 @@ function startAdminActivityRealtime(io, pool) {
         );
         for (const row of rows) {
           lastSeenId = Math.max(lastSeenId, Number(row.id));
-          let metadata = null;
-          try { metadata = row.metadata_json ? JSON.parse(row.metadata_json) : null; } catch (_) {}
+          let metadata = row.metadata_json ?? null;
+          if (typeof metadata === 'string') {
+            try { metadata = metadata ? JSON.parse(metadata) : null; } catch (_) { metadata = null; }
+          }
           io.to('admins').emit('admin_activity_notification', {
             id: Number(row.id),
             user_id: row.user_id == null ? null : Number(row.user_id),
