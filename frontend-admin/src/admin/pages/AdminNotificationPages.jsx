@@ -12,10 +12,13 @@ const CATEGORY_LABELS = {
   withdrawal: "Withdrawal",
   funds: "Funding",
   fund: "Funding",
+  funding: "Funding",
   trading: "Trading",
   trade: "Trading",
   market: "Market information",
   crypto: "Market information",
+  market: "Market information",
+  funding: "Funding",
   chat: "Chat",
   support: "Support",
   kyc: "Identity review",
@@ -45,7 +48,10 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString();
 };
 
-const categoryOf = (item) => String(item?.type || "general").toLowerCase();
+const categoryOf = (item) => {
+  const category = String(item?.type || item?.category || "general").toLowerCase();
+  return ({ withdraw: "withdrawal", funds: "funding", fund: "funding", trade: "trading", crypto: "market", support: "chat" })[category] || category;
+};
 const isRead = (item) => Boolean(item?.is_read ?? item?.read_at);
 
 export default function AdminNotificationPages() {
@@ -285,7 +291,7 @@ export default function AdminNotificationPages() {
           <div className="relative w-full lg:max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search message, user or type…" className="w-full rounded-xl border border-white/10 bg-[#050812] py-2 pl-9 pr-3 text-xs text-white outline-none focus:border-cyan-400/40"/></div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          {[["all","All"],["unread","Unread"],["deposit","Deposits"],["withdraw","Withdrawals"],["funds","Funding"],["trading","Trading"],["chat","Chat"],["general","General"]].map(([value,label]) => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-lg border px-3 py-1.5 text-[10px] font-semibold ${filter === value ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-white"}`}>{label}</button>)}
+          {[["all","All"],["unread","Unread"],["deposit","Deposits"],["withdrawal","Withdrawals"],["funding","Funding"],["trading","Trading"],["chat","Chat"],["general","General"]].map(([value,label]) => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-lg border px-3 py-1.5 text-[10px] font-semibold ${filter === value ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-white"}`}>{label}</button>)}
         </div>
         <div className="mt-3 space-y-2">
           {loading ? <p className="py-6 text-center text-xs text-slate-400">Loading notification history…</p> : visibleItems.length ? visibleItems.map((item) => {
