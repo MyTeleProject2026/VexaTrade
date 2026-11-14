@@ -177,6 +177,15 @@ async function settleDailyFunds() {
 
       creditedCount += 1;
 
+      if (dailyProfit > 0) {
+        await createUserNotification(connection, {
+          userId: fund.user_id,
+          title: 'Funding income recorded',
+          message: `Day ${nextDay} income for ${fund.plan_name}: ${dailyProfit.toFixed(2)} USDT. ${profitToWallet.toFixed(2)} USDT was allocated to the wallet and ${compoundAmount.toFixed(2)} USDT was compounded.`,
+          type: 'funds',
+        });
+      }
+
       if (nextDay >= totalDays) {
         const totalReturn = newPrincipal;
         const totalProfitEarned = Number((totalReturn - originalPrincipal).toFixed(10));
