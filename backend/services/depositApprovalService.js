@@ -142,4 +142,4 @@ async function approveVerifiedDeposit(connection, { deposit, verification, admin
   };
 }
 
-module.exports = { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit };
+module.exports = { getPendingDeposit, verifyPendingDeposit, approveVerifiedDeposit, normalizeDecimal };
