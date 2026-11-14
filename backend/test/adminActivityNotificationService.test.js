@@ -71,7 +71,7 @@ test('market monitor emits threshold-crossing public ticker alerts only', async 
   };
   const httpClient = {
     async get(url, config) {
-      assert.match(url, /api\\/v3\\/ticker\\/24hr$/);
+      assert.equal(url.endsWith('/api/v3/ticker/24hr'), true);
       requestConfig = config;
       return {
         data: [
