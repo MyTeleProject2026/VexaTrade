@@ -92,7 +92,7 @@ async function verifyEthereumDeposit({ txid, recipientAddress, expectedAmount, a
     if (!tx || !receipt) {
       return { verified: false, reason: 'The transaction is not yet available with a mined Ethereum receipt.' };
     }
-    if (!sameAddress(receipt.transactionHash, hash)) {
+    if ((tx.hash && !sameAddress(tx.hash, hash)) || !sameAddress(receipt.transactionHash, hash)) {
       return { verified: false, reason: 'The Ethereum receipt transaction hash does not match the submitted hash.' };
     }
     if (String(receipt.status || '').toLowerCase() !== '0x1') {
@@ -154,6 +154,7 @@ async function verifyEthereumDeposit({ txid, recipientAddress, expectedAmount, a
       txid: cleanTxid,
       coin: expectedCoin,
       network: expectedCoin === 'USDT' ? 'ERC20' : 'ETH',
+      claimNetwork: 'ETHEREUM_MAINNET',
       contractAddress: expectedCoin === 'USDT' ? ETHEREUM_USDT_CONTRACT : null,
       recipientAddress: String(recipientAddress).trim(),
       amount: String(expectedAmount),
@@ -202,7 +203,7 @@ async function verifyDepositOnChain(deposit, connection) {
 
   if ((network === 'TRON' || network === 'TRC20') && coin === 'USDT') {
     const result = await verifyTronUsdtDeposit({ txid, recipientAddress, expectedAmount: amount });
-    return { ...result, verified: Boolean(result.verified), coin, network: 'TRC20' };
+    return { ...result, verified: Boolean(result.verified), coin, network: 'TRC20', claimNetwork: 'TRC20' };
   }
   if (network === 'ERC20' && coin === 'USDT') {
     return verifyEthereumDeposit({ txid, recipientAddress, expectedAmount: amount, asset: 'USDT' });
