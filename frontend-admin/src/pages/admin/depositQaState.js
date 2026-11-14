@@ -12,18 +12,18 @@ export function createInitialQaFixtures() {
 export function applyQaAction({ fixtures, audit }, { fixtureId, nextStatus, note, timestamp }) {
   const fixture = fixtures.find((item) => item.id === fixtureId);
   if (!fixture) return { ok: false, error: "QA fixture not found." };
-  if (fixture.status !== "pending_review") return { ok: false, error: "Only pending QA fixtures can be reviewed." };
   if (!["evidence_reviewed", "rejected"].includes(nextStatus)) {
     return { ok: false, error: "Unsupported QA review transition." };
-  }
-  if (nextStatus === "rejected" && !String(note || "").trim()) {
-    return { ok: false, error: "A rejection reason is required." };
   }
   if (nextStatus === "evidence_reviewed") {
     const matchingReferences = fixtures.filter((item) => item.txid === fixture.txid);
     if (matchingReferences.length > 1) {
       return { ok: false, error: "Duplicate synthetic transaction reference cannot be marked reviewed." };
     }
+  }
+  if (fixture.status !== "pending_review") return { ok: false, error: "Only pending QA fixtures can be reviewed." };
+  if (nextStatus === "rejected" && !String(note || "").trim()) {
+    return { ok: false, error: "A rejection reason is required." };
   }
 
   const cleanNote = String(note || "").trim();
