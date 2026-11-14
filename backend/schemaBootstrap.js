@@ -475,6 +475,35 @@ async function ensureFinancialSchema() {
     `);
 
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS admin_activity_notifications (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        event_key VARCHAR(190) NOT NULL,
+        user_id BIGINT UNSIGNED NULL,
+        category VARCHAR(32) NOT NULL DEFAULT 'general',
+        event_type VARCHAR(96) NOT NULL,
+        title VARCHAR(180) NOT NULL,
+        message VARCHAR(1200) NOT NULL,
+        metadata_json JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_admin_activity_event_key (event_key),
+        KEY idx_admin_activity_created (created_at, id),
+        KEY idx_admin_activity_category_created (category, created_at),
+        KEY idx_admin_activity_user_created (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS admin_activity_notification_reads (
+        notification_id BIGINT UNSIGNED NOT NULL,
+        admin_id BIGINT UNSIGNED NOT NULL,
+        read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (notification_id, admin_id),
+        KEY idx_admin_activity_reads_admin (admin_id, read_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS notification_email_logs (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         notification_id BIGINT UNSIGNED NOT NULL,
