@@ -40,3 +40,36 @@ test("rejects unknown fixtures and unsupported transitions", () => {
   assert.equal(runAction(state, "missing", "rejected", "reason").ok, false);
   assert.equal(runAction(state, "QA-DEP-001", "approved", "reason").ok, false);
 });
+
+
+test("keeps every initial fixture synthetic and outside monetary states", () => {
+  const fixtures = createInitialQaFixtures();
+  assert.ok(fixtures.length > 0);
+  for (const fixture of fixtures) {
+    assert.equal(fixture.asset, "TEST-USD");
+    assert.equal(fixture.network, "QA-ONLY");
+    assert.match(fixture.id, /^QA-DEP-\\d+$/);
+    assert.match(fixture.txid, /^qa_tx_/);
+    assert.ok(["pending_review", "duplicate_flagged"].includes(fixture.status));
+    assert.ok(!["credited", "settled", "withdrawable", "approved"].includes(fixture.status));
+  }
+});
+
+test("returns independent fixture copies so page resets cannot mutate the fixture template", () => {
+  const first = createInitialQaFixtures();
+  const second = createInitialQaFixtures();
+  first[0].status = "credited";
+  first.push({ id: "UNSAFE", asset: "USDT", network: "TRON", status: "credited" });
+  assert.equal(second[0].status, "pending_review");
+  assert.equal(second.length, 4);
+  assert.equal(createInitialQaFixtures()[0].status, "pending_review");
+});
+
+test("does not mutate the supplied QA state when an action is applied", () => {
+  const state = { fixtures: createInitialQaFixtures(), audit: [] };
+  const originalStatus = state.fixtures[0].status;
+  const result = runAction(state, "QA-DEP-001", "evidence_reviewed", "Synthetic-only check.");
+  assert.equal(result.ok, true);
+  assert.equal(state.fixtures[0].status, originalStatus);
+  assert.equal(state.audit.length, 0);
+});
