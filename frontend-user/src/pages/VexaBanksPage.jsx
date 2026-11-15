@@ -214,10 +214,10 @@ export default function VexaBanksPage() {
           <div className="flex items-center gap-2"><Activity size={16} className="text-cyan-300"/><h2 className="text-sm font-bold">Public market reference prices</h2></div>
           <p className="mt-1 text-[10px] leading-5 text-slate-500">Read-only public price references. They do not determine, mint, convert, or revalue your VexaBanks virtual balances.</p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {marketPrices.map((row) => <div key={row.symbol} className="rounded-xl border border-white/10 bg-black/20 p-3"><small className="text-[9px] text-slate-500">{row.symbol}</small><b className="mt-1 block break-all text-sm text-white">{money(row.price)}</b><span className={`mt-1 block text-[9px] ${Number(row.change24hPercent) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{Number(row.change24hPercent) >= 0 ? "+" : ""}{money(row.change24hPercent)}%</span></div>)}
+            {marketPrices.map((row) => <div key={row.symbol} className="rounded-xl border border-white/10 bg-black/20 p-3"><small className="text-[9px] text-slate-500">{row.symbol}</small><b className="mt-1 block break-all text-sm text-white">{money(row.price)}</b><span className={`mt-1 block text-[9px] ${Number(row.change24hPercent) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{Number(row.change24hPercent) >= 0 ? "+" : ""}{money(row.change24hPercent)}%</span><small className="mt-1 text-[8px] text-slate-600">{row.source || "Market reference"}</small></div>)}
             {!marketPrices.length && <p className="col-span-2 py-4 text-center text-[10px] text-slate-600 sm:col-span-4">Market references are temporarily unavailable.</p>}
           </div>
-          <p className="mt-2 text-[9px] text-slate-600">Source: Binance public market reference feed · observed at refresh time.</p>
+          <p className="mt-2 text-[9px] text-slate-600">Provider is shown per symbol; public price references are independent of the internal simulator ledger.</p>
         </section>
         <div className="flex items-center gap-2"><Wallet size={17} className="text-cyan-300"/><h2 className="text-sm font-bold">Virtual asset balances</h2></div>
         {loading ? <div className="rounded-2xl border border-white/10 p-8 text-center text-xs text-slate-500">Loading VexaBanks ledger…</div> :
