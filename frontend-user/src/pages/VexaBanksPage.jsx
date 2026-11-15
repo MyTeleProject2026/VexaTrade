@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { vexaBanksApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
-import { normalizeVexaBanksBalance, isVexaBanksAddressRef } from "../../../frontend-transaction-tools/src/vexaBanksModel.js";
+import { normalizeVexaBanksBalance, isVexaBanksAddressRef } from "../utils/vexaBanksModel.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 const NETWORK_LABELS = {
