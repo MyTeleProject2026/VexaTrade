@@ -25,7 +25,7 @@ const short = (value, left = 14, right = 9) => {
 };
 const date = (value) => value ? new Date(value).toLocaleString() : '—';
 
-export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
+export default function VexaBanksOwnerConsole({ apiBase, token, onToast, onUnauthorized }) {
   const [tab, setTab] = useState('Overview');
   const [overview, setOverview] = useState(null);
   const [deposits, setDeposits] = useState([]);
@@ -56,6 +56,10 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
       },
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      onUnauthorized?.();
+      throw new Error('Your VexaTrade owner session expired or access was denied. Sign in again.');
+    }
     if (!response.ok || payload.success === false) throw new Error(payload.message || ('Request failed (' + response.status + ')'));
     return payload.data ?? payload;
   }, [apiBase, token]);
