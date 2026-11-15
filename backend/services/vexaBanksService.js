@@ -41,6 +41,14 @@ function normalizeReference(value) {
   return text ? text.slice(0, 190) : null;
 }
 
+function createInternalTxId(randomBytes = crypto.randomBytes) {
+  return 'VXB-TX-' + randomBytes(32).toString('hex');
+}
+
+function computeBlockHash({ height, previousHash, merkleRoot, timestamp }) {
+  return 'VXB-BLOCK-' + sha256([CHAIN_ID, Number(height), String(previousHash), String(merkleRoot), String(timestamp)].join('|'));
+}
+
 async function ensureAsset(connection, assetCode, networkCode) {
   const [rows] = await connection.execute(
     `SELECT asset_code, network_code, display_name, token_symbol, decimals,
@@ -145,10 +153,10 @@ async function appendInternalTransaction(connection, input) {
   if (!chainState) throw new Error('VexaBanks chain genesis has not been initialized.');
   const height = Number(chainState.last_height) + 1;
   const previousHash = String(chainState.last_hash);
-  const txid = 'VXB-TX-' + crypto.randomBytes(32).toString('hex');
+  const txid = createInternalTxId();
   const merkleRoot = sha256(txid);
   const createdAt = new Date().toISOString();
-  const blockHash = 'VXB-BLOCK-' + sha256([CHAIN_ID, height, previousHash, merkleRoot, createdAt].join('|'));
+  const blockHash = computeBlockHash({ height, previousHash, merkleRoot, timestamp: createdAt });
 
   await connection.execute(
     `INSERT INTO vexabanks_transactions
@@ -169,7 +177,7 @@ async function appendInternalTransaction(connection, input) {
     `INSERT INTO vexabanks_blocks
       (height, block_hash, previous_hash, merkle_root, transaction_count, metadata_json, created_at)
      VALUES (?, ?, ?, ?, 1, ?, NOW())`,
-    [height, blockHash, previousHash, merkleRoot, JSON.stringify({ chainId: CHAIN_ID, simulated: true, transactionId: txid })]
+    [height, blockHash, previousHash, merkleRoot, JSON.stringify({ chainId: CHAIN_ID, simulated: true, transactionId: txid, timestamp: createdAt })]
   );
   await connection.execute(
     'UPDATE vexabanks_chain_state SET last_height = ?, last_hash = ? WHERE chain_id = ?',
@@ -343,6 +351,8 @@ module.exports = {
   CHAIN_ID,
   INTERNAL_NETWORKS,
   sha256,
+  createInternalTxId,
+  computeBlockHash,
   parseUnits,
   formatUnits,
   accountRef,
