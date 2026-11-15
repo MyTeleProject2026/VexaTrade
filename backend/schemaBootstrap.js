@@ -679,6 +679,18 @@ async function ensureFinancialSchema() {
     `);
 
     await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_user_controls (
+        user_id BIGINT UNSIGNED NOT NULL,
+        is_frozen TINYINT(1) NOT NULL DEFAULT 0,
+        freeze_reason VARCHAR(500) NULL,
+        updated_by BIGINT UNSIGNED NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id),
+        KEY idx_vexabanks_user_controls_frozen (is_frozen, updated_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
       CREATE TABLE IF NOT EXISTS vexabanks_audit_events (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         admin_id BIGINT UNSIGNED NOT NULL,
