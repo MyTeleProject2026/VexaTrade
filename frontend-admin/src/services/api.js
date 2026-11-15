@@ -50,6 +50,7 @@ export const adminApi = {
   getVexaBanksRequests: (kind = "deposit", status = "PENDING_REVIEW", token) => api.get("/api/vexabanks/admin/requests", { ...authHeaders(token), params: { kind, status } }),
   getVexaBanksAccounts: (token) => api.get("/api/vexabanks/admin/accounts", authHeaders(token)),
   getVexaBanksTokens: (token) => api.get("/api/vexascan/tokens", authHeaders(token)),
+  getVexaBanksMarketPrices: () => api.get("/api/vexabanks/market-prices"),
   getVexaScanBlocks: (limit = 20, token) => api.get("/api/vexascan/blocks", { ...authHeaders(token), params: { limit } }),
   getVexaScanTransaction: (txid, token) => api.get(`/api/vexascan/tx/${encodeURIComponent(txid)}`, authHeaders(token)),
   getVexaScanBlock: (height, token) => api.get(`/api/vexascan/blocks/${encodeURIComponent(height)}`, authHeaders(token)),
