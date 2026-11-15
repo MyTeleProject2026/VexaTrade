@@ -451,6 +451,8 @@ router.post('/vexabanks/admin/users/:id/issue', authAdmin, asyncRoute(async (req
     await connection.beginTransaction();
     const [[targetUser]] = await connection.execute('SELECT id FROM users WHERE id = ? LIMIT 1 FOR UPDATE', [Number(req.params.id)]);
     if (!targetUser) throw createError(404, 'VexaTrade user was not found.');
+    const [[control]] = await connection.execute('SELECT is_frozen FROM vexabanks_user_controls WHERE user_id = ? LIMIT 1 FOR UPDATE', [Number(req.params.id)]);
+    if (Number(control?.is_frozen || 0) === 1) throw createError(403, 'Virtual issuance is disabled while this VexaBanks user account is frozen.');
     const asset = await ensureAsset(connection, assetCode, networkCode);
     const amountUnits = require('../../services/vexaBanksService').parseUnits(req.body.amount, Number(asset.decimals));
     const issuance = await ensureAccount(connection, { ownerType: 'SYSTEM', role: 'ISSUANCE', assetCode, networkCode });
