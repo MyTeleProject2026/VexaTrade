@@ -417,28 +417,40 @@ router.post('/vexabanks/admin/withdrawals/:id/reject', authAdmin, asyncRoute(asy
 
 router.post('/vexabanks/admin/users/:id/freeze', authAdmin, asyncRoute(async (req, res) => {
   if (!validId(req.params.id)) throw createError(400, 'Invalid user ID.');
+  const userId = Number(req.params.id);
   const frozen = req.body.frozen === true;
   const freezeReason = clean(req.body.note, 500);
-  const [[targetUser]] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [Number(req.params.id)]);
-  if (!targetUser) throw createError(404, 'VexaTrade user was not found.');
-  await pool.execute(
-    `INSERT INTO vexabanks_user_controls (user_id, is_frozen, freeze_reason, updated_by)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE is_frozen = VALUES(is_frozen),
-       freeze_reason = VALUES(freeze_reason), updated_by = VALUES(updated_by), updated_at = NOW()`,
-    [Number(req.params.id), frozen ? 1 : 0, frozen ? (freezeReason || 'Frozen by VexaBanks owner.') : null, req.admin.id]
-  );
-  const [result] = await pool.execute(
-    `UPDATE vexabanks_accounts SET status = ?, updated_at = NOW()
-     WHERE owner_type = 'USER' AND owner_id = ?`,
-    [frozen ? 'FROZEN' : 'ACTIVE', Number(req.params.id)]
-  );
-  await pool.execute(
-    `INSERT INTO vexabanks_audit_events (admin_id, action, target_user_id, metadata_json)
-     VALUES (?, ?, ?, ?)`,
-    [req.admin.id, frozen ? 'SIM_USER_ASSETS_FROZEN' : 'SIM_USER_ASSETS_UNFROZEN', Number(req.params.id), JSON.stringify({ affectedAccounts: Number(result.affectedRows) })]
-  );
-  res.json({ success: true, data: { userId: Number(req.params.id), frozen, affectedAccounts: Number(result.affectedRows) } });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [[targetUser]] = await connection.execute('SELECT id FROM users WHERE id = ? LIMIT 1 FOR UPDATE', [userId]);
+    if (!targetUser) throw createError(404, 'VexaTrade user was not found.');
+    await connection.execute(
+      `INSERT INTO vexabanks_user_controls (user_id, is_frozen, freeze_reason, updated_by)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE is_frozen = VALUES(is_frozen),
+         freeze_reason = VALUES(freeze_reason), updated_by = VALUES(updated_by), updated_at = NOW()`,
+      [userId, frozen ? 1 : 0, frozen ? (freezeReason || 'Frozen by VexaBanks owner.') : null, req.admin.id]
+    );
+    const [result] = await connection.execute(
+      `UPDATE vexabanks_accounts SET status = ?, updated_at = NOW()
+       WHERE owner_type = 'USER' AND owner_id = ?`,
+      [frozen ? 'FROZEN' : 'ACTIVE', userId]
+    );
+    await connection.execute(
+      `INSERT INTO vexabanks_audit_events (admin_id, action, target_user_id, metadata_json)
+       VALUES (?, ?, ?, ?)`,
+      [req.admin.id, frozen ? 'SIM_USER_ASSETS_FROZEN' : 'SIM_USER_ASSETS_UNFROZEN', userId,
+        JSON.stringify({ affectedAccounts: Number(result.affectedRows), reason: freezeReason || null })]
+    );
+    await connection.commit();
+    res.json({ success: true, data: { userId, frozen, affectedAccounts: Number(result.affectedRows) } });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }));
 
 router.post('/vexabanks/admin/users/:id/issue', authAdmin, asyncRoute(async (req, res) => {
