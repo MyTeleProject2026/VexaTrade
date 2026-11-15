@@ -49,6 +49,16 @@ function computeBlockHash({ height, previousHash, merkleRoot, timestamp }) {
   return 'VXB-BLOCK-' + sha256([CHAIN_ID, Number(height), String(previousHash), String(merkleRoot), String(timestamp)].join('|'));
 }
 
+async function assertUserCanUseVexaBanks(connection, userId) {
+  const [[control]] = await connection.execute(
+    'SELECT is_frozen FROM vexabanks_user_controls WHERE user_id = ? LIMIT 1',
+    [userId]
+  );
+  if (Number(control?.is_frozen || 0) === 1) {
+    throw Object.assign(new Error('Your VexaBanks simulated asset account is frozen by the owner. New deposit and withdrawal requests are disabled.'), { status: 403 });
+  }
+}
+
 async function ensureAsset(connection, assetCode, networkCode) {
   const [rows] = await connection.execute(
     `SELECT asset_code, network_code, display_name, token_symbol, decimals,
@@ -129,19 +139,24 @@ async function appendInternalTransaction(connection, input) {
   if (from.asset_code !== assetCode || to.asset_code !== assetCode || from.network_code !== networkCode || to.network_code !== networkCode) {
     throw new Error('VexaBanks transfer cannot cross asset or simulated-network boundaries.');
   }
-  if (to.status !== 'ACTIVE') throw Object.assign(new Error('Destination VexaBanks account is frozen.'), { status: 409 });
+  const adminMayResolveFrozen = actorType === 'ADMIN';
+  if (to.status !== 'ACTIVE' && !(adminMayResolveFrozen && to.status === 'FROZEN')) {
+    throw Object.assign(new Error('Destination VexaBanks account is frozen.'), { status: 409 });
+  }
 
   const isIssuance = from.owner_type === 'SYSTEM' && from.account_role === 'ISSUANCE';
+  const sourceStatusClause = adminMayResolveFrozen ? "status IN ('ACTIVE','FROZEN')" : "status = 'ACTIVE'";
   const [debit] = await connection.execute(
     `UPDATE vexabanks_accounts
      SET balance_units = balance_units - ?
-     WHERE account_ref = ? AND status = 'ACTIVE' ${isIssuance ? '' : 'AND balance_units >= ?'}`,
+     WHERE account_ref = ? AND ${sourceStatusClause} ${isIssuance ? '' : 'AND balance_units >= ?'}`,
     isIssuance ? [amount.toString(), fromAccountRef] : [amount.toString(), fromAccountRef, amount.toString()]
   );
   if (debit.affectedRows !== 1) throw Object.assign(new Error('Insufficient VexaBanks available or held balance.'), { status: 409 });
+  const destinationStatusClause = adminMayResolveFrozen ? "status IN ('ACTIVE','FROZEN')" : "status = 'ACTIVE'";
   const [credit] = await connection.execute(
     `UPDATE vexabanks_accounts SET balance_units = balance_units + ?, updated_at = NOW()
-     WHERE account_ref = ? AND status = 'ACTIVE'`,
+     WHERE account_ref = ? AND ${destinationStatusClause}`,
     [amount.toString(), toAccountRef]
   );
   if (credit.affectedRows !== 1) throw Object.assign(new Error('Unable to credit destination VexaBanks account.'), { status: 409 });
@@ -188,6 +203,7 @@ async function appendInternalTransaction(connection, input) {
 }
 
 async function createDepositRequest(connection, { userId, assetCode, networkCode, amount, userReference, proofUrl, idempotencyKey }) {
+  await assertUserCanUseVexaBanks(connection, userId);
   const asset = await ensureAsset(connection, assetCode, networkCode);
   const amountUnits = parseUnits(amount, Number(asset.decimals));
   const address = await ensureUserAddress(connection, userId, networkCode);
@@ -269,6 +285,7 @@ async function reviewDepositRequest(connection, { requestId, adminId, approve, n
 }
 
 async function createWithdrawalRequest(connection, { userId, assetCode, networkCode, amount, destinationAddressRef, idempotencyKey }) {
+  await assertUserCanUseVexaBanks(connection, userId);
   const asset = await ensureAsset(connection, assetCode, networkCode);
   const amountUnits = parseUnits(amount, Number(asset.decimals));
   const destinationRef = String(destinationAddressRef || '').trim();
@@ -357,6 +374,7 @@ module.exports = {
   formatUnits,
   accountRef,
   ensureAsset,
+  assertUserCanUseVexaBanks,
   ensureAccount,
   ensureUserAddress,
   appendInternalTransaction,
