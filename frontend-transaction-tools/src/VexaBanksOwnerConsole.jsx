@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { isVexaBanksAddressRef, isVexaScanTxId } from './vexaBanksModel.js';
 import {
   Activity, ArrowDownCircle, ArrowUpCircle, ArrowRightLeft, Blocks, Check, ChevronRight,
   CircleDollarSign, Clock3, Database, ExternalLink, FileSearch, Fingerprint, Lock,
@@ -186,8 +187,8 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
     setExplorerResult(null);
     setError('');
     try {
-      const isTx = /^VXB-TX-[a-f0-9]{64}$/i.test(query);
-      const isAddress = /^VXB1_[A-F0-9]{48}$/i.test(query);
+      const isTx = isVexaScanTxId(query);
+      const isAddress = isVexaBanksAddressRef(query);
       const isBlock = /^\d+$/.test(query);
       if (isTx) setExplorerResult({ type: 'Transaction', data: await request('/api/vexascan/tx/' + encodeURIComponent(query)) });
       else if (isAddress) setExplorerResult({ type: 'Internal address', data: await request('/api/vexascan/address/' + encodeURIComponent(query)) });
