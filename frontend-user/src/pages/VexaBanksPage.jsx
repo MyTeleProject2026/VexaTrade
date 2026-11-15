@@ -81,6 +81,8 @@ export default function VexaBanksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const accountFrozen = snapshot?.accountControl?.isFrozen === true;
+  const freezeReason = snapshot?.accountControl?.freezeReason || "Your VexaBanks virtual account is currently frozen by the owner.";
   const balances = Array.isArray(snapshot?.balances) ? snapshot.balances.map(normalizeVexaBanksBalance).filter(Boolean) : [];
   const deposits = Array.isArray(snapshot?.deposits) ? snapshot.deposits : [];
   const withdrawals = Array.isArray(snapshot?.withdrawals) ? snapshot.withdrawals : [];
@@ -198,6 +200,7 @@ export default function VexaBanksPage() {
         {nav.map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold ${tab === id ? "bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-300/20" : "text-slate-400 hover:bg-white/5"}`}><Icon size={14}/>{label}</button>)}
       </div>
 
+      {accountFrozen && <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-300/25 bg-amber-300/[0.08] p-3 text-xs leading-5 text-amber-100"><LockKeyhole size={15} className="mt-0.5 shrink-0"/><span><b>VexaBanks account frozen by owner.</b> {freezeReason} New virtual deposits, withdrawals and owner issuance are disabled. Existing internal holds and reservations remain visible for review.</span></div>}
       {error && <div role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-xs text-red-200">{error}</div>}
       {lastRequest && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-emerald-200"><CheckCircle2 size={16}/>{lastRequest.type} request recorded</div>
@@ -245,7 +248,7 @@ export default function VexaBanksPage() {
             <input maxLength={190} value={depositForm.reference} onChange={(event) => setDepositForm((value) => ({ ...value, reference: event.target.value }))} placeholder="Team test batch / training note" className="mt-2 w-full rounded-xl border border-white/10 bg-[#050a14] p-3 text-sm text-white"/>
           </label>
           {selectedDepositAddress && <div className="rounded-xl border border-white/10 bg-black/20 p-3"><small className="text-[10px] text-slate-500">Your VexaBanks internal deposit address</small><div className="mt-2 break-all font-mono text-xs text-cyan-200">{selectedDepositAddress.address_ref}</div><button type="button" onClick={() => navigator.clipboard?.writeText(selectedDepositAddress.address_ref)} className="mt-2 inline-flex items-center gap-1 text-[10px] text-slate-400"><Copy size={12}/> Copy internal address</button></div>}
-          <button disabled={submitting || !depositForm.amount} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">{submitting ? <RefreshCw size={15} className="animate-spin"/> : <ArrowDownToLine size={15}/>}Submit virtual deposit to owner hold</button>
+          <button disabled={submitting || accountFrozen || !depositForm.amount} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">{submitting ? <RefreshCw size={15} className="animate-spin"/> : <ArrowDownToLine size={15}/>}Submit virtual deposit to owner hold</button>
         </form>
       </section>}
 
@@ -265,7 +268,7 @@ export default function VexaBanksPage() {
           <label className="block text-xs text-slate-400">Destination VexaBanks internal address (VXB1_)
             <input required spellCheck="false" value={withdrawalForm.destinationAddressRef} onChange={(event) => setWithdrawalForm((value) => ({ ...value, destinationAddressRef: event.target.value.trim() }))} placeholder="VXB1_…" className="mt-2 w-full rounded-xl border border-white/10 bg-[#050a14] p-3 font-mono text-xs text-white"/>
           </label>
-          <button disabled={submitting || !withdrawalForm.amount || !withdrawalForm.destinationAddressRef} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">{submitting ? <RefreshCw size={15} className="animate-spin"/> : <ArrowUpFromLine size={15}/>}Submit internal withdrawal request</button>
+          <button disabled={submitting || accountFrozen || !withdrawalForm.amount || !withdrawalForm.destinationAddressRef} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">{submitting ? <RefreshCw size={15} className="animate-spin"/> : <ArrowUpFromLine size={15}/>}Submit internal withdrawal request</button>
         </form>
       </section>}
 
