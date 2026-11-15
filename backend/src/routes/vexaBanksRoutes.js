@@ -8,6 +8,8 @@ const { getBinanceHomeMarkets } = require('../../services/tradeService');
 const {
   CHAIN_ID,
   INTERNAL_NETWORKS,
+  sha256,
+  computeBlockHash,
   formatUnits,
   ensureAsset,
   ensureAccount,
@@ -542,6 +544,97 @@ router.get('/vexascan/address/:addressRef', asyncRoute(async (req, res) => {
       transactions,
     },
     notice: 'VexaScan displays only VexaBanks internal simulated account records. This is not a public wallet address.',
+  });
+}));
+
+router.get('/vexascan/verify', asyncRoute(async (req, res) => {
+  const [blocks] = await pool.execute(
+    `SELECT height, block_hash, previous_hash, merkle_root, transaction_count, metadata_json
+     FROM vexabanks_blocks ORDER BY height ASC LIMIT 100000`
+  );
+  const [[totalRow]] = await pool.execute('SELECT COUNT(*) AS total FROM vexabanks_blocks');
+  const [transactionGroups] = await pool.execute(
+    `SELECT t.block_height, COUNT(*) AS tx_count, MIN(t.txid) AS txid,
+            MIN(t.amount_units) AS amount_units,
+            SUM(CASE WHEN j.entry_side = 'DEBIT' THEN 1 ELSE 0 END) AS debit_count,
+            SUM(CASE WHEN j.entry_side = 'CREDIT' THEN 1 ELSE 0 END) AS credit_count,
+            SUM(CASE WHEN j.entry_side = 'DEBIT' THEN j.amount_units ELSE 0 END) AS debit_units,
+            SUM(CASE WHEN j.entry_side = 'CREDIT' THEN j.amount_units ELSE 0 END) AS credit_units
+     FROM vexabanks_transactions t
+     LEFT JOIN vexabanks_journal_entries j ON j.txid = t.txid
+     GROUP BY t.block_height ORDER BY t.block_height ASC LIMIT 100000`
+  );
+  const groups = new Map(transactionGroups.map((row) => [Number(row.block_height), row]));
+  const expectedGenesis = 'VXB-GENESIS-' + sha256('VexaBanks Internal Simulated Ledger Genesis v1');
+  let previousHash = 'VXB-NO-PREVIOUS-BLOCK';
+  let failure = null;
+  let checkedBlocks = 0;
+
+  for (const block of blocks) {
+    const height = Number(block.height);
+    let metadata = block.metadata_json ?? null;
+    if (typeof metadata === 'string') {
+      try { metadata = metadata ? JSON.parse(metadata) : null; } catch (_) { metadata = null; }
+    }
+    if (height === 0) {
+      if (block.block_hash !== expectedGenesis || block.previous_hash !== previousHash || Number(block.transaction_count) !== 0) {
+        failure = { height, reason: 'Genesis block does not match the configured VexaBanks genesis record.' };
+        break;
+      }
+    } else {
+      const group = groups.get(height);
+      const txCount = Number(group?.tx_count || 0);
+      if (height !== checkedBlocks || block.previous_hash !== previousHash) {
+        failure = { height, reason: 'Block height sequence or previous-block link is invalid.' };
+        break;
+      }
+      if (!metadata?.timestamp || !group || txCount !== Number(block.transaction_count) || txCount !== 1) {
+        failure = { height, reason: 'Block transaction count or timestamp metadata is invalid.' };
+        break;
+      }
+      if (String(block.merkle_root) !== sha256(group.txid)) {
+        failure = { height, reason: 'Block transaction root does not match the recorded transaction.' };
+        break;
+      }
+      const expectedHash = computeBlockHash({
+        height,
+        previousHash: block.previous_hash,
+        merkleRoot: block.merkle_root,
+        timestamp: metadata.timestamp,
+      });
+      if (block.block_hash !== expectedHash) {
+        failure = { height, reason: 'Block hash does not match its header fields.' };
+        break;
+      }
+      if (Number(group.debit_count) !== 1 || Number(group.credit_count) !== 1
+        || BigInt(String(group.debit_units || '0')) !== BigInt(String(group.amount_units || '0'))
+        || BigInt(String(group.credit_units || '0')) !== BigInt(String(group.amount_units || '0'))) {
+        failure = { height, reason: 'Double-entry debit/credit journal does not balance.' };
+        break;
+      }
+    }
+    previousHash = String(block.block_hash);
+    checkedBlocks += 1;
+  }
+
+  const totalBlocks = Number(totalRow?.total || 0);
+  const complete = totalBlocks === blocks.length;
+  const valid = !failure && complete;
+  res.json({
+    success: true,
+    data: {
+      chainId: CHAIN_ID,
+      simulated: true,
+      valid,
+      complete,
+      totalBlocks,
+      checkedBlocks,
+      latestBlock: checkedBlocks ? checkedBlocks - 1 : null,
+      latestBlockHash: previousHash,
+      failure,
+      checkedAt: new Date().toISOString(),
+    },
+    notice: 'Integrity verification applies only to VexaBanks internal simulated blocks and journal entries. It is not a public blockchain consensus or proof of real token movement.',
   });
 }));
 
