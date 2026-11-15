@@ -124,6 +124,10 @@ router.get('/vexabanks/me', authUser, asyncRoute(async (req, res) => {
      ORDER BY t.id DESC LIMIT 30`,
     [`VXB:USER:${req.user.id}:%`, `VXB:USER:${req.user.id}:%`]
   );
+  const [[userControl]] = await pool.execute(
+    'SELECT is_frozen, freeze_reason, updated_at FROM vexabanks_user_controls WHERE user_id = ? LIMIT 1',
+    [req.user.id]
+  );
   const formattedDeposits = deposits.map(row => ({
     ...row,
     amount: formatUnits(row.amount_units, Number((assets.find(a => a.asset_code === row.asset_code && a.network_code === row.network_code) || {}).decimals || 6)),
@@ -141,6 +145,11 @@ router.get('/vexabanks/me', authUser, asyncRoute(async (req, res) => {
       deposits: formattedDeposits,
       withdrawals: formattedWithdrawals,
       transactions,
+      accountControl: {
+        isFrozen: Number(userControl?.is_frozen || 0) === 1,
+        freezeReason: userControl?.freeze_reason || null,
+        updatedAt: userControl?.updated_at || null,
+      },
     },
   });
 }));
