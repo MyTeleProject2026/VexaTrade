@@ -1,32 +1,55 @@
-# VexaTrade Transaction Tools: Web + Android + iOS
+# VexaBanks Owner Control System + VexaScan
 
-## Web static site and installable PWA
+The Transaction Tools frontend now contains the VexaBanks internal simulated asset system and VexaScan explorer.
+
+## Internal ledger model
+
+- VexaBanks maintains a dedicated internal virtual-asset ledger, separate from VexaTrade's existing external/public-chain adapters and trading ledger.
+- Simulated networks include VexaTRON, VexaETH, VexaBNB, VexaSOL, VexaDOGE and VexaAVAX.
+- The internal token registry uses `VXB-TOKEN:` identifiers. These are **not** public token contracts or mints.
+- Internal account addresses use the `VXB1_` prefix. They are not TRON/EVM/Solana public addresses.
+- Internal transactions use `VXB-TX-` IDs and VexaScan blocks use `VXB-BLOCK-` hashes. These are internal records, not public-chain TXIDs or block hashes.
+- Simulated deposits move from a system issuance account into the VexaBanks owner HOLD account. Admin approval moves the virtual units to a user's VexaBanks available account; rejection moves them to the internal burn account.
+- Simulated withdrawals reserve the user's available units. Admin approval transfers units only between VexaBanks internal accounts; rejection releases the reserve.
+- Every ledger transaction writes equal debit and credit journal entries and is included in a SHA-256-linked internal block sequence.
+
+## User platform
+
+The authenticated user route is `/vexabanks`. It displays each user's internal asset balances, available/reserved/hold amounts, generated VexaBanks addresses, deposit requests, withdrawal requests, and VexaScan internal TXIDs.
+
+User deposit and withdrawal requests are internal simulation requests. A deposit is not available to the user until the owner approves it. A withdrawal does not broadcast funds to a public chain.
+
+## Owner control panel
+
+The VexaBanks owner console is the default Transaction Tools workspace. It supports:
+- Global VexaBanks ledger overview and account totals.
+- Pending virtual deposit and withdrawal review queues.
+- Owner HOLD account visibility.
+- Per-user VexaBanks account freeze/unfreeze.
+- Audited virtual asset issuance for internal testing.
+- Internal token/network registry.
+- VexaScan transaction, address and block lookup.
+- VexaScan internal block-link and double-entry journal verification.
+
+## Market reference prices
+
+The owner console can display public market price references for BTC, ETH, BNB, TRX, SOL, DOGE and AVAX. The source is labeled as public market data. Price references do not create or revalue VexaBanks assets and do not imply public-chain settlement.
+
+## Public-chain reference tools
+
+The existing public network lookup views are separate reference utilities. They do not fund, verify, or settle VexaBanks virtual assets. The VexaBanks owner page does not initiate connected-wallet transfers or public-chain broadcasts.
+
+## Deployment and local development
+
 - Render Static Site root: `frontend-transaction-tools`
-- Build command: `npm install && npm run build`
+- Build: `npm install && npm run build`
 - Publish directory: `dist`
-- The site includes a web app manifest, branded icon, and service worker for shell/offline fallback.
-- The app header includes an **Install app** action: it invokes the browser's native install prompt where supported, or shows Android Chrome, iPhone Safari, and desktop installation steps. The action reports installed state where the browser exposes it.
-- On Android Chrome, open the deployed HTTPS site and use the browser menu's **Install app** or **Add to Home screen** option when available.
-- Public transaction and wallet lookups still require a network connection. The service worker does not cache API responses or represent cached information as live chain data.
 
-## Android APK
-GitHub Actions builds a debug APK for installation/testing and uploads it as an artifact. Download `vexatrade-android-debug-apk` from the workflow run and install the APK on an Android device. Android may ask you to permit installs from your browser/file manager. This is a debug-signed testing package, not a production release.
-
-## iOS
-GitHub Actions builds an iOS Simulator `.app` bundle and uploads it as a ZIP artifact. This is for Simulator testing and **is not an installable iPhone IPA**. A signed physical-device IPA / App Store build requires an Apple Developer account, signing certificate, provisioning profile, and protected CI secrets. Those credentials must be configured by the repository owner; never commit them.
-
-## Run builds
-Push changes to `frontend-transaction-tools/**` or manually run the **Transaction Tools Mobile Packages** workflow from GitHub Actions.
-
-## Local development
 ```bash
 npm install
 npm run dev
+npm test
 npm run build
-npx cap add android
-npx cap add ios
-npx cap sync
 ```
 
-## Security and balance integrity
-The mobile apps bundle the same static frontend. They do not create on-chain transactions, custody keys, verify exchange-account balances, or credit a VexaTrade account. An internal VXT reference is not a blockchain TXID. Real deposit settlement must be implemented and enforced by the authenticated backend.
+All VexaBanks/VexaScan balances and records are simulated internal data. Do not represent VXB addresses, token references, TXIDs or block hashes as real public blockchain artifacts.

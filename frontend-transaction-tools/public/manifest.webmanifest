@@ -1,16 +1,24 @@
 {
   "id": "/",
-  "name": "VexaTrade Transaction Tools",
-  "short_name": "VexaTrade Tools",
-  "description": "Read-only blockchain transaction lookup and wallet balance tools.",
+  "name": "VexaBanks Owner Control System",
+  "short_name": "VexaBanks",
+  "description": "VexaBanks internal simulated asset vault and VexaScan simulated transaction explorer. Not public-chain assets or transfers.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#080f1c",
   "theme_color": "#080f1c",
-  "categories": ["finance", "utilities"],
+  "categories": [
+    "finance",
+    "utilities"
+  ],
   "icons": [
-    { "src": "/vexatrade-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "/vexatrade-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

@@ -98,7 +98,7 @@ async function getBinanceHomeMarkets(symbols) {
   if (response?.data && Array.isArray(response.data)) {
     const rows = response.data;
     const map = new Map(rows.map((row) => [String(row.symbol || "").toUpperCase(), row]));
-    const result = safeSymbols.map((symbol) => map.get(symbol)).filter(Boolean).map(formatMarketRow);
+    const result = safeSymbols.map((symbol) => map.get(symbol)).filter(Boolean).map((row) => ({ ...formatMarketRow(row), source: 'Binance' }));
     if (result.length) return result;
   }
 
@@ -151,7 +151,7 @@ async function getBinanceHomeMarkets(symbols) {
   for (const symbol of safeSymbols) {
     try {
       const price = await getBinancePrice(symbol);
-      result.push({ symbol, price, lastPrice: price, highPrice: 0, lowPrice: 0, volume: 0, priceChangePercent: 0 });
+      result.push({ symbol, price, lastPrice: price, highPrice: 0, lowPrice: 0, volume: 0, priceChangePercent: 0, source: 'Price fallback provider' });
     } catch (_) {
       result.push(buildEmptyMarketRow(symbol));
     }

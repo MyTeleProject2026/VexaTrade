@@ -7,6 +7,7 @@ import { userApi } from "../services/api";
 const menuItems = [
   { icon: LayoutDashboard, label: "Home", path: "/dashboard" },
   { icon: Wallet, label: "Assets", path: "/assets" },
+  { icon: Landmark, label: "VexaBanks (Virtual)", path: "/vexabanks" },
   { icon: CandlestickChart, label: "Trade", path: "/trade" },
   { icon: Landmark, label: "Funds", path: "/funds" },
   { icon: RefreshCw, label: "Convert", path: "/convert" },

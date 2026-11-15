@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vexatrade-tools-shell-v2-20261015';
+const CACHE_NAME = 'vexatrade-tools-shell-v3-20261115';
 const SHELL = ['/', '/manifest.webmanifest', '/vexatrade-icon.svg'];
 
 self.addEventListener('install', event => {

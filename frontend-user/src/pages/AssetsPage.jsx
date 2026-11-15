@@ -19,6 +19,7 @@ import {
   Camera,
   Send,
   Users,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -1087,6 +1088,12 @@ export default function AssetsPage() {
           />
         </div>
       </section>
+
+      <button type="button" onClick={() => navigate("/vexabanks")} className="flex w-full items-center gap-3 rounded-2xl border border-amber-300/20 bg-gradient-to-r from-amber-300/[0.08] to-cyan-300/[0.04] p-4 text-left transition hover:border-amber-200/40">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-200/20 bg-amber-200/10 text-amber-200"><Landmark size={20}/></div>
+        <div className="min-w-0 flex-1"><b className="block text-sm text-white">VexaBanks virtual asset vault</b><span className="mt-1 block text-[10px] leading-5 text-slate-400">Open your separate internal simulated balances, owner-held deposits, VexaBanks addresses and VexaScan transaction history.</span><span className="mt-1 block text-[9px] font-semibold text-amber-200">INTERNAL SIMULATED LEDGER · NOT PUBLIC-CHAIN ASSETS</span></div>
+        <ChevronRight size={18} className="shrink-0 text-slate-500"/>
+      </button>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">

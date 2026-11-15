@@ -53,6 +53,9 @@ jobs:
           node --check src/routes/vexaAccountSso.js
           node --check src/routes/securityRoutes.js
           node --check src/routes/jointAccountRoutes.js
+          node --check src/routes/vexaBanksRoutes.js
+          node --check services/vexaBanksService.js
+          npm run test:vexabanks
           node --check src/routes/assetOperationsRoutes.js
           node --check src/routes/assetSettlementRoutes.js
           node --check src/routes/supportedAssetRoutes.js
@@ -87,6 +90,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Verify Platform Center module card is present
         run: test -f src/components/platform/PlatformModuleCard.jsx
+      - name: Run VexaBanks user regression tests
+        run: npm test
       - run: npm run build
 
   frontend-admin:
@@ -120,4 +125,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install --no-audit --no-fund
+      - name: Run VexaBanks Transaction Tools regression tests
+        run: npm test
       - run: npm run build

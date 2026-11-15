@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.myteleproject.vexatradetransactiontools',
-  appName: 'VexaTrade Transaction Tools',
+  appName: 'VexaBanks Owner Control System',
   webDir: 'dist',
   bundledWebRuntime: false,
   backgroundColor: '#080f1c',

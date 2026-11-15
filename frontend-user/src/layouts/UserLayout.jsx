@@ -11,6 +11,7 @@ import { userApi } from "../services/api";
 const PAGE_META = {
   "/dashboard": { title: "VexaTrade", subtitle: "Overview of your account and market activity" },
   "/assets": { title: "Assets", subtitle: "Wallet balance, funding, and asset records" },
+  "/vexabanks": { title: "VexaBanks", subtitle: "Your virtual simulated assets, owner-held deposits, internal withdrawals, and VexaScan history" },
   "/trade": { title: "Trade", subtitle: "Short-Term and Spot / Long-Term trading" },
   "/funds": { title: "Funds", subtitle: "Active funds, profits, and completed returns" },
   "/convert": { title: "Convert", subtitle: "Exchange supported assets" },
