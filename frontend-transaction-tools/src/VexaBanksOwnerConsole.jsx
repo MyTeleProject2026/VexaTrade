@@ -41,6 +41,8 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
   const [explorerQuery, setExplorerQuery] = useState('');
   const [explorerResult, setExplorerResult] = useState(null);
   const [explorerBusy, setExplorerBusy] = useState(false);
+  const [integrity, setIntegrity] = useState(null);
+  const [integrityBusy, setIntegrityBusy] = useState(false);
 
   const request = useCallback(async (path, options = {}) => {
     const response = await fetch(apiBase + path, {
@@ -162,6 +164,20 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
     }
   }
 
+  async function verifyInternalChain() {
+    setIntegrityBusy(true);
+    setError('');
+    try {
+      const result = await request('/api/vexascan/verify');
+      setIntegrity(result);
+      if (!result.valid) setError(result.failure?.reason || 'The internal ledger verification did not pass or the full chain could not be checked.');
+    } catch (e) {
+      setError(e.message || 'Unable to verify VexaScan chain integrity.');
+    } finally {
+      setIntegrityBusy(false);
+    }
+  }
+
   async function lookupExplorer(event) {
     event.preventDefault();
     const query = explorerQuery.trim();
@@ -195,7 +211,7 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
     <div className="vxb-console">
       <div className="vxb-sim-banner"><ShieldCheck size={18}/><div><b>VEXABANKS INTERNAL SIMULATED NETWORK</b><span>Virtual balances · internal token references · simulated addresses, TXIDs and blocks only · no public-chain transfers</span></div><span className="vxb-sim-badge">SIMULATED</span></div>
       <div className="vxb-console-head">
-        <div><span className="vxb-eyebrow">OWNER CONTROL CENTER</span><h2>VexaBanks</h2><p>Owner vault, user asset ledger, holds, approvals and VexaScan explorer</p></div>
+        <div><span className="vxb-eyebrow">VEXABLANK · OWNER CONTROL CENTER</span><h2>VexaBanks</h2><p>VexaBlank owner vault, user asset ledger, holds, approvals and VexaScan explorer</p></div>
         <button className="secondary" type="button" onClick={() => load()} disabled={loading}>{loading ? <RefreshCw className="spin" size={14}/> : <RefreshCw size={14}/>} Refresh</button>
       </div>
       <div className="vxb-tabs">{panelTabs.map(item => <button type="button" key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}</div>
@@ -212,7 +228,7 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
             <div className="vxb-price-grid">{prices.map(row => <div className="vxb-price" key={row.symbol}><small>{row.symbol}</small><b>{fmt(row.price)}</b><span className={Number(row.change24hPercent) >= 0 ? 'up' : 'down'}>{Number(row.change24hPercent) >= 0 ? '+' : ''}{fmt(row.change24hPercent)}%</span></div>)}</div>
           </section>
         </div>
-        <section className="vxb-card"><div className="vxb-card-title"><Blocks size={16}/><div><b>Latest VexaScan blocks</b><small>Internal hash chain linked to simulated ledger transactions</small></div><button className="vxb-link-button" onClick={() => setTab('VexaScan')}>Open explorer <ChevronRight size={14}/></button></div>
+        <section className="vxb-card"><div className="vxb-card-title"><Blocks size={16}/><div><b>Latest VexaScan blocks</b><small>Internal hash chain linked to simulated ledger transactions</small></div><button className="vxb-link-button" onClick={() => setTab('VexaScan')}>Open explorer <ChevronRight size={14}/></button><button className="vxb-link-button" type="button" onClick={verifyInternalChain} disabled={integrityBusy}>{integrityBusy ? 'Checking…' : 'Verify chain'}</button></div>
           {blocks.slice(0,6).map(row => <div className="vxb-list-row" key={row.height}><div><b>Block #{row.height}</b><small>{short(row.block_hash, 24, 12)} · previous {short(row.previous_hash, 18, 8)}</small></div><span>{row.transaction_count} tx</span><span>{date(row.created_at)}</span></div>)}
         </section>
       </>}
@@ -269,7 +285,8 @@ export default function VexaBanksOwnerConsole({ apiBase, token, onToast }) {
       </section>}
 
       {tab === 'VexaScan' && <section className="vxb-card">
-        <div className="vxb-card-title"><FileSearch size={16}/><div><b>VexaScan internal explorer</b><small>Search internal VexaBanks TXIDs, addresses and block heights.</small></div></div>
+        <div className="vxb-card-title"><FileSearch size={16}/><div><b>VexaScan internal explorer</b><small>Search internal VexaBanks TXIDs, addresses and block heights.</small></div><button className="vxb-link-button" type="button" onClick={verifyInternalChain} disabled={integrityBusy}>{integrityBusy ? 'Verifying…' : 'Verify chain integrity'}</button></div>
+        {integrity && <div className={`vxb-integrity ${integrity.valid ? 'valid' : 'invalid'}`}><b>{integrity.valid ? 'Internal chain integrity verified' : 'Internal chain verification failed'}</b><span>{integrity.checkedBlocks} / {integrity.totalBlocks} blocks checked · latest #{integrity.latestBlock ?? '—'}</span>{integrity.failure && <small>Block #{integrity.failure.height}: {integrity.failure.reason}</small>}<small>This verifies the local simulated block link and double-entry journal only; it is not public blockchain consensus.</small></div>}
         <form className="vxb-explorer-search" onSubmit={lookupExplorer}><input value={explorerQuery} onChange={e => setExplorerQuery(e.target.value)} placeholder="VXB-TX-… · VXB1_… · block height"/><button className="primary" type="submit" disabled={explorerBusy}>{explorerBusy ? <RefreshCw className="spin" size={14}/> : <Search size={14}/>} Search</button></form>
         {explorerResult && <div className="vxb-explorer-result"><b>{explorerResult.type} result</b><pre>{JSON.stringify(explorerResult.data, null, 2)}</pre></div>}
         <div className="vxb-card-title vxb-block-heading"><Blocks size={16}/><div><b>Recent blocks</b><small>Newest first · SHA-256 linked internal blocks</small></div></div>
