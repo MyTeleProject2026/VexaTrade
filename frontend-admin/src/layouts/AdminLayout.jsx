@@ -9,6 +9,7 @@ const PAGE_META = {
   "/admin/control-center": ["Command & Control Center", "Global operational map and live service health."],
   "/admin/dashboard": ["Operations Dashboard", "Platform health, activity and financial operations."],
   "/admin/notifications": ["Notifications Inbox", "Review persisted user notifications and pending-work summaries."],
+  "/admin/vexabanks": ["VexaBanks Owner Vault", "Manage VexaTrade internal simulated asset balances, owner holds, request review, freezes, virtual allocation and VexaScan."],
   "/admin/users": ["User Management", "Account lifecycle, wallet access and user administration."],
   "/admin/account-verification": ["Account Verification Control", "Configure and review staged external-wallet ownership verification."],
   "/admin/account-verification/submissions": ["Submission Review", "Review user-submitted external-wallet verification stages 1 through 3."],
