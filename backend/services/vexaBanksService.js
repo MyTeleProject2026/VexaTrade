@@ -277,7 +277,7 @@ async function reviewDepositRequest(connection, { requestId, adminId, approve, n
   }
   await connection.execute(
     `UPDATE vexabanks_deposit_requests
-     SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_note = ?, txid = ?
+     SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_note = ?, review_txid = ?
      WHERE id = ?`,
     [approve ? 'APPROVED' : 'REJECTED', adminId, String(note || '').slice(0, 500) || null, tx.txid, request.id]
   );
@@ -358,7 +358,7 @@ async function reviewWithdrawalRequest(connection, { requestId, adminId, approve
   });
   await connection.execute(
     `UPDATE vexabanks_withdrawal_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW(),
-      review_note = ?, txid = ? WHERE id = ?`,
+      review_note = ?, review_txid = ? WHERE id = ?`,
     [approve ? 'SETTLED_INTERNAL' : 'REJECTED_RELEASED', adminId, String(note || '').slice(0, 500) || null, tx.txid, request.id]
   );
   return { requestId: request.id, status: approve ? 'SETTLED_INTERNAL' : 'REJECTED_RELEASED', tx, amount: formatUnits(String(request.amount_units), Number(asset.decimals)), asset };
