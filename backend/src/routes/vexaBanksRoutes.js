@@ -418,6 +418,16 @@ router.post('/vexabanks/admin/withdrawals/:id/reject', authAdmin, asyncRoute(asy
 router.post('/vexabanks/admin/users/:id/freeze', authAdmin, asyncRoute(async (req, res) => {
   if (!validId(req.params.id)) throw createError(400, 'Invalid user ID.');
   const frozen = req.body.frozen === true;
+  const freezeReason = clean(req.body.note, 500);
+  const [[targetUser]] = await pool.execute('SELECT id FROM users WHERE id = ? LIMIT 1', [Number(req.params.id)]);
+  if (!targetUser) throw createError(404, 'VexaTrade user was not found.');
+  await pool.execute(
+    `INSERT INTO vexabanks_user_controls (user_id, is_frozen, freeze_reason, updated_by)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE is_frozen = VALUES(is_frozen),
+       freeze_reason = VALUES(freeze_reason), updated_by = VALUES(updated_by), updated_at = NOW()`,
+    [Number(req.params.id), frozen ? 1 : 0, frozen ? (freezeReason || 'Frozen by VexaBanks owner.') : null, req.admin.id]
+  );
   const [result] = await pool.execute(
     `UPDATE vexabanks_accounts SET status = ?, updated_at = NOW()
      WHERE owner_type = 'USER' AND owner_id = ?`,
