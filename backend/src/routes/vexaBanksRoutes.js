@@ -241,7 +241,7 @@ router.post('/vexabanks/me/withdrawals', authUser, asyncRoute(async (req, res) =
   }
 }));
 
-router.get('/vexabanks/market-prices', authAdmin, asyncRoute(async (req, res) => {
+router.get('/vexabanks/market-prices', asyncRoute(async (req, res) => {
   const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'TRXUSDT', 'SOLUSDT', 'DOGEUSDT', 'AVAXUSDT'];
   const rows = await getBinanceHomeMarkets(symbols);
   res.json({
