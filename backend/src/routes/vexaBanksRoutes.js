@@ -250,7 +250,7 @@ router.get('/vexabanks/market-prices', asyncRoute(async (req, res) => {
       symbol: String(row.symbol || '').toUpperCase(),
       price: String(row.lastPrice || row.price || '0'),
       change24hPercent: String(row.priceChangePercent ?? '0'),
-      source: 'Binance public market reference',
+      source: String(row.source || 'Public market reference provider'),
       observedAt: new Date().toISOString(),
       note: 'Reference market prices only; these values do not represent VexaBanks assets on a public blockchain.',
     })),
