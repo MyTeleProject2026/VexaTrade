@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { vexaBanksApi, getApiErrorMessage } from "../services/api";
 import { useNotification } from "../hooks/useNotification";
+import { normalizeVexaBanksBalance, isVexaBanksAddressRef } from "../../../frontend-transaction-tools/src/vexaBanksModel.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://vexatrade-5ycu.onrender.com";
 const NETWORK_LABELS = {
@@ -76,7 +77,7 @@ export default function VexaBanksPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const balances = Array.isArray(snapshot?.balances) ? snapshot.balances : [];
+  const balances = Array.isArray(snapshot?.balances) ? snapshot.balances.map(normalizeVexaBanksBalance).filter(Boolean) : [];
   const deposits = Array.isArray(snapshot?.deposits) ? snapshot.deposits : [];
   const withdrawals = Array.isArray(snapshot?.withdrawals) ? snapshot.withdrawals : [];
   const transactions = Array.isArray(snapshot?.transactions) ? snapshot.transactions : [];
@@ -124,6 +125,12 @@ export default function VexaBanksPage() {
 
   async function submitWithdrawal(event) {
     event.preventDefault();
+    if (!isVexaBanksAddressRef(withdrawalForm.destinationAddressRef)) {
+      const message = "Enter a valid VexaBanks internal destination address beginning with VXB1_. Public wallet addresses are not accepted.";
+      setError(message);
+      showError(message);
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
