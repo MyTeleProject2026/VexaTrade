@@ -57,6 +57,12 @@ router.get('/vexabanks/catalog', authUser, asyncRoute(async (req, res) => {
      FROM vexabanks_assets WHERE status = 'ACTIVE'
      ORDER BY network_code, asset_code`
   );
+  for (const networkCode of [...new Set(assets.map((row) => row.network_code))]) {
+    await ensureUserAddress(pool, req.user.id, networkCode);
+  }
+  for (const networkCode of [...new Set(assets.map((row) => row.network_code))]) {
+    await ensureUserAddress(pool, req.user.id, networkCode);
+  }
   const [addresses] = await pool.execute(
     `SELECT address_ref, network_code, address_kind, status, created_at
      FROM vexabanks_addresses WHERE user_id = ? ORDER BY network_code`,
@@ -233,7 +239,7 @@ router.post('/vexabanks/me/withdrawals', authUser, asyncRoute(async (req, res) =
   }
 }));
 
-router.get('/vexabanks/market-prices', authUser, asyncRoute(async (req, res) => {
+router.get('/vexabanks/market-prices', authAdmin, asyncRoute(async (req, res) => {
   const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'TRXUSDT', 'SOLUSDT', 'DOGEUSDT', 'AVAXUSDT'];
   const rows = await getBinanceHomeMarkets(symbols);
   res.json({
@@ -431,6 +437,8 @@ router.post('/vexabanks/admin/users/:id/issue', authAdmin, asyncRoute(async (req
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    const [[targetUser]] = await connection.execute('SELECT id FROM users WHERE id = ? LIMIT 1 FOR UPDATE', [Number(req.params.id)]);
+    if (!targetUser) throw createError(404, 'VexaTrade user was not found.');
     const asset = await ensureAsset(connection, assetCode, networkCode);
     const amountUnits = require('../../services/vexaBanksService').parseUnits(req.body.amount, Number(asset.decimals));
     const issuance = await ensureAccount(connection, { ownerType: 'SYSTEM', role: 'ISSUANCE', assetCode, networkCode });
