@@ -227,6 +227,7 @@ export const marketApi = {
 export const vexaBanksApi = {
   catalog: (token) => appApiClient.get("/api/vexabanks/catalog", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   me: (token) => appApiClient.get("/api/vexabanks/me", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  marketPrices: () => appApiClient.get("/api/vexabanks/market-prices"),
   deposit: (payload, token) => {
     const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("vexabanks-deposit");
     return appApiClient.post("/api/vexabanks/me/deposits", { ...payload, idempotencyKey }, {
