@@ -9,6 +9,7 @@ const {
   parseUnits,
   formatUnits,
   accountRef,
+  assertUserCanUseVexaBanks,
 } = require('../services/vexaBanksService');
 
 test('VexaBanks uses its own internal chain identifier and simulated networks', () => {
@@ -69,4 +70,25 @@ test('VexaScan block hashes are deterministic and bind the previous block link',
   assert.match(first, /^VXB-BLOCK-[a-f0-9]{64}$/);
   assert.notEqual(first, computeBlockHash({ ...header, previousHash: 'VXB-BLOCK-OTHER' }));
   assert.notEqual(first, computeBlockHash({ ...header, height: 8 }));
+});
+
+test('frozen VexaBanks users cannot create new requests', async () => {
+  const fakeConnection = {
+    async execute() {
+      return [[{ is_frozen: 1 }], []];
+    },
+  };
+  await assert.rejects(
+    assertUserCanUseVexaBanks(fakeConnection, 55),
+    (error) => error.status === 403 && /account is frozen/.test(error.message)
+  );
+});
+
+test('active VexaBanks users can continue to submit internal requests', async () => {
+  const fakeConnection = {
+    async execute() {
+      return [[{ is_frozen: 0 }], []];
+    },
+  };
+  await assert.doesNotReject(assertUserCanUseVexaBanks(fakeConnection, 56));
 });
