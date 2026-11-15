@@ -53,6 +53,9 @@ jobs:
           node --check src/routes/vexaAccountSso.js
           node --check src/routes/securityRoutes.js
           node --check src/routes/jointAccountRoutes.js
+          node --check src/routes/vexaBanksRoutes.js
+          node --check services/vexaBanksService.js
+          npm run test:vexabanks
           node --check src/routes/assetOperationsRoutes.js
           node --check src/routes/assetSettlementRoutes.js
           node --check src/routes/supportedAssetRoutes.js
