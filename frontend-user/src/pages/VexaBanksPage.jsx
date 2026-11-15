@@ -42,6 +42,7 @@ export default function VexaBanksPage() {
   const [snapshot, setSnapshot] = useState(null);
   const [catalog, setCatalog] = useState([]);
   const [addresses, setAddresses] = useState([]);
+  const [marketPrices, setMarketPrices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -56,15 +57,18 @@ export default function VexaBanksPage() {
       if (!quiet) setLoading(true);
       else setRefreshing(true);
       setError("");
-      const [meResult, catalogResult] = await Promise.all([
+      const [meResult, catalogResult, priceResult] = await Promise.all([
         vexaBanksApi.me(),
         vexaBanksApi.catalog(),
+        vexaBanksApi.marketPrices(),
       ]);
       const me = meResult?.data?.data || meResult?.data || {};
       const catalogData = catalogResult?.data?.data || catalogResult?.data || {};
       setSnapshot(me);
       setCatalog(Array.isArray(catalogData.assets) ? catalogData.assets : []);
       setAddresses(Array.isArray(me.addresses) ? me.addresses : (Array.isArray(catalogData.addresses) ? catalogData.addresses : []));
+      const pricePayload = priceResult?.data?.data || priceResult?.data || [];
+      setMarketPrices(Array.isArray(pricePayload) ? pricePayload : []);
     } catch (requestError) {
       const message = getApiErrorMessage(requestError);
       setError(message);
@@ -206,6 +210,15 @@ export default function VexaBanksPage() {
       </section>}
 
       {tab === "balances" && <section className="space-y-3">
+        <section className="rounded-2xl border border-white/10 bg-[#0a1120] p-4">
+          <div className="flex items-center gap-2"><Activity size={16} className="text-cyan-300"/><h2 className="text-sm font-bold">Public market reference prices</h2></div>
+          <p className="mt-1 text-[10px] leading-5 text-slate-500">Read-only public price references. They do not determine, mint, convert, or revalue your VexaBanks virtual balances.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {marketPrices.map((row) => <div key={row.symbol} className="rounded-xl border border-white/10 bg-black/20 p-3"><small className="text-[9px] text-slate-500">{row.symbol}</small><b className="mt-1 block break-all text-sm text-white">{money(row.price)}</b><span className={`mt-1 block text-[9px] ${Number(row.change24hPercent) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{Number(row.change24hPercent) >= 0 ? "+" : ""}{money(row.change24hPercent)}%</span></div>)}
+            {!marketPrices.length && <p className="col-span-2 py-4 text-center text-[10px] text-slate-600 sm:col-span-4">Market references are temporarily unavailable.</p>}
+          </div>
+          <p className="mt-2 text-[9px] text-slate-600">Source: Binance public market reference feed · observed at refresh time.</p>
+        </section>
         <div className="flex items-center gap-2"><Wallet size={17} className="text-cyan-300"/><h2 className="text-sm font-bold">Virtual asset balances</h2></div>
         {loading ? <div className="rounded-2xl border border-white/10 p-8 text-center text-xs text-slate-500">Loading VexaBanks ledger…</div> :
           balances.map((row) => <article key={row.assetCode + row.networkCode} className="rounded-2xl border border-white/10 bg-[#0a1120] p-4">
