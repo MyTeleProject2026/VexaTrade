@@ -81,7 +81,7 @@ export default function VexaBanksPage() {
   const withdrawals = Array.isArray(snapshot?.withdrawals) ? snapshot.withdrawals : [];
   const transactions = Array.isArray(snapshot?.transactions) ? snapshot.transactions : [];
   const totalAvailable = balances.reduce((sum, row) => sum + Number(row.available || 0), 0);
-  const totalHeld = balances.reduce((sum, row) => sum + Number(row.hold || 0), 0);
+  const totalHeld = deposits.reduce((sum, row) => ['PENDING_REVIEW', 'PENDING_INTERNAL_REVIEW'].includes(String(row.status || '').toUpperCase()) ? sum + Number(row.amount || 0) : sum, 0);
   const assetOptions = useMemo(() => {
     const unique = new Map();
     catalog.forEach((asset) => unique.set(asset.asset_code + "|" + asset.network_code, asset));
@@ -179,7 +179,7 @@ export default function VexaBanksPage() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard icon={Wallet} label="Available virtual assets" value={loading ? "…" : balances.length ? fmt(totalAvailable) : "0"} detail="Sum of asset quantities, not a USD valuation"/>
-        <SummaryCard icon={LockKeyhole} label="Owner-held virtual funds" value={loading ? "…" : fmt(totalHeld)} detail="Waiting for VexaBanks owner review"/>
+        <SummaryCard icon={LockKeyhole} label="Owner-held virtual funds" value={loading ? "…" : fmt(totalHeld)} detail="Virtual deposit requests awaiting owner review (mixed assets)"/>
         <SummaryCard icon={Activity} label="VexaScan transactions" value={loading ? "…" : fmt(transactions.length)} detail="Recent internal ledger records"/>
       </div>
 
