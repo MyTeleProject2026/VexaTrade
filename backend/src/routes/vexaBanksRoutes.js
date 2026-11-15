@@ -491,12 +491,20 @@ router.get('/vexascan/blocks/:height', asyncRoute(async (req, res) => {
   const [[block]] = await pool.execute('SELECT * FROM vexabanks_blocks WHERE height = ? LIMIT 1', [height]);
   if (!block) throw createError(404, 'VexaScan block not found.');
   const [transactions] = await pool.execute(
-    `SELECT txid, transaction_type, asset_code, network_code, amount_units, status,
-            from_account_ref, to_account_ref, reference_type, reference_id, note, created_at
-     FROM vexabanks_transactions WHERE block_height = ? ORDER BY id ASC`,
+    `SELECT t.txid, t.transaction_type, t.asset_code, t.network_code, t.amount_units,
+            t.status, t.from_account_ref, t.to_account_ref, t.reference_type,
+            t.reference_id, t.note, t.created_at, a.token_symbol, a.decimals
+     FROM vexabanks_transactions t
+     JOIN vexabanks_assets a ON a.asset_code = t.asset_code AND a.network_code = t.network_code
+     WHERE t.block_height = ? ORDER BY t.id ASC`,
     [height]
   );
-  res.json({ success: true, data: { ...block, transactions }, notice: 'Internal simulated block; no public chain consensus or broadcast is involved.' });
+  const formattedTransactions = transactions.map((row) => ({
+    ...row,
+    amount: formatUnits(String(row.amount_units), Number(row.decimals)),
+    decimals: Number(row.decimals),
+  }));
+  res.json({ success: true, data: { ...block, transactions: formattedTransactions }, notice: 'Internal simulated block; no public chain consensus or broadcast is involved.' });
 }));
 
 router.get('/vexascan/tx/:txid', asyncRoute(async (req, res) => {
@@ -506,8 +514,9 @@ router.get('/vexascan/tx/:txid', asyncRoute(async (req, res) => {
     `SELECT t.txid, t.transaction_type, t.asset_code, t.network_code, t.amount_units,
             t.status, t.block_height, t.from_account_ref, t.to_account_ref,
             t.reference_type, t.reference_id, t.actor_type, t.note, t.metadata_json, t.created_at,
-            b.block_hash, b.previous_hash, b.merkle_root
+            a.token_symbol, a.decimals, b.block_hash, b.previous_hash, b.merkle_root
      FROM vexabanks_transactions t
+     JOIN vexabanks_assets a ON a.asset_code = t.asset_code AND a.network_code = t.network_code
      LEFT JOIN vexabanks_blocks b ON b.height = t.block_height
      WHERE t.txid = ? LIMIT 1`,
     [txid]
@@ -515,7 +524,7 @@ router.get('/vexascan/tx/:txid', asyncRoute(async (req, res) => {
   if (!transaction) throw createError(404, 'VexaScan internal transaction not found.');
   let metadata = transaction.metadata_json ?? null;
   if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch (_) { metadata = null; } }
-  res.json({ success: true, data: { ...transaction, metadata }, notice: 'This is a VexaBanks internal simulated TXID, not a public-chain transaction hash.' });
+  res.json({ success: true, data: { ...transaction, amount: formatUnits(String(transaction.amount_units), Number(transaction.decimals)), decimals: Number(transaction.decimals), metadata }, notice: 'This is a VexaBanks internal simulated TXID, not a public-chain transaction hash.' });
 }));
 
 router.get('/vexascan/address/:addressRef', asyncRoute(async (req, res) => {
@@ -587,7 +596,7 @@ router.get('/vexascan/verify', asyncRoute(async (req, res) => {
       try { metadata = metadata ? JSON.parse(metadata) : null; } catch (_) { metadata = null; }
     }
     if (height === 0) {
-      if (block.block_hash !== expectedGenesis || block.previous_hash !== previousHash || Number(block.transaction_count) !== 0) {
+      if (block.block_hash !== expectedGenesis || block.previous_hash !== previousHash || block.merkle_root !== expectedGenesis || Number(block.transaction_count) !== 0) {
         failure = { height, reason: 'Genesis block does not match the configured VexaBanks genesis record.' };
         break;
       }
