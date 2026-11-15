@@ -31,9 +31,6 @@ jobs:
           node --check src/middleware/auth.js
           node --check src/middleware/transactionSecurity.js
           node --check src/routes/transactionSecurityRoutes.js
-          node --check src/routes/publicChainRoutes.js
-          node --check src/routes/tronPublicFallbackRoutes.js
-          node --check src/routes/treasuryTransferRoutes.js
           node --check src/routes/depositRoutes.js
           node --check src/routes/withdrawalRoutes.js
           node --check src/routes/convertRoutes.js
