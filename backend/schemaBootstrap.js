@@ -503,6 +503,234 @@ async function ensureFinancialSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // VexaBanks is an internal-only simulated ledger. These tables do not
+    // represent public-chain accounts, token contracts, or external balances.
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_assets (
+        asset_code VARCHAR(32) NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        display_name VARCHAR(80) NOT NULL,
+        token_symbol VARCHAR(24) NOT NULL,
+        decimals TINYINT UNSIGNED NOT NULL DEFAULT 6,
+        market_symbol VARCHAR(24) NULL,
+        internal_token_ref VARCHAR(120) NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (asset_code, network_code),
+        UNIQUE KEY uq_vexabanks_internal_token_ref (internal_token_ref),
+        KEY idx_vexabanks_assets_network (network_code, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_accounts (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_ref VARCHAR(120) NOT NULL,
+        owner_type VARCHAR(20) NOT NULL,
+        owner_id BIGINT UNSIGNED NULL,
+        account_role VARCHAR(24) NOT NULL,
+        asset_code VARCHAR(32) NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        balance_units DECIMAL(65,0) NOT NULL DEFAULT 0,
+        status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_vexabanks_account_ref (account_ref),
+        KEY idx_vexabanks_accounts_owner (owner_type, owner_id, asset_code, network_code),
+        KEY idx_vexabanks_accounts_asset (asset_code, network_code, account_role)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_addresses (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        address_ref VARCHAR(96) NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        address_kind VARCHAR(24) NOT NULL DEFAULT 'DEPOSIT',
+        status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_vexabanks_address_ref (address_ref),
+        UNIQUE KEY uq_vexabanks_user_network_address (user_id, network_code, address_kind),
+        KEY idx_vexabanks_addresses_network (network_code, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_chain_state (
+        chain_id VARCHAR(48) NOT NULL,
+        last_height BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        last_hash VARCHAR(96) NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (chain_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_blocks (
+        height BIGINT UNSIGNED NOT NULL,
+        block_hash VARCHAR(96) NOT NULL,
+        previous_hash VARCHAR(96) NOT NULL,
+        merkle_root VARCHAR(96) NOT NULL,
+        transaction_count INT UNSIGNED NOT NULL DEFAULT 0,
+        metadata_json JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (height),
+        UNIQUE KEY uq_vexabanks_block_hash (block_hash)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_transactions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        txid VARCHAR(96) NOT NULL,
+        event_key VARCHAR(190) NOT NULL,
+        transaction_type VARCHAR(48) NOT NULL,
+        asset_code VARCHAR(32) NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        from_account_ref VARCHAR(120) NOT NULL,
+        to_account_ref VARCHAR(120) NOT NULL,
+        amount_units DECIMAL(65,0) NOT NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'CONFIRMED_INTERNAL',
+        block_height BIGINT UNSIGNED NULL,
+        reference_type VARCHAR(48) NULL,
+        reference_id BIGINT UNSIGNED NULL,
+        actor_type VARCHAR(20) NOT NULL DEFAULT 'SYSTEM',
+        actor_id BIGINT UNSIGNED NULL,
+        note VARCHAR(500) NULL,
+        metadata_json JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_vexabanks_txid (txid),
+        UNIQUE KEY uq_vexabanks_event_key (event_key),
+        KEY idx_vexabanks_transactions_block (block_height, id),
+        KEY idx_vexabanks_transactions_asset (asset_code, network_code, created_at),
+        KEY idx_vexabanks_transactions_reference (reference_type, reference_id),
+        KEY idx_vexabanks_transactions_from (from_account_ref, created_at),
+        KEY idx_vexabanks_transactions_to (to_account_ref, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_journal_entries (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        txid VARCHAR(96) NOT NULL,
+        account_ref VARCHAR(120) NOT NULL,
+        entry_side VARCHAR(8) NOT NULL,
+        amount_units DECIMAL(65,0) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_vexabanks_journal_txid (txid, id),
+        KEY idx_vexabanks_journal_account (account_ref, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_deposit_requests (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        asset_code VARCHAR(32) NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        amount_units DECIMAL(65,0) NOT NULL,
+        deposit_address_ref VARCHAR(96) NOT NULL,
+        user_reference VARCHAR(190) NULL,
+        proof_url VARCHAR(1000) NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'PENDING_REVIEW',
+        event_key VARCHAR(190) NOT NULL,
+        txid VARCHAR(96) NULL,
+        reviewed_by BIGINT UNSIGNED NULL,
+        reviewed_at DATETIME NULL,
+        review_note VARCHAR(500) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_vexabanks_deposit_event (event_key),
+        UNIQUE KEY uq_vexabanks_deposit_txid (txid),
+        KEY idx_vexabanks_deposits_user (user_id, created_at),
+        KEY idx_vexabanks_deposits_status (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_withdrawal_requests (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        asset_code VARCHAR(32) NOT NULL,
+        network_code VARCHAR(48) NOT NULL,
+        amount_units DECIMAL(65,0) NOT NULL,
+        destination_address_ref VARCHAR(96) NOT NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'PENDING_REVIEW',
+        event_key VARCHAR(190) NOT NULL,
+        txid VARCHAR(96) NULL,
+        reviewed_by BIGINT UNSIGNED NULL,
+        reviewed_at DATETIME NULL,
+        review_note VARCHAR(500) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_vexabanks_withdrawal_event (event_key),
+        UNIQUE KEY uq_vexabanks_withdrawal_txid (txid),
+        KEY idx_vexabanks_withdrawals_user (user_id, created_at),
+        KEY idx_vexabanks_withdrawals_status (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS vexabanks_audit_events (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        admin_id BIGINT UNSIGNED NOT NULL,
+        action VARCHAR(64) NOT NULL,
+        target_user_id BIGINT UNSIGNED NULL,
+        reference_type VARCHAR(48) NULL,
+        reference_id BIGINT UNSIGNED NULL,
+        metadata_json JSON NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_vexabanks_audit_admin (admin_id, created_at),
+        KEY idx_vexabanks_audit_target (target_user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    const internalAssets = [
+      ['USDT','VEXA-TRON-SIM','Virtual USD Tether','USDT',6,'USDTUSDT'],
+      ['TRX','VEXA-TRON-SIM','Virtual TRON','TRX',6,'TRXUSDT'],
+      ['USDT','VEXA-ETHEREUM-SIM','Virtual USD Tether','USDT',6,'USDTUSDT'],
+      ['ETH','VEXA-ETHEREUM-SIM','Virtual Ether','ETH',18,'ETHUSDT'],
+      ['USDT','VEXA-BNB-SIM','Virtual USD Tether','USDT',18,'USDTUSDT'],
+      ['BNB','VEXA-BNB-SIM','Virtual BNB','BNB',18,'BNBUSDT'],
+      ['USDT','VEXA-SOLANA-SIM','Virtual USD Tether','USDT',6,'USDTUSDT'],
+      ['SOL','VEXA-SOLANA-SIM','Virtual Solana','SOL',9,'SOLUSDT'],
+      ['DOGE','VEXA-DOGE-SIM','Virtual Dogecoin','DOGE',8,'DOGEUSDT'],
+      ['USDT','VEXA-DOGE-SIM','Virtual USD Tether','USDT',6,'USDTUSDT'],
+      ['AVAX','VEXA-AVALANCHE-SIM','Virtual Avalanche','AVAX',18,'AVAXUSDT'],
+      ['USDT','VEXA-AVALANCHE-SIM','Virtual USD Tether','USDT',6,'USDTUSDT']
+    ];
+    for (const [assetCode, networkCode, displayName, symbol, decimals, marketSymbol] of internalAssets) {
+      const internalTokenRef = `VXB-TOKEN:${networkCode}:${assetCode}`;
+      await connection.execute(
+        `INSERT IGNORE INTO vexabanks_assets
+          (asset_code, network_code, display_name, token_symbol, decimals, market_symbol, internal_token_ref, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+        [assetCode, networkCode, displayName, symbol, decimals, marketSymbol, internalTokenRef]
+      );
+    }
+
+    const genesisHash = 'VXB-GENESIS-' + require('crypto').createHash('sha256').update('VexaBanks Internal Simulated Ledger Genesis v1').digest('hex');
+    await connection.execute(
+      `INSERT IGNORE INTO vexabanks_blocks
+        (height, block_hash, previous_hash, merkle_root, transaction_count, metadata_json, created_at)
+       VALUES (0, ?, 'VXB-NO-PREVIOUS-BLOCK', ?, 0, JSON_OBJECT('network','VexaBanks Internal Simulated Ledger','simulated',true), NOW())`,
+      [genesisHash, genesisHash]
+    );
+    await connection.execute(
+      `INSERT IGNORE INTO vexabanks_chain_state (chain_id, last_height, last_hash)
+       VALUES ('VEXABANKS-SIM-1', 0, ?)`,
+      [genesisHash]
+    );
+
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS notification_email_logs (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
