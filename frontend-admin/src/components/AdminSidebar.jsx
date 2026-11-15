@@ -18,6 +18,7 @@ const groups = [
   ]},
   { label: "Finance Operations", items: [
     { label: "Deposits", to: "/admin/deposits", icon: ArrowDownToLine },
+    { label: "VexaBanks Owner Vault", to: "/admin/vexabanks", icon: Landmark },
     { label: "Deposit QA Lab", to: "/admin/deposit-qa", icon: ClipboardCheck },
     { label: "Deposit Networks", to: "/admin/deposit-networks", icon: Network },
     { label: "Deposit Verification", to: "/admin/deposit-verification-settings", icon: ShieldCheck },
