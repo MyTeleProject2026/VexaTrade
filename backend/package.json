@@ -12,7 +12,8 @@
     "sync": "node initSync.js",
     "alchemy:demo": "node scripts/alchemy-demo.js",
     "test:deposits": "node --test test/depositChainVerificationService.test.js",
-    "test:notifications": "node --test test/adminActivityNotificationService.test.js"
+    "test:notifications": "node --test test/adminActivityNotificationService.test.js",
+    "test:vexabanks": "node --test test/vexaBanksService.test.js"
   },
   "keywords": [
     "vexatrade",
