@@ -503,6 +503,12 @@ router.get('/vexascan/blocks/:height', asyncRoute(async (req, res) => {
   );
   const formattedTransactions = transactions.map((row) => ({
     ...row,
+    from_account_ref: row.from_account_ref.startsWith('VXB:USER:')
+      ? 'VXB:ACCOUNT:' + sha256(row.from_account_ref).slice(0, 24)
+      : row.from_account_ref,
+    to_account_ref: row.to_account_ref.startsWith('VXB:USER:')
+      ? 'VXB:ACCOUNT:' + sha256(row.to_account_ref).slice(0, 24)
+      : row.to_account_ref,
     amount: formatUnits(String(row.amount_units), Number(row.decimals)),
     decimals: Number(row.decimals),
   }));
@@ -524,9 +530,22 @@ router.get('/vexascan/tx/:txid', asyncRoute(async (req, res) => {
     [txid]
   );
   if (!transaction) throw createError(404, 'VexaScan internal transaction not found.');
-  let metadata = transaction.metadata_json ?? null;
-  if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch (_) { metadata = null; } }
-  res.json({ success: true, data: { ...transaction, amount: formatUnits(String(transaction.amount_units), Number(transaction.decimals)), decimals: Number(transaction.decimals), metadata }, notice: 'This is a VexaBanks internal simulated TXID, not a public-chain transaction hash.' });
+  res.json({
+    success: true,
+    data: {
+      ...transaction,
+      from_account_ref: transaction.from_account_ref.startsWith('VXB:USER:')
+        ? 'VXB:ACCOUNT:' + sha256(transaction.from_account_ref).slice(0, 24)
+        : transaction.from_account_ref,
+      to_account_ref: transaction.to_account_ref.startsWith('VXB:USER:')
+        ? 'VXB:ACCOUNT:' + sha256(transaction.to_account_ref).slice(0, 24)
+        : transaction.to_account_ref,
+      amount: formatUnits(String(transaction.amount_units), Number(transaction.decimals)),
+      decimals: Number(transaction.decimals),
+      metadata: transaction.metadata_json ? { simulated: true } : null,
+    },
+    notice: 'This is a VexaBanks internal simulated TXID, not a public-chain transaction hash. User account identifiers are anonymized in public explorer results.',
+  });
 }));
 
 router.get('/vexascan/address/:addressRef', asyncRoute(async (req, res) => {
