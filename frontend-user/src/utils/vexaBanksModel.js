@@ -24,7 +24,7 @@ export function normalizeVexaBanksBalance(row) {
   const amounts = {};
   for (const field of fields) {
     const text = String(row[field] ?? '0').trim();
-    if (!/^(?:0|[1-9]\\d*)(?:\\.\\d+)?$/.test(text)) return null;
+    if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(text)) return null;
     amounts[field] = text;
   }
   return {
