@@ -224,6 +224,23 @@ export const marketApi = {
   klines: (symbol, interval = "1m", limit = 300) => appApiClient.get(`/api/market/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${Number(limit)}`),
 };
 
+export const vexaBanksApi = {
+  catalog: (token) => appApiClient.get("/api/vexabanks/catalog", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  me: (token) => appApiClient.get("/api/vexabanks/me", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
+  deposit: (payload, token) => {
+    const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("vexabanks-deposit");
+    return appApiClient.post("/api/vexabanks/me/deposits", { ...payload, idempotencyKey }, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}`, "Idempotency-Key": idempotencyKey },
+    });
+  },
+  withdrawal: (payload, token) => {
+    const idempotencyKey = payload?.idempotencyKey || createIdempotencyKey("vexabanks-withdrawal");
+    return appApiClient.post("/api/vexabanks/me/withdrawals", { ...payload, idempotencyKey }, {
+      headers: { Authorization: `Bearer ${getUserToken(token)}`, "Idempotency-Key": idempotencyKey },
+    });
+  },
+};
+
 export const depositApi = {
   wallets: (token) => appApiClient.get("/api/deposit/wallets", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
   history: (token) => appApiClient.get("/api/deposits", { headers: { Authorization: `Bearer ${getUserToken(token)}` } }),
