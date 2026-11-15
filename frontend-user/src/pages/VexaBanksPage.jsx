@@ -81,8 +81,8 @@ export default function VexaBanksPage() {
   const deposits = Array.isArray(snapshot?.deposits) ? snapshot.deposits : [];
   const withdrawals = Array.isArray(snapshot?.withdrawals) ? snapshot.withdrawals : [];
   const transactions = Array.isArray(snapshot?.transactions) ? snapshot.transactions : [];
-  const totalAvailable = balances.reduce((sum, row) => sum + Number(row.available || 0), 0);
-  const totalHeld = deposits.reduce((sum, row) => ['PENDING_REVIEW', 'PENDING_INTERNAL_REVIEW'].includes(String(row.status || '').toUpperCase()) ? sum + Number(row.amount || 0) : sum, 0);
+  const availableAssetRows = balances.filter((row) => Number(row.available || 0) > 0).length;
+  const pendingDepositCount = deposits.filter((row) => ['PENDING_REVIEW', 'PENDING_INTERNAL_REVIEW'].includes(String(row.status || '').toUpperCase())).length;
   const assetOptions = useMemo(() => {
     const unique = new Map();
     catalog.forEach((asset) => unique.set(asset.asset_code + "|" + asset.network_code, asset));
@@ -185,8 +185,8 @@ export default function VexaBanksPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SummaryCard icon={Wallet} label="Available virtual assets" value={loading ? "…" : balances.length ? fmt(totalAvailable) : "0"} detail="Sum of asset quantities, not a USD valuation"/>
-        <SummaryCard icon={LockKeyhole} label="Owner-held virtual funds" value={loading ? "…" : fmt(totalHeld)} detail="Virtual deposit requests awaiting owner review (mixed assets)"/>
+        <SummaryCard icon={Wallet} label="Assets with available balance" value={loading ? "…" : fmt(availableAssetRows)} detail="Asset/network rows; quantities shown separately below"/>
+        <SummaryCard icon={LockKeyhole} label="Deposits in owner HOLD" value={loading ? "…" : fmt(pendingDepositCount)} detail="Pending requests; each asset amount remains separate"/>
         <SummaryCard icon={Activity} label="VexaScan transactions" value={loading ? "…" : fmt(transactions.length)} detail="Recent internal ledger records"/>
       </div>
 
